@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 use std::sync::Mutex;
 use crate::models::*;
@@ -25,15 +26,24 @@ impl AppState {
     }
 }
 
+fn get_data_dir(app: &AppHandle) -> PathBuf {
+    // 优先使用 D 盘
+    let d_drive_path = PathBuf::from("D:\\GodotHarbor");
+    if d_drive_path.exists() || std::fs::create_dir_all(&d_drive_path).is_ok() {
+        return d_drive_path;
+    }
+    // 如果 D 盘不可用，回退到默认目录
+    app.path().app_data_dir()
+        .expect("Failed to get app data directory")
+}
+
 fn get_storage(app: &AppHandle) -> Storage {
-    let data_dir = app.path().app_data_dir()
-        .expect("Failed to get app data directory");
+    let data_dir = get_data_dir(app);
     Storage::new(data_dir)
 }
 
 fn get_plugin_manager(app: &AppHandle) -> PluginManager {
-    let data_dir = app.path().app_data_dir()
-        .expect("Failed to get app data directory");
+    let data_dir = get_data_dir(app);
     PluginManager::new(data_dir.join("plugins"))
 }
 
@@ -220,8 +230,7 @@ pub fn apply_changes(app: AppHandle, project_id: String) -> Result<ApplyResult, 
     let settings: Settings = storage.load_or_default("settings.json");
     let linker = Linker::new(settings.mount_strategy);
     
-    let data_dir = app.path().app_data_dir()
-        .map_err(|e| e.to_string())?;
+    let data_dir = get_data_dir(&app);
     
     linker.apply_bindings(&project.path, &project_bindings, &data_dir.to_string_lossy())
         .map_err(|e| e.to_string())

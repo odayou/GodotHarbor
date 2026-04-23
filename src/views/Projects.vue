@@ -1,18 +1,32 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { api } from '@/api'
+import type { Project } from '@/types'
+import { open } from '@tauri-apps/plugin-dialog'
 
-const projects = ref<any[]>([])
+const projects = ref<Project[]>([])
 const isLoading = ref(false)
+const debugLog = ref<string[]>([])
 
 onMounted(() => {
   loadProjects()
 })
 
+const addDebugLog = (message: string) => {
+  const timestamp = new Date().toLocaleTimeString()
+  debugLog.value.push(`[${timestamp}] ${message}`)
+  console.log(message)
+}
+
 const loadProjects = async () => {
   isLoading.value = true
+  addDebugLog('开始加载项目列表...')
   try {
-    // TODO: 从后端加载项目列表
+    const result = await api.getProjects()
+    projects.value = result
+    addDebugLog(`成功加载 ${result.length} 个项目`)
   } catch (error) {
+    addDebugLog(`加载项目失败: ${error}`)
     console.error('加载项目失败:', error)
   } finally {
     isLoading.value = false
@@ -20,11 +34,55 @@ const loadProjects = async () => {
 }
 
 const scanProjects = async () => {
-  // TODO: 实现项目扫描
+  isLoading.value = true
+  addDebugLog('开始扫描项目...')
+  try {
+    const settings = await api.getSettings()
+    const rootDirs = settings.scanPaths || ['D:\\']
+    const result = await api.scanProjects(rootDirs)
+    projects.value = result
+    addDebugLog(`扫描完成，发现 ${result.length} 个项目`)
+  } catch (error) {
+    addDebugLog(`扫描项目失败: ${error}`)
+    console.error('扫描项目失败:', error)
+  } finally {
+    isLoading.value = false
+  }
 }
 
 const addProject = async () => {
-  // TODO: 实现添加项目
+  isLoading.value = true
+  addDebugLog('开始添加项目...')
+  try {
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      title: '选择 Godot 项目目录'
+    })
+
+    if (selected && typeof selected === 'string') {
+      const result = await api.addProject(selected)
+      addDebugLog(`成功添加项目: ${result.name}`)
+      await loadProjects()
+    }
+  } catch (error) {
+    addDebugLog(`添加项目失败: ${error}`)
+    console.error('添加项目失败:', error)
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const removeProject = async (projectId: string) => {
+  addDebugLog(`删除项目: ${projectId}`)
+  try {
+    await api.removeProject(projectId)
+    addDebugLog('项目删除成功')
+    await loadProjects()
+  } catch (error) {
+    addDebugLog(`删除项目失败: ${error}`)
+    console.error('删除项目失败:', error)
+  }
 }
 </script>
 
@@ -35,13 +93,15 @@ const addProject = async () => {
       <div class="space-x-3">
         <button
           @click="scanProjects"
-          class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+          :disabled="isLoading"
+          class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
         >
           扫描项目
         </button>
         <button
           @click="addProject"
-          class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          :disabled="isLoading"
+          class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
         >
           添加项目
         </button>
@@ -65,7 +125,7 @@ const addProject = async () => {
     <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       <div
         v-for="project in projects"
-        :key="project.id"
+        :key="project.projectId"
         class="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-shadow p-6"
       >
         <div class="flex items-start justify-between">
@@ -77,20 +137,26 @@ const addProject = async () => {
               {{ project.path }}
             </p>
           </div>
-          <span
-            :class="[
-              'px-2 py-1 text-xs font-medium rounded-full',
-              project.status === 'ready' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
-              project.status === 'warning' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
-              'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-            ]"
+          <button
+            @click="removeProject(project.projectId)"
+            class="text-red-600 hover:text-red-800"
           >
-            {{ project.status }}
-          </span>
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
         <div class="mt-4 flex items-center text-sm text-gray-600 dark:text-gray-400">
           <span class="mr-4">Godot {{ project.godotVersion }}</span>
-          <span>{{ project.pluginCount }} 个插件</span>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="debugLog.length > 0" class="mt-8">
+      <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">调试日志</h3>
+      <div class="bg-gray-100 dark:bg-gray-900 rounded-lg p-4 max-h-64 overflow-y-auto">
+        <div v-for="(log, index) in debugLog" :key="index" class="text-sm text-gray-700 dark:text-gray-300 font-mono">
+          {{ log }}
         </div>
       </div>
     </div>

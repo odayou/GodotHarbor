@@ -20,7 +20,7 @@ tauri-plugin-fs = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }
-uuid = { version = "1", features = ["v4", "serde"] }
+uuid = { version = "1.11", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 dirs = "5"
 walkdir = "2"
@@ -29,8 +29,9 @@ anyhow = "1"
 thiserror = "1"
 tracing = "0.1"
 tracing-subscriber = "0.3"
-serde_with = "=3.12.0"
-time = "=0.3.37"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"
+
+[patch.crates-io]
+serde_with = { git = "https://github.com/jonasbb/serde_with", tag = "v3.12.0" }

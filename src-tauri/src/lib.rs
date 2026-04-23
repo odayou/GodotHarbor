@@ -16,9 +16,16 @@ pub fn run() {
         .setup(|app| {
             let app_handle = app.handle();
             
-            // 初始化数据目录
-            let data_dir = app_handle.path().app_data_dir()
-                .expect("Failed to get app data directory");
+            // 初始化数据目录（优先使用 D 盘）
+            let data_dir = {
+                let d_drive_path = std::path::PathBuf::from("D:\\GodotHarbor");
+                if d_drive_path.exists() || std::fs::create_dir_all(&d_drive_path).is_ok() {
+                    d_drive_path
+                } else {
+                    app_handle.path().app_data_dir()
+                        .expect("Failed to get app data directory")
+                }
+            };
             std::fs::create_dir_all(&data_dir)
                 .expect("Failed to create app data directory");
             

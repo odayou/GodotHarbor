@@ -82,7 +82,7 @@ impl Linker {
         let source_path = if binding.unit_id.is_empty() {
             plugin_path
         } else {
-            plugin_path.join(&binding.subdirectory)
+            plugin_path.join(&binding.unit_id)
         };
 
         let target_path = addons_dir.join(&binding.mount_path);
