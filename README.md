@@ -19,26 +19,31 @@ Godot Harbor 是一款独立桌面应用，用于为 Godot 开发者提供统一
 ## 开发环境要求
 
 - **Node.js**: 18.0 或更高版本
-- **Rust**: 最新稳定版或 nightly 版本
-- **操作系统**: Windows 10/11 (需要 WSL), macOS 10.15+, 或 Linux
+- **Rust**: 1.86.0 或更高版本（推荐使用 GNU 工具链）
+- **操作系统**: Windows 10/11, macOS 10.15+, 或 Linux
 
-## ⚠️ Windows 平台重要说明
+## 💡 Windows 平台建议
 
-**当前 Windows 原生环境无法编译此项目！**
+### Rust 环境配置
 
-### 问题原因
+推荐使用 **GNU 工具链**而非 MSVC 工具链：
 
-1. **依赖包要求**：项目依赖的某些 Rust 包需要 Rust 1.85+ 或 Rust 2024 edition
-2. **Windows Bug**：Rust 1.86+ 在 Windows 上存在进程处理 bug，导致编译失败
-3. **错误信息**：
-   ```
-   thread 'main' panicked at library\std\src\sys_common\process.rs:147:17:
-   called `Result::unwrap()` on an `Err` value: Os { code: 0, kind: Uncategorized, message: "操作成功完成。" }
-   ```
+```powershell
+# 安装 GNU 工具链
+rustup toolchain install 1.86.0-x86_64-pc-windows-gnu
+rustup default 1.86.0-x86_64-pc-windows-gnu
 
-### 解决方案：使用 WSL
+# 验证
+rustc --version
+```
 
-**必须使用 WSL (Windows Subsystem for Linux) 来编译和运行此项目！**
+### 数据存储位置
+
+项目默认将数据存储在 **D:\GodotHarbor**，避免占用 C 盘空间。
+
+### 避免 C 盘占用
+
+如果希望将 Rust 环境也迁移到 D 盘，请参考 [RUST_MIGRATION_GUIDE.md](./RUST_MIGRATION_GUIDE.md)
 
 ## 快速开始
 
@@ -60,46 +65,7 @@ npm run dev
 
 ### 方式二：桌面应用版（完整功能）
 
-#### Windows 用户：使用 WSL
-
-**步骤 1：安装 WSL**
-
-如果尚未安装 WSL，请先安装：
-
-```powershell
-# 以管理员身份运行 PowerShell
-wsl --install
-```
-
-安装完成后重启计算机。
-
-**步骤 2：在 WSL 中设置环境**
-
-```bash
-# 1. 打开 WSL
-wsl
-
-# 2. 进入项目目录（假设项目在 D:\develop\Project\godot\GodotHarbor）
-cd /mnt/d/develop/Project/godot/GodotHarbor
-
-# 3. 安装 Node.js（如果未安装）
-curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-sudo apt-get install -y nodejs
-
-# 4. 安装 Rust（如果未安装）
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source $HOME/.cargo/env
-
-# 5. 安装项目依赖
-npm install
-
-# 6. 启动 Tauri 开发模式
-npm run tauri dev
-```
-
-首次运行会编译 Rust 后端，可能需要 10-20 分钟。
-
-#### Linux/macOS 用户
+#### 所有平台（Windows/macOS/Linux）
 
 ```bash
 # 1. 安装依赖
@@ -108,6 +74,8 @@ npm install
 # 2. 启动 Tauri 开发模式
 npm run tauri dev
 ```
+
+首次运行会编译 Rust 后端，可能需要 10-20 分钟。
 
 ## 构建生产版本
 
@@ -206,35 +174,29 @@ npm run tauri build
 
 ## 常见问题
 
-### 1. Windows 上编译失败
-
-**解决方案**：使用 WSL 编译。参见上方"Windows 用户：使用 WSL"部分。
-
-### 2. 编译时间过长
+### 1. 编译时间过长
 
 Rust 首次编译需要下载和编译大量依赖，这是正常现象。后续编译会快很多。
 
-### 3. Windows 上符号链接权限不足
+### 2. Windows 上符号链接权限不足
 
 Windows 创建符号链接需要管理员权限。应用会自动回退到 junction（目录联接）或 copy（复制）模式。
 
-### 4. Git 克隆失败
+### 3. Git 克隆失败
 
 确保系统已安装 Git，并且网络连接正常。某些地区可能需要配置代理。
 
-### 5. 前端热更新不生效
+### 4. 前端热更新不生效
 
 尝试清除浏览器缓存，或使用无痕模式访问。
 
-### 6. 后端 API 调用失败
+### 5. 后端 API 调用失败
 
 确保在桌面应用模式下运行（`npm run tauri dev`），而不是仅前端模式（`npm run dev`）。
 
-### 7. WSL 中找不到项目目录
+### 6. 项目版本号显示不完整
 
-Windows 的 D: 盘在 WSL 中对应 `/mnt/d/`，例如：
-- Windows: `D:\develop\Project\godot\GodotHarbor`
-- WSL: `/mnt/d/develop/Project/godot/GodotHarbor`
+如果是旧项目，需要重新扫描或删除后重新添加，以获取完整的 Godot 版本号。
 
 ## 贡献指南
 
@@ -255,4 +217,4 @@ MIT License
 
 ---
 
-**注意**：本项目目前受限于 Rust 在 Windows 平台上的 bug，Windows 用户必须使用 WSL 来编译和运行。我们正在关注 Rust 官方的修复进展。
+**注意**：本项目使用 Rust 1.86.0 GNU 工具链在 Windows 原生环境下编译运行，无需 WSL。
