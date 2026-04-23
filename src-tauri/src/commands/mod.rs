@@ -27,12 +27,10 @@ impl AppState {
 }
 
 fn get_data_dir(app: &AppHandle) -> PathBuf {
-    // 优先使用 D 盘
-    let d_drive_path = PathBuf::from("D:\\GodotHarbor");
-    if d_drive_path.exists() || std::fs::create_dir_all(&d_drive_path).is_ok() {
-        return d_drive_path;
-    }
-    // 如果 D 盘不可用，回退到默认目录
+    // 使用 Tauri 标准的跨平台应用数据目录
+    // Windows: %APPDATA%/godot-harbor
+    // macOS: ~/Library/Application Support/godot-harbor
+    // Linux: ~/.config/godot-harbor
     app.path().app_data_dir()
         .expect("Failed to get app data directory")
 }
