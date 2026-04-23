@@ -24,26 +24,47 @@ Godot Harbor 是一款独立桌面应用，用于为 Godot 开发者提供统一
 
 ## 💡 Windows 平台建议
 
-### Rust 环境配置
+### 避免 C 盘占用
 
-推荐使用 **GNU 工具链**而非 MSVC 工具链：
+开发过程中，Rust、Node.js 等工具会下载大量依赖包，容易占用大量 C 盘空间。以下是优化方案：
+
+#### 1. Rust 环境配置（推荐）
+
+推荐使用 **GNU 工具链**，并将 Rust 环境安装到 D 盘：
 
 ```powershell
+# 设置环境变量（永久添加到系统环境变量）
+$env:CARGO_HOME = "D:\Rust\.cargo"
+$env:RUSTUP_HOME = "D:\Rust\.rustup"
+
 # 安装 GNU 工具链
 rustup toolchain install 1.86.0-x86_64-pc-windows-gnu
 rustup default 1.86.0-x86_64-pc-windows-gnu
 
 # 验证
 rustc --version
+rustup show home  # 应显示 D:\Rust\.rustup
 ```
 
-### 数据存储位置
+#### 2. Node.js 依赖位置（可选）
 
-项目默认将数据存储在 **D:\GodotHarbor**，避免占用 C 盘空间。
+Node.js 的 `node_modules` 默认存放在项目目录下，如需全局包也迁移到 D 盘：
 
-### 避免 C 盘占用
+```powershell
+# 设置 npm 全局安装路径
+npm config set prefix "D:\NodeJS\npm"
 
-如果希望将 Rust 环境也迁移到 D 盘，请参考 [RUST_MIGRATION_GUIDE.md](./RUST_MIGRATION_GUIDE.md)
+# 验证
+npm config get prefix
+```
+
+#### 3. 应用数据存储位置
+
+项目默认将**应用运行时数据**（项目信息、插件配置等）存储在 **D:\GodotHarbor**，避免占用 C 盘空间。
+
+如需修改应用数据存储位置：
+- 编辑 `src-tauri/src/commands/mod.rs` 中的 `get_data_dir` 函数
+- 将现有的 `D:\GodotHarbor` 文件夹移动到目标位置后更新代码配置
 
 ## 快速开始
 
