@@ -5,8 +5,8 @@ import type { Settings } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 
 const settings = ref<Settings>({
-  scanPaths: ['D:\\'],
-  mountStrategy: 'symlink',
+  scan_directories: ['D:\\'],
+  mount_strategy: 'Symlink',
   language: 'zh-CN',
   theme: 'light'
 })
@@ -29,7 +29,12 @@ const loadSettings = async () => {
   addDebugLog('开始加载设置...')
   try {
     const result = await api.getSettings()
-    settings.value = result
+    settings.value = {
+      scan_directories: result.scan_directories || [],
+      mount_strategy: result.mount_strategy || 'Symlink',
+      language: result.language || 'zh-CN',
+      theme: result.theme || 'light'
+    }
     addDebugLog('设置加载成功')
   } catch (error) {
     addDebugLog(`加载设置失败: ${error}`)
@@ -49,8 +54,12 @@ const addScanDirectory = async () => {
     })
 
     if (selected && typeof selected === 'string') {
-      if (!settings.value.scanPaths.includes(selected)) {
-        settings.value.scanPaths.push(selected)
+      // 确保数组存在
+      if (!settings.value.scan_directories) {
+        settings.value.scan_directories = []
+      }
+      if (!settings.value.scan_directories.includes(selected)) {
+        settings.value.scan_directories.push(selected)
         addDebugLog(`目录已添加: ${selected}`)
       }
     }
@@ -61,8 +70,10 @@ const addScanDirectory = async () => {
 }
 
 const removeScanDirectory = (index: number) => {
-  addDebugLog(`删除扫描目录: ${settings.value.scanPaths[index]}`)
-  settings.value.scanPaths.splice(index, 1)
+  addDebugLog(`删除扫描目录: ${settings.value.scan_directories[index]}`)
+  if (settings.value.scan_directories) {
+    settings.value.scan_directories.splice(index, 1)
+  }
 }
 
 const saveSettings = async () => {
@@ -98,7 +109,7 @@ const saveSettings = async () => {
             </label>
             <div class="space-y-2">
               <div
-                v-for="(dir, index) in settings.scanPaths"
+                v-for="(dir, index) in settings.scan_directories"
                 :key="index"
                 class="flex items-center space-x-2"
               >
@@ -134,12 +145,12 @@ const saveSettings = async () => {
               默认挂载方式
             </label>
             <select
-              v-model="settings.mountStrategy"
+              v-model="settings.mount_strategy"
               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             >
-              <option value="symlink">符号链接（推荐）</option>
-              <option value="junction">目录联接（Windows）</option>
-              <option value="copy">复制文件</option>
+              <option value="Symlink">符号链接（推荐）</option>
+              <option value="Junction">目录联接（Windows）</option>
+              <option value="Copy">复制文件</option>
             </select>
           </div>
         </div>

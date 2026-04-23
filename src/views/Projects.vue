@@ -38,7 +38,7 @@ const scanProjects = async () => {
   addDebugLog('开始扫描项目...')
   try {
     const settings = await api.getSettings()
-    const rootDirs = settings.scanPaths || ['D:\\']
+    const rootDirs = settings.scan_directories || ['D:\\']
     const result = await api.scanProjects(rootDirs)
     projects.value = result
     addDebugLog(`扫描完成，发现 ${result.length} 个项目`)
