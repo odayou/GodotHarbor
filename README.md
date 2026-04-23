@@ -24,7 +24,7 @@ Godot Harbor 是一款独立桌面应用，用于为 Godot 开发者提供统一
 
 ## 💡 Windows 平台建议
 
-### 避免 C 盘占用
+### 开发环境优化
 
 开发过程中，Rust、Node.js 等工具会下载大量依赖包，容易占用大量 C 盘空间。以下是优化方案：
 
@@ -62,17 +62,9 @@ npm config get prefix
 
 项目使用 Tauri 标准的**跨平台应用数据目录**存储运行时数据（项目信息、插件配置等）：
 
-- **Windows**: `%APPDATA%/godot-harbor` (通常是 `C:\Users\用户名\AppData\Roaming\godot-harbor`)
+- **Windows**: `%APPDATA%/godot-harbor`
 - **macOS**: `~/Library/Application Support/godot-harbor`
 - **Linux**: `~/.config/godot-harbor`
-
-**Windows 用户避免 C 盘占用提示**：
-如果想将应用数据也放到 D 盘，可以修改 `src-tauri/src/commands/mod.rs` 中的 `get_data_dir` 函数，参考之前的硬编码方案。
-
-如需自定义数据存储位置：
-1. 编辑 `src-tauri/src/commands/mod.rs` 中的 `get_data_dir` 函数
-2. 将现有的数据文件夹移动到目标位置
-3. 重新编译应用
 
 ## 快速开始
 
