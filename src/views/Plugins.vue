@@ -80,10 +80,10 @@ const importFromGit = async () => {
   }
 }
 
-const removePlugin = async (pluginId: string) => {
-  addDebugLog(`删除插件: ${pluginId}`)
+const removePlugin = async (plugin_id: string) => {
+  addDebugLog(`删除插件: ${plugin_id}`)
   try {
-    await api.removePlugin(pluginId)
+    await api.removePlugin(plugin_id)
     addDebugLog('插件删除成功')
     await loadPlugins()
   } catch (error) {
@@ -158,7 +158,7 @@ const importFromProjects = async () => {
     <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       <div
         v-for="plugin in plugins"
-        :key="plugin.pluginId"
+        :key="plugin.plugin_id"
         class="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-shadow p-6"
       >
         <div class="flex items-start justify-between">
@@ -171,7 +171,7 @@ const importFromProjects = async () => {
             </p>
           </div>
           <button
-            @click="removePlugin(plugin.pluginId)"
+            @click="removePlugin(plugin.plugin_id)"
             class="text-red-600 hover:text-red-800"
           >
             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

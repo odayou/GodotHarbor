@@ -73,10 +73,10 @@ const addProject = async () => {
   }
 }
 
-const removeProject = async (projectId: string) => {
-  addDebugLog(`删除项目: ${projectId}`)
+const removeProject = async (project_id: string) => {
+  addDebugLog(`删除项目: ${project_id}`)
   try {
-    await api.removeProject(projectId)
+    await api.removeProject(project_id)
     addDebugLog('项目删除成功')
     await loadProjects()
   } catch (error) {

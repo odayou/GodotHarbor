@@ -28,8 +28,8 @@ export const api = {
     return await invoke('add_project', { path })
   },
 
-  async removeProject(projectId: string): Promise<void> {
-    return await invoke('remove_project', { projectId })
+  async removeProject(project_id: string): Promise<void> {
+    return await invoke('remove_project', { project_id })
   },
 
   async importPluginFromLocal(path: string): Promise<Plugin> {
@@ -44,36 +44,36 @@ export const api = {
     return await invoke('get_plugins')
   },
 
-  async removePlugin(pluginId: string): Promise<void> {
-    return await invoke('remove_plugin', { pluginId })
+  async removePlugin(plugin_id: string): Promise<void> {
+    return await invoke('remove_plugin', { plugin_id })
   },
 
   async bindPlugin(
-    projectId: string,
-    pluginId: string,
-    versionId: string,
-    unitId: string,
-    mountPath: string
+    project_id: string,
+    plugin_id: string,
+    version_id: string,
+    unit_id: string,
+    mount_path: string
   ): Promise<void> {
     return await invoke('bind_plugin', {
-      projectId,
-      pluginId,
-      versionId,
-      unitId,
-      mountPath
+      project_id,
+      plugin_id,
+      version_id,
+      unit_id,
+      mount_path
     })
   },
 
-  async unbindPlugin(projectId: string, pluginId: string): Promise<void> {
-    return await invoke('unbind_plugin', { projectId, pluginId })
+  async unbindPlugin(project_id: string, plugin_id: string): Promise<void> {
+    return await invoke('unbind_plugin', { project_id, plugin_id })
   },
 
-  async applyChanges(projectId: string): Promise<ApplyResult> {
-    return await invoke('apply_changes', { projectId })
+  async applyChanges(project_id: string): Promise<ApplyResult> {
+    return await invoke('apply_changes', { project_id })
   },
 
-  async getProjectBindings(projectId: string): Promise<ProjectBinding[]> {
-    return await invoke('get_project_bindings', { projectId })
+  async getProjectBindings(project_id: string): Promise<ProjectBinding[]> {
+    return await invoke('get_project_bindings', { project_id })
   },
   
   async scanProjectPlugins(): Promise<string[]> {
