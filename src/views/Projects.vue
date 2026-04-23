@@ -125,7 +125,7 @@ const removeProject = async (projectId: string) => {
     <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       <div
         v-for="project in projects"
-        :key="project.projectId"
+        :key="project.project_id"
         class="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-shadow p-6"
       >
         <div class="flex items-start justify-between">
@@ -138,7 +138,7 @@ const removeProject = async (projectId: string) => {
             </p>
           </div>
           <button
-            @click="removeProject(project.projectId)"
+            @click="removeProject(project.project_id)"
             class="text-red-600 hover:text-red-800"
           >
             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -147,7 +147,7 @@ const removeProject = async (projectId: string) => {
           </button>
         </div>
         <div class="mt-4 flex items-center text-sm text-gray-600 dark:text-gray-400">
-          <span class="mr-4">Godot {{ project.godotVersion }}</span>
+          <span class="mr-4">Godot {{ project.godot_version }}</span>
         </div>
       </div>
     </div>
