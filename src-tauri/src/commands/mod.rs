@@ -76,7 +76,14 @@ pub fn scan_projects(app: AppHandle, root_dirs: Vec<String>) -> Result<Vec<Proje
     let mut existing_projects: Vec<Project> = storage.load_or_default("projects.json");
     
     for project in &all_projects {
-        if !existing_projects.iter().any(|p| p.path == project.path) {
+        if let Some(index) = existing_projects.iter().position(|p| p.path == project.path) {
+            // 更新已存在项目的信息（保留 project_id 和 status）
+            let mut existing = existing_projects[index].clone();
+            existing.name = project.name.clone();
+            existing.godot_version = project.godot_version.clone();
+            existing_projects[index] = existing;
+        } else {
+            // 添加新项目
             existing_projects.push(project.clone());
         }
     }

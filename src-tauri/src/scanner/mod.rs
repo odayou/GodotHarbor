@@ -60,6 +60,20 @@ impl ProjectScanner {
     }
 
     fn extract_godot_version(content: &str) -> String {
+        // 首先尝试从 config_version 提取完整版本号
+        for line in content.lines() {
+            let line = line.trim();
+            if line.starts_with("config_version") {
+                if let Some(value) = line.split('=').nth(1) {
+                    let value = value.trim();
+                    if !value.is_empty() {
+                        return value.to_string();
+                    }
+                }
+            }
+        }
+        
+        // 尝试从 config/features 提取
         for line in content.lines() {
             let line = line.trim();
             if line.starts_with("config/features") {
@@ -73,6 +87,20 @@ impl ProjectScanner {
                 }
             }
         }
+        
+        // 尝试从 config/name 提取（兜底方案）
+        for line in content.lines() {
+            let line = line.trim();
+            if line.starts_with("config/name") {
+                if let Some(value) = line.split('=').nth(1) {
+                    let value = value.trim().trim_matches('"');
+                    if !value.is_empty() {
+                        return value.to_string();
+                    }
+                }
+            }
+        }
+        
         "Unknown".to_string()
     }
 

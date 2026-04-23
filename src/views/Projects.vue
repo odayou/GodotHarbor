@@ -128,12 +128,12 @@ const removeProject = async (projectId: string) => {
         :key="project.project_id"
         class="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-shadow p-6"
       >
-        <div class="flex items-start justify-between">
-          <div>
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+        <div class="flex items-start justify-between min-w-0">
+          <div class="min-w-0 flex-1">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">
               {{ project.name }}
             </h3>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 truncate">
               {{ project.path }}
             </p>
           </div>
