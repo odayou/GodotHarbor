@@ -2,7 +2,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use anyhow::{Result, Context};
 use uuid::Uuid;
-use crate::models::{Plugin, PluginSource, PluginVersion, PluginUnit, SourceType, Compatibility};
+use walkdir::WalkDir;
+use crate::models::{Plugin, PluginSource, PluginVersion, PluginUnit, SourceType, Compatibility, Project};
 
 pub struct PluginManager {
     plugins_dir: PathBuf,
@@ -12,6 +13,33 @@ impl PluginManager {
     pub fn new(plugins_dir: PathBuf) -> Self {
         fs::create_dir_all(&plugins_dir).ok();
         Self { plugins_dir }
+    }
+    
+    /// 扫描所有项目中的插件目录，返回发现的插件路径列表
+    pub fn scan_project_plugins(&self, projects: &[Project]) -> Result<Vec<PathBuf>> {
+        let mut plugin_paths = Vec::new();
+        
+        for project in projects {
+            let project_path = Path::new(&project.path);
+            let addons_dir = project_path.join("addons");
+            
+            if addons_dir.exists() && addons_dir.is_dir() {
+                for entry in WalkDir::new(&addons_dir)
+                    .max_depth(1)
+                    .into_iter()
+                    .filter_map(|e| e.ok())
+                {
+                    let path = entry.path();
+                    if path.is_dir() && path != addons_dir {
+                        if path.join("plugin.cfg").exists() {
+                            plugin_paths.push(path.to_path_buf());
+                        }
+                    }
+                }
+            }
+        }
+        
+        Ok(plugin_paths)
     }
 
     pub fn import_from_local(&self, source_path: &str) -> Result<Plugin> {

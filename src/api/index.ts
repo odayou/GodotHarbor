@@ -74,5 +74,13 @@ export const api = {
 
   async getProjectBindings(projectId: string): Promise<ProjectBinding[]> {
     return await invoke('get_project_bindings', { projectId })
+  },
+  
+  async scanProjectPlugins(): Promise<string[]> {
+    return await invoke('scan_project_plugins')
+  },
+  
+  async importPluginsFromProjects(): Promise<Plugin[]> {
+    return await invoke('import_plugins_from_projects')
   }
 }

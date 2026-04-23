@@ -91,6 +91,25 @@ const removePlugin = async (pluginId: string) => {
     console.error('删除插件失败:', error)
   }
 }
+
+const importFromProjects = async () => {
+  isLoading.value = true
+  addDebugLog('开始从项目中扫描并导入插件...')
+  try {
+    const importedPlugins = await api.importPluginsFromProjects()
+    if (importedPlugins.length > 0) {
+      addDebugLog(`成功导入 ${importedPlugins.length} 个插件: ${importedPlugins.map(p => p.name).join(', ')}`)
+    } else {
+      addDebugLog('没有发现新的插件可以导入')
+    }
+    await loadPlugins()
+  } catch (error) {
+    addDebugLog(`从项目导入插件失败: ${error}`)
+    console.error('从项目导入插件失败:', error)
+  } finally {
+    isLoading.value = false
+  }
+}
 </script>
 
 <template>
@@ -98,6 +117,13 @@ const removePlugin = async (pluginId: string) => {
     <div class="flex justify-between items-center">
       <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">插件仓库</h1>
       <div class="space-x-3">
+        <button
+          @click="importFromProjects"
+          :disabled="isLoading"
+          class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
+        >
+          从项目导入
+        </button>
         <button
           @click="importFromLocal"
           :disabled="isLoading"

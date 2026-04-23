@@ -252,3 +252,53 @@ pub fn get_project_bindings(app: AppHandle, project_id: String) -> Result<Vec<Pr
         .filter(|b| b.project_id == project_id)
         .collect())
 }
+
+#[tauri::command]
+pub fn scan_project_plugins(app: AppHandle) -> Result<Vec<String>, String> {
+    let storage = get_storage(&app);
+    let projects: Vec<Project> = storage.load_or_default("projects.json");
+    
+    let manager = get_plugin_manager(&app);
+    let plugin_paths = manager.scan_project_plugins(&projects)
+        .map_err(|e| e.to_string())?;
+    
+    Ok(plugin_paths.iter()
+        .map(|p| p.to_string_lossy().to_string())
+        .collect())
+}
+
+#[tauri::command]
+pub fn import_plugins_from_projects(app: AppHandle) -> Result<Vec<Plugin>, String> {
+    let storage = get_storage(&app);
+    let projects: Vec<Project> = storage.load_or_default("projects.json");
+    let mut plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+    
+    let manager = get_plugin_manager(&app);
+    let plugin_paths = manager.scan_project_plugins(&projects)
+        .map_err(|e| e.to_string())?;
+    
+    let mut imported_plugins = Vec::new();
+    
+    for plugin_path in plugin_paths {
+        let path_str = plugin_path.to_string_lossy().to_string();
+        
+        // 检查是否已经导入过该插件
+        let already_imported = plugins.iter()
+            .any(|p| p.source.url == path_str);
+        
+        if !already_imported {
+            match manager.import_from_local(&path_str) {
+                Ok(plugin) => {
+                    imported_plugins.push(plugin.clone());
+                    plugins.push(plugin);
+                }
+                Err(e) => eprintln!("Failed to import plugin from {}: {}", path_str, e),
+            }
+        }
+    }
+    
+    storage.save("plugins.json", &plugins)
+        .map_err(|e| e.to_string())?;
+    
+    Ok(imported_plugins)
+}
