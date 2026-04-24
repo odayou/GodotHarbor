@@ -126,7 +126,7 @@ const showAssetLibraryDialog = ref(false)
 const assetSearchQuery = ref('')
 const assetSearchResults = ref<any[]>([])
 const isSearchingAssets = ref(false)
-const isImportingAsset = ref<number | null>(null)
+const isImportingAsset = ref<string | null>(null)
 
 const openAssetLibrary = () => {
   showAssetLibraryDialog.value = true
@@ -147,7 +147,7 @@ const searchAssets = async () => {
   }
 }
 
-const importAsset = async (assetId: number, assetTitle: string) => {
+const importAsset = async (assetId: string, assetTitle: string) => {
   isImportingAsset.value = assetId
   try {
     await api.importFromAssetLibrary(assetId)

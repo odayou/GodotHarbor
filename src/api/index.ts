@@ -195,7 +195,7 @@ export const api = {
     return await invoke('search_asset_library', { query })
   },
 
-  async importFromAssetLibrary(assetId: number): Promise<Plugin> {
+  async importFromAssetLibrary(assetId: string): Promise<Plugin> {
     return await invoke('import_from_asset_library', { assetId })
   }
 }

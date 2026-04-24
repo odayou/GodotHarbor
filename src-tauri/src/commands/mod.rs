@@ -1091,7 +1091,7 @@ pub fn resolve_plugin_dependencies(app: AppHandle, plugin_id: String) -> Result<
 #[tauri::command]
 pub fn search_asset_library(app: AppHandle, query: String) -> Result<serde_json::Value, String> {
     let url = format!(
-        "https://godotengine.org/asset-library/api/v2/search?filter={}&type=any&godot_version=any&cost=any&sort=updated&page=1&max_results=20",
+        "https://godotengine.org/asset-library/api/asset?filter={}&type=any&godot_version=any&cost=any&sort=updated&max_results=20",
         urlencoding::encode(&query)
     );
 
@@ -1103,17 +1103,24 @@ pub fn search_asset_library(app: AppHandle, query: String) -> Result<serde_json:
     let resp = client.get(&url).send()
         .map_err(|e| format!("请求 Asset Library 失败: {}", e))?;
 
-    let json: serde_json::Value = resp.json()
-        .map_err(|e| format!("解析 Asset Library 响应失败: {}", e))?;
+    if !resp.status().is_success() {
+        return Err(format!("Asset Library 返回错误状态: {}", resp.status()));
+    }
+
+    let text = resp.text()
+        .map_err(|e| format!("读取 Asset Library 响应失败: {}", e))?;
+
+    let json: serde_json::Value = serde_json::from_str(&text)
+        .map_err(|e| format!("解析 Asset Library 响应失败: {} (响应前100字符: {})", e, &text[..text.len().min(100)]))?;
 
     log_operation(&app, "search_asset_library", "", &format!("搜索 Asset Library: {}", query));
     Ok(json)
 }
 
 #[tauri::command]
-pub fn import_from_asset_library(app: AppHandle, asset_id: i64) -> Result<Plugin, String> {
+pub fn import_from_asset_library(app: AppHandle, asset_id: String) -> Result<Plugin, String> {
     let url = format!(
-        "https://godotengine.org/asset-library/api/v2/asset/{}",
+        "https://godotengine.org/asset-library/api/asset/{}",
         asset_id
     );
 
