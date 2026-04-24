@@ -69,3 +69,10 @@ export interface ConflictInfo {
   path: string
   message: string
 }
+
+export interface LogEntry {
+  timestamp: string
+  action: string
+  target: string
+  detail: string
+}

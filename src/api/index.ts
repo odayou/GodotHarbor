@@ -4,7 +4,8 @@ import type {
   Project, 
   ProjectBinding, 
   Settings, 
-  ApplyResult 
+  ApplyResult,
+  LogEntry
 } from '@/types'
 
 export const api = {
@@ -75,12 +76,16 @@ export const api = {
   async getProjectBindings(project_id: string): Promise<ProjectBinding[]> {
     return await invoke('get_project_bindings', { project_id })
   },
-  
+
   async scanProjectPlugins(): Promise<string[]> {
     return await invoke('scan_project_plugins')
   },
-  
+
   async importPluginsFromProjects(): Promise<Plugin[]> {
     return await invoke('import_plugins_from_projects')
+  },
+
+  async getOperationLogs(limit?: number): Promise<LogEntry[]> {
+    return await invoke('get_operation_logs', { limit })
   }
 }

@@ -4,6 +4,7 @@ pub mod storage;
 pub mod scanner;
 pub mod plugin_manager;
 pub mod linker;
+pub mod operation_log;
 
 use tauri::Manager;
 
@@ -15,25 +16,16 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             let app_handle = app.handle();
-            
-            // 初始化数据目录（优先使用 D 盘）
-            let data_dir = {
-                let d_drive_path = std::path::PathBuf::from("D:\\GodotHarbor");
-                if d_drive_path.exists() || std::fs::create_dir_all(&d_drive_path).is_ok() {
-                    d_drive_path
-                } else {
-                    app_handle.path().app_data_dir()
-                        .expect("Failed to get app data directory")
-                }
-            };
+            let data_dir = app_handle.path().app_data_dir()
+                .expect("Failed to get app data directory");
             std::fs::create_dir_all(&data_dir)
                 .expect("Failed to create app data directory");
-            
-            // 初始化插件存储目录
             let plugins_dir = data_dir.join("plugins");
             std::fs::create_dir_all(&plugins_dir)
                 .expect("Failed to create plugins directory");
-            
+            let logs_dir = data_dir.join("logs");
+            std::fs::create_dir_all(&logs_dir)
+                .expect("Failed to create logs directory");
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -53,6 +45,7 @@ pub fn run() {
             commands::get_project_bindings,
             commands::scan_project_plugins,
             commands::import_plugins_from_projects,
+            commands::get_operation_logs,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
