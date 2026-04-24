@@ -3,30 +3,21 @@ import { ref, onMounted } from 'vue'
 import { api } from '@/api'
 import type { Settings } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
+import { useToast } from '@/composables/useToast'
 
+const toast = useToast()
 const settings = ref<Settings>({
-  scan_directories: ['D:\\'],
+  scan_directories: [],
   mount_strategy: 'Symlink',
   language: 'zh-CN',
   theme: 'light'
 })
-
 const isLoading = ref(false)
-const debugLog = ref<string[]>([])
 
-onMounted(() => {
-  loadSettings()
-})
-
-const addDebugLog = (message: string) => {
-  const timestamp = new Date().toLocaleTimeString()
-  debugLog.value.push(`[${timestamp}] ${message}`)
-  console.log(message)
-}
+onMounted(() => { loadSettings() })
 
 const loadSettings = async () => {
   isLoading.value = true
-  addDebugLog('开始加载设置...')
   try {
     const result = await api.getSettings()
     settings.value = {
@@ -35,59 +26,36 @@ const loadSettings = async () => {
       language: result.language || 'zh-CN',
       theme: result.theme || 'light'
     }
-    addDebugLog('设置加载成功')
-  } catch (error) {
-    addDebugLog(`加载设置失败: ${error}`)
-    console.error('加载设置失败:', error)
-  } finally {
-    isLoading.value = false
-  }
+  } catch (error) { toast.error(`加载设置失败: ${error}`) }
+  finally { isLoading.value = false }
 }
 
 const addScanDirectory = async () => {
-  addDebugLog('开始添加扫描目录...')
   try {
-    const selected = await open({
-      directory: true,
-      multiple: false,
-      title: '选择扫描目录'
-    })
-
+    const selected = await open({ directory: true, multiple: false, title: '选择扫描目录' })
     if (selected && typeof selected === 'string') {
-      // 确保数组存在
-      if (!settings.value.scan_directories) {
-        settings.value.scan_directories = []
-      }
+      if (!settings.value.scan_directories) settings.value.scan_directories = []
       if (!settings.value.scan_directories.includes(selected)) {
         settings.value.scan_directories.push(selected)
-        addDebugLog(`目录已添加: ${selected}`)
-      }
+        toast.info(`已添加目录: ${selected}`)
+      } else { toast.warning('该目录已存在') }
     }
-  } catch (error) {
-    addDebugLog(`添加目录失败: ${error}`)
-    console.error('添加目录失败:', error)
-  }
+  } catch (error) { toast.error(`添加目录失败: ${error}`) }
 }
 
 const removeScanDirectory = (index: number) => {
-  addDebugLog(`删除扫描目录: ${settings.value.scan_directories[index]}`)
-  if (settings.value.scan_directories) {
-    settings.value.scan_directories.splice(index, 1)
-  }
+  const dir = settings.value.scan_directories[index]
+  settings.value.scan_directories.splice(index, 1)
+  toast.info(`已移除目录: ${dir}`)
 }
 
 const saveSettings = async () => {
   isLoading.value = true
-  addDebugLog('开始保存设置...')
   try {
     await api.saveSettings(settings.value)
-    addDebugLog('设置保存成功')
-  } catch (error) {
-    addDebugLog(`保存设置失败: ${error}`)
-    console.error('保存设置失败:', error)
-  } finally {
-    isLoading.value = false
-  }
+    toast.success('设置保存成功')
+  } catch (error) { toast.error(`保存设置失败: ${error}`) }
+  finally { isLoading.value = false }
 }
 </script>
 
@@ -195,15 +163,6 @@ const saveSettings = async () => {
         >
           保存设置
         </button>
-      </div>
-
-      <div v-if="debugLog.length > 0" class="mt-8">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">调试日志</h3>
-        <div class="bg-gray-100 dark:bg-gray-900 rounded-lg p-4 max-h-64 overflow-y-auto">
-          <div v-for="(log, index) in debugLog" :key="index" class="text-sm text-gray-700 dark:text-gray-300 font-mono">
-            {{ log }}
-          </div>
-        </div>
       </div>
     </div>
   </div>

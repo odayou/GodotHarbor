@@ -2,6 +2,7 @@
 import { RouterView } from 'vue-router'
 import Sidebar from './components/layout/Sidebar.vue'
 import Header from './components/layout/Header.vue'
+import ToastContainer from './components/ToastContainer.vue'
 </script>
 
 <template>
@@ -13,5 +14,6 @@ import Header from './components/layout/Header.vue'
         <RouterView />
       </main>
     </div>
+    <ToastContainer />
   </div>
 </template>

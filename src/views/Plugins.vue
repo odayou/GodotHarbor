@@ -3,56 +3,67 @@ import { ref, onMounted } from 'vue'
 import { api } from '@/api'
 import type { Plugin } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
+import { useToast } from '@/composables/useToast'
 
+const toast = useToast()
 const plugins = ref<Plugin[]>([])
 const isLoading = ref(false)
 const gitUrl = ref('')
 const showGitDialog = ref(false)
-const debugLog = ref<string[]>([])
 
 onMounted(() => {
   loadPlugins()
 })
 
-const addDebugLog = (message: string) => {
-  const timestamp = new Date().toLocaleTimeString()
-  debugLog.value.push(`[${timestamp}] ${message}`)
-  console.log(message)
-}
-
 const loadPlugins = async () => {
   isLoading.value = true
-  addDebugLog('开始加载插件列表...')
   try {
     const result = await api.getPlugins()
     plugins.value = result
-    addDebugLog(`成功加载 ${result.length} 个插件`)
   } catch (error) {
-    addDebugLog(`加载插件失败: ${error}`)
-    console.error('加载插件失败:', error)
+    toast.error(`加载插件列表失败: ${error}`)
   } finally {
     isLoading.value = false
   }
 }
 
 const importFromLocal = async () => {
-  isLoading.value = true
-  addDebugLog('开始从本地导入插件...')
   try {
     const selected = await open({
       directory: true,
       multiple: false,
       title: '选择 Godot 插件目录'
     })
-
     if (selected && typeof selected === 'string') {
+      isLoading.value = true
       const result = await api.importPluginFromLocal(selected)
-      addDebugLog(`成功导入插件: ${result.name}`)
+      toast.success(`成功导入插件: ${result.name}`)
       await loadPlugins()
     }
   } catch (error) {
-    addDebugLog(`导入插件失败: ${error}`)
-    console.error('导入插件失败:', error)
+    toast.error(`导入插件失败: ${error}`)
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const importFromFile = async () => {
+  try {
+    const selected = await open({
+      directory: false,
+      multiple: false,
+      title: '选择插件配置文件 (plugin.cfg)',
+      filters: [{ name: 'Plugin Config', extensions: ['cfg'] }]
+    })
+    if (selected && typeof selected === 'string') {
+      isLoading.value = true
+      const dirPath = selected.substring(0, selected.lastIndexOf(/[/\\]/.test(selected) ? (selected.includes('\\') ? '\\' : '/') : '/'))
+      const result = await api.importPluginFromLocal(dirPath || selected)
+      toast.success(`成功导入插件: ${result.name}`)
+      await loadPlugins()
+    }
+  } catch (error) {
+    toast.error(`导入插件失败: ${error}`)
   } finally {
     isLoading.value = false
   }
@@ -60,52 +71,45 @@ const importFromLocal = async () => {
 
 const importFromGit = async () => {
   if (!gitUrl.value) {
-    addDebugLog('请输入 Git URL')
+    toast.warning('请输入 Git URL')
     return
   }
-  
   isLoading.value = true
-  addDebugLog(`开始从 Git 导入插件: ${gitUrl.value}`)
   try {
     const result = await api.importPluginFromGit(gitUrl.value)
-    addDebugLog(`成功导入插件: ${result.name}`)
+    toast.success(`成功导入插件: ${result.name}`)
     gitUrl.value = ''
     showGitDialog.value = false
     await loadPlugins()
   } catch (error) {
-    addDebugLog(`从 Git 导入插件失败: ${error}`)
-    console.error('从 Git 导入插件失败:', error)
+    toast.error(`从 Git 导入插件失败: ${error}`)
   } finally {
     isLoading.value = false
   }
 }
 
 const removePlugin = async (plugin_id: string) => {
-  addDebugLog(`删除插件: ${plugin_id}`)
   try {
     await api.removePlugin(plugin_id)
-    addDebugLog('插件删除成功')
+    toast.success('插件已删除')
     await loadPlugins()
   } catch (error) {
-    addDebugLog(`删除插件失败: ${error}`)
-    console.error('删除插件失败:', error)
+    toast.error(`删除插件失败: ${error}`)
   }
 }
 
 const importFromProjects = async () => {
   isLoading.value = true
-  addDebugLog('开始从项目中扫描并导入插件...')
   try {
     const importedPlugins = await api.importPluginsFromProjects()
     if (importedPlugins.length > 0) {
-      addDebugLog(`成功导入 ${importedPlugins.length} 个插件: ${importedPlugins.map(p => p.name).join(', ')}`)
+      toast.success(`成功导入 ${importedPlugins.length} 个插件`)
     } else {
-      addDebugLog('没有发现新的插件可以导入')
+      toast.info('没有发现新的插件可以导入')
     }
     await loadPlugins()
   } catch (error) {
-    addDebugLog(`从项目导入插件失败: ${error}`)
-    console.error('从项目导入插件失败:', error)
+    toast.error(`从项目导入插件失败: ${error}`)
   } finally {
     isLoading.value = false
   }
@@ -129,7 +133,14 @@ const importFromProjects = async () => {
           :disabled="isLoading"
           class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
         >
-          从本地导入
+          从目录导入
+        </button>
+        <button
+          @click="importFromFile"
+          :disabled="isLoading"
+          class="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors disabled:opacity-50"
+        >
+          从文件导入
         </button>
         <button
           @click="showGitDialog = true"
@@ -151,7 +162,7 @@ const importFromProjects = async () => {
       </svg>
       <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">暂无插件</h3>
       <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-        从本地目录或 Git 仓库导入插件
+        从本地目录、文件或 Git 仓库导入插件
       </p>
     </div>
 
@@ -161,18 +172,18 @@ const importFromProjects = async () => {
         :key="plugin.plugin_id"
         class="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-shadow p-6"
       >
-        <div class="flex items-start justify-between">
-          <div>
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+        <div class="flex items-start justify-between min-w-0">
+          <div class="min-w-0 flex-1">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">
               {{ plugin.name }}
             </h3>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              {{ plugin.description }}
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
+              {{ plugin.description || '无描述' }}
             </p>
           </div>
           <button
             @click="removePlugin(plugin.plugin_id)"
-            class="text-red-600 hover:text-red-800"
+            class="text-red-600 hover:text-red-800 ml-2"
           >
             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -181,28 +192,38 @@ const importFromProjects = async () => {
         </div>
         <div class="mt-4 flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
           <span>v{{ plugin.versions[0]?.version || '1.0.0' }}</span>
-          <span>{{ plugin.author }}</span>
+          <span>{{ plugin.author || '未知作者' }}</span>
+        </div>
+        <div class="mt-2 flex items-center gap-2">
+          <span
+            :class="[
+              'px-2 py-0.5 rounded text-xs font-medium',
+              plugin.compatibility === 'Godot4' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' :
+              plugin.compatibility === 'Godot3' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400' :
+              plugin.compatibility === 'Both' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+              'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
+            ]"
+          >
+            {{ plugin.compatibility === 'Godot4' ? 'Godot 4' : plugin.compatibility === 'Godot3' ? 'Godot 3' : plugin.compatibility === 'Both' ? '通用' : '未知' }}
+          </span>
+          <span class="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+            {{ plugin.source.source_type }}
+          </span>
         </div>
       </div>
     </div>
 
-    <div v-if="debugLog.length > 0" class="mt-8">
-      <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">调试日志</h3>
-      <div class="bg-gray-100 dark:bg-gray-900 rounded-lg p-4 max-h-64 overflow-y-auto">
-        <div v-for="(log, index) in debugLog" :key="index" class="text-sm text-gray-700 dark:text-gray-300 font-mono">
-          {{ log }}
-        </div>
-      </div>
-    </div>
-
-    <div v-if="showGitDialog" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+    <div v-if="showGitDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl">
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">从 Git 导入</h3>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+          输入 Git 仓库 URL，将克隆并导入其中的 Godot 插件
+        </p>
         <input
           v-model="gitUrl"
           type="text"
-          placeholder="输入 Git 仓库 URL"
-          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+          placeholder="https://github.com/user/plugin-repo.git"
+          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
         />
         <div class="flex justify-end space-x-3 mt-6">
           <button
@@ -213,7 +234,7 @@ const importFromProjects = async () => {
           </button>
           <button
             @click="importFromGit"
-            :disabled="isLoading"
+            :disabled="isLoading || !gitUrl"
             class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
           >
             导入
