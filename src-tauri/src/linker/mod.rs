@@ -79,16 +79,19 @@ impl Linker {
             .join(&binding.version_id)
             .join("payload");
         
-        let source_path = if binding.unit_id.is_empty() {
-            plugin_path
-        } else {
-            plugin_path.join(&binding.unit_id)
-        };
+        if !plugin_path.exists() {
+            anyhow::bail!("Plugin payload directory does not exist: {}", plugin_path.to_string_lossy());
+        }
+        
+        // For now, use the plugin_path directly as the source path
+        // This is a temporary fix until we can properly map unit_id to subdirectory
+        let source_path = plugin_path;
 
         let target_path = addons_dir.join(&binding.mount_path);
 
         if target_path.exists() {
-            self.remove_link(&target_path)?;
+            self.remove_link(&target_path)
+                .with_context(|| format!("Failed to remove existing target path: {}", target_path.to_string_lossy()))?;
         }
 
         match self.mount_strategy {
@@ -118,7 +121,7 @@ impl Linker {
             }
             MountStrategy::Copy => {
                 self.copy_dir_recursive(&source_path, &target_path)
-                    .context("Failed to copy plugin")?;
+                    .with_context(|| format!("Failed to copy plugin from {} to {}", source_path.to_string_lossy(), target_path.to_string_lossy()))?;
             }
         }
 
@@ -175,19 +178,28 @@ impl Linker {
     }
 
     fn copy_dir_recursive(&self, src: &Path, dst: &Path) -> Result<()> {
-        if !dst.exists() {
-            fs::create_dir_all(dst)?;
+        if !src.exists() {
+            anyhow::bail!("Source directory does not exist: {}", src.to_string_lossy());
         }
         
-        for entry in fs::read_dir(src)? {
-            let entry = entry?;
+        if !dst.exists() {
+            fs::create_dir_all(dst)
+                .with_context(|| format!("Failed to create destination directory: {}", dst.to_string_lossy()))?;
+        }
+        
+        for entry in fs::read_dir(src)
+            .with_context(|| format!("Failed to read source directory: {}", src.to_string_lossy()))? {
+            let entry = entry
+                .with_context(|| format!("Failed to read directory entry in: {}", src.to_string_lossy()))?;
             let src_path = entry.path();
             let dst_path = dst.join(entry.file_name());
             
             if src_path.is_dir() {
-                self.copy_dir_recursive(&src_path, &dst_path)?;
+                self.copy_dir_recursive(&src_path, &dst_path)
+                    .with_context(|| format!("Failed to copy directory: {} to {}", src_path.to_string_lossy(), dst_path.to_string_lossy()))?;
             } else {
-                fs::copy(&src_path, &dst_path)?;
+                fs::copy(&src_path, &dst_path)
+                    .with_context(|| format!("Failed to copy file: {} to {}", src_path.to_string_lossy(), dst_path.to_string_lossy()))?;
             }
         }
         

@@ -299,12 +299,30 @@ pub fn unbind_plugin(app: AppHandle, project_id: String, plugin_id: String) -> R
     let storage = get_storage(&app);
     let mut bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
 
-    let had_binding = bindings.iter()
-        .any(|b| b.project_id == project_id && b.plugin_id == plugin_id);
+    let binding = bindings.iter()
+        .find(|b| b.project_id == project_id && b.plugin_id == plugin_id);
 
-    if !had_binding {
+    if binding.is_none() {
         log_error(&app, "unbind_plugin", &project_id, "未找到指定的绑定关系");
         return Err("未找到指定的绑定关系".to_string());
+    }
+
+    let binding = binding.unwrap();
+    let mount_path = binding.mount_path.clone();
+
+    // 清理项目中的插件文件
+    let projects: Vec<Project> = storage.load_or_default("projects.json");
+    if let Some(project) = projects.iter().find(|p| p.project_id == project_id) {
+        let addons_dir = std::path::Path::new(&project.path).join("addons");
+        if addons_dir.exists() {
+            let plugin_path = addons_dir.join(&mount_path);
+            
+            if plugin_path.exists() {
+                if let Err(e) = std::fs::remove_dir_all(&plugin_path) {
+                    eprintln!("Failed to remove plugin directory: {}", e);
+                }
+            }
+        }
     }
 
     bindings.retain(|b| !(b.project_id == project_id && b.plugin_id == plugin_id));
@@ -343,8 +361,9 @@ pub fn apply_changes(app: AppHandle, project_id: String) -> Result<ApplyResult, 
     let linker = Linker::new(settings.mount_strategy);
 
     let data_dir = get_data_dir(&app);
+    let plugin_base_path = data_dir.join("plugins");
 
-    let result = linker.apply_bindings(&project.path, &project_bindings, &data_dir.to_string_lossy())
+    let result = linker.apply_bindings(&project.path, &project_bindings, &plugin_base_path.to_string_lossy())
         .map_err(|e| format!("应用变更失败: {}", e))?;
 
     log_operation(&app, "apply_changes", &project_id,
