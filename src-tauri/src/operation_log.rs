@@ -7,6 +7,7 @@ use anyhow::Result;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogEntry {
     pub timestamp: DateTime<Utc>,
+    pub level: String,
     pub action: String,
     pub target: String,
     pub detail: String,
@@ -23,18 +24,11 @@ impl OperationLogger {
         Self { log_dir }
     }
 
-    pub fn log(&self, action: &str, target: &str, detail: &str) -> Result<()> {
-        let entry = LogEntry {
-            timestamp: Utc::now(),
-            action: action.to_string(),
-            target: target.to_string(),
-            detail: detail.to_string(),
-        };
-
+    fn write_entry(&self, entry: &LogEntry) -> Result<()> {
         let date = entry.timestamp.format("%Y-%m-%d").to_string();
         let log_file = self.log_dir.join(format!("{}.jsonl", date));
 
-        let mut line = serde_json::to_string(&entry)?;
+        let mut line = serde_json::to_string(entry)?;
         line.push('\n');
 
         use std::io::Write;
@@ -45,6 +39,28 @@ impl OperationLogger {
         file.write_all(line.as_bytes())?;
 
         Ok(())
+    }
+
+    pub fn log(&self, action: &str, target: &str, detail: &str) -> Result<()> {
+        let entry = LogEntry {
+            timestamp: Utc::now(),
+            level: "success".to_string(),
+            action: action.to_string(),
+            target: target.to_string(),
+            detail: detail.to_string(),
+        };
+        self.write_entry(&entry)
+    }
+
+    pub fn log_error(&self, action: &str, target: &str, error: &str) -> Result<()> {
+        let entry = LogEntry {
+            timestamp: Utc::now(),
+            level: "error".to_string(),
+            action: action.to_string(),
+            target: target.to_string(),
+            detail: error.to_string(),
+        };
+        self.write_entry(&entry)
     }
 
     pub fn get_logs(&self, limit: usize) -> Result<Vec<LogEntry>> {

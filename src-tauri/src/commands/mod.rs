@@ -53,6 +53,13 @@ fn log_operation(app: &AppHandle, action: &str, target: &str, detail: &str) {
     }
 }
 
+fn log_error(app: &AppHandle, action: &str, target: &str, error: &str) {
+    let logger = get_logger(app);
+    if let Err(e) = logger.log_error(action, target, error) {
+        eprintln!("Failed to write error log: {}", e);
+    }
+}
+
 #[tauri::command]
 pub fn get_settings(app: AppHandle) -> Result<Settings, String> {
     let storage = get_storage(&app);
@@ -72,6 +79,7 @@ pub fn save_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
 #[tauri::command]
 pub fn scan_projects(app: AppHandle, root_dirs: Vec<String>) -> Result<Vec<Project>, String> {
     if root_dirs.is_empty() {
+        log_error(&app, "scan_projects", "", "未提供扫描目录");
         return Err("请至少指定一个扫描目录".to_string());
     }
 
@@ -106,12 +114,14 @@ pub fn scan_projects(app: AppHandle, root_dirs: Vec<String>) -> Result<Vec<Proje
     storage.save("projects.json", &existing_projects)
         .map_err(|e| format!("保存项目列表失败: {}", e))?;
 
-    log_operation(&app, "scan_projects", &root_dirs.join(", "), 
-        &format!("扫描完成，发现 {} 个项目{}", all_projects.len(), 
+    log_operation(&app, "scan_projects", &root_dirs.join(", "),
+        &format!("扫描完成，发现 {} 个项目{}", all_projects.len(),
             if scan_errors.is_empty() { String::new() } else { format!("，{} 个错误", scan_errors.len()) }));
 
     if !scan_errors.is_empty() && all_projects.is_empty() {
-        return Err(format!("扫描失败:\n{}", scan_errors.join("\n")));
+        let err_msg = format!("扫描失败:\n{}", scan_errors.join("\n"));
+        log_error(&app, "scan_projects", &root_dirs.join(", "), &err_msg);
+        return Err(err_msg);
     }
 
     Ok(all_projects)
@@ -266,6 +276,7 @@ pub fn bind_plugin(
 
     let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
     if !plugins.iter().any(|p| p.plugin_id == plugin_id) {
+        log_error(&app, "bind_plugin", &project_id, "未找到指定插件");
         return Err("未找到指定插件".to_string());
     }
 
@@ -292,6 +303,7 @@ pub fn unbind_plugin(app: AppHandle, project_id: String, plugin_id: String) -> R
         .any(|b| b.project_id == project_id && b.plugin_id == plugin_id);
 
     if !had_binding {
+        log_error(&app, "unbind_plugin", &project_id, "未找到指定的绑定关系");
         return Err("未找到指定的绑定关系".to_string());
     }
 
@@ -311,7 +323,10 @@ pub fn apply_changes(app: AppHandle, project_id: String) -> Result<ApplyResult, 
     let projects: Vec<Project> = storage.load_or_default("projects.json");
     let project = projects.iter()
         .find(|p| p.project_id == project_id)
-        .ok_or("未找到指定项目".to_string())?;
+        .ok_or_else(|| {
+            log_error(&app, "apply_changes", &project_id, "未找到指定项目");
+            "未找到指定项目".to_string()
+        })?;
 
     let bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
     let project_bindings: Vec<ProjectBinding> = bindings.iter()
@@ -320,6 +335,7 @@ pub fn apply_changes(app: AppHandle, project_id: String) -> Result<ApplyResult, 
         .collect();
 
     if project_bindings.is_empty() {
+        log_error(&app, "apply_changes", &project_id, "该项目没有绑定任何插件");
         return Err("该项目没有绑定任何插件".to_string());
     }
 
@@ -418,4 +434,10 @@ pub fn get_operation_logs(app: AppHandle, limit: Option<usize>) -> Result<Vec<Lo
     let logger = get_logger(&app);
     logger.get_logs(limit.unwrap_or(100))
         .map_err(|e| format!("获取操作日志失败: {}", e))
+}
+
+#[tauri::command]
+pub fn log_client_error(app: AppHandle, source: String, error: String) -> Result<(), String> {
+    log_error(&app, &source, "", &error);
+    Ok(())
 }

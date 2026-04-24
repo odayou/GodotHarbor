@@ -1,0 +1,19 @@
+# Set default behavior to use LF line endings
+* text eol=lf
+
+# Explicitly specify line endings for certain file types
+*.rs text eol=lf
+*.ts text eol=lf
+*.vue text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.toml text eol=lf
+
+# Binary files should not be modified
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.exe binary
+*.dll binary

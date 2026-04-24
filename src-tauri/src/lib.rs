@@ -46,6 +46,7 @@ pub fn run() {
             commands::scan_project_plugins,
             commands::import_plugins_from_projects,
             commands::get_operation_logs,
+            commands::log_client_error,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

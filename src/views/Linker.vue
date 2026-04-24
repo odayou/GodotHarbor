@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { api } from '@/api'
+import { api, withErrorLogging } from '@/api'
 import type { Project, Plugin, ProjectBinding, ApplyResult } from '@/types'
 import { useToast } from '@/composables/useToast'
 
@@ -46,8 +46,8 @@ const loadData = async () => {
   isLoading.value = true
   try {
     const [projectList, pluginList] = await Promise.all([
-      api.getProjects(),
-      api.getPlugins()
+      withErrorLogging('Linker.loadProjects', () => api.getProjects()),
+      withErrorLogging('Linker.loadPlugins', () => api.getPlugins())
     ])
     projects.value = projectList
     plugins.value = pluginList
@@ -64,9 +64,9 @@ const loadData = async () => {
   }
 }
 
-const loadBindings = async (project_id: string) => {
+const loadBindings = async (projectId: string) => {
   try {
-    bindings.value = await api.getProjectBindings(project_id)
+    bindings.value = await withErrorLogging('Linker.loadBindings', () => api.getProjectBindings(projectId))
   } catch (error) {
     toast.error(`加载绑定关系失败: ${error}`)
   }
@@ -94,12 +94,14 @@ const bindPluginToProject = async (plugin_id: string) => {
   const mountPath = `addons/${unit.name}`
   isLoading.value = true
   try {
-    await api.bindPlugin(
-      selectedProjectId.value,
-      plugin_id,
-      version.version_id,
-      unit.unit_id,
-      mountPath
+    await withErrorLogging('Linker.bindPlugin', () =>
+      api.bindPlugin(
+        selectedProjectId.value!,
+        plugin_id,
+        version.version_id,
+        unit.unit_id,
+        mountPath
+      )
     )
     toast.success(`已绑定插件: ${plugin.name}`)
     await loadBindings(selectedProjectId.value)
@@ -114,7 +116,9 @@ const unbindPluginFromProject = async (plugin_id: string) => {
   if (!selectedProjectId.value) return
   isLoading.value = true
   try {
-    await api.unbindPlugin(selectedProjectId.value, plugin_id)
+    await withErrorLogging('Linker.unbindPlugin', () =>
+      api.unbindPlugin(selectedProjectId.value!, plugin_id)
+    )
     toast.success('已取消绑定')
     await loadBindings(selectedProjectId.value)
   } catch (error) {
@@ -136,7 +140,9 @@ const applyChanges = async () => {
   if (!selectedProjectId.value) return
   isApplying.value = true
   try {
-    applyResult.value = await api.applyChanges(selectedProjectId.value)
+    applyResult.value = await withErrorLogging('Linker.applyChanges', () =>
+      api.applyChanges(selectedProjectId.value!)
+    )
     if (applyResult.value.success) {
       toast.success('变更已成功应用')
     } else {

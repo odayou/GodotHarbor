@@ -50,31 +50,31 @@ export const api = {
   },
 
   async bindPlugin(
-    project_id: string,
-    plugin_id: string,
-    version_id: string,
-    unit_id: string,
-    mount_path: string
+    projectId: string,
+    pluginId: string,
+    versionId: string,
+    unitId: string,
+    mountPath: string
   ): Promise<void> {
     return await invoke('bind_plugin', {
-      project_id,
-      plugin_id,
-      version_id,
-      unit_id,
-      mount_path
+      projectId,
+      pluginId,
+      versionId,
+      unitId,
+      mountPath
     })
   },
 
-  async unbindPlugin(project_id: string, plugin_id: string): Promise<void> {
-    return await invoke('unbind_plugin', { project_id, plugin_id })
+  async unbindPlugin(projectId: string, pluginId: string): Promise<void> {
+    return await invoke('unbind_plugin', { projectId, pluginId })
   },
 
-  async applyChanges(project_id: string): Promise<ApplyResult> {
-    return await invoke('apply_changes', { project_id })
+  async applyChanges(projectId: string): Promise<ApplyResult> {
+    return await invoke('apply_changes', { projectId })
   },
 
-  async getProjectBindings(project_id: string): Promise<ProjectBinding[]> {
-    return await invoke('get_project_bindings', { project_id })
+  async getProjectBindings(projectId: string): Promise<ProjectBinding[]> {
+    return await invoke('get_project_bindings', { projectId })
   },
 
   async scanProjectPlugins(): Promise<string[]> {
@@ -87,5 +87,26 @@ export const api = {
 
   async getOperationLogs(limit?: number): Promise<LogEntry[]> {
     return await invoke('get_operation_logs', { limit })
+  },
+
+  async logClientError(source: string, error: string): Promise<void> {
+    try {
+      await invoke('log_client_error', { source, error })
+    } catch (e) {
+      console.error('Failed to log client error:', e)
+    }
+  }
+}
+
+export async function withErrorLogging<T>(
+  source: string,
+  fn: () => Promise<T>
+): Promise<T> {
+  try {
+    return await fn()
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    await api.logClientError(source, errorMsg)
+    throw error
   }
 }

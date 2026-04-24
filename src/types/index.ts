@@ -72,6 +72,7 @@ export interface ConflictInfo {
 
 export interface LogEntry {
   timestamp: string
+  level: 'success' | 'error'
   action: string
   target: string
   detail: string
