@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { api } from '@/api'
-import type { Project } from '@/types'
+import type { Project, Engine, ProjectEngineBinding } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { useToast } from '@/composables/useToast'
 
 const toast = useToast()
 const projects = ref<Project[]>([])
+const engines = ref<Engine[]>([])
 const isLoading = ref(false)
 const showScanDialog = ref(false)
 const scanDirInput = ref('')
@@ -16,6 +17,11 @@ const selectedProject = ref<Project | null>(null)
 const showGroupDialog = ref(false)
 const groupInput = ref('')
 const editingProjectId = ref<string | null>(null)
+const showEngineDialog = ref(false)
+const selectedEngineId = ref<string>('')
+const customArgs = ref('')
+const isLaunching = ref(false)
+const projectEngineBinding = ref<ProjectEngineBinding | null>(null)
 
 const searchQuery = ref('')
 const filterGroup = ref<string>('all')
@@ -25,6 +31,7 @@ const availableGroups = ref<string[]>([])
 onMounted(() => {
   loadProjects()
   loadGroups()
+  loadEngines()
 })
 
 const getIconUrl = (iconPath: string) => {
@@ -194,7 +201,7 @@ const openGroupDialog = (project: Project) => {
 
 const saveGroup = async () => {
   if (!editingProjectId.value) return
-  
+
   try {
     await api.updateProjectGroup(editingProjectId.value, groupInput.value)
     const project = projects.value.find(p => p.project_id === editingProjectId.value)
@@ -208,6 +215,75 @@ const saveGroup = async () => {
     await loadGroups()
   } catch (error) {
     toast.error(`更新分组失败: ${error}`)
+  }
+}
+
+const loadEngines = async () => {
+  try {
+    engines.value = await api.getEngines()
+  } catch (error) {
+    console.error('Failed to load engines:', error)
+  }
+}
+
+const loadProjectEngineBinding = async (projectId: string) => {
+  try {
+    projectEngineBinding.value = await api.getProjectEngineBinding(projectId)
+    if (projectEngineBinding.value) {
+      selectedEngineId.value = projectEngineBinding.value.engine_id
+      customArgs.value = projectEngineBinding.value.custom_args
+    }
+  } catch (error) {
+    console.error('Failed to load engine binding:', error)
+  }
+}
+
+const openEngineDialog = async (project: Project) => {
+  selectedProject.value = project
+  await loadProjectEngineBinding(project.project_id)
+  showEngineDialog.value = true
+}
+
+const bindEngine = async () => {
+  if (!selectedProject.value || !selectedEngineId.value) {
+    toast.warning('请选择引擎')
+    return
+  }
+  try {
+    await api.bindProjectEngine(selectedProject.value.project_id, selectedEngineId.value, customArgs.value)
+    toast.success('引擎绑定成功')
+    showEngineDialog.value = false
+  } catch (error) {
+    toast.error(`绑定引擎失败: ${error}`)
+  }
+}
+
+const unbindEngine = async () => {
+  if (!selectedProject.value) return
+  try {
+    await api.unbindProjectEngine(selectedProject.value.project_id)
+    toast.success('已解除引擎绑定')
+    projectEngineBinding.value = null
+    selectedEngineId.value = ''
+    customArgs.value = ''
+  } catch (error) {
+    toast.error(`解除绑定失败: ${error}`)
+  }
+}
+
+const launchProject = async (project: Project, engineId?: string) => {
+  isLaunching.value = true
+  try {
+    const result = await api.launchProjectWithEngine(project.project_id, engineId)
+    if (result.success) {
+      toast.success(`项目已启动 (PID: ${result.pid})`)
+    } else {
+      toast.error(result.error || '启动失败')
+    }
+  } catch (error) {
+    toast.error(`启动项目失败: ${error}`)
+  } finally {
+    isLaunching.value = false
   }
 }
 </script>
@@ -358,16 +434,26 @@ const saveGroup = async () => {
             </div>
             <div class="mt-3 flex items-center justify-between text-sm">
               <span class="text-gray-600 dark:text-gray-400">Godot {{ project.godot_version }}</span>
-              <span
-                :class="[
-                  'px-2 py-0.5 rounded text-xs font-medium',
-                  project.status === 'Ready' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
-                  project.status === 'Warning' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                  'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-                ]"
-              >
-                {{ project.status === 'Ready' ? '就绪' : project.status === 'Warning' ? '警告' : '错误' }}
-              </span>
+              <div class="flex items-center gap-2">
+                <button
+                  @click.stop="launchProject(project)"
+                  :disabled="isLaunching || engines.length === 0"
+                  class="px-2 py-1 rounded text-xs font-medium bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                  title="启动项目"
+                >
+                  启动
+                </button>
+                <span
+                  :class="[
+                    'px-2 py-0.5 rounded text-xs font-medium',
+                    project.status === 'Ready' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+                    project.status === 'Warning' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                    'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                  ]"
+                >
+                  {{ project.status === 'Ready' ? '就绪' : project.status === 'Warning' ? '警告' : '错误' }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -417,7 +503,21 @@ const saveGroup = async () => {
             {{ selectedProject.status === 'Ready' ? '就绪' : selectedProject.status === 'Warning' ? '警告' : '错误' }}
           </span>
         </div>
-        <div class="flex justify-end">
+        <div class="mb-4">
+          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">引擎绑定</h4>
+          <div class="flex items-center gap-2">
+            <button
+              @click="openEngineDialog(selectedProject)"
+              class="px-3 py-1 rounded text-sm font-medium bg-blue-600 text-white hover:bg-blue-700"
+            >
+              {{ projectEngineBinding ? '更换引擎' : '绑定引擎' }}
+            </button>
+            <span v-if="projectEngineBinding" class="text-sm text-gray-600 dark:text-gray-400">
+              已绑定
+            </span>
+          </div>
+        </div>
+        <div class="flex justify-end gap-2">
           <button
             @click="showProjectDetail = false; selectedProject = null"
             class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
@@ -491,6 +591,61 @@ const saveGroup = async () => {
           >
             保存
           </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showEngineDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+          {{ selectedProject?.name }} - 引擎绑定
+        </h3>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">选择引擎</label>
+            <select
+              v-model="selectedEngineId"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+            >
+              <option value="">请选择引擎</option>
+              <option v-for="engine in engines" :key="engine.engine_id" :value="engine.engine_id">
+                {{ engine.name }} (v{{ engine.version }}) {{ engine.is_default ? '- 默认' : '' }}
+              </option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">启动参数（可选）</label>
+            <input
+              v-model="customArgs"
+              type="text"
+              placeholder="例如: --editor --quit"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+            />
+          </div>
+        </div>
+        <div class="flex justify-between mt-6">
+          <button
+            v-if="projectEngineBinding"
+            @click="unbindEngine"
+            class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+          >
+            解除绑定
+          </button>
+          <div class="flex gap-2 ml-auto">
+            <button
+              @click="showEngineDialog = false"
+              class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+            >
+              取消
+            </button>
+            <button
+              @click="bindEngine"
+              :disabled="!selectedEngineId"
+              class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+            >
+              绑定
+            </button>
+          </div>
         </div>
       </div>
     </div>

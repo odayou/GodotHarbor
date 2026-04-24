@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { api } from '@/api'
-import type { Plugin } from '@/types'
+import type { Plugin, PluginUpdateInfo, PluginDependency } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useToast } from '@/composables/useToast'
 import { useI18n } from '@/composables/useI18n'
@@ -14,6 +14,10 @@ const gitUrl = ref('')
 const showGitDialog = ref(false)
 const showPluginDetail = ref(false)
 const selectedPlugin = ref<Plugin | null>(null)
+const pluginDependencies = ref<PluginDependency[]>([])
+const showUpdatesDialog = ref(false)
+const pluginUpdates = ref<PluginUpdateInfo[]>([])
+const isCheckingUpdates = ref(false)
 
 const searchQuery = ref('')
 const filterCompatibility = ref<string>('all')
@@ -46,11 +50,6 @@ const filteredPlugins = computed(() => {
 const favoritePlugins = computed(() => {
   return plugins.value.filter(p => p.is_favorite).length
 })
-
-const showPluginDescription = (plugin: Plugin) => {
-  selectedPlugin.value = plugin
-  showPluginDetail.value = true
-}
 
 const loadPlugins = async () => {
   isLoading.value = true
@@ -161,6 +160,33 @@ const importFromProjects = async () => {
     isLoading.value = false
   }
 }
+
+const checkPluginUpdates = async () => {
+  isCheckingUpdates.value = true
+  try {
+    pluginUpdates.value = await api.checkPluginUpdates()
+    showUpdatesDialog.value = true
+  } catch (error) {
+    toast.error(`检查更新失败: ${error}`)
+  } finally {
+    isCheckingUpdates.value = false
+  }
+}
+
+const loadPluginDependencies = async (pluginId: string) => {
+  try {
+    pluginDependencies.value = await api.resolvePluginDependencies(pluginId)
+  } catch (error) {
+    console.error('Failed to load dependencies:', error)
+    pluginDependencies.value = []
+  }
+}
+
+const showPluginDetails = async (plugin: Plugin) => {
+  selectedPlugin.value = plugin
+  await loadPluginDependencies(plugin.plugin_id)
+  showPluginDetail.value = true
+}
 </script>
 
 <template>
@@ -168,6 +194,13 @@ const importFromProjects = async () => {
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
       <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">插件仓库</h1>
       <div class="flex flex-wrap gap-2">
+        <button
+          @click="checkPluginUpdates"
+          :disabled="isCheckingUpdates || isLoading"
+          class="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors disabled:opacity-50 text-sm"
+        >
+          {{ isCheckingUpdates ? '检查中...' : '检查更新' }}
+        </button>
         <button
           @click="importFromProjects"
           :disabled="isLoading"
@@ -269,7 +302,7 @@ const importFromProjects = async () => {
         class="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-shadow p-4"
       >
         <div class="flex items-start justify-between min-w-0">
-          <div class="min-w-0 flex-1 cursor-pointer" @click="showPluginDescription(plugin)">
+          <div class="min-w-0 flex-1 cursor-pointer" @click="showPluginDetails(plugin)">
             <div class="flex items-center gap-2">
               <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100 truncate">
                 {{ plugin.name }}
@@ -384,9 +417,61 @@ const importFromProjects = async () => {
             <span v-if="selectedPlugin.source.url" class="block text-xs mt-1 break-all">{{ selectedPlugin.source.url }}</span>
           </p>
         </div>
+        <div v-if="pluginDependencies.length > 0" class="mb-4">
+          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">依赖关系</h4>
+          <div class="space-y-2 bg-gray-50 dark:bg-gray-700 rounded-lg p-3 max-h-40 overflow-y-auto">
+            <div v-for="dep in pluginDependencies" :key="dep.plugin_id" class="text-sm text-gray-600 dark:text-gray-400">
+              <span class="font-medium">{{ dep.plugin_id }}</span>
+              <span v-if="dep.version_constraint"> ({{ dep.version_constraint }})</span>
+              <span v-if="dep.is_optional" class="ml-2 text-xs text-gray-500">(可选)</span>
+            </div>
+          </div>
+        </div>
         <div class="flex justify-end">
           <button
-            @click="showPluginDetail = false; selectedPlugin = null"
+            @click="showPluginDetail = false; selectedPlugin = null; pluginDependencies = []"
+            class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+          >
+            关闭
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showUpdatesDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">插件更新检查</h3>
+          <button @click="showUpdatesDialog = false" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="space-y-3 max-h-80 overflow-y-auto">
+          <div v-if="pluginUpdates.length === 0" class="text-center py-8 text-gray-500 dark:text-gray-400">
+            没有可检查更新的插件
+          </div>
+          <div v-for="update in pluginUpdates" :key="update.plugin_id" class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="font-medium text-gray-900 dark:text-gray-100">{{ update.plugin_id }}</span>
+                <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  当前版本: {{ update.current_version }} → 最新版本: {{ update.latest_version }}
+                </div>
+              </div>
+              <span v-if="update.update_available" class="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                有更新
+              </span>
+              <span v-else class="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-600 dark:text-gray-400">
+                已是最新
+              </span>
+            </div>
+          </div>
+        </div>
+        <div class="flex justify-end mt-4">
+          <button
+            @click="showUpdatesDialog = false"
             class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
           >
             关闭

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import { api } from '@/api'
-import type { Settings, LogEntry } from '@/types'
+import type { Settings, LogEntry, TeamSharedConfig, Project } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useToast } from '@/composables/useToast'
 import { useI18n } from '@/composables/useI18n'
@@ -18,8 +18,17 @@ const showBackupDialog = ref(false)
 const backupPath = ref('')
 const isBackingUp = ref(false)
 const isRestoring = ref(false)
+const showTeamConfigDialog = ref(false)
+const teamConfigs = ref<TeamSharedConfig[]>([])
+const projects = ref<Project[]>([])
+const showExportDialog = ref(false)
+const exportConfigName = ref('')
+const exportConfigDescription = ref('')
+const selectedProjectIds = ref<string[]>([])
+const isExporting = ref(false)
+const isImporting = ref(false)
 
-onMounted(() => { initTheme(); loadSettings() })
+onMounted(() => { initTheme(); loadSettings(); loadTeamConfigs(); loadProjects() })
 
 const loadSettings = async () => {
   isLoading.value = true
@@ -119,6 +128,86 @@ const performRestore = async () => {
     isRestoring.value = false
   }
 }
+
+const loadTeamConfigs = async () => {
+  try {
+    teamConfigs.value = await api.getTeamConfigs()
+  } catch (error) {
+    console.error('Failed to load team configs:', error)
+  }
+}
+
+const loadProjects = async () => {
+  try {
+    projects.value = await api.getProjects()
+  } catch (error) {
+    console.error('Failed to load projects:', error)
+  }
+}
+
+const openExportDialog = () => {
+  exportConfigName.value = ''
+  exportConfigDescription.value = ''
+  selectedProjectIds.value = []
+  showExportDialog.value = true
+}
+
+const exportTeamConfig = async () => {
+  if (!exportConfigName.value) {
+    toast.warning('请输入配置名称')
+    return
+  }
+  if (selectedProjectIds.value.length === 0) {
+    toast.warning('请选择至少一个项目')
+    return
+  }
+  isExporting.value = true
+  try {
+    await api.exportTeamConfig(exportConfigName.value, exportConfigDescription.value, selectedProjectIds.value)
+    toast.success('团队配置导出成功')
+    showExportDialog.value = false
+    await loadTeamConfigs()
+  } catch (error) {
+    toast.error(`导出失败: ${error}`)
+  } finally {
+    isExporting.value = false
+  }
+}
+
+const importTeamConfig = async (configId: string) => {
+  if (selectedProjectIds.value.length === 0) {
+    toast.warning('请选择至少一个目标项目')
+    return
+  }
+  isImporting.value = true
+  try {
+    await api.importTeamConfig(configId, selectedProjectIds.value)
+    toast.success('团队配置导入成功')
+    showTeamConfigDialog.value = false
+  } catch (error) {
+    toast.error(`导入失败: ${error}`)
+  } finally {
+    isImporting.value = false
+  }
+}
+
+const deleteTeamConfig = async (configId: string) => {
+  try {
+    await api.deleteTeamConfig(configId)
+    toast.success('团队配置已删除')
+    await loadTeamConfigs()
+  } catch (error) {
+    toast.error(`删除失败: ${error}`)
+  }
+}
+
+const formatDate = (dateStr: string) => {
+  try {
+    return new Date(dateStr).toLocaleString('zh-CN')
+  } catch {
+    return dateStr
+  }
+}
 </script>
 
 <template>
@@ -128,6 +217,7 @@ const performRestore = async () => {
       <div class="flex gap-2">
         <button @click="loadLogs" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm">查看日志</button>
         <button @click="showBackupDialog = true" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">数据备份与恢复</button>
+        <button @click="showTeamConfigDialog = true" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm">团队配置</button>
       </div>
     </div>
     <div v-if="isLoading" class="flex justify-center py-12"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div></div>
@@ -252,6 +342,124 @@ const performRestore = async () => {
             class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
           >
             {{ isRestoring ? '恢复中...' : '恢复数据' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showTeamConfigDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl shadow-xl max-h-[80vh] flex flex-col">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">团队配置管理</h3>
+          <button @click="showTeamConfigDialog = false" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="mb-4">
+          <button
+            @click="openExportDialog"
+            class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm"
+          >
+            导出新配置
+          </button>
+        </div>
+        <div class="flex-1 overflow-y-auto">
+          <div v-if="teamConfigs.length === 0" class="text-center py-8 text-gray-500 dark:text-gray-400">
+            暂无团队配置
+          </div>
+          <div v-else class="space-y-4">
+            <div v-for="config in teamConfigs" :key="config.config_id" class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+              <div class="flex justify-between items-start">
+                <div>
+                  <h4 class="font-medium text-gray-900 dark:text-gray-100">{{ config.name }}</h4>
+                  <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ config.description || '无描述' }}</p>
+                  <p class="text-xs text-gray-400 dark:text-gray-500 mt-2">创建时间: {{ formatDate(config.created_at) }}</p>
+                </div>
+                <div class="flex gap-2">
+                  <button
+                    @click="importTeamConfig(config.config_id)"
+                    :disabled="isImporting || projects.length === 0"
+                    class="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm disabled:opacity-50"
+                  >
+                    导入
+                  </button>
+                  <button
+                    @click="deleteTeamConfig(config.config_id)"
+                    class="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                  >
+                    删除
+                  </button>
+                </div>
+              </div>
+              <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                包含 {{ config.bindings.length }} 个插件绑定, {{ config.engine_bindings.length }} 个引擎绑定
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="flex justify-end mt-4">
+          <button
+            @click="showTeamConfigDialog = false"
+            class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+          >
+            关闭
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showExportDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">导出团队配置</h3>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">配置名称</label>
+            <input
+              v-model="exportConfigName"
+              type="text"
+              placeholder="例如: 项目A标准配置"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">描述（可选）</label>
+            <input
+              v-model="exportConfigDescription"
+              type="text"
+              placeholder="配置描述"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">选择项目</label>
+            <div class="space-y-2 max-h-40 overflow-y-auto bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
+              <div v-for="project in projects" :key="project.project_id" class="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  :value="project.project_id"
+                  v-model="selectedProjectIds"
+                  class="w-4 h-4 text-primary-600 rounded"
+                />
+                <span class="text-sm text-gray-900 dark:text-gray-100">{{ project.name }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="flex justify-end space-x-3 mt-6">
+          <button
+            @click="showExportDialog = false"
+            class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+          >
+            取消
+          </button>
+          <button
+            @click="exportTeamConfig"
+            :disabled="isExporting || !exportConfigName || selectedProjectIds.length === 0"
+            class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+          >
+            {{ isExporting ? '导出中...' : '导出' }}
           </button>
         </div>
       </div>

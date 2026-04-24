@@ -23,6 +23,11 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/Linker.vue')
   },
   {
+    path: '/engines',
+    name: 'engines',
+    component: () => import('@/views/Engines.vue')
+  },
+  {
     path: '/settings',
     name: 'settings',
     component: () => import('@/views/Settings.vue')
