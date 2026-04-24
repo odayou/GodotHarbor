@@ -25,13 +25,13 @@ Godot Harbor 是一款独立桌面应用，用于为 Godot 开发者提供统一
 - [x] 设计插件数据模型（Plugin Source, Plugin Package→Plugin+PluginVersion, Plugin Unit）
 - [x] 设计项目数据模型
 - [x] 设计配置数据模型
-- [~] 实现本地 JSON 存储模块（基础读写完成，缺少原子写入和损坏恢复）
+- [x] 实现本地 JSON 存储模块（已实现原子写入：先写 .tmp 再 rename；load_or_default 有日志告警）
 
 #### 1.3 基础文件系统操作
 - [x] 实现文件/目录操作工具函数
 - [x] 实现符号链接创建/删除功能
-- [~] 实现跨平台路径处理（基础路径处理完成，junction 检测逻辑有误）
-- [~] 实现权限检测功能（项目扫描有写权限检测，symlink 权限不足时无自动回退 junction）
+- [x] 实现跨平台路径处理（已修复 junction 检测逻辑，使用 symlink_metadata + FILE_ATTRIBUTE_REPARSE_POINT）
+- [x] 实现权限检测功能（已实现 symlink→junction 自动回退、预检查含写权限检测）
 
 #### 1.4 项目扫描功能（原型）
 - [x] 实现递归扫描 project.godot 文件
@@ -49,7 +49,7 @@ Godot Harbor 是一款独立桌面应用，用于为 Godot 开发者提供统一
 
 #### 2.2 插件仓库（Vault）
 - [x] 设计插件存储目录结构
-- [~] 实现插件版本管理（重复导入创建独立条目而非新版本，Git 导入后删除 .git 无法更新）
+- [x] 实现插件版本管理（已修复：重复导入合并为新版本，Git 导入保留 .git 到 git_store_dir）
 - [x] 实现插件列表展示 UI
 - [x] 实现插件详情查看
 - [x] 实现插件删除功能
@@ -57,19 +57,19 @@ Godot Harbor 是一款独立桌面应用，用于为 Godot 开发者提供统一
 #### 2.3 项目绑定功能（Linker）
 - [x] 设计项目-插件绑定数据结构
 - [x] 实现项目选择界面
-- [~] 实现插件选择与版本指定（硬编码取第一个版本，用户无法选择）
+- [~] 实现插件选择与版本指定（mount_path 已修复添加 addons/ 前缀，UI 版本选择仍取第一个版本）
 - [~] 实现绑定关系可视化（仅列表展示，无图形化连线）
 - [x] 实现绑定关系持久化
 
 #### 2.4 应用变更功能（Apply Changes）
-- [ ] 实现差异计算（新增、删除、升级）
-- [~] 实现预检查机制
-  - [ ] 项目路径检查
-  - [ ] 权限检查
-  - [~] 目标路径冲突检测（check_conflicts 存在但未集成到 apply 流程）
-  - [~] 插件源存在性检查（仅检查 payload 目录存在）
-- [x] 实现挂载策略（symlink/junction/copy）
-- [ ] 实现变更执行与回滚
+- [x] 实现差异计算（新增、删除、升级）（已实现 compute_diff: to_add/to_remove/to_keep）
+- [x] 实现预检查机制
+  - [x] 项目路径检查
+  - [x] 权限检查
+  - [x] 目标路径冲突检测（check_conflicts 已集成到 apply_bindings 流程）
+  - [x] 插件源存在性检查
+- [x] 实现挂载策略（symlink/junction/copy，含 symlink→junction 自动回退）
+- [x] 实现变更执行与回滚（AppliedOp + rollback_ops，部分失败时逆序回滚）
 - [x] 实现操作日志记录
 
 ### 阶段三：项目管理功能（P1 MVP 支撑）
@@ -79,7 +79,7 @@ Godot Harbor 是一款独立桌面应用，用于为 Godot 开发者提供统一
 - [x] 实现手动添加项目
 - [ ] 实现拖拽导入项目
 - [x] 展示项目卡片（名称、路径、Godot 版本、插件数量）
-- [x] 实现项目删除功能
+- [x] 实现项目删除功能（含二次确认对话框）
 
 #### 3.2 项目状态展示
 - [x] 显示项目健康状态
@@ -90,8 +90,8 @@ Godot Harbor 是一款独立桌面应用，用于为 Godot 开发者提供统一
 ### 阶段四：冲突检测与异常处理（P1 MVP 必需）
 
 #### 4.1 冲突检测
-- [~] 实现插件挂载路径冲突检测（check_conflicts 方法存在但未集成到 apply 流程）
-- [~] 实现 Harbor 管理标记识别（仅通过 symlink/junction 检测，无标记文件）
+- [~] 实现插件挂载路径冲突检测（check_conflicts 已集成到 apply 流程，前端 ConflictInfo 展示待完善）
+- [~] 实现 Harbor 管理标记识别（通过 symlink/junction + FILE_ATTRIBUTE_REPARSE_POINT 检测，无标记文件）
 - [x] 实现兼容性检查（Godot 3/4）
 - [~] 实现冲突提示 UI（ConflictInfo 类型已定义但前端未使用）
 
@@ -106,21 +106,21 @@ Godot Harbor 是一款独立桌面应用，用于为 Godot 开发者提供统一
 
 #### 5.1 主界面布局
 - [x] 实现三栏布局（项目列表 | 插件选择 | 变更预览）（Linker 页面已实现）
-- [ ] 实现全局总览面板（Home.vue 统计数据始终为 0，TODO 未实现）
+- [~] 实现全局总览面板（Home.vue 统计数据已实现加载，快速开始已添加交互跳转）
 - [~] 实现状态标签系统（Ready/In Use/Conflict/Warning/Missing Source）（部分状态标签存在，Conflict/Missing Source 未实现）
 - [ ] 实现未应用变更提示
 
 #### 5.2 交互优化
-- [ ] 实现二次确认对话框（删除操作均无确认）
-- [~] 实现操作引导（Home.vue 有静态文字引导，无交互式引导）
-- [~] 实现多语言支持（中文/英文）（框架完整，i18n 覆盖率约 30%）
-- [~] 实现主题切换（亮色/暗色）（useTheme 完整，但 Header.vue 独立管理导致状态不同步）
+- [x] 实现二次确认对话框（Projects/Plugins/Engines 删除操作已有确认）
+- [~] 实现操作引导（Home.vue 快速开始已添加交互跳转，无首次使用引导流程）
+- [~] 实现多语言支持（中文/英文）（框架完整，i18n 覆盖率约 30%，待提升）
+- [x] 实现主题切换（亮色/暗色）（已修复 Header.vue 与 useTheme 同步问题）
 
 #### 5.3 设置页面
 - [x] 实现扫描目录配置
 - [x] 实现挂载策略配置
 - [x] 实现界面偏好设置
-- [~] 实现数据备份与恢复（功能可用，但备份遗漏 engines.json/engine_bindings.json/team_configs.json）
+- [x] 实现数据备份与恢复（已完善：包含 engines/engine_bindings/team_configs）
 
 ### 阶段六：引擎管理功能（P3 环境扩展）
 
@@ -257,10 +257,10 @@ fn apply_changes(project_id: String) -> Result<ApplyResult, String>;
 ### MVP 验收标准
 - [x] 用户可导入一个标准 Godot 插件
 - [x] 用户可发现并展示至少一个本地项目
-- [~] 用户可为项目勾选插件并指定版本（绑定可用，但版本选择硬编码取第一个）
-- [x] 系统可正确创建和移除链接
+- [~] 用户可为项目勾选插件并指定版本（绑定可用，UI 版本选择仍取第一个版本）
+- [x] 系统可正确创建和移除链接（含 safe_remove_link 安全删除）
 - [x] 重启应用后，插件与项目绑定关系不丢失
-- [~] 发生冲突或权限不足时，系统给出明确提示（冲突检测未集成到 apply 流程）
+- [x] 发生冲突或权限不足时，系统给出明确提示（冲突检测已集成到 apply 流程）
 - [ ] Windows、macOS、Linux 至少各验证一个基础成功样例
 
 ## 风险与应对

@@ -1,15 +1,40 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { api } from '@/api'
 
+const router = useRouter()
 const stats = ref({
   projects: 0,
   plugins: 0,
   bindings: 0
 })
 
-onMounted(() => {
-  // TODO: 从后端加载数据
+onMounted(async () => {
+  try {
+    const [projects, plugins] = await Promise.all([
+      api.getProjects(),
+      api.getPlugins()
+    ])
+    stats.value.projects = projects.length
+    stats.value.plugins = plugins.length
+
+    let totalBindings = 0
+    for (const project of projects) {
+      try {
+        const bindings = await api.getProjectBindings(project.project_id)
+        totalBindings += bindings.length
+      } catch {}
+    }
+    stats.value.bindings = totalBindings
+  } catch (error) {
+    console.error('Failed to load stats:', error)
+  }
 })
+
+const navigateTo = (path: string) => {
+  router.push(path)
+}
 </script>
 
 <template>
@@ -25,7 +50,10 @@ onMounted(() => {
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+      <div
+        class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 cursor-pointer hover:shadow-lg transition-shadow"
+        @click="navigateTo('/projects')"
+      >
         <div class="flex items-center">
           <div class="p-3 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -39,7 +67,10 @@ onMounted(() => {
         </div>
       </div>
 
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+      <div
+        class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 cursor-pointer hover:shadow-lg transition-shadow"
+        @click="navigateTo('/plugins')"
+      >
         <div class="flex items-center">
           <div class="p-3 rounded-full bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -53,7 +84,10 @@ onMounted(() => {
         </div>
       </div>
 
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+      <div
+        class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 cursor-pointer hover:shadow-lg transition-shadow"
+        @click="navigateTo('/linker')"
+      >
         <div class="flex items-center">
           <div class="p-3 rounded-full bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -71,25 +105,37 @@ onMounted(() => {
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
       <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">快速开始</h2>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+        <div
+          class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors"
+          @click="navigateTo('/projects')"
+        >
           <h3 class="font-medium text-gray-900 dark:text-gray-100 mb-2">1. 扫描项目</h3>
           <p class="text-sm text-gray-600 dark:text-gray-400">
             设置项目扫描目录，自动发现本地 Godot 项目
           </p>
         </div>
-        <div class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+        <div
+          class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors"
+          @click="navigateTo('/plugins')"
+        >
           <h3 class="font-medium text-gray-900 dark:text-gray-100 mb-2">2. 导入插件</h3>
           <p class="text-sm text-gray-600 dark:text-gray-400">
             从本地目录或 Git 仓库导入插件到 Vault
           </p>
         </div>
-        <div class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+        <div
+          class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors"
+          @click="navigateTo('/linker')"
+        >
           <h3 class="font-medium text-gray-900 dark:text-gray-100 mb-2">3. 绑定插件</h3>
           <p class="text-sm text-gray-600 dark:text-gray-400">
             为项目选择需要的插件和版本
           </p>
         </div>
-        <div class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+        <div
+          class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors"
+          @click="navigateTo('/linker')"
+        >
           <h3 class="font-medium text-gray-900 dark:text-gray-100 mb-2">4. 应用变更</h3>
           <p class="text-sm text-gray-600 dark:text-gray-400">
             一键将插件挂载到项目 addons 目录

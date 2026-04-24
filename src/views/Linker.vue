@@ -91,7 +91,7 @@ const bindPluginToProject = async (plugin_id: string) => {
     toast.warning('该插件版本没有可用的单元')
     return
   }
-  const mountPath = unit.name
+  const mountPath = `addons/${unit.name}`
   isLoading.value = true
   try {
     await withErrorLogging('Linker.bindPlugin', () =>

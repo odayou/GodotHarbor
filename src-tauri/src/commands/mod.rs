@@ -1,30 +1,11 @@
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
-use std::sync::Mutex;
 use crate::models::*;
 use crate::storage::Storage;
 use crate::scanner::ProjectScanner;
 use crate::plugin_manager::PluginManager;
 use crate::linker::Linker;
 use crate::operation_log::{OperationLogger, LogEntry};
-
-struct AppState {
-    settings: Mutex<Settings>,
-    projects: Mutex<Vec<Project>>,
-    plugins: Mutex<Vec<Plugin>>,
-    bindings: Mutex<Vec<ProjectBinding>>,
-}
-
-impl AppState {
-    fn new() -> Self {
-        Self {
-            settings: Mutex::new(Settings::default()),
-            projects: Mutex::new(Vec::new()),
-            plugins: Mutex::new(Vec::new()),
-            bindings: Mutex::new(Vec::new()),
-        }
-    }
-}
 
 fn get_data_dir(app: &AppHandle) -> PathBuf {
     app.path().app_data_dir()
@@ -192,19 +173,28 @@ pub fn import_plugin_from_local(app: AppHandle, path: String) -> Result<Plugin, 
     }
 
     let manager = get_plugin_manager(&app);
-    let plugin = manager.import_from_local(&path)
+    let new_plugin = manager.import_from_local(&path)
         .map_err(|e| format!("导入本地插件失败: {}", e))?;
 
     let storage = get_storage(&app);
     let mut plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
 
-    let plugin_name = plugin.name.clone();
-    plugins.push(plugin.clone());
-    storage.save("plugins.json", &plugins)
-        .map_err(|e| format!("保存插件列表失败: {}", e))?;
-
-    log_operation(&app, "import_plugin", &path, &format!("已导入插件: {}", plugin_name));
-    Ok(plugin)
+    let plugin_name = new_plugin.name.clone();
+    let existing_idx = plugins.iter().position(|p| p.source.url == new_plugin.source.url);
+    if let Some(idx) = existing_idx {
+        plugins[idx].versions.extend(new_plugin.versions);
+        let result = plugins[idx].clone();
+        storage.save("plugins.json", &plugins)
+            .map_err(|e| format!("保存插件列表失败: {}", e))?;
+        log_operation(&app, "import_plugin", &path, &format!("已为插件 {} 添加新版本", plugin_name));
+        Ok(result)
+    } else {
+        plugins.push(new_plugin.clone());
+        storage.save("plugins.json", &plugins)
+            .map_err(|e| format!("保存插件列表失败: {}", e))?;
+        log_operation(&app, "import_plugin", &path, &format!("已导入插件: {}", plugin_name));
+        Ok(new_plugin)
+    }
 }
 
 #[tauri::command]
@@ -214,19 +204,28 @@ pub fn import_plugin_from_git(app: AppHandle, url: String) -> Result<Plugin, Str
     }
 
     let manager = get_plugin_manager(&app);
-    let plugin = manager.import_from_git(&url)
+    let new_plugin = manager.import_from_git(&url)
         .map_err(|e| format!("从 Git 导入插件失败: {}，请检查仓库地址是否正确", e))?;
 
     let storage = get_storage(&app);
     let mut plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
 
-    let plugin_name = plugin.name.clone();
-    plugins.push(plugin.clone());
-    storage.save("plugins.json", &plugins)
-        .map_err(|e| format!("保存插件列表失败: {}", e))?;
-
-    log_operation(&app, "import_plugin_git", &url, &format!("已从 Git 导入插件: {}", plugin_name));
-    Ok(plugin)
+    let plugin_name = new_plugin.name.clone();
+    let existing_idx = plugins.iter().position(|p| p.source.url == new_plugin.source.url);
+    if let Some(idx) = existing_idx {
+        plugins[idx].versions.extend(new_plugin.versions);
+        let result = plugins[idx].clone();
+        storage.save("plugins.json", &plugins)
+            .map_err(|e| format!("保存插件列表失败: {}", e))?;
+        log_operation(&app, "import_plugin_git", &url, &format!("已为插件 {} 添加新版本", plugin_name));
+        Ok(result)
+    } else {
+        plugins.push(new_plugin.clone());
+        storage.save("plugins.json", &plugins)
+            .map_err(|e| format!("保存插件列表失败: {}", e))?;
+        log_operation(&app, "import_plugin_git", &url, &format!("已从 Git 导入插件: {}", plugin_name));
+        Ok(new_plugin)
+    }
 }
 
 #[tauri::command]
@@ -310,15 +309,27 @@ pub fn unbind_plugin(app: AppHandle, project_id: String, plugin_id: String) -> R
     let binding = binding.unwrap();
     let mount_path = binding.mount_path.clone();
 
-    // 清理项目中的插件文件
     let projects: Vec<Project> = storage.load_or_default("projects.json");
     if let Some(project) = projects.iter().find(|p| p.project_id == project_id) {
         let addons_dir = std::path::Path::new(&project.path).join("addons");
         if addons_dir.exists() {
             let plugin_path = addons_dir.join(&mount_path);
-            
+
             if plugin_path.exists() {
-                if let Err(e) = std::fs::remove_dir_all(&plugin_path) {
+                let metadata = std::fs::symlink_metadata(&plugin_path);
+                let is_link = metadata.as_ref().map(|m| m.file_type().is_symlink()).unwrap_or(false);
+                let is_junction = if cfg!(windows) {
+                    use std::os::windows::fs::MetadataExt;
+                    metadata.as_ref().map(|m| m.file_attributes() & 0x400 != 0).unwrap_or(false)
+                } else {
+                    false
+                };
+
+                if is_link || is_junction {
+                    if let Err(e) = std::fs::remove_dir(&plugin_path) {
+                        eprintln!("Failed to remove symlink/junction: {}", e);
+                    }
+                } else if let Err(e) = std::fs::remove_dir_all(&plugin_path) {
                     eprintln!("Failed to remove plugin directory: {}", e);
                 }
             }
@@ -347,12 +358,12 @@ pub fn apply_changes(app: AppHandle, project_id: String) -> Result<ApplyResult, 
         })?;
 
     let bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
-    let project_bindings: Vec<ProjectBinding> = bindings.iter()
+    let desired_bindings: Vec<ProjectBinding> = bindings.iter()
         .filter(|b| b.project_id == project_id)
         .cloned()
         .collect();
 
-    if project_bindings.is_empty() {
+    if desired_bindings.is_empty() {
         log_error(&app, "apply_changes", &project_id, "该项目没有绑定任何插件");
         return Err("该项目没有绑定任何插件".to_string());
     }
@@ -363,8 +374,14 @@ pub fn apply_changes(app: AppHandle, project_id: String) -> Result<ApplyResult, 
     let data_dir = get_data_dir(&app);
     let plugin_base_path = data_dir.join("plugins");
 
-    let result = linker.apply_bindings(&project.path, &project_bindings, &plugin_base_path.to_string_lossy())
-        .map_err(|e| format!("应用变更失败: {}", e))?;
+    let current_bindings: Vec<ProjectBinding> = Vec::new();
+
+    let result = linker.apply_bindings(
+        &project.path,
+        &current_bindings,
+        &desired_bindings,
+        &plugin_base_path.to_string_lossy()
+    ).map_err(|e| format!("应用变更失败: {}", e))?;
 
     log_operation(&app, "apply_changes", &project_id,
         &format!("应用变更完成: 创建 {} 项, 移除 {} 项, 错误 {} 项",
@@ -522,7 +539,7 @@ pub fn backup_data(app: AppHandle, backup_path: String) -> Result<String, String
     std::fs::create_dir_all(backup_dir)
         .map_err(|e| format!("创建备份目录失败: {}", e))?;
 
-    let files = ["settings.json", "projects.json", "plugins.json", "bindings.json"];
+    let files = ["settings.json", "projects.json", "plugins.json", "bindings.json", "engines.json", "engine_bindings.json", "team_configs.json"];
     let mut backup_info = Vec::new();
 
     for filename in &files {
@@ -560,7 +577,7 @@ pub fn restore_data(app: AppHandle, backup_path: String) -> Result<String, Strin
         return Err("备份目录不存在".to_string());
     }
 
-    let files = ["settings.json", "projects.json", "plugins.json", "bindings.json"];
+    let files = ["settings.json", "projects.json", "plugins.json", "bindings.json", "engines.json", "engine_bindings.json", "team_configs.json"];
     let mut restore_info = Vec::new();
 
     for filename in &files {

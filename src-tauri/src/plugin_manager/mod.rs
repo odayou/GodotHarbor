@@ -125,15 +125,22 @@ impl PluginManager {
         let version_id = Uuid::new_v4().to_string();
         let version_dir = self.plugins_dir.join(&plugin.plugin_id).join(&version_id);
         let payload_dir = version_dir.join("payload");
-        
+        let git_store_dir = version_dir.join("git");
+
         fs::create_dir_all(&payload_dir)
             .context("Failed to create version directory")?;
-        
+
         git2::Repository::clone(git_url, &payload_dir)
             .context("Failed to clone git repository")?;
-        
+
         let git_dir = payload_dir.join(".git");
         if git_dir.exists() {
+            if !git_store_dir.exists() {
+                fs::create_dir_all(&git_store_dir).ok();
+            }
+            if let Err(e) = self.copy_dir_recursive(&git_dir, &git_store_dir) {
+                eprintln!("Warning: failed to backup .git directory: {}", e);
+            }
             fs::remove_dir_all(&git_dir).ok();
         }
         

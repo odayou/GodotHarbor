@@ -7,15 +7,136 @@ pub struct Linker {
     mount_strategy: MountStrategy,
 }
 
+pub struct DiffResult {
+    pub to_add: Vec<ProjectBinding>,
+    pub to_remove: Vec<ProjectBinding>,
+    pub to_keep: Vec<ProjectBinding>,
+}
+
+pub struct PreCheckResult {
+    pub is_valid: bool,
+    pub errors: Vec<String>,
+    pub warnings: Vec<String>,
+}
+
 impl Linker {
     pub fn new(mount_strategy: MountStrategy) -> Self {
         Self { mount_strategy }
     }
 
-    pub fn apply_bindings(
+    pub fn pre_check(
         &self,
         project_path: &str,
         bindings: &[ProjectBinding],
+        plugin_base_path: &str,
+    ) -> PreCheckResult {
+        let mut errors = Vec::new();
+        let mut warnings = Vec::new();
+
+        let project = Path::new(project_path);
+        if !project.exists() {
+            errors.push("项目路径不存在".to_string());
+            return PreCheckResult { is_valid: false, errors, warnings };
+        }
+
+        let project_godot = project.join("project.godot");
+        if !project_godot.exists() {
+            errors.push("项目路径下未找到 project.godot 文件".to_string());
+        }
+
+        let addons_dir = project.join("addons");
+        if addons_dir.exists() {
+            match fs::metadata(&addons_dir) {
+                Ok(meta) => {
+                    if meta.permissions().readonly() {
+                        errors.push("addons 目录没有写权限".to_string());
+                    }
+                }
+                Err(e) => {
+                    warnings.push(format!("无法检查 addons 目录权限: {}", e));
+                }
+            }
+        } else {
+            match fs::create_dir_all(&addons_dir) {
+                Ok(_) => {}
+                Err(e) => {
+                    errors.push(format!("无法创建 addons 目录: {}", e));
+                }
+            }
+        }
+
+        for binding in bindings {
+            let plugin_path = Path::new(plugin_base_path)
+                .join(&binding.plugin_id)
+                .join(&binding.version_id)
+                .join("payload");
+
+            if !plugin_path.exists() {
+                errors.push(format!(
+                    "插件源不存在: {} (版本: {})",
+                    binding.plugin_id, binding.version_id
+                ));
+            }
+        }
+
+        PreCheckResult {
+            is_valid: errors.is_empty(),
+            errors,
+            warnings,
+        }
+    }
+
+    pub fn compute_diff(
+        &self,
+        current_bindings: &[ProjectBinding],
+        desired_bindings: &[ProjectBinding],
+    ) -> DiffResult {
+        let mut to_add = Vec::new();
+        let mut to_remove = Vec::new();
+        let mut to_keep = Vec::new();
+
+        for desired in desired_bindings {
+            let current = current_bindings.iter().find(|c| {
+                c.project_id == desired.project_id && c.plugin_id == desired.plugin_id
+            });
+
+            match current {
+                Some(curr) if curr.version_id == desired.version_id
+                    && curr.mount_path == desired.mount_path =>
+                {
+                    to_keep.push(desired.clone());
+                }
+                Some(curr) => {
+                    to_remove.push(curr.clone());
+                    to_add.push(desired.clone());
+                }
+                None => {
+                    to_add.push(desired.clone());
+                }
+            }
+        }
+
+        for current in current_bindings {
+            let still_desired = desired_bindings.iter().any(|d| {
+                d.project_id == current.project_id && d.plugin_id == current.plugin_id
+            });
+            if !still_desired {
+                to_remove.push(current.clone());
+            }
+        }
+
+        DiffResult {
+            to_add,
+            to_remove,
+            to_keep,
+        }
+    }
+
+    pub fn apply_bindings(
+        &self,
+        project_path: &str,
+        current_bindings: &[ProjectBinding],
+        desired_bindings: &[ProjectBinding],
         plugin_base_path: &str,
     ) -> Result<ApplyResult> {
         let mut result = ApplyResult {
@@ -25,24 +146,67 @@ impl Linker {
             errors: Vec::new(),
         };
 
+        let pre_check = self.pre_check(project_path, desired_bindings, plugin_base_path);
+        if !pre_check.is_valid {
+            result.success = false;
+            result.errors = pre_check.errors;
+            return Ok(result);
+        }
+
+        for warning in &pre_check.warnings {
+            eprintln!("Warning: {}", warning);
+        }
+
+        let conflicts = self.check_conflicts(project_path, desired_bindings)?;
+        if !conflicts.is_empty() {
+            for conflict in &conflicts {
+                result.errors.push(format!("冲突: {}", conflict.message));
+            }
+            result.success = false;
+            return Ok(result);
+        }
+
         let project = Path::new(project_path);
         let addons_dir = project.join("addons");
-        
+
         if !addons_dir.exists() {
             fs::create_dir_all(&addons_dir)
                 .context("Failed to create addons directory")?;
         }
 
-        self.cleanup_old_links(&addons_dir, &mut result)?;
+        let diff = self.compute_diff(current_bindings, desired_bindings);
 
-        for binding in bindings {
-            match self.apply_binding(binding, &addons_dir, plugin_base_path) {
-                Ok(mount_path) => {
-                    result.created.push(mount_path);
+        let mut applied_ops: Vec<AppliedOp> = Vec::new();
+
+        for binding in &diff.to_remove {
+            let target_path = addons_dir.join(&binding.mount_path);
+            match self.safe_remove_link(&target_path) {
+                Ok(op) => {
+                    result.removed.push(target_path.to_string_lossy().to_string());
+                    applied_ops.push(op);
                 }
                 Err(e) => {
-                    result.errors.push(format!("Failed to apply binding: {}", e));
+                    result.errors.push(format!("移除失败 {}: {}", binding.mount_path, e));
                     result.success = false;
+                    self.rollback_ops(&applied_ops);
+                    return Ok(result);
+                }
+            }
+        }
+
+        for binding in &diff.to_add {
+            match self.apply_binding(binding, &addons_dir, plugin_base_path) {
+                Ok(mount_path) => {
+                    result.created.push(mount_path.clone());
+                    applied_ops.push(AppliedOp::Create {
+                        path: mount_path,
+                    });
+                }
+                Err(e) => {
+                    result.errors.push(format!("应用绑定失败: {}", e));
+                    result.success = false;
+                    self.rollback_ops(&applied_ops);
+                    return Ok(result);
                 }
             }
         }
@@ -50,22 +214,32 @@ impl Linker {
         Ok(result)
     }
 
-    fn cleanup_old_links(&self, addons_dir: &Path, result: &mut ApplyResult) -> Result<()> {
-        if !addons_dir.exists() {
-            return Ok(());
-        }
+    pub fn check_conflicts(
+        &self,
+        project_path: &str,
+        bindings: &[ProjectBinding],
+    ) -> Result<Vec<ConflictInfo>> {
+        let mut conflicts = Vec::new();
 
-        for entry in fs::read_dir(addons_dir)? {
-            let entry = entry?;
-            let path = entry.path();
-            
-            if self.is_managed_link(&path)? {
-                self.remove_link(&path)?;
-                result.removed.push(path.to_string_lossy().to_string());
+        let project = Path::new(project_path);
+        let addons_dir = project.join("addons");
+
+        for binding in bindings {
+            let target_path = addons_dir.join(&binding.mount_path);
+
+            if target_path.exists() && !self.is_managed_link(&target_path)? {
+                conflicts.push(ConflictInfo {
+                    conflict_type: "path_exists".to_string(),
+                    path: target_path.to_string_lossy().to_string(),
+                    message: format!(
+                        "目标路径已存在且非 Harbor 管理: {}，继续操作将覆盖该目录",
+                        binding.mount_path
+                    ),
+                });
             }
         }
 
-        Ok(())
+        Ok(conflicts)
     }
 
     fn apply_binding(
@@ -78,34 +252,30 @@ impl Linker {
             .join(&binding.plugin_id)
             .join(&binding.version_id)
             .join("payload");
-        
+
         if !plugin_path.exists() {
             anyhow::bail!("Plugin payload directory does not exist: {}", plugin_path.to_string_lossy());
         }
-        
-        // For now, use the plugin_path directly as the source path
-        // This is a temporary fix until we can properly map unit_id to subdirectory
-        let source_path = plugin_path;
 
+        let source_path = plugin_path;
         let target_path = addons_dir.join(&binding.mount_path);
 
         if target_path.exists() {
-            self.remove_link(&target_path)
+            self.safe_remove_link(&target_path)
                 .with_context(|| format!("Failed to remove existing target path: {}", target_path.to_string_lossy()))?;
+        }
+
+        if let Some(parent) = target_path.parent() {
+            if !parent.exists() {
+                fs::create_dir_all(parent)
+                    .context("Failed to create parent directory for mount target")?;
+            }
         }
 
         match self.mount_strategy {
             MountStrategy::Symlink => {
-                #[cfg(unix)]
-                {
-                    std::os::unix::fs::symlink(&source_path, &target_path)
-                        .context("Failed to create symlink")?;
-                }
-                #[cfg(windows)]
-                {
-                    std::os::windows::fs::symlink_dir(&source_path, &target_path)
-                        .context("Failed to create symlink")?;
-                }
+                let symlink_result = self.create_symlink_with_fallback(&source_path, &target_path);
+                symlink_result.context("Failed to create symlink (and junction fallback)")?;
             }
             MountStrategy::Junction => {
                 #[cfg(windows)]
@@ -128,52 +298,146 @@ impl Linker {
         Ok(target_path.to_string_lossy().to_string())
     }
 
+    fn create_symlink_with_fallback(&self, source: &Path, target: &Path) -> Result<()> {
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(source, target)
+                .context("Failed to create symlink")?;
+        }
+
+        #[cfg(windows)]
+        {
+            match std::os::windows::fs::symlink_dir(source, target) {
+                Ok(_) => {}
+                Err(_) => {
+                    self.create_junction(source, target)
+                        .context("Symlink failed (likely due to permissions), and junction fallback also failed. Try running as administrator or change mount strategy to Junction/Copy in settings.")?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     fn is_managed_link(&self, path: &Path) -> Result<bool> {
         if !path.exists() {
             return Ok(false);
         }
 
         let metadata = fs::symlink_metadata(path)?;
-        
-        Ok(metadata.file_type().is_symlink() || self.is_junction(path))
+
+        if metadata.file_type().is_symlink() {
+            return Ok(true);
+        }
+
+        if self.is_junction(path) {
+            return Ok(true);
+        }
+
+        Ok(false)
     }
 
     fn is_junction(&self, path: &Path) -> bool {
         #[cfg(windows)]
         {
             use std::os::windows::fs::MetadataExt;
-            if let Ok(metadata) = fs::metadata(path) {
-                const IO_REPARSE_TAG_MOUNT_POINT: u32 = 0xA0000003;
-                return (metadata.file_attributes() & 0x400) != 0;
+            if let Ok(metadata) = fs::symlink_metadata(path) {
+                const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+                if metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+                    return true;
+                }
             }
         }
         false
     }
 
-    fn remove_link(&self, path: &Path) -> Result<()> {
-        if path.is_dir() {
-            fs::remove_dir_all(path)?;
-        } else {
-            fs::remove_file(path)?;
+    fn safe_remove_link(&self, path: &Path) -> Result<AppliedOp> {
+        if !path.exists() && !path.symlink_metadata().is_ok() {
+            return Ok(AppliedOp::None);
         }
-        Ok(())
+
+        let metadata = fs::symlink_metadata(path);
+
+        if let Ok(meta) = &metadata {
+            if meta.file_type().is_symlink() {
+                if path.is_dir() {
+                    fs::remove_dir(path)
+                        .with_context(|| format!("Failed to remove symlink directory: {}", path.to_string_lossy()))?;
+                } else {
+                    fs::remove_file(path)
+                        .with_context(|| format!("Failed to remove symlink file: {}", path.to_string_lossy()))?;
+                }
+                return Ok(AppliedOp::Remove {
+                    path: path.to_path_buf(),
+                    was_symlink: true,
+                });
+            }
+        }
+
+        if self.is_junction(path) {
+            fs::remove_dir(path)
+                .with_context(|| format!("Failed to remove junction: {}", path.to_string_lossy()))?;
+            return Ok(AppliedOp::Remove {
+                path: path.to_path_buf(),
+                was_symlink: true,
+            });
+        }
+
+        if path.is_dir() {
+            fs::remove_dir_all(path)
+                .with_context(|| format!("Failed to remove directory: {}", path.to_string_lossy()))?;
+            return Ok(AppliedOp::Remove {
+                path: path.to_path_buf(),
+                was_symlink: false,
+            });
+        }
+
+        fs::remove_file(path)
+            .with_context(|| format!("Failed to remove file: {}", path.to_string_lossy()))?;
+        Ok(AppliedOp::Remove {
+            path: path.to_path_buf(),
+            was_symlink: false,
+        })
+    }
+
+    fn rollback_ops(&self, ops: &[AppliedOp]) {
+        for op in ops.iter().rev() {
+            match op {
+                AppliedOp::Create { path } => {
+                    let p = Path::new(path);
+                    if p.exists() {
+                        if let Err(e) = self.safe_remove_link(p) {
+                            eprintln!("Rollback: failed to remove created path {}: {}", path, e);
+                        }
+                    }
+                }
+                AppliedOp::Remove { path, was_symlink } => {
+                    eprintln!(
+                        "Rollback: cannot restore removed {} at {} (manual recovery may be needed)",
+                        if *was_symlink { "symlink/junction" } else { "directory" },
+                        path.to_string_lossy()
+                    );
+                }
+                AppliedOp::None => {}
+            }
+        }
     }
 
     #[cfg(windows)]
     fn create_junction(&self, source: &Path, target: &Path) -> Result<()> {
         use std::process::Command;
-        
+
         let output = Command::new("cmd")
             .args(&["/C", "mklink", "/J"])
             .arg(target)
             .arg(source)
             .output()
             .context("Failed to execute mklink command")?;
-        
+
         if !output.status.success() {
             anyhow::bail!("Failed to create junction: {}", String::from_utf8_lossy(&output.stderr));
         }
-        
+
         Ok(())
     }
 
@@ -181,19 +445,19 @@ impl Linker {
         if !src.exists() {
             anyhow::bail!("Source directory does not exist: {}", src.to_string_lossy());
         }
-        
+
         if !dst.exists() {
             fs::create_dir_all(dst)
                 .with_context(|| format!("Failed to create destination directory: {}", dst.to_string_lossy()))?;
         }
-        
+
         for entry in fs::read_dir(src)
             .with_context(|| format!("Failed to read source directory: {}", src.to_string_lossy()))? {
             let entry = entry
                 .with_context(|| format!("Failed to read directory entry in: {}", src.to_string_lossy()))?;
             let src_path = entry.path();
             let dst_path = dst.join(entry.file_name());
-            
+
             if src_path.is_dir() {
                 self.copy_dir_recursive(&src_path, &dst_path)
                     .with_context(|| format!("Failed to copy directory: {} to {}", src_path.to_string_lossy(), dst_path.to_string_lossy()))?;
@@ -202,32 +466,13 @@ impl Linker {
                     .with_context(|| format!("Failed to copy file: {} to {}", src_path.to_string_lossy(), dst_path.to_string_lossy()))?;
             }
         }
-        
+
         Ok(())
     }
+}
 
-    pub fn check_conflicts(
-        &self,
-        project_path: &str,
-        bindings: &[ProjectBinding],
-    ) -> Result<Vec<ConflictInfo>> {
-        let mut conflicts = Vec::new();
-        
-        let project = Path::new(project_path);
-        let addons_dir = project.join("addons");
-        
-        for binding in bindings {
-            let target_path = addons_dir.join(&binding.mount_path);
-            
-            if target_path.exists() && !self.is_managed_link(&target_path)? {
-                conflicts.push(ConflictInfo {
-                    conflict_type: "path_exists".to_string(),
-                    path: target_path.to_string_lossy().to_string(),
-                    message: format!("Target path already exists: {}", binding.mount_path),
-                });
-            }
-        }
-        
-        Ok(conflicts)
-    }
+enum AppliedOp {
+    Create { path: String },
+    Remove { path: std::path::PathBuf, was_symlink: bool },
+    None,
 }

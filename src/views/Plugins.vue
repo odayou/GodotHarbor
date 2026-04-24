@@ -4,10 +4,8 @@ import { api } from '@/api'
 import type { Plugin, PluginUpdateInfo, PluginDependency } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useToast } from '@/composables/useToast'
-import { useI18n } from '@/composables/useI18n'
 
 const toast = useToast()
-const { t } = useI18n()
 const plugins = ref<Plugin[]>([])
 const isLoading = ref(false)
 const gitUrl = ref('')
@@ -125,6 +123,11 @@ const importFromGit = async () => {
 }
 
 const removePlugin = async (pluginId: string) => {
+  const plugin = plugins.value.find(p => p.plugin_id === pluginId)
+  const name = plugin?.name || pluginId
+  if (!window.confirm(`确定要删除插件 "${name}" 吗？此操作将从仓库中移除插件，但不会影响已挂载到项目中的副本。`)) {
+    return
+  }
   try {
     await api.removePlugin(pluginId)
     toast.success('插件已删除')

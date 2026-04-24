@@ -69,6 +69,11 @@ const registerEngine = async () => {
 }
 
 const removeEngine = async (engineId: string) => {
+  const engine = engines.value.find(e => e.engine_id === engineId)
+  const name = engine?.name || engineId
+  if (!window.confirm(`确定要删除引擎 "${name}" 吗？`)) {
+    return
+  }
   try {
     await api.removeEngine(engineId)
     toast.success('引擎已删除')
@@ -85,14 +90,6 @@ const setDefault = async (engineId: string) => {
     await loadEngines()
   } catch (error) {
     toast.error(`设置默认引擎失败: ${error}`)
-  }
-}
-
-const formatDate = (dateStr: string) => {
-  try {
-    return new Date(dateStr).toLocaleString('zh-CN')
-  } catch {
-    return dateStr
   }
 }
 </script>
