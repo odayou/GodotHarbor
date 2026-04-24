@@ -6,6 +6,7 @@ pub mod plugin_manager;
 pub mod linker;
 pub mod operation_log;
 pub mod engine;
+pub mod godot_resolver;
 
 use tauri::Manager;
 
