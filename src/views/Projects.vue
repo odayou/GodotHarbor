@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { api } from '@/api'
 import type { Project } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
+import { convertFileSrc } from '@tauri-apps/api/core'
 import { useToast } from '@/composables/useToast'
 
 const toast = useToast()
@@ -10,10 +11,26 @@ const projects = ref<Project[]>([])
 const isLoading = ref(false)
 const showScanDialog = ref(false)
 const scanDirInput = ref('')
+const showProjectDetail = ref(false)
+const selectedProject = ref<Project | null>(null)
+
+const getIconUrl = (iconPath: string) => {
+  if (!iconPath) return ''
+  try {
+    return convertFileSrc(iconPath)
+  } catch {
+    return ''
+  }
+}
 
 onMounted(() => {
   loadProjects()
 })
+
+const showProjectDetails = (project: Project) => {
+  selectedProject.value = project
+  showProjectDetail.value = true
+}
 
 const loadProjects = async () => {
   isLoading.value = true
@@ -103,9 +120,9 @@ const addProject = async () => {
   }
 }
 
-const removeProject = async (project_id: string) => {
+const removeProject = async (projectId: string) => {
   try {
-    await api.removeProject(project_id)
+    await api.removeProject(projectId)
     toast.success('项目已删除')
     await loadProjects()
   } catch (error) {
@@ -164,13 +181,30 @@ const removeProject = async (project_id: string) => {
         class="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-shadow p-6"
       >
         <div class="flex items-start justify-between min-w-0">
-          <div class="min-w-0 flex-1">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">
-              {{ project.name }}
-            </h3>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 truncate" :title="project.path">
-              {{ project.path }}
-            </p>
+          <div 
+            class="flex items-center gap-3 min-w-0 flex-1 cursor-pointer hover:text-primary-600 dark:hover:text-primary-400"
+            @click="showProjectDetails(project)"
+          >
+            <div class="flex-shrink-0 w-10 h-10 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+              <img
+                v-if="project.icon_path"
+                :src="getIconUrl(project.icon_path)"
+                :alt="project.name"
+                class="w-10 h-10 object-contain"
+                @error="($event.target as HTMLImageElement).style.display = 'none'"
+              />
+              <svg v-else class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              </svg>
+            </div>
+            <div class="min-w-0 flex-1">
+              <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">
+                {{ project.name }}
+              </h3>
+              <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 truncate" :title="project.path">
+                {{ project.path }}
+              </p>
+            </div>
           </div>
           <button
             @click="removeProject(project.project_id)"
@@ -193,6 +227,60 @@ const removeProject = async (project_id: string) => {
           >
             {{ project.status === 'Ready' ? '就绪' : project.status === 'Warning' ? '警告' : '错误' }}
           </span>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showProjectDetail && selectedProject" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl">
+        <div class="flex items-center gap-4 mb-4">
+          <div class="flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+            <img
+              v-if="selectedProject.icon_path"
+              :src="getIconUrl(selectedProject.icon_path)"
+              :alt="selectedProject.name"
+              class="w-12 h-12 object-contain"
+              @error="($event.target as HTMLImageElement).style.display = 'none'"
+            />
+            <svg v-else class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              {{ selectedProject.name }}
+            </h3>
+            <span class="text-sm text-gray-500 dark:text-gray-400">
+              Godot {{ selectedProject.godot_version }}
+            </span>
+          </div>
+        </div>
+        <div class="mb-4">
+          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">项目路径</h4>
+          <p class="text-sm text-gray-600 dark:text-gray-400 break-all bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
+            {{ selectedProject.path }}
+          </p>
+        </div>
+        <div class="mb-4">
+          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">状态</h4>
+          <span
+            :class="[
+              'px-3 py-1 rounded text-sm font-medium',
+              selectedProject.status === 'Ready' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+              selectedProject.status === 'Warning' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' :
+              'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+            ]"
+          >
+            {{ selectedProject.status === 'Ready' ? '就绪' : selectedProject.status === 'Warning' ? '警告' : '错误' }}
+          </span>
+        </div>
+        <div class="flex justify-end">
+          <button
+            @click="showProjectDetail = false; selectedProject = null"
+            class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+          >
+            关闭
+          </button>
         </div>
       </div>
     </div>

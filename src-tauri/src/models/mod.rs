@@ -20,6 +20,12 @@ pub struct PluginSource {
 pub struct PluginUnit {
     pub unit_id: String,
     pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub author: String,
+    #[serde(default)]
+    pub version: String,
     pub subdirectory: String,
     pub plugin_cfg_path: String,
 }
@@ -84,19 +90,22 @@ pub struct Project {
     pub name: String,
     pub path: String,
     pub godot_version: String,
+    #[serde(default)]
+    pub icon_path: String,
     pub status: ProjectStatus,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
 impl Project {
-    pub fn new(name: String, path: String, godot_version: String) -> Self {
+    pub fn new(name: String, path: String, godot_version: String, icon_path: String) -> Self {
         let now = Utc::now();
         Self {
             project_id: Uuid::new_v4().to_string(),
             name,
             path,
             godot_version,
+            icon_path,
             status: ProjectStatus::Ready,
             created_at: now,
             updated_at: now,

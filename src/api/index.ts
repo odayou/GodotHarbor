@@ -29,8 +29,8 @@ export const api = {
     return await invoke('add_project', { path })
   },
 
-  async removeProject(project_id: string): Promise<void> {
-    return await invoke('remove_project', { project_id })
+  async removeProject(projectId: string): Promise<void> {
+    return await invoke('remove_project', { projectId })
   },
 
   async importPluginFromLocal(path: string): Promise<Plugin> {
@@ -45,8 +45,8 @@ export const api = {
     return await invoke('get_plugins')
   },
 
-  async removePlugin(plugin_id: string): Promise<void> {
-    return await invoke('remove_plugin', { plugin_id })
+  async removePlugin(pluginId: string): Promise<void> {
+    return await invoke('remove_plugin', { pluginId })
   },
 
   async bindPlugin(

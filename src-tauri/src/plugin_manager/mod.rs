@@ -60,7 +60,7 @@ impl PluginManager {
             imported_at: chrono::Utc::now(),
         };
 
-        let mut plugin = Plugin::new(plugin_name, plugin_source);
+        let mut plugin = Plugin::new(plugin_name.clone(), plugin_source);
         
         let version_id = Uuid::new_v4().to_string();
         let version_dir = self.plugins_dir.join(&plugin.plugin_id).join(&version_id);
@@ -77,9 +77,21 @@ impl PluginManager {
         
         let compatibility = self.detect_compatibility(&payload_dir);
         
+        let (unit_version, unit_name, unit_description, unit_author) = 
+            if let Some(first_unit) = units.first() {
+                (
+                    if first_unit.version.is_empty() { "1.0.0".to_string() } else { first_unit.version.clone() },
+                    if first_unit.name.is_empty() { plugin_name.clone() } else { first_unit.name.clone() },
+                    first_unit.description.clone(),
+                    first_unit.author.clone(),
+                )
+            } else {
+                ("1.0.0".to_string(), plugin_name.clone(), String::new(), String::new())
+            };
+        
         let plugin_version = PluginVersion {
             version_id: version_id.clone(),
-            version: "1.0.0".to_string(),
+            version: unit_version,
             path: payload_dir.to_string_lossy().to_string(),
             created_at: chrono::Utc::now(),
             units,
@@ -87,10 +99,9 @@ impl PluginManager {
         
         plugin.versions.push(plugin_version);
         plugin.compatibility = compatibility;
-        
-        if let Some(first_unit) = plugin.versions[0].units.first() {
-            plugin.name = first_unit.name.clone();
-        }
+        plugin.name = unit_name;
+        plugin.description = unit_description;
+        plugin.author = unit_author;
         
         Ok(plugin)
     }
@@ -109,7 +120,7 @@ impl PluginManager {
             imported_at: chrono::Utc::now(),
         };
 
-        let mut plugin = Plugin::new(plugin_name, plugin_source);
+        let mut plugin = Plugin::new(plugin_name.clone(), plugin_source);
         
         let version_id = Uuid::new_v4().to_string();
         let version_dir = self.plugins_dir.join(&plugin.plugin_id).join(&version_id);
@@ -131,9 +142,21 @@ impl PluginManager {
         
         let compatibility = self.detect_compatibility(&payload_dir);
         
+        let (unit_version, unit_name, unit_description, unit_author) = 
+            if let Some(first_unit) = units.first() {
+                (
+                    if first_unit.version.is_empty() { "1.0.0".to_string() } else { first_unit.version.clone() },
+                    if first_unit.name.is_empty() { plugin_name.clone() } else { first_unit.name.clone() },
+                    first_unit.description.clone(),
+                    first_unit.author.clone(),
+                )
+            } else {
+                ("1.0.0".to_string(), plugin_name.clone(), String::new(), String::new())
+            };
+        
         let plugin_version = PluginVersion {
             version_id: version_id.clone(),
-            version: "1.0.0".to_string(),
+            version: unit_version,
             path: payload_dir.to_string_lossy().to_string(),
             created_at: chrono::Utc::now(),
             units,
@@ -141,10 +164,9 @@ impl PluginManager {
         
         plugin.versions.push(plugin_version);
         plugin.compatibility = compatibility;
-        
-        if let Some(first_unit) = plugin.versions[0].units.first() {
-            plugin.name = first_unit.name.clone();
-        }
+        plugin.name = unit_name;
+        plugin.description = unit_description;
+        plugin.author = unit_author;
         
         Ok(plugin)
     }
@@ -180,6 +202,7 @@ impl PluginManager {
         let mut name = String::new();
         let mut description = String::new();
         let mut author = String::new();
+        let mut version = String::new();
         
         for line in content.lines() {
             let line = line.trim();
@@ -189,6 +212,8 @@ impl PluginManager {
                 description = line[12..].trim_matches('"').to_string();
             } else if line.starts_with("author=") {
                 author = line[7..].trim_matches('"').to_string();
+            } else if line.starts_with("version=") {
+                version = line[8..].trim_matches('"').to_string();
             }
         }
         
@@ -201,6 +226,9 @@ impl PluginManager {
         Ok(PluginUnit {
             unit_id: Uuid::new_v4().to_string(),
             name,
+            description,
+            author,
+            version,
             subdirectory,
             plugin_cfg_path: cfg_path.to_string_lossy().to_string(),
         })

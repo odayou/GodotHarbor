@@ -10,10 +10,17 @@ const plugins = ref<Plugin[]>([])
 const isLoading = ref(false)
 const gitUrl = ref('')
 const showGitDialog = ref(false)
+const showPluginDetail = ref(false)
+const selectedPlugin = ref<Plugin | null>(null)
 
 onMounted(() => {
   loadPlugins()
 })
+
+const showPluginDescription = (plugin: Plugin) => {
+  selectedPlugin.value = plugin
+  showPluginDetail.value = true
+}
 
 const loadPlugins = async () => {
   isLoading.value = true
@@ -88,9 +95,9 @@ const importFromGit = async () => {
   }
 }
 
-const removePlugin = async (plugin_id: string) => {
+const removePlugin = async (pluginId: string) => {
   try {
-    await api.removePlugin(plugin_id)
+    await api.removePlugin(pluginId)
     toast.success('插件已删除')
     await loadPlugins()
   } catch (error) {
@@ -177,7 +184,11 @@ const importFromProjects = async () => {
             <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">
               {{ plugin.name }}
             </h3>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
+            <p 
+              class="text-sm text-gray-500 dark:text-gray-400 mt-1 line-clamp-2 cursor-pointer hover:text-primary-600 dark:hover:text-primary-400"
+              :title="plugin.description || '无描述'"
+              @click="showPluginDescription(plugin)"
+            >
               {{ plugin.description || '无描述' }}
             </p>
           </div>
@@ -238,6 +249,44 @@ const importFromProjects = async () => {
             class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
           >
             导入
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showPluginDetail && selectedPlugin" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          {{ selectedPlugin.name }}
+        </h3>
+        <div class="mb-4">
+          <span class="text-sm text-gray-500 dark:text-gray-400">
+            作者: {{ selectedPlugin.author || '未知作者' }}
+          </span>
+          <span class="mx-2 text-gray-300">|</span>
+          <span class="text-sm text-gray-500 dark:text-gray-400">
+            版本: v{{ selectedPlugin.versions[0]?.version || '1.0.0' }}
+          </span>
+        </div>
+        <div class="mb-4">
+          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">描述</h4>
+          <p class="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap bg-gray-50 dark:bg-gray-700 rounded-lg p-3 max-h-60 overflow-y-auto">
+            {{ selectedPlugin.description || '无描述' }}
+          </p>
+        </div>
+        <div class="mb-4">
+          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">来源</h4>
+          <p class="text-sm text-gray-600 dark:text-gray-400">
+            {{ selectedPlugin.source.source_type === 'Local' ? '本地目录' : selectedPlugin.source.source_type === 'Git' ? 'Git 仓库' : 'AssetLibrary' }}
+            <span v-if="selectedPlugin.source.url" class="block text-xs mt-1 break-all">{{ selectedPlugin.source.url }}</span>
+          </p>
+        </div>
+        <div class="flex justify-end">
+          <button
+            @click="showPluginDetail = false; selectedPlugin = null"
+            class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+          >
+            关闭
           </button>
         </div>
       </div>

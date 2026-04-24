@@ -47,8 +47,9 @@ impl ProjectScanner {
         let project_path = project_dir.to_string_lossy().to_string();
         
         let godot_version = Self::extract_godot_version(&content);
+        let icon_path = Self::extract_icon_path(&content, project_dir);
         
-        let mut project = Project::new(project_name, project_path, godot_version);
+        let mut project = Project::new(project_name, project_path, godot_version, icon_path);
         
         if Self::check_project_health(project_dir) {
             project.status = ProjectStatus::Ready;
@@ -60,48 +61,83 @@ impl ProjectScanner {
     }
 
     fn extract_godot_version(content: &str) -> String {
-        // 首先尝试从 config_version 提取完整版本号
-        for line in content.lines() {
-            let line = line.trim();
-            if line.starts_with("config_version") {
-                if let Some(value) = line.split('=').nth(1) {
-                    let value = value.trim();
-                    if !value.is_empty() {
-                        return value.to_string();
-                    }
-                }
-            }
-        }
-        
-        // 尝试从 config/features 提取
         for line in content.lines() {
             let line = line.trim();
             if line.starts_with("config/features") {
                 if let Some(value) = line.split('=').nth(1) {
                     let value = value.trim();
-                    if value.contains("4.") {
-                        return "4.x".to_string();
-                    } else if value.contains("3.") {
-                        return "3.x".to_string();
-                    }
-                }
-            }
-        }
-        
-        // 尝试从 config/name 提取（兜底方案）
-        for line in content.lines() {
-            let line = line.trim();
-            if line.starts_with("config/name") {
-                if let Some(value) = line.split('=').nth(1) {
-                    let value = value.trim().trim_matches('"');
-                    if !value.is_empty() {
-                        return value.to_string();
+                    let version = Self::find_version_in_string(value);
+                    if !version.is_empty() {
+                        return version;
                     }
                 }
             }
         }
         
         "Unknown".to_string()
+    }
+
+    fn extract_icon_path(content: &str, project_dir: &Path) -> String {
+        for line in content.lines() {
+            let line = line.trim();
+            if line.starts_with("config/icon") {
+                if let Some(value) = line.split('=').nth(1) {
+                    let value = value.trim().trim_matches('"');
+                    if value.starts_with("res://") {
+                        let relative_path = &value[6..];
+                        let icon_path = project_dir.join(relative_path);
+                        if icon_path.exists() {
+                            return icon_path.to_string_lossy().to_string();
+                        }
+                    } else if !value.is_empty() {
+                        let icon_path = Path::new(value);
+                        if icon_path.exists() {
+                            return icon_path.to_string_lossy().to_string();
+                        }
+                    }
+                }
+            }
+        }
+        
+        String::new()
+    }
+
+    fn find_version_in_string(s: &str) -> String {
+        let mut best_match = String::new();
+        let mut in_quotes = false;
+        let mut current = String::new();
+
+        for ch in s.chars() {
+            if ch == '"' {
+                if in_quotes {
+                    if Self::is_version_string(&current) {
+                        if current.len() > best_match.len() {
+                            best_match = current.clone();
+                        }
+                    }
+                    current.clear();
+                }
+                in_quotes = !in_quotes;
+            } else if in_quotes {
+                current.push(ch);
+            }
+        }
+
+        best_match
+    }
+
+    fn is_version_string(s: &str) -> bool {
+        if s.is_empty() {
+            return false;
+        }
+        let parts: Vec<&str> = s.split('.').collect();
+        if parts.is_empty() {
+            return false;
+        }
+        if parts[0].parse::<u32>().is_err() {
+            return false;
+        }
+        parts.iter().all(|p| p.parse::<u32>().is_ok())
     }
 
     fn check_project_health(project_dir: &Path) -> bool {

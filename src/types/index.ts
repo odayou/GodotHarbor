@@ -7,6 +7,9 @@ export interface PluginSource {
 export interface PluginUnit {
   unit_id: string
   name: string
+  description: string
+  author: string
+  version: string
   subdirectory: string
   plugin_cfg_path: string
 }
@@ -36,6 +39,7 @@ export interface Project {
   name: string
   path: string
   godot_version: string
+  icon_path: string
   status: 'Ready' | 'Warning' | 'Error'
   created_at: string
   updated_at: string
