@@ -30,6 +30,7 @@ export interface Plugin {
   source: PluginSource
   versions: PluginVersion[]
   compatibility: 'Godot3' | 'Godot4' | 'Both' | 'Unknown'
+  is_favorite?: boolean
   created_at: string
   updated_at: string
 }
@@ -40,6 +41,7 @@ export interface Project {
   path: string
   godot_version: string
   icon_path: string
+  group?: string
   status: 'Ready' | 'Warning' | 'Error'
   created_at: string
   updated_at: string

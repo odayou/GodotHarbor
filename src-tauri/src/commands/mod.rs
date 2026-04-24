@@ -460,3 +460,119 @@ pub fn log_client_error(app: AppHandle, source: String, error: String) -> Result
     log_error(&app, &source, "", &error);
     Ok(())
 }
+
+#[tauri::command]
+pub fn toggle_plugin_favorite(app: AppHandle, plugin_id: String) -> Result<bool, String> {
+    let storage = get_storage(&app);
+    let mut plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+
+    let plugin = plugins.iter_mut()
+        .find(|p| p.plugin_id == plugin_id)
+        .ok_or("未找到指定插件".to_string())?;
+
+    plugin.is_favorite = !plugin.is_favorite;
+    let new_state = plugin.is_favorite;
+
+    storage.save("plugins.json", &plugins)
+        .map_err(|e| format!("保存插件状态失败: {}", e))?;
+
+    log_operation(&app, "toggle_favorite", &plugin_id,
+        &format!("插件收藏状态: {}", if new_state { "已收藏" } else { "已取消" }));
+    Ok(new_state)
+}
+
+#[tauri::command]
+pub fn update_project_group(app: AppHandle, project_id: String, group: String) -> Result<(), String> {
+    let storage = get_storage(&app);
+    let mut projects: Vec<Project> = storage.load_or_default("projects.json");
+
+    let project = projects.iter_mut()
+        .find(|p| p.project_id == project_id)
+        .ok_or("未找到指定项目".to_string())?;
+
+    project.group = group.clone();
+
+    storage.save("projects.json", &projects)
+        .map_err(|e| format!("保存项目分组失败: {}", e))?;
+
+    log_operation(&app, "update_project_group", &project_id, &format!("项目分组已更新: {}", group));
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_project_groups(app: AppHandle) -> Result<Vec<String>, String> {
+    let storage = get_storage(&app);
+    let projects: Vec<Project> = storage.load_or_default("projects.json");
+
+    let mut groups: Vec<String> = projects.iter()
+        .filter(|p| !p.group.is_empty())
+        .map(|p| p.group.clone())
+        .collect();
+    groups.sort();
+    groups.dedup();
+
+    Ok(groups)
+}
+
+#[tauri::command]
+pub fn backup_data(app: AppHandle, backup_path: String) -> Result<String, String> {
+    let data_dir = get_data_dir(&app);
+    let backup_dir = std::path::Path::new(&backup_path);
+
+    std::fs::create_dir_all(backup_dir)
+        .map_err(|e| format!("创建备份目录失败: {}", e))?;
+
+    let files = ["settings.json", "projects.json", "plugins.json", "bindings.json"];
+    let mut backup_info = Vec::new();
+
+    for filename in &files {
+        let src = data_dir.join(filename);
+        if src.exists() {
+            let dst = backup_dir.join(filename);
+            std::fs::copy(&src, &dst)
+                .map_err(|e| format!("备份文件 {} 失败: {}", filename, e))?;
+            backup_info.push(filename.to_string());
+        }
+    }
+
+    let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S").to_string();
+    let backup_file = backup_dir.join(format!("backup_{}.json", timestamp));
+
+    let backup_data = serde_json::json!({
+        "version": "1.0",
+        "timestamp": chrono::Utc::now().to_rfc3339(),
+        "files": backup_info
+    });
+
+    std::fs::write(&backup_file, serde_json::to_string_pretty(&backup_data).unwrap())
+        .map_err(|e| format!("创建备份信息文件失败: {}", e))?;
+
+    log_operation(&app, "backup_data", &backup_path, &format!("数据备份成功，共备份 {} 个文件", backup_info.len()));
+    Ok(format!("备份成功，共备份 {} 个文件", backup_info.len()))
+}
+
+#[tauri::command]
+pub fn restore_data(app: AppHandle, backup_path: String) -> Result<String, String> {
+    let data_dir = get_data_dir(&app);
+    let backup_dir = std::path::Path::new(&backup_path);
+
+    if !backup_dir.exists() {
+        return Err("备份目录不存在".to_string());
+    }
+
+    let files = ["settings.json", "projects.json", "plugins.json", "bindings.json"];
+    let mut restore_info = Vec::new();
+
+    for filename in &files {
+        let src = backup_dir.join(filename);
+        if src.exists() {
+            let dst = data_dir.join(filename);
+            std::fs::copy(&src, &dst)
+                .map_err(|e| format!("恢复文件 {} 失败: {}", filename, e))?;
+            restore_info.push(filename.to_string());
+        }
+    }
+
+    log_operation(&app, "restore_data", &backup_path, &format!("数据恢复成功，共恢复 {} 个文件", restore_info.len()));
+    Ok(format!("恢复成功，共恢复 {} 个文件", restore_info.len()))
+}

@@ -61,6 +61,32 @@ export const useProjectStore = defineStore('projects', () => {
     }
   }
 
+  const updateGroup = async (projectId: string, group: string) => {
+    loading.value = true
+    error.value = null
+    try {
+      await api.updateProjectGroup(projectId, group)
+      const project = projects.value.find(p => p.project_id === projectId)
+      if (project) {
+        project.group = group
+      }
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to update group'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const loadGroups = async (): Promise<string[]> => {
+    try {
+      return await api.getProjectGroups()
+    } catch (e) {
+      console.error('Failed to load groups:', e)
+      return []
+    }
+  }
+
   return {
     projects,
     loading,
@@ -68,7 +94,9 @@ export const useProjectStore = defineStore('projects', () => {
     loadProjects,
     scanProjects,
     addProject,
-    removeProject
+    removeProject,
+    updateGroup,
+    loadGroups
   }
 })
 
@@ -132,6 +160,24 @@ export const usePluginStore = defineStore('plugins', () => {
     }
   }
 
+  const toggleFavorite = async (pluginId: string) => {
+    loading.value = true
+    error.value = null
+    try {
+      const newState = await api.togglePluginFavorite(pluginId)
+      const plugin = plugins.value.find(p => p.plugin_id === pluginId)
+      if (plugin) {
+        plugin.is_favorite = newState
+      }
+      return newState
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to toggle favorite'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
   return {
     plugins,
     loading,
@@ -139,7 +185,8 @@ export const usePluginStore = defineStore('plugins', () => {
     loadPlugins,
     importFromLocal,
     importFromGit,
-    removePlugin
+    removePlugin,
+    toggleFavorite
   }
 })
 

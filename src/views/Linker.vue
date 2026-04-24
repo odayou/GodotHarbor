@@ -164,13 +164,13 @@ const closeApplyDialog = () => {
 </script>
 
 <template>
-  <div class="space-y-6">
-    <div class="flex justify-between items-center">
+  <div class="space-y-4 lg:space-y-6">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
       <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">插件绑定</h1>
       <button
         @click="confirmApply"
         :disabled="isLoading || !selectedProjectId || projectBindings.length === 0"
-        class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
+        class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 text-sm"
       >
         应用变更
       </button>
@@ -188,10 +188,10 @@ const closeApplyDialog = () => {
       <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">请先在项目管理中添加项目</p>
     </div>
 
-    <div v-else class="grid grid-cols-12 gap-6">
-      <div class="col-span-3 bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+    <div v-else class="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
+      <div class="lg:col-span-3 bg-white dark:bg-gray-800 rounded-lg shadow p-4">
         <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">项目列表</h3>
-        <div class="space-y-1">
+        <div class="space-y-1 max-h-64 lg:max-h-none overflow-y-auto">
           <button
             v-for="project in projects"
             :key="project.project_id"
@@ -209,7 +209,7 @@ const closeApplyDialog = () => {
         </div>
       </div>
 
-      <div class="col-span-5 bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+      <div class="lg:col-span-5 bg-white dark:bg-gray-800 rounded-lg shadow p-4">
         <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">可用插件</h3>
         <div v-if="!selectedProjectId" class="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
           请先选择一个项目
@@ -217,7 +217,7 @@ const closeApplyDialog = () => {
         <div v-else-if="availablePlugins.length === 0" class="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
           所有插件已绑定或暂无插件
         </div>
-        <div v-else class="space-y-2">
+        <div v-else class="space-y-2 max-h-64 lg:max-h-96 overflow-y-auto">
           <div
             v-for="plugin in availablePlugins"
             :key="plugin.plugin_id"
@@ -240,7 +240,7 @@ const closeApplyDialog = () => {
         </div>
       </div>
 
-      <div class="col-span-4 bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+      <div class="lg:col-span-4 bg-white dark:bg-gray-800 rounded-lg shadow p-4">
         <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
           已绑定插件
           <span v-if="projectBindings.length > 0" class="text-xs font-normal text-gray-500 dark:text-gray-400 ml-1">
@@ -253,7 +253,7 @@ const closeApplyDialog = () => {
         <div v-else-if="boundPlugins.length === 0" class="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
           尚未绑定任何插件
         </div>
-        <div v-else class="space-y-2">
+        <div v-else class="space-y-2 max-h-64 lg:max-h-96 overflow-y-auto">
           <div
             v-for="item in boundPlugins"
             :key="item.binding.plugin_id"
@@ -279,8 +279,8 @@ const closeApplyDialog = () => {
       </div>
     </div>
 
-    <div v-if="showApplyDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl">
+    <div v-if="showApplyDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-4 lg:p-6 w-full max-w-lg shadow-xl">
         <template v-if="!applyResult">
           <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">确认应用变更</h3>
           <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
@@ -297,7 +297,7 @@ const closeApplyDialog = () => {
               </svg>
               <span class="text-gray-900 dark:text-gray-100">{{ item.plugin?.name }}</span>
               <span class="text-gray-500 dark:text-gray-400">→</span>
-              <span class="text-gray-600 dark:text-gray-300">{{ item.binding.mount_path }}</span>
+              <span class="text-gray-600 dark:text-gray-300 truncate">{{ item.binding.mount_path }}</span>
             </div>
           </div>
           <div class="flex justify-end space-x-3">
@@ -322,13 +322,13 @@ const closeApplyDialog = () => {
           </h3>
           <div v-if="applyResult.created.length > 0" class="mb-3">
             <p class="text-sm font-medium text-green-600 dark:text-green-400 mb-1">已创建：</p>
-            <div v-for="path in applyResult.created" :key="path" class="text-xs text-gray-600 dark:text-gray-400 ml-3">
+            <div v-for="path in applyResult.created" :key="path" class="text-xs text-gray-600 dark:text-gray-400 ml-3 break-all">
               {{ path }}
             </div>
           </div>
           <div v-if="applyResult.removed.length > 0" class="mb-3">
             <p class="text-sm font-medium text-yellow-600 dark:text-yellow-400 mb-1">已移除：</p>
-            <div v-for="path in applyResult.removed" :key="path" class="text-xs text-gray-600 dark:text-gray-400 ml-3">
+            <div v-for="path in applyResult.removed" :key="path" class="text-xs text-gray-600 dark:text-gray-400 ml-3 break-all">
               {{ path }}
             </div>
           </div>

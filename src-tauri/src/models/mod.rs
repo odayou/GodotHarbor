@@ -56,6 +56,8 @@ pub struct Plugin {
     pub source: PluginSource,
     pub versions: Vec<PluginVersion>,
     pub compatibility: Compatibility,
+    #[serde(default)]
+    pub is_favorite: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -71,6 +73,7 @@ impl Plugin {
             source,
             versions: Vec::new(),
             compatibility: Compatibility::Unknown,
+            is_favorite: false,
             created_at: now,
             updated_at: now,
         }
@@ -92,6 +95,8 @@ pub struct Project {
     pub godot_version: String,
     #[serde(default)]
     pub icon_path: String,
+    #[serde(default)]
+    pub group: String,
     pub status: ProjectStatus,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -106,6 +111,7 @@ impl Project {
             path,
             godot_version,
             icon_path,
+            group: String::new(),
             status: ProjectStatus::Ready,
             created_at: now,
             updated_at: now,

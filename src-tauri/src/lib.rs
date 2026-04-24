@@ -47,6 +47,11 @@ pub fn run() {
             commands::import_plugins_from_projects,
             commands::get_operation_logs,
             commands::log_client_error,
+            commands::toggle_plugin_favorite,
+            commands::update_project_group,
+            commands::get_project_groups,
+            commands::backup_data,
+            commands::restore_data,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

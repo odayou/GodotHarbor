@@ -14,6 +14,10 @@ const settings = ref<Settings>({ scan_directories: [], mount_strategy: 'Symlink'
 const isLoading = ref(false)
 const logs = ref<LogEntry[]>([])
 const showLogs = ref(false)
+const showBackupDialog = ref(false)
+const backupPath = ref('')
+const isBackingUp = ref(false)
+const isRestoring = ref(false)
 
 onMounted(() => { initTheme(); loadSettings() })
 
@@ -71,13 +75,60 @@ const formatTime = (timestamp: string) => {
     return date.toLocaleString('zh-CN')
   } catch { return timestamp }
 }
+
+const selectBackupPath = async () => {
+  try {
+    const selected = await open({ directory: true, multiple: false, title: '选择备份目录' })
+    if (selected && typeof selected === 'string') {
+      backupPath.value = selected
+    }
+  } catch (error) { toast.error(`选择目录失败: ${error}`) }
+}
+
+const performBackup = async () => {
+  if (!backupPath.value) {
+    toast.warning('请先选择备份目录')
+    return
+  }
+  isBackingUp.value = true
+  try {
+    const result = await api.backupData(backupPath.value)
+    toast.success(result)
+    showBackupDialog.value = false
+  } catch (error) {
+    toast.error(`备份失败: ${error}`)
+  } finally {
+    isBackingUp.value = false
+  }
+}
+
+const performRestore = async () => {
+  if (!backupPath.value) {
+    toast.warning('请先选择备份目录')
+    return
+  }
+  isRestoring.value = true
+  try {
+    const result = await api.restoreData(backupPath.value)
+    toast.success(result)
+    await loadSettings()
+    showBackupDialog.value = false
+  } catch (error) {
+    toast.error(`恢复失败: ${error}`)
+  } finally {
+    isRestoring.value = false
+  }
+}
 </script>
 
 <template>
   <div class="space-y-6">
     <div class="flex justify-between items-center">
       <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ t('settings.title') }}</h1>
-      <button @click="loadLogs" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm">查看日志</button>
+      <div class="flex gap-2">
+        <button @click="loadLogs" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm">查看日志</button>
+        <button @click="showBackupDialog = true" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">数据备份与恢复</button>
+      </div>
     </div>
     <div v-if="isLoading" class="flex justify-center py-12"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div></div>
     <div v-else class="space-y-6">
@@ -151,6 +202,57 @@ const formatTime = (timestamp: string) => {
             <p v-if="log.target" class="text-xs text-gray-500 dark:text-gray-400 mt-1">目标: {{ log.target }}</p>
             <p :class="['text-sm mt-1', log.level === 'error' ? 'text-red-700 dark:text-red-300' : 'text-gray-600 dark:text-gray-400']">{{ log.detail }}</p>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showBackupDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">数据备份与恢复</h3>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+          选择备份目录，将复制所有数据到该目录。恢复时会从该目录读取数据覆盖现有数据。
+        </p>
+        <div class="flex gap-2 mb-4">
+          <input
+            v-model="backupPath"
+            type="text"
+            readonly
+            placeholder="请选择备份目录"
+            class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+          />
+          <button
+            @click="selectBackupPath"
+            class="px-4 py-2 bg-gray-100 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 text-sm whitespace-nowrap"
+          >
+            浏览
+          </button>
+        </div>
+        <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 mb-4">
+          <p class="text-xs text-yellow-800 dark:text-yellow-200">
+            <strong>注意：</strong>恢复功能会覆盖现有数据，请在恢复前确认备份文件的正确性。
+          </p>
+        </div>
+        <div class="flex justify-end space-x-3">
+          <button
+            @click="showBackupDialog = false; backupPath = ''"
+            class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+          >
+            取消
+          </button>
+          <button
+            @click="performBackup"
+            :disabled="isBackingUp || !backupPath"
+            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          >
+            {{ isBackingUp ? '备份中...' : '备份数据' }}
+          </button>
+          <button
+            @click="performRestore"
+            :disabled="isRestoring || !backupPath"
+            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+          >
+            {{ isRestoring ? '恢复中...' : '恢复数据' }}
+          </button>
         </div>
       </div>
     </div>

@@ -95,6 +95,26 @@ export const api = {
     } catch (e) {
       console.error('Failed to log client error:', e)
     }
+  },
+
+  async togglePluginFavorite(pluginId: string): Promise<boolean> {
+    return await invoke('toggle_plugin_favorite', { pluginId })
+  },
+
+  async updateProjectGroup(projectId: string, group: string): Promise<void> {
+    return await invoke('update_project_group', { projectId, group })
+  },
+
+  async getProjectGroups(): Promise<string[]> {
+    return await invoke('get_project_groups')
+  },
+
+  async backupData(backupPath: string): Promise<string> {
+    return await invoke('backup_data', { backupPath })
+  },
+
+  async restoreData(backupPath: string): Promise<string> {
+    return await invoke('restore_data', { backupPath })
   }
 }
 
