@@ -83,3 +83,51 @@ export interface LogEntry {
   target: string
   detail: string
 }
+
+export interface Engine {
+  engine_id: string
+  name: string
+  path: string
+  engine_type: 'Godot3' | 'Godot4' | 'Unknown'
+  version: string
+  is_default: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface ProjectEngineBinding {
+  project_id: string
+  engine_id: string
+  custom_args: string
+  created_at: string
+}
+
+export interface PluginDependency {
+  plugin_id: string
+  version_constraint: string
+  is_optional: boolean
+}
+
+export interface PluginUpdateInfo {
+  plugin_id: string
+  current_version: string
+  latest_version: string
+  update_available: boolean
+  release_notes: string
+}
+
+export interface TeamSharedConfig {
+  config_id: string
+  name: string
+  description: string
+  bindings: ProjectBinding[]
+  engine_bindings: ProjectEngineBinding[]
+  created_at: string
+  updated_at: string
+}
+
+export interface LaunchResult {
+  success: boolean
+  pid: number | null
+  error: string | null
+}

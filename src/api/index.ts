@@ -5,7 +5,13 @@ import type {
   ProjectBinding, 
   Settings, 
   ApplyResult,
-  LogEntry
+  LogEntry,
+  Engine,
+  ProjectEngineBinding,
+  PluginUpdateInfo,
+  PluginDependency,
+  TeamSharedConfig,
+  LaunchResult
 } from '@/types'
 
 export const api = {
@@ -115,6 +121,74 @@ export const api = {
 
   async restoreData(backupPath: string): Promise<string> {
     return await invoke('restore_data', { backupPath })
+  },
+
+  async registerEngine(path: string, name: string): Promise<Engine> {
+    return await invoke('register_engine', { path, name })
+  },
+
+  async getEngines(): Promise<Engine[]> {
+    return await invoke('get_engines')
+  },
+
+  async removeEngine(engineId: string): Promise<void> {
+    return await invoke('remove_engine', { engineId })
+  },
+
+  async setDefaultEngine(engineId: string): Promise<void> {
+    return await invoke('set_default_engine', { engineId })
+  },
+
+  async bindProjectEngine(
+    projectId: string,
+    engineId: string,
+    customArgs: string
+  ): Promise<void> {
+    return await invoke('bind_project_engine', { projectId, engineId, customArgs })
+  },
+
+  async unbindProjectEngine(projectId: string): Promise<void> {
+    return await invoke('unbind_project_engine', { projectId })
+  },
+
+  async getProjectEngineBinding(projectId: string): Promise<ProjectEngineBinding | null> {
+    return await invoke('get_project_engine_binding', { projectId })
+  },
+
+  async launchProjectWithEngine(
+    projectId: string,
+    engineId?: string,
+    customArgs?: string
+  ): Promise<LaunchResult> {
+    return await invoke('launch_project_with_engine', { projectId, engineId, customArgs })
+  },
+
+  async checkPluginUpdates(): Promise<PluginUpdateInfo[]> {
+    return await invoke('check_plugin_updates')
+  },
+
+  async exportTeamConfig(
+    name: string,
+    description: string,
+    projectIds: string[]
+  ): Promise<TeamSharedConfig> {
+    return await invoke('export_team_config', { name, description, projectIds })
+  },
+
+  async getTeamConfigs(): Promise<TeamSharedConfig[]> {
+    return await invoke('get_team_configs')
+  },
+
+  async importTeamConfig(configId: string, targetProjectIds: string[]): Promise<void> {
+    return await invoke('import_team_config', { configId, targetProjectIds })
+  },
+
+  async deleteTeamConfig(configId: string): Promise<void> {
+    return await invoke('delete_team_config', { configId })
+  },
+
+  async resolvePluginDependencies(pluginId: string): Promise<PluginDependency[]> {
+    return await invoke('resolve_plugin_dependencies', { pluginId })
   }
 }
 

@@ -576,3 +576,421 @@ pub fn restore_data(app: AppHandle, backup_path: String) -> Result<String, Strin
     log_operation(&app, "restore_data", &backup_path, &format!("数据恢复成功，共恢复 {} 个文件", restore_info.len()));
     Ok(format!("恢复成功，共恢复 {} 个文件", restore_info.len()))
 }
+
+#[tauri::command]
+pub fn register_engine(app: AppHandle, path: String, name: String) -> Result<Engine, String> {
+    if path.is_empty() {
+        return Err("引擎路径不能为空".to_string());
+    }
+
+    if !crate::engine::EngineManager::validate_engine_path(&path) {
+        log_error(&app, "register_engine", &path, "引擎路径无效或找不到可执行文件");
+        return Err("引擎路径无效或找不到 Godot 可执行文件".to_string());
+    }
+
+    let engine = crate::engine::EngineManager::get_engine_info(&path)
+        .map_err(|e| format!("获取引擎信息失败: {}", e))?;
+
+    let mut registered_engine = engine;
+    registered_engine.name = if name.is_empty() { registered_engine.name.clone() } else { name };
+
+    let storage = get_storage(&app);
+    let mut engines: Vec<Engine> = storage.load_or_default("engines.json");
+
+    if engines.iter().any(|e| e.path == registered_engine.path) {
+        return Err("该引擎已被注册".to_string());
+    }
+
+    if engines.is_empty() {
+        registered_engine.is_default = true;
+    }
+
+    engines.push(registered_engine.clone());
+    storage.save("engines.json", &engines)
+        .map_err(|e| format!("保存引擎信息失败: {}", e))?;
+
+    log_operation(&app, "register_engine", &path, &format!("已注册引擎: {}", registered_engine.name));
+    Ok(registered_engine)
+}
+
+#[tauri::command]
+pub fn get_engines(app: AppHandle) -> Result<Vec<Engine>, String> {
+    let storage = get_storage(&app);
+    let engines: Vec<Engine> = storage.load_or_default("engines.json");
+    Ok(engines)
+}
+
+#[tauri::command]
+pub fn remove_engine(app: AppHandle, engine_id: String) -> Result<(), String> {
+    let storage = get_storage(&app);
+    let mut engines: Vec<Engine> = storage.load_or_default("engines.json");
+
+    let engine = engines.iter().find(|e| e.engine_id == engine_id)
+        .ok_or("未找到指定引擎".to_string())?;
+    let engine_name = engine.name.clone();
+    let was_default = engine.is_default;
+
+    engines.retain(|e| e.engine_id != engine_id);
+
+    if was_default && !engines.is_empty() {
+        engines[0].is_default = true;
+    }
+
+    storage.save("engines.json", &engines)
+        .map_err(|e| format!("保存引擎列表失败: {}", e))?;
+
+    log_operation(&app, "remove_engine", &engine_id, &format!("已删除引擎: {}", engine_name));
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_default_engine(app: AppHandle, engine_id: String) -> Result<(), String> {
+    let storage = get_storage(&app);
+    let mut engines: Vec<Engine> = storage.load_or_default("engines.json");
+
+    let engine_name = {
+        let engine = engines.iter()
+            .find(|e| e.engine_id == engine_id)
+            .ok_or("未找到指定引擎".to_string())?;
+        engine.name.clone()
+    };
+
+    for e in engines.iter_mut() {
+        e.is_default = e.engine_id == engine_id;
+    }
+
+    storage.save("engines.json", &engines)
+        .map_err(|e| format!("保存引擎设置失败: {}", e))?;
+
+    log_operation(&app, "set_default_engine", &engine_id, &format!("已将 {} 设为默认引擎", engine_name));
+    Ok(())
+}
+
+#[tauri::command]
+pub fn bind_project_engine(
+    app: AppHandle,
+    project_id: String,
+    engine_id: String,
+    custom_args: String,
+) -> Result<(), String> {
+    let storage = get_storage(&app);
+
+    let projects: Vec<Project> = storage.load_or_default("projects.json");
+    if !projects.iter().any(|p| p.project_id == project_id) {
+        return Err("未找到指定项目".to_string());
+    }
+
+    let engines: Vec<Engine> = storage.load_or_default("engines.json");
+    if !engines.iter().any(|e| e.engine_id == engine_id) {
+        return Err("未找到指定引擎".to_string());
+    }
+
+    let binding = ProjectEngineBinding::new(project_id.clone(), engine_id, custom_args);
+
+    let mut engine_bindings: Vec<ProjectEngineBinding> = storage.load_or_default("engine_bindings.json");
+    engine_bindings.retain(|b| b.project_id != binding.project_id);
+    engine_bindings.push(binding);
+
+    storage.save("engine_bindings.json", &engine_bindings)
+        .map_err(|e| format!("保存引擎绑定失败: {}", e))?;
+
+    log_operation(&app, "bind_project_engine", &project_id, "已绑定项目到引擎");
+    Ok(())
+}
+
+#[tauri::command]
+pub fn unbind_project_engine(app: AppHandle, project_id: String) -> Result<(), String> {
+    let storage = get_storage(&app);
+    let mut engine_bindings: Vec<ProjectEngineBinding> = storage.load_or_default("engine_bindings.json");
+
+    engine_bindings.retain(|b| b.project_id != project_id);
+
+    storage.save("engine_bindings.json", &engine_bindings)
+        .map_err(|e| format!("保存引擎绑定失败: {}", e))?;
+
+    log_operation(&app, "unbind_project_engine", &project_id, "已解除项目引擎绑定");
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_project_engine_binding(app: AppHandle, project_id: String) -> Result<Option<ProjectEngineBinding>, String> {
+    let storage = get_storage(&app);
+    let engine_bindings: Vec<ProjectEngineBinding> = storage.load_or_default("engine_bindings.json");
+
+    Ok(engine_bindings.into_iter().find(|b| b.project_id == project_id))
+}
+
+#[tauri::command]
+pub fn launch_project_with_engine(
+    app: AppHandle,
+    project_id: String,
+    engine_id: Option<String>,
+    custom_args: Option<String>,
+) -> Result<LaunchResult, String> {
+    let storage = get_storage(&app);
+
+    let projects: Vec<Project> = storage.load_or_default("projects.json");
+    let project = projects.iter()
+        .find(|p| p.project_id == project_id)
+        .ok_or("未找到指定项目".to_string())?;
+
+    let project_path = std::path::Path::new(&project.path);
+    if !project_path.exists() || !project_path.join("project.godot").exists() {
+        log_error(&app, "launch_project", &project_id, "项目路径不存在");
+        return Ok(LaunchResult {
+            success: false,
+            pid: None,
+            error: Some("项目路径不存在或不是有效的 Godot 项目".to_string()),
+        });
+    }
+
+    let engines: Vec<Engine> = storage.load_or_default("engines.json");
+
+    let engine = if let Some(eid) = engine_id {
+        engines.iter().find(|e| e.engine_id == eid).cloned()
+    } else {
+        let engine_bindings: Vec<ProjectEngineBinding> = storage.load_or_default("engine_bindings.json");
+        let binding = engine_bindings.iter().find(|b| b.project_id == project_id);
+        if let Some(b) = binding {
+            engines.iter().find(|e| e.engine_id == b.engine_id).cloned()
+        } else {
+            engines.iter().find(|e| e.is_default).cloned()
+        }
+    };
+
+    let engine = engine.ok_or_else(|| {
+        log_error(&app, "launch_project", &project_id, "未找到可用的引擎");
+        "未找到可用的引擎，请先注册引擎".to_string()
+    })?;
+
+    let exe_name = if cfg!(windows) { "godot.exe" } else { "godot" };
+    let exe_path = std::path::Path::new(&engine.path).join(exe_name);
+    let actual_exe = if exe_path.exists() {
+        exe_path
+    } else {
+        std::path::Path::new(&engine.path).join(format!("bin/{}", exe_name))
+    };
+
+    if !actual_exe.exists() {
+        log_error(&app, "launch_project", &project_id, "引擎可执行文件不存在");
+        return Ok(LaunchResult {
+            success: false,
+            pid: None,
+            error: Some("引擎可执行文件不存在".to_string()),
+        });
+    }
+
+    let mut cmd = std::process::Command::new(&actual_exe);
+    cmd.current_dir(&project.path);
+
+    if let Some(args) = custom_args {
+        if !args.is_empty() {
+            cmd.arg("--").args(args.split_whitespace());
+        }
+    } else {
+        let engine_bindings: Vec<ProjectEngineBinding> = storage.load_or_default("engine_bindings.json");
+        if let Some(binding) = engine_bindings.iter().find(|b| b.project_id == project_id) {
+            if !binding.custom_args.is_empty() {
+                cmd.arg("--").args(binding.custom_args.split_whitespace());
+            }
+        }
+    }
+    cmd.arg("--path").arg(&project.path);
+
+    match cmd.spawn() {
+        Ok(child) => {
+            log_operation(&app, "launch_project", &project_id,
+                &format!("使用 {} 启动项目成功，PID: {}", engine.name, child.id()));
+            Ok(LaunchResult {
+                success: true,
+                pid: Some(child.id()),
+                error: None,
+            })
+        }
+        Err(e) => {
+            log_error(&app, "launch_project", &project_id, &e.to_string());
+            Ok(LaunchResult {
+                success: false,
+                pid: None,
+                error: Some(format!("启动失败: {}", e)),
+            })
+        }
+    }
+}
+
+#[tauri::command]
+pub fn check_plugin_updates(app: AppHandle) -> Result<Vec<PluginUpdateInfo>, String> {
+    let storage = get_storage(&app);
+    let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+
+    let mut update_infos = Vec::new();
+
+    for plugin in &plugins {
+        let latest_version = if let Some(v) = plugin.versions.last() {
+            v.version.clone()
+        } else {
+            continue;
+        };
+
+        let current_version = plugin.versions.last()
+            .map(|v| v.version.clone())
+            .unwrap_or_else(|| "0.0.0".to_string());
+
+        let update_available = compare_versions(&current_version, &latest_version) < 0;
+
+        update_infos.push(PluginUpdateInfo {
+            plugin_id: plugin.plugin_id.clone(),
+            current_version,
+            latest_version,
+            update_available,
+            release_notes: String::new(),
+        });
+    }
+
+    log_operation(&app, "check_plugin_updates", "", &format!("检查了 {} 个插件的更新", update_infos.len()));
+    Ok(update_infos)
+}
+
+fn compare_versions(current: &str, latest: &str) -> i32 {
+    let c_parts: Vec<u32> = current.split('.').filter_map(|s| s.parse().ok()).collect();
+    let l_parts: Vec<u32> = latest.split('.').filter_map(|s| s.parse().ok()).collect();
+
+    let max_len = c_parts.len().max(l_parts.len());
+
+    for i in 0..max_len {
+        let c = c_parts.get(i).unwrap_or(&0);
+        let l = l_parts.get(i).unwrap_or(&0);
+        if c < l {
+            return -1;
+        } else if c > l {
+            return 1;
+        }
+    }
+    0
+}
+
+#[tauri::command]
+pub fn export_team_config(app: AppHandle, name: String, description: String, project_ids: Vec<String>) -> Result<TeamSharedConfig, String> {
+    let storage = get_storage(&app);
+
+    let bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
+    let engine_bindings: Vec<ProjectEngineBinding> = storage.load_or_default("engine_bindings.json");
+
+    let selected_bindings: Vec<ProjectBinding> = bindings.into_iter()
+        .filter(|b| project_ids.contains(&b.project_id))
+        .collect();
+
+    let selected_engine_bindings: Vec<ProjectEngineBinding> = engine_bindings.into_iter()
+        .filter(|b| project_ids.contains(&b.project_id))
+        .collect();
+
+    let mut config = TeamSharedConfig::new(name, description);
+    config.bindings = selected_bindings;
+    config.engine_bindings = selected_engine_bindings;
+
+    let mut configs: Vec<TeamSharedConfig> = storage.load_or_default("team_configs.json");
+    configs.push(config.clone());
+
+    storage.save("team_configs.json", &configs)
+        .map_err(|e| format!("保存团队配置失败: {}", e))?;
+
+    log_operation(&app, "export_team_config", &config.config_id, &format!("已导出团队配置: {}", config.name));
+    Ok(config)
+}
+
+#[tauri::command]
+pub fn get_team_configs(app: AppHandle) -> Result<Vec<TeamSharedConfig>, String> {
+    let storage = get_storage(&app);
+    let configs: Vec<TeamSharedConfig> = storage.load_or_default("team_configs.json");
+    Ok(configs)
+}
+
+#[tauri::command]
+pub fn import_team_config(app: AppHandle, config_id: String, target_project_ids: Vec<String>) -> Result<(), String> {
+    let storage = get_storage(&app);
+    let configs: Vec<TeamSharedConfig> = storage.load_or_default("team_configs.json");
+
+    let config = configs.iter()
+        .find(|c| c.config_id == config_id)
+        .ok_or("未找到指定的团队配置".to_string())?;
+
+    let mut bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
+    let mut engine_bindings: Vec<ProjectEngineBinding> = storage.load_or_default("engine_bindings.json");
+
+    let mut imported_count = 0;
+
+    for binding in &config.bindings {
+        if target_project_ids.contains(&binding.project_id) {
+            bindings.retain(|b| !(b.project_id == binding.project_id && b.plugin_id == binding.plugin_id));
+            let mut new_binding = binding.clone();
+            new_binding.created_at = chrono::Utc::now();
+            bindings.push(new_binding);
+            imported_count += 1;
+        }
+    }
+
+    for engine_binding in &config.engine_bindings {
+        if target_project_ids.contains(&engine_binding.project_id) {
+            engine_bindings.retain(|b| b.project_id != engine_binding.project_id);
+            let mut new_binding = engine_binding.clone();
+            new_binding.created_at = chrono::Utc::now();
+            engine_bindings.push(new_binding);
+        }
+    }
+
+    storage.save("bindings.json", &bindings)
+        .map_err(|e| format!("保存绑定关系失败: {}", e))?;
+    storage.save("engine_bindings.json", &engine_bindings)
+        .map_err(|e| format!("保存引擎绑定失败: {}", e))?;
+
+    log_operation(&app, "import_team_config", &config_id, &format!("导入了 {} 个绑定到目标项目", imported_count));
+    Ok(())
+}
+
+#[tauri::command]
+pub fn delete_team_config(app: AppHandle, config_id: String) -> Result<(), String> {
+    let storage = get_storage(&app);
+    let mut configs: Vec<TeamSharedConfig> = storage.load_or_default("team_configs.json");
+
+    let config = configs.iter().find(|c| c.config_id == config_id)
+        .ok_or("未找到指定的团队配置".to_string())?;
+    let config_name = config.name.clone();
+
+    configs.retain(|c| c.config_id != config_id);
+
+    storage.save("team_configs.json", &configs)
+        .map_err(|e| format!("删除团队配置失败: {}", e))?;
+
+    log_operation(&app, "delete_team_config", &config_id, &format!("已删除团队配置: {}", config_name));
+    Ok(())
+}
+
+#[tauri::command]
+pub fn resolve_plugin_dependencies(app: AppHandle, plugin_id: String) -> Result<Vec<PluginDependency>, String> {
+    let storage = get_storage(&app);
+    let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+
+    let plugin = plugins.iter()
+        .find(|p| p.plugin_id == plugin_id)
+        .ok_or("未找到指定插件".to_string())?;
+
+    let mut dependencies = Vec::new();
+
+    if let Some(version) = plugin.versions.last() {
+        for unit in &version.units {
+            if !unit.description.is_empty() && unit.description.contains("depends")
+               || unit.description.contains("dependency") {
+                dependencies.push(PluginDependency {
+                    plugin_id: plugin.plugin_id.clone(),
+                    version_constraint: unit.version.clone(),
+                    is_optional: false,
+                });
+            }
+        }
+    }
+
+    let dep_str = format!("插件 {} 的依赖解析完成，共发现 {} 个依赖项", plugin.name, dependencies.len());
+    log_operation(&app, "resolve_dependencies", &plugin_id, &dep_str);
+
+    Ok(dependencies)
+}

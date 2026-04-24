@@ -5,6 +5,7 @@ pub mod scanner;
 pub mod plugin_manager;
 pub mod linker;
 pub mod operation_log;
+pub mod engine;
 
 use tauri::Manager;
 
@@ -52,6 +53,20 @@ pub fn run() {
             commands::get_project_groups,
             commands::backup_data,
             commands::restore_data,
+            commands::register_engine,
+            commands::get_engines,
+            commands::remove_engine,
+            commands::set_default_engine,
+            commands::bind_project_engine,
+            commands::unbind_project_engine,
+            commands::get_project_engine_binding,
+            commands::launch_project_with_engine,
+            commands::check_plugin_updates,
+            commands::export_team_config,
+            commands::get_team_configs,
+            commands::import_team_config,
+            commands::delete_team_config,
+            commands::resolve_plugin_dependencies,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

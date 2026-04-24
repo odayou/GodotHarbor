@@ -188,3 +188,106 @@ pub struct ConflictInfo {
     pub path: String,
     pub message: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum EngineType {
+    Godot3,
+    Godot4,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Engine {
+    pub engine_id: String,
+    pub name: String,
+    pub path: String,
+    pub engine_type: EngineType,
+    pub version: String,
+    pub is_default: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl Engine {
+    pub fn new(name: String, path: String, engine_type: EngineType, version: String) -> Self {
+        let now = Utc::now();
+        Self {
+            engine_id: Uuid::new_v4().to_string(),
+            name,
+            path,
+            engine_type,
+            version,
+            is_default: false,
+            created_at: now,
+            updated_at: now,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectEngineBinding {
+    pub project_id: String,
+    pub engine_id: String,
+    pub custom_args: String,
+    pub created_at: DateTime<Utc>,
+}
+
+impl ProjectEngineBinding {
+    pub fn new(project_id: String, engine_id: String, custom_args: String) -> Self {
+        Self {
+            project_id,
+            engine_id,
+            custom_args,
+            created_at: Utc::now(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PluginDependency {
+    pub plugin_id: String,
+    pub version_constraint: String,
+    pub is_optional: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PluginUpdateInfo {
+    pub plugin_id: String,
+    pub current_version: String,
+    pub latest_version: String,
+    pub update_available: bool,
+    pub release_notes: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TeamSharedConfig {
+    pub config_id: String,
+    pub name: String,
+    pub description: String,
+    pub bindings: Vec<ProjectBinding>,
+    pub engine_bindings: Vec<ProjectEngineBinding>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl TeamSharedConfig {
+    pub fn new(name: String, description: String) -> Self {
+        let now = Utc::now();
+        Self {
+            config_id: Uuid::new_v4().to_string(),
+            name,
+            description,
+            bindings: Vec::new(),
+            engine_bindings: Vec::new(),
+            created_at: now,
+            updated_at: now,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LaunchResult {
+    pub success: bool,
+    pub pid: Option<u32>,
+    pub error: Option<String>,
+}
