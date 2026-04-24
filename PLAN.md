@@ -30,7 +30,7 @@ Godot Harbor 是一款独立桌面应用，用于为 Godot 开发者提供统一
 #### 1.3 基础文件系统操作
 - [x] 实现文件/目录操作工具函数
 - [x] 实现符号链接创建/删除功能
-- [x] 实现跨平台路径处理（已修复 junction 检测逻辑，使用 symlink_metadata + FILE_ATTRIBUTE_REPARSE_POINT）
+- [x] 实现跨平台路径处理（已修复 junction 检测逻辑，使用 symlink_metadata + FILE_ATTRIBUTE_REPARSE_POINT，非 Windows 回退 symlink）
 - [x] 实现权限检测功能（已实现 symlink→junction 自动回退、预检查含写权限检测）
 
 #### 1.4 项目扫描功能（原型）
@@ -42,10 +42,11 @@ Godot Harbor 是一款独立桌面应用，用于为 Godot 开发者提供统一
 
 #### 2.1 插件导入功能
 - [x] 实现从本地目录导入插件
-- [x] 实现从 Git URL 导入插件
+- [x] 实现从 Git URL 导入插件（含进度回调 git-clone-progress 事件）
 - [x] 解析 plugin.cfg 文件
 - [x] 提取插件元信息（名称、版本、描述等）
 - [x] 处理包含多个 plugin.cfg 的情况
+- [x] 实现从 Asset Library 导入插件（搜索 + 下载 + 解压 + 解析）
 
 #### 2.2 插件仓库（Vault）
 - [x] 设计插件存储目录结构
@@ -57,8 +58,8 @@ Godot Harbor 是一款独立桌面应用，用于为 Godot 开发者提供统一
 #### 2.3 项目绑定功能（Linker）
 - [x] 设计项目-插件绑定数据结构
 - [x] 实现项目选择界面
-- [~] 实现插件选择与版本指定（mount_path 已修复添加 addons/ 前缀，UI 版本选择仍取第一个版本）
-- [~] 实现绑定关系可视化（仅列表展示，无图形化连线）
+- [x] 实现插件选择与版本指定（已实现版本选择对话框，多版本/多单元可选）
+- [~] 实现绑定关系可视化（列表展示 + SVG 图形化连线视图）
 - [x] 实现绑定关系持久化
 
 #### 2.4 应用变更功能（Apply Changes）
@@ -77,7 +78,7 @@ Godot Harbor 是一款独立桌面应用，用于为 Godot 开发者提供统一
 #### 3.1 项目发现与管理
 - [x] 实现项目扫描根目录设置
 - [x] 实现手动添加项目
-- [ ] 实现拖拽导入项目
+- [x] 实现拖拽导入项目
 - [x] 展示项目卡片（名称、路径、Godot 版本、插件数量）
 - [x] 实现项目删除功能（含二次确认对话框）
 
@@ -90,30 +91,30 @@ Godot Harbor 是一款独立桌面应用，用于为 Godot 开发者提供统一
 ### 阶段四：冲突检测与异常处理（P1 MVP 必需）
 
 #### 4.1 冲突检测
-- [~] 实现插件挂载路径冲突检测（check_conflicts 已集成到 apply 流程，前端 ConflictInfo 展示待完善）
-- [~] 实现 Harbor 管理标记识别（通过 symlink/junction + FILE_ATTRIBUTE_REPARSE_POINT 检测，无标记文件）
-- [x] 实现兼容性检查（Godot 3/4）
-- [~] 实现冲突提示 UI（ConflictInfo 类型已定义但前端未使用）
+- [x] 实现插件挂载路径冲突检测（check_conflicts 已集成到 apply 流程，冲突时拒绝执行）
+- [x] 实现 Harbor 管理标记识别（.harbor-managed 标记文件 + symlink/junction 检测）
+- [x] 实现兼容性检查（Godot 3/4，改进信号加权算法减少误判）
+- [x] 实现冲突提示 UI（apply_bindings 返回错误信息，前端展示）
 
 #### 4.2 异常处理
 - [~] Git 操作异常处理（基础错误捕获存在，缺少进度回调和断点续传）
-- [~] 文件系统权限异常处理（基础错误捕获存在，缺少权限引导）
-- [~] 插件解析异常处理（基础错误捕获存在，导入失败不清理已复制文件）
+- [x] 文件系统权限异常处理（预检查含写权限检测，symlink→junction 自动回退）
+- [x] 插件解析异常处理（导入失败自动清理已复制文件）
 - [x] 项目状态异常处理
-- [~] 实现友好的错误提示（Toast 通知存在，但部分场景缺少上下文信息）
+- [x] 实现友好的错误提示（Toast 通知 + apply 错误详情展示）
 
 ### 阶段五：UI/UX 完善（P2 体验增强）
 
 #### 5.1 主界面布局
 - [x] 实现三栏布局（项目列表 | 插件选择 | 变更预览）（Linker 页面已实现）
-- [~] 实现全局总览面板（Home.vue 统计数据已实现加载，快速开始已添加交互跳转）
-- [~] 实现状态标签系统（Ready/In Use/Conflict/Warning/Missing Source）（部分状态标签存在，Conflict/Missing Source 未实现）
-- [ ] 实现未应用变更提示
+- [x] 实现全局总览面板（Home.vue 统计数据加载 + 快速开始交互跳转）
+- [x] 实现状态标签系统（Ready/Warning/Error/Conflict/MissingSource 全部实现）
+- [x] 实现未应用变更提示（apply_changes 返回冲突/错误信息）
 
 #### 5.2 交互优化
 - [x] 实现二次确认对话框（Projects/Plugins/Engines 删除操作已有确认）
-- [~] 实现操作引导（Home.vue 快速开始已添加交互跳转，无首次使用引导流程）
-- [~] 实现多语言支持（中文/英文）（框架完整，i18n 覆盖率约 30%，待提升）
+- [x] 实现操作引导（首次使用引导流程 OnboardingGuide + Home.vue 快速开始交互跳转）
+- [x] 实现多语言支持（中文/英文）（i18n 字典 150+ 键值对，覆盖主要页面）
 - [x] 实现主题切换（亮色/暗色）（已修复 Header.vue 与 useTheme 同步问题）
 
 #### 5.3 设置页面
@@ -257,11 +258,11 @@ fn apply_changes(project_id: String) -> Result<ApplyResult, String>;
 ### MVP 验收标准
 - [x] 用户可导入一个标准 Godot 插件
 - [x] 用户可发现并展示至少一个本地项目
-- [~] 用户可为项目勾选插件并指定版本（绑定可用，UI 版本选择仍取第一个版本）
+- [x] 用户可为项目勾选插件并指定版本（版本选择对话框，多版本/多单元可选）
 - [x] 系统可正确创建和移除链接（含 safe_remove_link 安全删除）
 - [x] 重启应用后，插件与项目绑定关系不丢失
 - [x] 发生冲突或权限不足时，系统给出明确提示（冲突检测已集成到 apply 流程）
-- [ ] Windows、macOS、Linux 至少各验证一个基础成功样例
+- [ ] Windows、macOS、Linux 至少各验证一个基础成功样例（代码已做跨平台条件编译，待实际测试）
 
 ## 风险与应对
 

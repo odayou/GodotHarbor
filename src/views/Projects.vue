@@ -199,6 +199,55 @@ const executeConfirm = () => {
   confirmAction.value = null
 }
 
+const isDragging = ref(false)
+const dragCounter = ref(0)
+
+const onDragEnter = (e: DragEvent) => {
+  e.preventDefault()
+  dragCounter.value++
+  isDragging.value = true
+}
+
+const onDragLeave = (e: DragEvent) => {
+  e.preventDefault()
+  dragCounter.value--
+  if (dragCounter.value === 0) {
+    isDragging.value = false
+  }
+}
+
+const onDragOver = (e: DragEvent) => {
+  e.preventDefault()
+}
+
+const onDrop = async (e: DragEvent) => {
+  e.preventDefault()
+  isDragging.value = false
+  dragCounter.value = 0
+
+  const files = e.dataTransfer?.files
+  if (!files || files.length === 0) return
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i]
+    const path = (file as any).path
+    if (!path) continue
+
+    try {
+      isLoading.value = true
+      const result = await api.addProject(path)
+      toast.success(`成功添加项目: ${result.name}`)
+    } catch (error: any) {
+      if (!String(error).includes('已存在')) {
+        console.log('Skipped non-project path:', path)
+      }
+    } finally {
+      isLoading.value = false
+    }
+  }
+  await loadProjects()
+}
+
 const removeProject = async (projectId: string) => {
   const project = projects.value.find(p => p.project_id === projectId)
   const name = project?.name || projectId
@@ -309,7 +358,22 @@ const launchProject = async (project: Project, engineId?: string) => {
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div
+    class="space-y-6"
+    @dragenter="onDragEnter"
+    @dragleave="onDragLeave"
+    @dragover="onDragOver"
+    @drop="onDrop"
+  >
+    <div v-if="isDragging" class="fixed inset-0 bg-primary-500/10 border-4 border-dashed border-primary-500 z-40 flex items-center justify-center pointer-events-none">
+      <div class="bg-white dark:bg-gray-800 rounded-xl p-8 shadow-2xl">
+        <svg class="mx-auto h-12 w-12 text-primary-500 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+        </svg>
+        <p class="text-lg font-semibold text-primary-600 dark:text-primary-400">拖放 Godot 项目目录到此处</p>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">将自动识别包含 project.godot 的目录</p>
+      </div>
+    </div>
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
       <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">项目管理</h1>
       <div class="flex flex-wrap gap-2">
@@ -364,6 +428,8 @@ const launchProject = async (project: Project, engineId?: string) => {
             <option value="Ready">就绪</option>
             <option value="Warning">警告</option>
             <option value="Error">错误</option>
+            <option value="Conflict">冲突</option>
+            <option value="MissingSource">源缺失</option>
           </select>
         </div>
       </div>
@@ -468,10 +534,12 @@ const launchProject = async (project: Project, engineId?: string) => {
                     'px-2 py-0.5 rounded text-xs font-medium',
                     project.status === 'Ready' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
                     project.status === 'Warning' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                    project.status === 'Conflict' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400' :
+                    project.status === 'MissingSource' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' :
                     'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
                   ]"
                 >
-                  {{ project.status === 'Ready' ? '就绪' : project.status === 'Warning' ? '警告' : '错误' }}
+                  {{ project.status === 'Ready' ? '就绪' : project.status === 'Warning' ? '警告' : project.status === 'Conflict' ? '冲突' : project.status === 'MissingSource' ? '源缺失' : '错误' }}
                 </span>
               </div>
             </div>
@@ -517,10 +585,12 @@ const launchProject = async (project: Project, engineId?: string) => {
               'px-3 py-1 rounded text-sm font-medium',
               selectedProject.status === 'Ready' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
               selectedProject.status === 'Warning' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' :
+              selectedProject.status === 'Conflict' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400' :
+              selectedProject.status === 'MissingSource' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' :
               'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
             ]"
           >
-            {{ selectedProject.status === 'Ready' ? '就绪' : selectedProject.status === 'Warning' ? '警告' : '错误' }}
+            {{ selectedProject.status === 'Ready' ? '就绪' : selectedProject.status === 'Warning' ? '警告' : selectedProject.status === 'Conflict' ? '冲突' : selectedProject.status === 'MissingSource' ? '源缺失' : '错误' }}
           </span>
         </div>
         <div class="mb-4">

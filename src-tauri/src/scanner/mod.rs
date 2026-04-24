@@ -9,6 +9,10 @@ pub struct ProjectScanner;
 
 impl ProjectScanner {
     pub fn scan_directory(root_path: &str) -> Result<Vec<Project>> {
+        Self::scan_directory_with_depth(root_path, 5)
+    }
+
+    pub fn scan_directory_with_depth(root_path: &str, max_depth: usize) -> Result<Vec<Project>> {
         let mut projects = Vec::new();
         let root = Path::new(root_path);
 
@@ -18,6 +22,7 @@ impl ProjectScanner {
 
         for entry in WalkDir::new(root)
             .follow_links(true)
+            .max_depth(max_depth)
             .into_iter()
             .filter_map(|e| e.ok())
         {

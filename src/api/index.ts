@@ -189,6 +189,14 @@ export const api = {
 
   async resolvePluginDependencies(pluginId: string): Promise<PluginDependency[]> {
     return await invoke('resolve_plugin_dependencies', { pluginId })
+  },
+
+  async searchAssetLibrary(query: string): Promise<Plugin[]> {
+    return await invoke('search_asset_library', { query })
+  },
+
+  async importFromAssetLibrary(assetId: number): Promise<Plugin> {
+    return await invoke('import_from_asset_library', { assetId })
   }
 }
 

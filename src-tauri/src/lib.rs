@@ -67,6 +67,8 @@ pub fn run() {
             commands::import_team_config,
             commands::delete_team_config,
             commands::resolve_plugin_dependencies,
+            commands::search_asset_library,
+            commands::import_from_asset_library,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

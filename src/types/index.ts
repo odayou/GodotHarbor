@@ -42,7 +42,7 @@ export interface Project {
   godot_version: string
   icon_path: string
   group?: string
-  status: 'Ready' | 'Warning' | 'Error'
+  status: 'Ready' | 'Warning' | 'Error' | 'Conflict' | 'MissingSource'
   created_at: string
   updated_at: string
 }

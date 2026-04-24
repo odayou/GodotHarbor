@@ -5,6 +5,7 @@ import { useTheme } from './composables/useTheme'
 import Sidebar from './components/layout/Sidebar.vue'
 import Header from './components/layout/Header.vue'
 import ToastContainer from './components/ToastContainer.vue'
+import OnboardingGuide from './components/OnboardingGuide.vue'
 
 const { registerShortcut } = useKeyboardShortcuts()
 const { currentTheme, setTheme } = useTheme()
@@ -41,5 +42,6 @@ registerShortcut({
       </main>
     </div>
     <ToastContainer />
+    <OnboardingGuide />
   </div>
 </template>

@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Result, Context};
 use uuid::Uuid;
 use walkdir::WalkDir;
+use tauri::{AppHandle, Emitter};
 use crate::models::{Plugin, PluginSource, PluginVersion, PluginUnit, SourceType, Compatibility, Project};
 
 pub struct PluginManager {
@@ -44,7 +45,7 @@ impl PluginManager {
 
     pub fn import_from_local(&self, source_path: &str) -> Result<Plugin> {
         let source = Path::new(source_path);
-        
+
         if !source.exists() {
             anyhow::bail!("Source path does not exist: {}", source_path);
         }
@@ -61,23 +62,32 @@ impl PluginManager {
         };
 
         let mut plugin = Plugin::new(plugin_name.clone(), plugin_source);
-        
+
         let version_id = Uuid::new_v4().to_string();
         let version_dir = self.plugins_dir.join(&plugin.plugin_id).join(&version_id);
         let payload_dir = version_dir.join("payload");
-        
+
         fs::create_dir_all(&payload_dir)
             .context("Failed to create version directory")?;
-        
-        self.copy_dir_recursive(source, &payload_dir)
-            .context("Failed to copy plugin files")?;
-        
-        let units = self.parse_plugin_units(&payload_dir)
-            .context("Failed to parse plugin units")?;
-        
+
+        if let Err(e) = self.copy_dir_recursive(source, &payload_dir) {
+            let _ = fs::remove_dir_all(&version_dir);
+            return Err(e.context("Failed to copy plugin files, cleaned up partial import"));
+        }
+
+        let units = match self.parse_plugin_units(&payload_dir) {
+            Ok(u) => u,
+            Err(e) => {
+                let _ = fs::remove_dir_all(&version_dir);
+                return Err(e.context("Failed to parse plugin units, cleaned up partial import"));
+            }
+        };
+
         let compatibility = self.detect_compatibility(&payload_dir);
-        
-        let (unit_version, unit_name, unit_description, unit_author) = 
+
+        self.write_harbor_marker(&payload_dir);
+
+        let (unit_version, unit_name, unit_description, unit_author) =
             if let Some(first_unit) = units.first() {
                 (
                     if first_unit.version.is_empty() { "1.0.0".to_string() } else { first_unit.version.clone() },
@@ -88,7 +98,7 @@ impl PluginManager {
             } else {
                 ("1.0.0".to_string(), plugin_name.clone(), String::new(), String::new())
             };
-        
+
         let plugin_version = PluginVersion {
             version_id: version_id.clone(),
             version: unit_version,
@@ -96,17 +106,17 @@ impl PluginManager {
             created_at: chrono::Utc::now(),
             units,
         };
-        
+
         plugin.versions.push(plugin_version);
         plugin.compatibility = compatibility;
         plugin.name = unit_name;
         plugin.description = unit_description;
         plugin.author = unit_author;
-        
+
         Ok(plugin)
     }
 
-    pub fn import_from_git(&self, git_url: &str) -> Result<Plugin> {
+    pub fn import_from_git(&self, git_url: &str, app_handle: &AppHandle) -> Result<Plugin> {
         let plugin_name = git_url
             .split('/')
             .last()
@@ -130,7 +140,31 @@ impl PluginManager {
         fs::create_dir_all(&payload_dir)
             .context("Failed to create version directory")?;
 
-        git2::Repository::clone(git_url, &payload_dir)
+        let mut callbacks = git2::RemoteCallbacks::new();
+        let app_handle_clone = app_handle.clone();
+        callbacks.transfer_progress(move |progress| {
+            let received = progress.received_objects();
+            let total = progress.total_objects();
+            let percentage = if total > 0 {
+                (received as f64 / total as f64 * 100.0) as u32
+            } else {
+                0
+            };
+            let _ = app_handle_clone.emit("git-clone-progress", serde_json::json!({
+                "received_objects": received,
+                "total_objects": total,
+                "percentage": percentage,
+            }));
+            true
+        });
+
+        let mut fetch_options = git2::FetchOptions::new();
+        fetch_options.remote_callbacks(callbacks);
+
+        let mut builder = git2::build::RepoBuilder::new();
+        builder.fetch_options(fetch_options);
+
+        builder.clone(git_url, &payload_dir)
             .context("Failed to clone git repository")?;
 
         let git_dir = payload_dir.join(".git");
@@ -143,11 +177,18 @@ impl PluginManager {
             }
             fs::remove_dir_all(&git_dir).ok();
         }
-        
-        let units = self.parse_plugin_units(&payload_dir)
-            .context("Failed to parse plugin units")?;
-        
+
+        let units = match self.parse_plugin_units(&payload_dir) {
+            Ok(u) => u,
+            Err(e) => {
+                let _ = fs::remove_dir_all(&version_dir);
+                return Err(e.context("Failed to parse plugin units, cleaned up partial import"));
+            }
+        };
+
         let compatibility = self.detect_compatibility(&payload_dir);
+
+        self.write_harbor_marker(&payload_dir);
         
         let (unit_version, unit_name, unit_description, unit_author) = 
             if let Some(first_unit) = units.first() {
@@ -178,7 +219,7 @@ impl PluginManager {
         Ok(plugin)
     }
 
-    fn parse_plugin_units(&self, plugin_dir: &Path) -> Result<Vec<PluginUnit>> {
+    pub fn parse_plugin_units(&self, plugin_dir: &Path) -> Result<Vec<PluginUnit>> {
         let mut units = Vec::new();
         
         for entry in walkdir::WalkDir::new(plugin_dir)
@@ -241,47 +282,80 @@ impl PluginManager {
         })
     }
 
-    fn detect_compatibility(&self, plugin_dir: &Path) -> Compatibility {
+    pub fn detect_compatibility(&self, plugin_dir: &Path) -> Compatibility {
+        let mut godot4_signals = 0;
+        let mut godot3_signals = 0;
+
         for entry in walkdir::WalkDir::new(plugin_dir)
             .into_iter()
             .filter_map(|e| e.ok())
         {
             let path = entry.path();
-            
+
             if let Some(ext) = path.extension() {
                 if ext == "gd" {
                     if let Ok(content) = fs::read_to_string(path) {
-                        if content.contains("@export") || content.contains("class_name") {
-                            return Compatibility::Godot4;
-                        }
-                        if content.contains("export(PackedScene)") || content.contains("tool") {
-                            return Compatibility::Godot3;
-                        }
+                        if content.contains("@export") { godot4_signals += 2; }
+                        if content.contains("class_name") { godot4_signals += 1; }
+                        if content.contains("await ") { godot4_signals += 1; }
+                        if content.contains("var ") && content.contains(": ") { godot4_signals += 1; }
+                        if content.contains("enum ") && content.contains(":") { godot4_signals += 1; }
+
+                        if content.contains("export(") { godot3_signals += 2; }
+                        if content.contains("export(PackedScene)") { godot3_signals += 1; }
+                        if content.contains(".set_deferred(") { godot3_signals += 1; }
+                    }
+                }
+                if ext == "tscn" || ext == "tres" {
+                    if let Ok(content) = fs::read_to_string(path) {
+                        if content.contains("[node]") && content.contains("script/signal") { godot3_signals += 1; }
+                        if content.contains("metadata/_edit_lock_") { godot4_signals += 1; }
+                        if content.contains("uid://") { godot4_signals += 2; }
                     }
                 }
             }
         }
-        
-        Compatibility::Unknown
+
+        if godot4_signals > 0 && godot3_signals == 0 {
+            Compatibility::Godot4
+        } else if godot3_signals > 0 && godot4_signals == 0 {
+            Compatibility::Godot3
+        } else if godot4_signals > 0 && godot3_signals > 0 {
+            Compatibility::Both
+        } else {
+            Compatibility::Unknown
+        }
     }
 
     fn copy_dir_recursive(&self, src: &Path, dst: &Path) -> Result<()> {
         if !dst.exists() {
             fs::create_dir_all(dst)?;
         }
-        
+
         for entry in fs::read_dir(src)? {
             let entry = entry?;
             let src_path = entry.path();
             let dst_path = dst.join(entry.file_name());
-            
+
             if src_path.is_dir() {
                 self.copy_dir_recursive(&src_path, &dst_path)?;
             } else {
                 fs::copy(&src_path, &dst_path)?;
             }
         }
-        
+
         Ok(())
+    }
+
+    fn write_harbor_marker(&self, payload_dir: &Path) {
+        let marker_path = payload_dir.join(".harbor-managed");
+        let marker_content = serde_json::json!({
+            "managed_by": "godot-harbor",
+            "version": "1.0",
+            "created_at": chrono::Utc::now().to_rfc3339()
+        });
+        if let Ok(content) = serde_json::to_string_pretty(&marker_content) {
+            let _ = fs::write(&marker_path, content);
+        }
     }
 }

@@ -122,6 +122,45 @@ const importFromGit = async () => {
   }
 }
 
+const showAssetLibraryDialog = ref(false)
+const assetSearchQuery = ref('')
+const assetSearchResults = ref<any[]>([])
+const isSearchingAssets = ref(false)
+const isImportingAsset = ref<number | null>(null)
+
+const openAssetLibrary = () => {
+  showAssetLibraryDialog.value = true
+  assetSearchQuery.value = ''
+  assetSearchResults.value = []
+}
+
+const searchAssets = async () => {
+  if (!assetSearchQuery.value.trim()) return
+  isSearchingAssets.value = true
+  try {
+    const result = await api.searchAssetLibrary(assetSearchQuery.value) as any
+    assetSearchResults.value = result?.result || []
+  } catch (error) {
+    toast.error(`搜索失败: ${error}`)
+  } finally {
+    isSearchingAssets.value = false
+  }
+}
+
+const importAsset = async (assetId: number, assetTitle: string) => {
+  isImportingAsset.value = assetId
+  try {
+    await api.importFromAssetLibrary(assetId)
+    toast.success(`已导入: ${assetTitle}`)
+    await loadPlugins()
+    showAssetLibraryDialog.value = false
+  } catch (error) {
+    toast.error(`导入失败: ${error}`)
+  } finally {
+    isImportingAsset.value = null
+  }
+}
+
 const removePlugin = async (pluginId: string) => {
   const plugin = plugins.value.find(p => p.plugin_id === pluginId)
   const name = plugin?.name || pluginId
@@ -224,6 +263,13 @@ const showPluginDetails = async (plugin: Plugin) => {
           class="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors disabled:opacity-50 text-sm"
         >
           从文件导入
+        </button>
+        <button
+          @click="openAssetLibrary"
+          :disabled="isLoading"
+          class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 text-sm"
+        >
+          Asset Library
         </button>
         <button
           @click="showGitDialog = true"
@@ -433,6 +479,65 @@ const showPluginDetails = async (plugin: Plugin) => {
         <div class="flex justify-end">
           <button
             @click="showPluginDetail = false; selectedPlugin = null; pluginDependencies = []"
+            class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+          >
+            关闭
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showAssetLibraryDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Asset Library</h3>
+          <button @click="showAssetLibraryDialog = false" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="flex gap-2 mb-4">
+          <input
+            v-model="assetSearchQuery"
+            type="text"
+            placeholder="搜索 Asset Library..."
+            class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+            @keyup.enter="searchAssets"
+          />
+          <button
+            @click="searchAssets"
+            :disabled="isSearchingAssets"
+            class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm"
+          >
+            {{ isSearchingAssets ? '搜索中...' : '搜索' }}
+          </button>
+        </div>
+        <div class="space-y-3 max-h-80 overflow-y-auto">
+          <div v-if="assetSearchResults.length === 0" class="text-center py-8 text-gray-500 dark:text-gray-400">
+            输入关键词搜索 Asset Library
+          </div>
+          <div v-for="asset in assetSearchResults" :key="asset.asset_id" class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="font-medium text-gray-900 dark:text-gray-100">{{ asset.title }}</span>
+                <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  {{ asset.author }} · {{ asset.category }}
+                </div>
+              </div>
+              <button
+                @click="importAsset(asset.asset_id, asset.title)"
+                :disabled="isImportingAsset === asset.asset_id"
+                class="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm"
+              >
+                {{ isImportingAsset === asset.asset_id ? '导入中...' : '导入' }}
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="flex justify-end mt-4">
+          <button
+            @click="showAssetLibraryDialog = false"
             class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
           >
             关闭

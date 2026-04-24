@@ -1,11 +1,13 @@
 use std::path::PathBuf;
-use tauri::{AppHandle, Manager};
+use std::fs;
+use tauri::{AppHandle, Manager, Emitter};
 use crate::models::*;
 use crate::storage::Storage;
 use crate::scanner::ProjectScanner;
 use crate::plugin_manager::PluginManager;
 use crate::linker::Linker;
 use crate::operation_log::{OperationLogger, LogEntry};
+use uuid::Uuid;
 
 fn get_data_dir(app: &AppHandle) -> PathBuf {
     app.path().app_data_dir()
@@ -204,7 +206,7 @@ pub fn import_plugin_from_git(app: AppHandle, url: String) -> Result<Plugin, Str
     }
 
     let manager = get_plugin_manager(&app);
-    let new_plugin = manager.import_from_git(&url)
+    let new_plugin = manager.import_from_git(&url, &app)
         .map_err(|e| format!("从 Git 导入插件失败: {}，请检查仓库地址是否正确", e))?;
 
     let storage = get_storage(&app);
@@ -843,15 +845,42 @@ pub fn check_plugin_updates(app: AppHandle) -> Result<Vec<PluginUpdateInfo>, Str
     let mut update_infos = Vec::new();
 
     for plugin in &plugins {
-        let latest_version = if let Some(v) = plugin.versions.last() {
-            v.version.clone()
-        } else {
-            continue;
-        };
-
         let current_version = plugin.versions.last()
             .map(|v| v.version.clone())
             .unwrap_or_else(|| "0.0.0".to_string());
+
+        let mut latest_version = current_version.clone();
+        let mut release_notes = String::new();
+
+        if plugin.source.source_type == SourceType::Git && !plugin.source.url.is_empty() {
+            let url = &plugin.source.url;
+            if url.contains("github.com") {
+                let api_url = url.trim_end_matches(".git")
+                    .replace("git@github.com:", "https://api.github.com/repos/")
+                    .replace("https://github.com/", "https://api.github.com/repos/");
+                let releases_url = format!("{}/releases/latest", api_url);
+
+                if let Ok(client) = reqwest::blocking::ClientBuilder::new()
+                    .user_agent("GodotHarbor")
+                    .build() {
+                    if let Ok(resp) = client.get(&releases_url).send() {
+                        if resp.status().is_success() {
+                            if let Ok(json) = resp.json::<serde_json::Value>() {
+                                if let Some(tag) = json.get("tag_name").and_then(|t| t.as_str()) {
+                                    let tag = tag.trim_start_matches('v');
+                                    if compare_versions(&current_version, tag) < 0 {
+                                        latest_version = tag.to_string();
+                                    }
+                                }
+                                if let Some(notes) = json.get("body").and_then(|b| b.as_str()) {
+                                    release_notes = notes.chars().take(500).collect();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         let update_available = compare_versions(&current_version, &latest_version) < 0;
 
@@ -860,7 +889,7 @@ pub fn check_plugin_updates(app: AppHandle) -> Result<Vec<PluginUpdateInfo>, Str
             current_version,
             latest_version,
             update_available,
-            release_notes: String::new(),
+            release_notes,
         });
     }
 
@@ -995,13 +1024,60 @@ pub fn resolve_plugin_dependencies(app: AppHandle, plugin_id: String) -> Result<
 
     if let Some(version) = plugin.versions.last() {
         for unit in &version.units {
-            if !unit.description.is_empty() && unit.description.contains("depends")
-               || unit.description.contains("dependency") {
-                dependencies.push(PluginDependency {
-                    plugin_id: plugin.plugin_id.clone(),
-                    version_constraint: unit.version.clone(),
-                    is_optional: false,
-                });
+            let cfg_path = std::path::Path::new(&unit.plugin_cfg_path);
+            if cfg_path.exists() {
+                if let Ok(content) = std::fs::read_to_string(cfg_path) {
+                    for line in content.lines() {
+                        let line = line.trim();
+                        if line.starts_with("depends=") {
+                            let deps_str = line[8..].trim_matches('"');
+                            for dep_entry in deps_str.split(',') {
+                                let dep_entry = dep_entry.trim();
+                                if dep_entry.is_empty() { continue; }
+                                let parts: Vec<&str> = dep_entry.splitn(2, ':').collect();
+                                let dep_name = parts[0].trim();
+                                let version_constraint = parts.get(1).map(|s| s.trim()).unwrap_or("*").to_string();
+
+                                let matched_plugin = plugins.iter().find(|p| {
+                                    p.name.to_lowercase() == dep_name.to_lowercase()
+                                        || p.versions.iter().any(|v|
+                                            v.units.iter().any(|u| u.name.to_lowercase() == dep_name.to_lowercase()))
+                                });
+
+                                dependencies.push(PluginDependency {
+                                    plugin_id: matched_plugin.map(|p| p.plugin_id.clone()).unwrap_or_default(),
+                                    version_constraint,
+                                    is_optional: false,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+            if let Some(parent) = cfg_path.parent() {
+                let dep_file = parent.join(".dependencies");
+                if dep_file.exists() {
+                    if let Ok(content) = std::fs::read_to_string(&dep_file) {
+                        for line in content.lines() {
+                            let line = line.trim();
+                            if line.is_empty() || line.starts_with('#') { continue; }
+                            let parts: Vec<&str> = line.splitn(2, '=').collect();
+                            if parts.len() == 2 {
+                                let dep_name = parts[0].trim();
+                                let version_constraint = parts[1].trim().to_string();
+                                let matched_plugin = plugins.iter().find(|p| {
+                                    p.name.to_lowercase() == dep_name.to_lowercase()
+                                });
+                                dependencies.push(PluginDependency {
+                                    plugin_id: matched_plugin.map(|p| p.plugin_id.clone()).unwrap_or_default(),
+                                    version_constraint,
+                                    is_optional: false,
+                                });
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -1010,4 +1086,171 @@ pub fn resolve_plugin_dependencies(app: AppHandle, plugin_id: String) -> Result<
     log_operation(&app, "resolve_dependencies", &plugin_id, &dep_str);
 
     Ok(dependencies)
+}
+
+#[tauri::command]
+pub fn search_asset_library(app: AppHandle, query: String) -> Result<serde_json::Value, String> {
+    let url = format!(
+        "https://godotengine.org/asset-library/api/v2/search?filter={}&type=any&godot_version=any&cost=any&sort=updated&page=1&max_results=20",
+        urlencoding::encode(&query)
+    );
+
+    let client = reqwest::blocking::ClientBuilder::new()
+        .user_agent("GodotHarbor")
+        .build()
+        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+
+    let resp = client.get(&url).send()
+        .map_err(|e| format!("请求 Asset Library 失败: {}", e))?;
+
+    let json: serde_json::Value = resp.json()
+        .map_err(|e| format!("解析 Asset Library 响应失败: {}", e))?;
+
+    log_operation(&app, "search_asset_library", "", &format!("搜索 Asset Library: {}", query));
+    Ok(json)
+}
+
+#[tauri::command]
+pub fn import_from_asset_library(app: AppHandle, asset_id: i64) -> Result<Plugin, String> {
+    let url = format!(
+        "https://godotengine.org/asset-library/api/v2/asset/{}",
+        asset_id
+    );
+
+    let client = reqwest::blocking::ClientBuilder::new()
+        .user_agent("GodotHarbor")
+        .build()
+        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+
+    let resp = client.get(&url).send()
+        .map_err(|e| format!("请求 Asset Library 失败: {}", e))?;
+
+    let asset: serde_json::Value = resp.json()
+        .map_err(|e| format!("解析 Asset Library 响应失败: {}", e))?;
+
+    let download_url = asset.get("download_url")
+        .and_then(|v| v.as_str())
+        .ok_or("未找到下载链接")?;
+
+    let asset_name = asset.get("title")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown")
+        .to_string();
+
+    let author_name = asset.get("author")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    let desc = asset.get("description")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    let plugin_source = PluginSource {
+        source_type: SourceType::AssetLibrary,
+        url: format!("asset-library://{}", asset_id),
+        imported_at: chrono::Utc::now(),
+    };
+
+    let mut plugin = Plugin::new(asset_name.clone(), plugin_source);
+    plugin.description = desc;
+    plugin.author = author_name;
+
+    let version_id = Uuid::new_v4().to_string();
+    let version_dir = get_data_dir(&app).join("plugins").join(&plugin.plugin_id).join(&version_id);
+    let payload_dir = version_dir.join("payload");
+
+    fs::create_dir_all(&payload_dir)
+        .map_err(|e| format!("创建目录失败: {}", e))?;
+
+    let temp_zip = version_dir.join("download.zip");
+    let mut resp = client.get(download_url).send()
+        .map_err(|e| format!("下载资源失败: {}", e))?;
+
+    let mut file = std::fs::File::create(&temp_zip)
+        .map_err(|e| format!("创建临时文件失败: {}", e))?;
+
+    use std::io::Write;
+    resp.copy_to(&mut file)
+        .map_err(|e| format!("写入文件失败: {}", e))?;
+
+    let file = std::fs::File::open(&temp_zip)
+        .map_err(|e| format!("打开压缩文件失败: {}", e))?;
+    let mut archive = zip::ZipArchive::new(file)
+        .map_err(|e| format!("解压失败: {}", e))?;
+
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i).map_err(|e| format!("读取压缩条目失败: {}", e))?;
+        let outpath = match entry.enclosed_name() {
+            Some(path) => payload_dir.join(path),
+            None => continue,
+        };
+        if entry.is_dir() {
+            std::fs::create_dir_all(&outpath).ok();
+        } else {
+            if let Some(p) = outpath.parent() {
+                if !p.exists() {
+                    std::fs::create_dir_all(p).ok();
+                }
+            }
+            let mut outfile = std::fs::File::create(&outpath)
+                .map_err(|e| format!("创建文件失败: {}", e))?;
+            std::io::copy(&mut entry, &mut outfile)
+                .map_err(|e| format!("写入文件失败: {}", e))?;
+        }
+    }
+
+    let _ = std::fs::remove_file(&temp_zip);
+
+    let manager = get_plugin_manager(&app);
+    let units = match manager.parse_plugin_units(&payload_dir) {
+        Ok(u) => u,
+        Err(e) => {
+            let _ = std::fs::remove_dir_all(&version_dir);
+            return Err(format!("解析插件失败: {}，已清理下载文件", e));
+        }
+    };
+
+    let compatibility = manager.detect_compatibility(&payload_dir);
+
+    let (unit_version, unit_name) = if let Some(first_unit) = units.first() {
+        (
+            if first_unit.version.is_empty() { "1.0.0".to_string() } else { first_unit.version.clone() },
+            if first_unit.name.is_empty() { asset_name.clone() } else { first_unit.name.clone() },
+        )
+    } else {
+        ("1.0.0".to_string(), asset_name.clone())
+    };
+
+    let plugin_version = PluginVersion {
+        version_id: version_id.clone(),
+        version: unit_version,
+        path: payload_dir.to_string_lossy().to_string(),
+        created_at: chrono::Utc::now(),
+        units,
+    };
+
+    plugin.versions.push(plugin_version);
+    plugin.compatibility = compatibility;
+    plugin.name = unit_name;
+
+    let storage = get_storage(&app);
+    let mut plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+
+    let existing_idx = plugins.iter().position(|p| p.source.url == plugin.source.url);
+    if let Some(idx) = existing_idx {
+        plugins[idx].versions.extend(plugin.versions);
+        let result = plugins[idx].clone();
+        storage.save("plugins.json", &plugins)
+            .map_err(|e| format!("保存插件列表失败: {}", e))?;
+        log_operation(&app, "import_asset_library", &asset_id.to_string(), &format!("已为插件 {} 添加新版本", result.name));
+        Ok(result)
+    } else {
+        plugins.push(plugin.clone());
+        storage.save("plugins.json", &plugins)
+            .map_err(|e| format!("保存插件列表失败: {}", e))?;
+        log_operation(&app, "import_asset_library", &asset_id.to_string(), &format!("已从 Asset Library 导入插件: {}", plugin.name));
+        Ok(plugin)
+    }
 }
