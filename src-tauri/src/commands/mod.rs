@@ -1608,6 +1608,7 @@ pub fn auto_discover_engines(app: AppHandle) -> Result<Vec<Engine>, String> {
     };
 
     if !settings.auto_discover_engines {
+        log_operation(&app, "auto_discover_engines", "", "自动发现已关闭");
         return Ok(Vec::new());
     }
 
@@ -1615,9 +1616,12 @@ pub fn auto_discover_engines(app: AppHandle) -> Result<Vec<Engine>, String> {
     let mut engines: Vec<Engine> = storage.load_or_default("engines.json");
     let existing_paths: Vec<String> = engines.iter().map(|e| e.path.clone()).collect();
 
+    log_operation(&app, "auto_discover_engines", "", "开始自动发现引擎");
+
     let discovered = crate::engine::EngineManager::discover_engines(&existing_paths);
 
     if discovered.is_empty() {
+        log_operation(&app, "auto_discover_engines", "", "未发现任何引擎");
         return Ok(Vec::new());
     }
 
