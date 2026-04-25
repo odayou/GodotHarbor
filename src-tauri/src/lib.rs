@@ -9,6 +9,7 @@ pub mod engine;
 pub mod godot_resolver;
 pub mod version_checker;
 pub mod watcher;
+pub mod update_scheduler;
 
 use tauri::Manager;
 use std::sync::Mutex;
@@ -24,6 +25,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState {
             fs_watcher: Mutex::new(watcher::FsWatcher::new(5)),
         })
@@ -50,6 +52,9 @@ pub fn run() {
                 tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
                 let _ = commands::auto_discover_engines(discover_handle);
             });
+
+            let scheduler_handle = app_handle.clone();
+            update_scheduler::start_update_scheduler(scheduler_handle);
 
             let watcher_handle = app_handle.clone();
             let watcher_app = app_handle.clone();
@@ -228,6 +233,12 @@ pub fn run() {
             commands::get_total_storage_stats,
             commands::cleanup_orphaned_plugin_dirs,
             commands::update_git_plugin,
+            commands::check_app_update,
+            commands::install_app_update,
+            commands::batch_update_plugins,
+            commands::skip_app_version,
+            commands::check_all_updates,
+            commands::get_app_version,
         ))
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

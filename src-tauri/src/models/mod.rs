@@ -241,9 +241,18 @@ pub struct Settings {
     pub plugin_storage_path: String,
     #[serde(default)]
     pub auto_check_plugin_updates: bool,
+    #[serde(default = "default_true")]
+    pub auto_check_app_updates: bool,
+    #[serde(default = "default_true")]
+    pub auto_check_engine_updates: bool,
+    #[serde(default = "default_four")]
+    pub update_check_interval_hours: u32,
+    #[serde(default)]
+    pub skipped_app_version: String,
 }
 
 fn default_true() -> bool { true }
+fn default_four() -> u32 { 4 }
 
 impl Default for Settings {
     fn default() -> Self {
@@ -258,6 +267,10 @@ impl Default for Settings {
             onboarding_completed: false,
             plugin_storage_path: String::new(),
             auto_check_plugin_updates: false,
+            auto_check_app_updates: true,
+            auto_check_engine_updates: true,
+            update_check_interval_hours: 4,
+            skipped_app_version: String::new(),
         }
     }
 }
@@ -282,6 +295,16 @@ pub enum EngineType {
     Godot3,
     Godot4,
     Unknown,
+}
+
+impl std::fmt::Display for EngineType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EngineType::Godot3 => write!(f, "Godot3"),
+            EngineType::Godot4 => write!(f, "Godot4"),
+            EngineType::Unknown => write!(f, "Unknown"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -341,10 +364,12 @@ pub struct PluginDependency {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginUpdateInfo {
     pub plugin_id: String,
+    pub plugin_name: String,
     pub current_version: String,
     pub latest_version: String,
     pub update_available: bool,
     pub release_notes: String,
+    pub source_url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -418,4 +443,44 @@ pub struct DashboardStats {
     pub binding_count: usize,
     pub engine_count: usize,
     pub recent_projects: Vec<Project>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AppUpdateInfo {
+    pub current_version: String,
+    pub latest_version: String,
+    pub release_notes: String,
+    pub pub_date: String,
+    pub download_size: Option<u64>,
+    pub is_hot_update: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HotUpdateInfo {
+    pub version: String,
+    pub min_compatible_app_version: String,
+    pub max_compatible_app_version: String,
+    pub release_notes: String,
+    pub pub_date: String,
+    pub download_size: u64,
+    pub checksum: String,
+    pub download_url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateCheckResult {
+    pub app_update: Option<AppUpdateInfo>,
+    pub hot_update: Option<HotUpdateInfo>,
+    pub plugin_updates: Vec<PluginUpdateInfo>,
+    pub engine_updates: Vec<crate::version_checker::VersionUpdateInfo>,
+    pub checked_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateProgress {
+    pub update_type: String,
+    pub target_id: String,
+    pub stage: String,
+    pub progress: u32,
+    pub message: String,
 }

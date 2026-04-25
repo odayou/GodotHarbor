@@ -960,6 +960,238 @@ pub fn update_git_plugin(app: AppHandle, plugin_id: String) -> Result<Plugin, St
 }
 
 #[tauri::command]
+pub async fn check_app_update(app: AppHandle) -> Result<Option<AppUpdateInfo>, String> {
+    use tauri_plugin_updater::UpdaterExt;
+    let current_version = app.config().version.clone().unwrap_or_default();
+    
+    match app.updater() {
+        Ok(updater) => {
+            match updater.check().await {
+                Ok(Some(update)) => {
+                    Ok(Some(AppUpdateInfo {
+                        current_version: current_version.clone(),
+                        latest_version: update.version.clone(),
+                        release_notes: update.body.clone().unwrap_or_default(),
+                        pub_date: update.date.map(|d| d.to_string()).unwrap_or_default(),
+                        download_size: None,
+                        is_hot_update: false,
+                    }))
+                }
+                Ok(None) => Ok(None),
+                Err(e) => Err(format!("检查应用更新失败: {}", e)),
+            }
+        }
+        Err(e) => Err(format!("初始化更新器失败: {}", e)),
+    }
+}
+
+#[tauri::command]
+pub async fn install_app_update(app: AppHandle) -> Result<(), String> {
+    use tauri_plugin_updater::UpdaterExt;
+    
+    let updater = app.updater()
+        .map_err(|e| format!("初始化更新器失败: {}", e))?;
+    
+    let update = updater.check().await
+        .map_err(|e| format!("检查更新失败: {}", e))?
+        .ok_or("没有可用的更新".to_string())?;
+
+    let mut downloaded = 0u64;
+    let total: u64 = 0;
+    
+    update.download_and_install(
+        |chunk_length, content_len| {
+            downloaded += chunk_length as u64;
+            let progress = if total > 0 {
+                ((downloaded as f64 / total as f64) * 100.0) as u32
+            } else if content_len.is_some() {
+                ((downloaded as f64 / content_len.unwrap() as f64) * 100.0) as u32
+            } else {
+                0
+            };
+            let _ = app.emit("app-update-progress", serde_json::json!({
+                "stage": "downloading",
+                "progress": progress.min(100),
+                "message": format!("下载中... {}%", progress.min(100))
+            }));
+        },
+        || {
+            let _ = app.emit("app-update-progress", serde_json::json!({
+                "stage": "installing",
+                "progress": 100,
+                "message": "安装中..."
+            }));
+        }
+    ).await.map_err(|e| format!("安装更新失败: {}", e))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn batch_update_plugins(app: AppHandle, plugin_ids: Vec<String>) -> Result<BatchResult, String> {
+    let storage = get_storage(&app);
+    let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+    let manager = get_plugin_manager(&app);
+
+    let mut success_count = 0usize;
+    let mut failed_count = 0usize;
+    let mut errors = Vec::new();
+
+    for plugin_id in &plugin_ids {
+        let plugin = match plugins.iter().find(|p| p.plugin_id == *plugin_id) {
+            Some(p) => p.clone(),
+            None => {
+                failed_count += 1;
+                errors.push(format!("未找到插件: {}", plugin_id));
+                continue;
+            }
+        };
+
+        if plugin.source.source_type != SourceType::Git {
+            failed_count += 1;
+            errors.push(format!("插件 {} 非Git来源，不支持自动更新", plugin.name));
+            continue;
+        }
+
+        let git_url = plugin.source.url.clone();
+        match manager.import_from_git(&git_url, &app) {
+            Ok(updated) => {
+                let mut all_plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+                if let Some(idx) = all_plugins.iter().position(|p| p.plugin_id == *plugin_id) {
+                    all_plugins[idx].versions.extend(updated.versions);
+                    if !updated.content_hash.is_empty() {
+                        all_plugins[idx].content_hash = updated.content_hash;
+                    }
+                    all_plugins[idx].updated_at = chrono::Utc::now();
+                    storage.save("plugins.json", &all_plugins)
+                        .map_err(|e| format!("保存插件列表失败: {}", e))?;
+                }
+                success_count += 1;
+                let _ = app.emit("plugin-update-progress", serde_json::json!({
+                    "plugin_id": plugin_id,
+                    "stage": "complete",
+                    "progress": 100,
+                    "message": format!("插件 {} 更新完成", plugin.name)
+                }));
+            }
+            Err(e) => {
+                failed_count += 1;
+                errors.push(format!("更新插件 {} 失败: {}", plugin.name, e));
+                let _ = app.emit("plugin-update-progress", serde_json::json!({
+                    "plugin_id": plugin_id,
+                    "stage": "error",
+                    "progress": 0,
+                    "message": format!("更新失败: {}", e)
+                }));
+            }
+        }
+    }
+
+    log_operation(&app, "batch_update_plugins", "", 
+        &format!("批量更新插件: 成功 {}, 失败 {}", success_count, failed_count));
+
+    Ok(BatchResult { success_count, failed_count, errors })
+}
+
+#[tauri::command]
+pub fn skip_app_version(app: AppHandle, version: String) -> Result<(), String> {
+    let storage = get_storage(&app);
+    let mut settings: Settings = storage.load_or_default("settings.json");
+    settings.skipped_app_version = version;
+    storage.save("settings.json", &settings)
+        .map_err(|e| format!("保存设置失败: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn check_all_updates(app: AppHandle) -> Result<UpdateCheckResult, String> {
+    let current_version = app.config().version.clone().unwrap_or_default();
+    
+    let storage = get_storage(&app);
+    let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+    let git_plugins: Vec<&Plugin> = plugins.iter()
+        .filter(|p| p.source.source_type == SourceType::Git)
+        .collect();
+
+    let mut plugin_updates = Vec::new();
+    for plugin in git_plugins {
+        let url = &plugin.source.url;
+        if let Some(repo_parts) = parse_github_url(url) {
+            let (owner, repo) = repo_parts;
+            let api_url = format!("https://api.github.com/repos/{}/{}/releases/latest", owner, repo);
+            let client = reqwest::blocking::ClientBuilder::new()
+                .user_agent("GodotHarbor")
+                .timeout(std::time::Duration::from_secs(10))
+                .build();
+            if let Ok(client) = client {
+                if let Ok(resp) = client.get(&api_url).send() {
+                    if resp.status().is_success() {
+                        if let Ok(json) = resp.json::<serde_json::Value>() {
+                            if let Some(tag) = json.get("tag_name").and_then(|t| t.as_str()) {
+                                let latest = tag.trim_start_matches('v');
+                                let current = plugin.versions.first()
+                                    .map(|v| v.version.as_str())
+                                    .unwrap_or("0.0.0");
+                                if latest != current {
+                                    plugin_updates.push(PluginUpdateInfo {
+                                        plugin_id: plugin.plugin_id.clone(),
+                                        plugin_name: plugin.name.clone(),
+                                        current_version: current.to_string(),
+                                        latest_version: latest.to_string(),
+                                        update_available: true,
+                                        release_notes: String::new(),
+                                        source_url: url.clone(),
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let engines: Vec<Engine> = storage.load_or_default("engines.json");
+    let local_engines: Vec<crate::version_checker::LocalEngineVersion> = engines.iter().map(|e| {
+        crate::version_checker::LocalEngineVersion {
+            engine_id: e.engine_id.clone(),
+            name: e.name.clone(),
+            version: e.version.clone(),
+            engine_type: e.engine_type.to_string(),
+        }
+    }).collect();
+
+    let data_dir = get_data_dir(&app);
+    let checker = crate::version_checker::VersionChecker::new(data_dir);
+    let engine_result = checker.check_for_updates(local_engines).ok();
+    let engine_updates = engine_result.map(|r| r.updates_available).unwrap_or_default();
+
+    Ok(UpdateCheckResult {
+        app_update: None,
+        hot_update: None,
+        plugin_updates,
+        engine_updates,
+        checked_at: chrono::Utc::now().to_rfc3339(),
+    })
+}
+
+fn parse_github_url(url: &str) -> Option<(String, String)> {
+    let url = url.trim_end_matches('/');
+    if url.contains("github.com") {
+        let parts: Vec<&str> = url.split("github.com/").last()?.split('/').collect();
+        if parts.len() >= 2 {
+            return Some((parts[0].to_string(), parts[1].to_string()));
+        }
+    }
+    None
+}
+
+#[tauri::command]
+pub fn get_app_version(app: AppHandle) -> Result<String, String> {
+    Ok(app.config().version.clone().unwrap_or_default())
+}
+
+#[tauri::command]
 pub fn get_operation_logs(app: AppHandle, limit: Option<usize>) -> Result<Vec<LogEntry>, String> {
     let logger = get_logger(&app);
     logger.get_logs(limit.unwrap_or(100))
@@ -1378,10 +1610,12 @@ pub fn check_plugin_updates(app: AppHandle) -> Result<Vec<PluginUpdateInfo>, Str
 
         update_infos.push(PluginUpdateInfo {
             plugin_id: plugin.plugin_id.clone(),
+            plugin_name: plugin.name.clone(),
             current_version,
             latest_version,
             update_available,
             release_notes,
+            source_url: plugin.source.url.clone(),
         });
     }
 

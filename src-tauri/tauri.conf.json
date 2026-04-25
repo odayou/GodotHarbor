@@ -44,6 +44,15 @@
       "icons/icon.icns",
       "icons/icon.ico",
       "icons/icon.png"
-    ]
+    ],
+    "createUpdaterArtifacts": true
+  },
+
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://godotharbor.odayou.workers.dev/updates/{{target}}/{{arch}}/{{current_version}}"
+      ]
+    }
   }
 }
