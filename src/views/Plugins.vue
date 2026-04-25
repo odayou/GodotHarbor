@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
-import type { Plugin, PluginUpdateInfo, PluginDependency, AssetLibrarySearchResult, AssetLibrarySearchResponse, AssetLibraryCategory, AssetLibraryAsset, AssetImportProgress } from '@/types'
+import type { Plugin, PluginUpdateInfo, PluginDependency, AssetLibrarySearchResult, AssetLibrarySearchResponse, AssetLibraryCategory, AssetLibraryAsset, PluginStorageStats, ProjectBinding } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { useToast } from '@/composables/useToast'
@@ -37,6 +37,8 @@ const showGitDialog = ref(false)
 const showPluginDetail = ref(false)
 const selectedPlugin = ref<Plugin | null>(null)
 const pluginDependencies = ref<PluginDependency[]>([])
+const pluginStorageStats = ref<PluginStorageStats | null>(null)
+const pluginBindings = ref<ProjectBinding[]>([])
 const showUpdatesDialog = ref(false)
 const pluginUpdates = ref<PluginUpdateInfo[]>([])
 const isCheckingUpdates = ref(false)
@@ -483,12 +485,42 @@ const loadPluginDependencies = async (pluginId: string) => {
 
 const showPluginDetails = async (plugin: Plugin) => {
   selectedPlugin.value = plugin
-  await loadPluginDependencies(plugin.plugin_id)
   showPluginDetail.value = true
+  loadPluginDependencies(plugin.plugin_id)
+  try {
+    pluginStorageStats.value = await api.getPluginStorageStats(plugin.plugin_id)
+  } catch (e) {
+    console.error('Failed to load storage stats:', e)
+    pluginStorageStats.value = null
+  }
+  try {
+    pluginBindings.value = await api.getPluginBindings(plugin.plugin_id)
+  } catch (e) {
+    console.error('Failed to load plugin bindings:', e)
+    pluginBindings.value = []
+  }
 }
 
-// @ts-ignore used in template plugin detail dialog
-void loadPluginDependencies
+const removePluginVersion = async (pluginId: string, versionId: string) => {
+  try {
+    await api.removePluginVersion(pluginId, versionId)
+    toast.success('版本已删除')
+    if (selectedPlugin.value) {
+      await showPluginDetails(selectedPlugin.value)
+    }
+    await loadPlugins()
+  } catch (error) {
+    toast.error(t('common.deleteFailed', { error }))
+  }
+}
+
+const closePluginDetail = () => {
+  showPluginDetail.value = false
+  selectedPlugin.value = null
+  pluginDependencies.value = []
+  pluginStorageStats.value = null
+  pluginBindings.value = []
+}
 
 </script>
 
@@ -753,46 +785,113 @@ void loadPluginDependencies
       </div>
     </div>
 
-    <div v-if="showPluginDetail && selectedPlugin" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showPluginDetail = false; selectedPlugin = null; pluginDependencies = []">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-2">
-          {{ selectedPlugin.name }}
-        </h3>
-        <div class="mb-4">
-          <span class="text-sm text-gray-500 dark:text-content-secondary">
-            作者: {{ selectedPlugin.author || '未知作者' }}
-          </span>
-          <span class="mx-2 text-gray-300 dark:text-content-secondary">|</span>
-          <span class="text-sm text-gray-500 dark:text-content-secondary">
-            版本: v{{ selectedPlugin.versions[0]?.version || '1.0.0' }}
-          </span>
+    <div v-if="showPluginDetail && selectedPlugin" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="closePluginDetail">
+      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[85vh] flex flex-col" @click.stop>
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">
+            {{ selectedPlugin.name }}
+          </h3>
+          <button @click="closePluginDetail" class="text-gray-500 dark:text-content-secondary hover:text-gray-700 dark:hover:text-content-primary">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
-        <div class="mb-4">
-          <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">描述</h4>
-          <p class="text-sm text-gray-600 dark:text-content-secondary whitespace-pre-wrap bg-gray-50 dark:bg-surface-layer rounded-lg p-3 max-h-60 overflow-y-auto">
-            {{ selectedPlugin.description || '无描述' }}
-          </p>
+        <div class="mb-4 flex items-center gap-3 flex-wrap text-sm text-gray-500 dark:text-content-secondary">
+          <span>作者: {{ selectedPlugin.author || '未知' }}</span>
+          <span class="text-gray-300 dark:text-content-secondary">|</span>
+          <span>{{ selectedPlugin.compatibility === 'Godot4' ? 'Godot 4' : selectedPlugin.compatibility === 'Godot3' ? 'Godot 3' : selectedPlugin.compatibility === 'Both' ? '通用' : '未知' }}</span>
+          <span class="text-gray-300 dark:text-content-secondary">|</span>
+          <span>{{ selectedPlugin.source.source_type === 'Local' ? '本地' : selectedPlugin.source.source_type === 'Git' ? 'Git' : 'AssetLibrary' }}</span>
+          <span v-if="pluginStorageStats" class="text-gray-300 dark:text-content-secondary">|</span>
+          <span v-if="pluginStorageStats">{{ pluginStorageStats.total_size_display }}</span>
         </div>
-        <div class="mb-4">
-          <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">来源</h4>
-          <p class="text-sm text-gray-600 dark:text-content-secondary">
-            {{ selectedPlugin.source.source_type === 'Local' ? '本地目录' : selectedPlugin.source.source_type === 'Git' ? 'Git 仓库' : 'AssetLibrary' }}
-            <span v-if="selectedPlugin.source.url" class="block text-xs mt-1 break-all">{{ selectedPlugin.source.url }}</span>
-          </p>
-        </div>
-        <div v-if="pluginDependencies.length > 0" class="mb-4">
-          <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">依赖关系</h4>
-          <div class="space-y-2 bg-gray-50 dark:bg-surface-layer rounded-lg p-3 max-h-40 overflow-y-auto">
-            <div v-for="dep in pluginDependencies" :key="dep.plugin_id" class="text-sm text-gray-600 dark:text-content-secondary">
-              <span class="font-medium">{{ dep.plugin_id }}</span>
-              <span v-if="dep.version_constraint"> ({{ dep.version_constraint }})</span>
-              <span v-if="dep.is_optional" class="ml-2 text-xs text-gray-500 dark:text-content-secondary">(可选)</span>
+
+        <div class="flex-1 overflow-y-auto space-y-4">
+          <div>
+            <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">描述</h4>
+            <p class="text-sm text-gray-600 dark:text-content-secondary whitespace-pre-wrap bg-gray-50 dark:bg-surface-layer rounded-lg p-3">
+              {{ selectedPlugin.description || '无描述' }}
+            </p>
+          </div>
+
+          <div>
+            <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">
+              版本列表 ({{ selectedPlugin.versions.length }})
+            </h4>
+            <div class="space-y-2 bg-gray-50 dark:bg-surface-layer rounded-lg p-3">
+              <div v-for="version in selectedPlugin.versions" :key="version.version_id"
+                class="flex items-center justify-between py-1.5 border-b border-gray-200 dark:border-gray-600 last:border-0">
+                <div>
+                  <span class="text-sm font-medium text-gray-900 dark:text-content-primary">v{{ version.version }}</span>
+                  <span class="text-xs text-gray-500 dark:text-content-secondary ml-2">
+                    {{ new Date(version.created_at).toLocaleDateString() }}
+                  </span>
+                  <span class="text-xs text-gray-400 dark:text-content-secondary ml-2">
+                    {{ version.units.length }} 个单元
+                  </span>
+                </div>
+                <button
+                  v-if="selectedPlugin.versions.length > 1"
+                  @click="removePluginVersion(selectedPlugin.plugin_id, version.version_id)"
+                  class="text-xs text-red-500 hover:text-red-700"
+                >
+                  删除
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="pluginBindings.length > 0">
+            <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">
+              挂载到 ({{ pluginBindings.length }} 个项目)
+            </h4>
+            <div class="space-y-1 bg-gray-50 dark:bg-surface-layer rounded-lg p-3">
+              <div v-for="binding in pluginBindings" :key="binding.project_id + binding.mount_path"
+                class="text-sm text-gray-600 dark:text-content-secondary py-1">
+                <span class="font-mono text-xs">{{ binding.mount_path }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="pluginDependencies.length > 0">
+            <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">依赖关系</h4>
+            <div class="space-y-2 bg-gray-50 dark:bg-surface-layer rounded-lg p-3">
+              <div v-for="dep in pluginDependencies" :key="dep.plugin_id" class="text-sm text-gray-600 dark:text-content-secondary">
+                <span class="font-medium">{{ dep.plugin_id }}</span>
+                <span v-if="dep.version_constraint"> ({{ dep.version_constraint }})</span>
+                <span v-if="dep.is_optional" class="ml-2 text-xs text-gray-500 dark:text-content-secondary">(可选)</span>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">来源</h4>
+            <p class="text-sm text-gray-600 dark:text-content-secondary bg-gray-50 dark:bg-surface-layer rounded-lg p-3">
+              {{ selectedPlugin.source.source_type === 'Local' ? '本地目录' : selectedPlugin.source.source_type === 'Git' ? 'Git 仓库' : 'AssetLibrary' }}
+              <span v-if="selectedPlugin.source.url" class="block text-xs mt-1 break-all font-mono">{{ selectedPlugin.source.url }}</span>
+            </p>
+          </div>
+
+          <div v-if="pluginStorageStats" class="grid grid-cols-3 gap-3">
+            <div class="bg-gray-50 dark:bg-surface-layer rounded-lg p-3 text-center">
+              <div class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ pluginStorageStats.version_count }}</div>
+              <div class="text-xs text-gray-500 dark:text-content-secondary">版本</div>
+            </div>
+            <div class="bg-gray-50 dark:bg-surface-layer rounded-lg p-3 text-center">
+              <div class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ pluginStorageStats.binding_count }}</div>
+              <div class="text-xs text-gray-500 dark:text-content-secondary">挂载</div>
+            </div>
+            <div class="bg-gray-50 dark:bg-surface-layer rounded-lg p-3 text-center">
+              <div class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ pluginStorageStats.total_size_display }}</div>
+              <div class="text-xs text-gray-500 dark:text-content-secondary">存储</div>
             </div>
           </div>
         </div>
-        <div class="flex justify-end">
+
+        <div class="flex justify-end mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
           <button
-            @click="showPluginDetail = false; selectedPlugin = null; pluginDependencies = []"
+            @click="closePluginDetail"
             class="btn-secondary"
           >
             关闭
@@ -864,7 +963,7 @@ void loadPluginDependencies
           <span class="text-xs font-medium text-primary-700 dark:text-primary-300">{{ t('assetLibrary.selectedCount', { count: selectedAssetIds.size }) }}</span>
           <button
             @click="batchImportAssets"
-            :disabled="!!isImportingAsset"
+            :disabled="!!pluginStore.isImporting"
             class="px-3 py-1 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700 disabled:opacity-50"
           >
             {{ t('assetLibrary.batchImport') }} ({{ selectedAssetIds.size }})
@@ -931,10 +1030,10 @@ void loadPluginDependencies
               </div>
               <button
                 @click="importAsset(asset.asset_id, asset.title)"
-                :disabled="isImportingAsset === asset.asset_id"
+                :disabled="pluginStore.isImporting === asset.asset_id"
                 class="btn-primary disabled:opacity-50 text-xs px-3 py-1.5 flex-shrink-0"
               >
-                {{ isImportingAsset === asset.asset_id ? t('assetLibrary.importing') : t('assetLibrary.import') }}
+                {{ pluginStore.isImporting === asset.asset_id ? t('assetLibrary.importing') : t('assetLibrary.import') }}
               </button>
             </div>
           </div>

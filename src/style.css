@@ -13,14 +13,17 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   
-  --surface-base: #0F172A;
-  --surface-layer: #1E293B;
-  --surface-card: #334155;
-  --surface-border: #475569;
-  --content-primary: #F8FAFC;
-  --content-secondary: #CBD5E1;
-  --brand-primary: #3B82F6;
-  --brand-secondary: #10B981;
+  --surface-base: #050508;
+  --surface-layer: #0f1018;
+  --surface-card: #1a1b28;
+  --surface-border: #2d2d42;
+  --surface-hover: #222236;
+  --content-primary: #F7FAFC;
+  --content-secondary: #CBD5E0;
+  --content-muted: #718096;
+  --brand-primary: #3766be;
+  --brand-secondary: #7d4ed2;
+  --brand-accent: #33b5dc;
 }
 
 .dark {

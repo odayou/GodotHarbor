@@ -21,7 +21,9 @@ import type {
   AssetLibrarySearchParams,
   AssetLibrarySearchResponse,
   AssetLibraryConfigure,
-  AssetLibraryAsset
+  AssetLibraryAsset,
+  ScannedPlugin,
+  PluginStorageStats
 } from '@/types'
 
 export const api = {
@@ -93,7 +95,7 @@ export const api = {
     return await invoke('get_project_bindings', { projectId })
   },
 
-  async scanProjectPlugins(): Promise<string[]> {
+  async scanProjectPlugins(): Promise<ScannedPlugin[]> {
     return await invoke('scan_project_plugins')
   },
 
@@ -271,6 +273,18 @@ export const api = {
 
   async batchApplyChanges(projectIds: string[]): Promise<BatchApplyResult> {
     return await invoke('batch_apply_changes', { projectIds })
+  },
+
+  async getPluginStorageStats(pluginId: string): Promise<PluginStorageStats> {
+    return await invoke('get_plugin_storage_stats', { pluginId })
+  },
+
+  async removePluginVersion(pluginId: string, versionId: string): Promise<void> {
+    return await invoke('remove_plugin_version', { pluginId, versionId })
+  },
+
+  async getPluginBindings(pluginId: string): Promise<ProjectBinding[]> {
+    return await invoke('get_plugin_bindings', { pluginId })
   }
 }
 

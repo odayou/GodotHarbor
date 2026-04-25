@@ -5,7 +5,7 @@ use uuid::Uuid;
 use walkdir::WalkDir;
 use rayon::prelude::*;
 use tauri::{AppHandle, Emitter};
-use crate::models::{Plugin, PluginSource, PluginVersion, PluginUnit, SourceType, Compatibility, Project};
+use crate::models::{Plugin, PluginSource, PluginVersion, PluginUnit, SourceType, Compatibility, Project, compute_dir_hash, ScannedPlugin};
 
 const PLUGIN_SCAN_MAX_DEPTH: usize = 5;
 const COMPAT_SCAN_MAX_DEPTH: usize = 5;
@@ -26,8 +26,8 @@ impl PluginManager {
         Self { plugins_dir }
     }
 
-    pub fn scan_project_plugins(&self, projects: &[Project]) -> Result<Vec<PathBuf>> {
-        let results: Vec<Vec<PathBuf>> = projects
+    pub fn scan_project_plugins(&self, projects: &[Project]) -> Result<Vec<ScannedPlugin>> {
+        let results: Vec<ScannedPlugin> = projects
             .par_iter()
             .filter_map(|project| {
                 let project_path = Path::new(&project.path);
@@ -37,7 +37,7 @@ impl PluginManager {
                     return None;
                 }
 
-                let plugin_paths: Vec<PathBuf> = WalkDir::new(&addons_dir)
+                let plugin_entries: Vec<ScannedPlugin> = WalkDir::new(&addons_dir)
                     .max_depth(1)
                     .follow_links(false)
                     .into_iter()
@@ -46,18 +46,44 @@ impl PluginManager {
                         let path = e.path();
                         path.is_dir() && path != addons_dir && path.join("plugin.cfg").exists()
                     })
-                    .map(|e| e.into_path())
+                    .filter_map(|e| {
+                        let path = e.into_path();
+                        let cfg_path = path.join("plugin.cfg");
+                        let plugin_name = fs::read_to_string(&cfg_path)
+                            .ok()
+                            .and_then(|content| {
+                                content.lines()
+                                    .find(|l| l.trim().starts_with("name="))
+                                    .map(|l| l[5..].trim_matches('"').trim().to_string())
+                                    .filter(|s| !s.is_empty())
+                            })
+                            .unwrap_or_else(|| path.file_name()
+                                .map(|n| n.to_string_lossy().to_string())
+                                .unwrap_or_default());
+                        Some(ScannedPlugin {
+                            path: path.to_string_lossy().to_string(),
+                            plugin_name,
+                            project_name: project.name.clone(),
+                        })
+                    })
                     .collect();
 
-                if plugin_paths.is_empty() {
+                if plugin_entries.is_empty() {
                     None
                 } else {
-                    Some(plugin_paths)
+                    Some(plugin_entries)
                 }
             })
+            .flatten()
             .collect();
 
-        Ok(results.into_iter().flatten().collect())
+        let mut seen_names = std::collections::HashSet::new();
+        let deduped: Vec<ScannedPlugin> = results
+            .into_iter()
+            .filter(|sp| seen_names.insert(sp.plugin_name.to_lowercase()))
+            .collect();
+
+        Ok(deduped)
     }
 
     pub fn import_from_local(&self, source_path: &str) -> Result<Plugin> {
@@ -104,6 +130,8 @@ impl PluginManager {
 
         self.write_harbor_marker(&payload_dir);
 
+        let content_hash = compute_dir_hash(&payload_dir).unwrap_or_default();
+
         let (unit_version, unit_name, unit_description, unit_author) =
             if let Some(first_unit) = units.first() {
                 (
@@ -129,6 +157,7 @@ impl PluginManager {
         plugin.name = unit_name;
         plugin.description = unit_description;
         plugin.author = unit_author;
+        plugin.content_hash = content_hash;
 
         Ok(plugin)
     }
@@ -207,6 +236,8 @@ impl PluginManager {
 
         self.write_harbor_marker(&payload_dir);
 
+        let content_hash = compute_dir_hash(&payload_dir).unwrap_or_default();
+
         let (unit_version, unit_name, unit_description, unit_author) =
             if let Some(first_unit) = units.first() {
                 (
@@ -232,6 +263,7 @@ impl PluginManager {
         plugin.name = unit_name;
         plugin.description = unit_description;
         plugin.author = unit_author;
+        plugin.content_hash = content_hash;
 
         Ok(plugin)
     }

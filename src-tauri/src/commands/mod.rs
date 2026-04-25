@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 use std::fs;
 use std::io::{Read, Write};
 use serde::{Serialize, Deserialize};
@@ -248,6 +248,17 @@ pub fn remove_plugin(app: AppHandle, plugin_id: String) -> Result<(), String> {
         .ok_or("未找到指定插件".to_string())?;
     let plugin_name = plugin.name.clone();
 
+    let plugin_dir = get_data_dir(&app).join("plugins").join(&plugin_id);
+    if plugin_dir.exists() {
+        fs::remove_dir_all(&plugin_dir)
+            .map_err(|e| format!("删除插件文件失败: {}", e))?;
+    }
+
+    let mut bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
+    bindings.retain(|b| b.plugin_id != plugin_id);
+    storage.save("bindings.json", &bindings)
+        .map_err(|e| format!("保存绑定关系失败: {}", e))?;
+
     plugins.retain(|p| p.plugin_id != plugin_id);
 
     storage.save("plugins.json", &plugins)
@@ -443,7 +454,7 @@ pub fn get_project_bindings(app: AppHandle, project_id: String) -> Result<Vec<Pr
 }
 
 #[tauri::command]
-pub fn scan_project_plugins(app: AppHandle) -> Result<Vec<String>, String> {
+pub fn scan_project_plugins(app: AppHandle) -> Result<Vec<crate::models::ScannedPlugin>, String> {
     let storage = get_storage(&app);
     let projects: Vec<Project> = storage.load_or_default("projects.json");
 
@@ -452,12 +463,10 @@ pub fn scan_project_plugins(app: AppHandle) -> Result<Vec<String>, String> {
     }
 
     let manager = get_plugin_manager(&app);
-    let plugin_paths = manager.scan_project_plugins(&projects)
+    let scanned_plugins = manager.scan_project_plugins(&projects)
         .map_err(|e| format!("扫描项目插件失败: {}", e))?;
 
-    Ok(plugin_paths.iter()
-        .map(|p| p.to_string_lossy().to_string())
-        .collect())
+    Ok(scanned_plugins)
 }
 
 #[tauri::command]
@@ -472,29 +481,47 @@ pub fn import_plugins_from_projects(app: AppHandle) -> Result<Vec<Plugin>, Strin
     let mut plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
 
     let manager = get_plugin_manager(&app);
-    let plugin_paths = manager.scan_project_plugins(&projects)
+    let scanned_plugins = manager.scan_project_plugins(&projects)
         .map_err(|e| format!("扫描项目插件失败: {}", e))?;
 
-    if plugin_paths.is_empty() {
+    if scanned_plugins.is_empty() {
         return Err("未在项目中发现可导入的插件".to_string());
     }
 
     let mut imported_plugins = Vec::new();
+    let mut seen_names: std::collections::HashSet<String> = plugins.iter()
+        .map(|p| p.name.to_lowercase())
+        .collect();
 
-    for plugin_path in plugin_paths {
-        let path_str = plugin_path.to_string_lossy().to_string();
+    for scanned in scanned_plugins {
+        let path_str = scanned.path.clone();
 
         let already_imported = plugins.iter()
             .any(|p| p.source.url == path_str);
 
-        if !already_imported {
-            match manager.import_from_local(&path_str) {
-                Ok(plugin) => {
+        if already_imported {
+            continue;
+        }
+
+        match manager.import_from_local(&path_str) {
+            Ok(plugin) => {
+                let plugin_name_lower = plugin.name.to_lowercase();
+                if seen_names.contains(&plugin_name_lower) {
+                    if let Some(idx) = plugins.iter().position(|p| p.name.to_lowercase() == plugin_name_lower) {
+                        plugins[idx].versions.extend(plugin.versions);
+                        if !plugin.content_hash.is_empty() {
+                            plugins[idx].content_hash = plugin.content_hash.clone();
+                        }
+                        let result = plugins[idx].clone();
+                        imported_plugins.push(result);
+                    }
+                } else {
+                    seen_names.insert(plugin_name_lower);
                     imported_plugins.push(plugin.clone());
                     plugins.push(plugin);
                 }
-                Err(e) => eprintln!("Failed to import plugin from {}: {}", path_str, e),
             }
+            Err(e) => eprintln!("Failed to import plugin from {}: {}", path_str, e),
         }
     }
 
@@ -505,6 +532,99 @@ pub fn import_plugins_from_projects(app: AppHandle) -> Result<Vec<Plugin>, Strin
         &format!("从项目导入了 {} 个插件", imported_plugins.len()));
 
     Ok(imported_plugins)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PluginStorageStats {
+    pub total_size_bytes: u64,
+    pub total_size_display: String,
+    pub version_count: usize,
+    pub binding_count: usize,
+}
+
+fn format_size(bytes: u64) -> String {
+    const KB: u64 = 1024;
+    const MB: u64 = 1024 * KB;
+    const GB: u64 = 1024 * MB;
+    if bytes >= GB {
+        format!("{:.2} GB", bytes as f64 / GB as f64)
+    } else if bytes >= MB {
+        format!("{:.2} MB", bytes as f64 / MB as f64)
+    } else if bytes >= KB {
+        format!("{:.2} KB", bytes as f64 / KB as f64)
+    } else {
+        format!("{} B", bytes)
+    }
+}
+
+fn dir_size(path: &Path) -> u64 {
+    walkdir::WalkDir::new(path)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter_map(|e| e.metadata().ok())
+        .filter(|m| m.is_file())
+        .map(|m| m.len())
+        .sum()
+}
+
+#[tauri::command]
+pub fn get_plugin_storage_stats(app: AppHandle, plugin_id: String) -> Result<PluginStorageStats, String> {
+    let storage = get_storage(&app);
+    let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+    let plugin = plugins.iter().find(|p| p.plugin_id == plugin_id)
+        .ok_or("未找到指定插件".to_string())?;
+
+    let plugin_dir = get_data_dir(&app).join("plugins").join(&plugin_id);
+    let total_size_bytes = if plugin_dir.exists() { dir_size(&plugin_dir) } else { 0 };
+
+    let bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
+    let binding_count = bindings.iter().filter(|b| b.plugin_id == plugin_id).count();
+
+    Ok(PluginStorageStats {
+        total_size_bytes,
+        total_size_display: format_size(total_size_bytes),
+        version_count: plugin.versions.len(),
+        binding_count,
+    })
+}
+
+#[tauri::command]
+pub fn remove_plugin_version(app: AppHandle, plugin_id: String, version_id: String) -> Result<(), String> {
+    let storage = get_storage(&app);
+    let mut plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+
+    let plugin = plugins.iter_mut()
+        .find(|p| p.plugin_id == plugin_id)
+        .ok_or("未找到指定插件".to_string())?;
+
+    if plugin.versions.len() <= 1 {
+        return Err("插件至少需要保留一个版本，如需删除请直接删除插件".to_string());
+    }
+
+    let version_dir = get_data_dir(&app).join("plugins").join(&plugin_id).join(&version_id);
+    if version_dir.exists() {
+        fs::remove_dir_all(&version_dir)
+            .map_err(|e| format!("删除版本文件失败: {}", e))?;
+    }
+
+    let plugin_name = plugin.name.clone();
+    plugin.versions.retain(|v| v.version_id != version_id);
+    plugin.updated_at = chrono::Utc::now();
+
+    storage.save("plugins.json", &plugins)
+        .map_err(|e| format!("保存插件列表失败: {}", e))?;
+
+    log_operation(&app, "remove_plugin_version", &plugin_id, 
+        &format!("已删除插件 {} 的版本 {}", plugin_name, version_id));
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_plugin_bindings(app: AppHandle, plugin_id: String) -> Result<Vec<ProjectBinding>, String> {
+    let storage = get_storage(&app);
+    let bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
+    Ok(bindings.into_iter().filter(|b| b.plugin_id == plugin_id).collect())
 }
 
 #[tauri::command]
@@ -1354,6 +1474,8 @@ pub fn import_from_asset_library(app: AppHandle, asset_id: String) -> Result<Plu
 
     let compatibility = manager.detect_compatibility(&payload_dir);
 
+    let content_hash = crate::models::compute_dir_hash(&payload_dir).unwrap_or_default();
+
     let (unit_version, unit_name) = if let Some(first_unit) = units.first() {
         (
             if first_unit.version.is_empty() { "1.0.0".to_string() } else { first_unit.version.clone() },
@@ -1374,6 +1496,7 @@ pub fn import_from_asset_library(app: AppHandle, asset_id: String) -> Result<Plu
     plugin.versions.push(plugin_version);
     plugin.compatibility = compatibility;
     plugin.name = unit_name;
+    plugin.content_hash = content_hash;
 
     let storage = get_storage(&app);
     let mut plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
@@ -1566,6 +1689,8 @@ pub fn import_from_asset_library_with_progress(app: AppHandle, asset_id: String)
 
     let compatibility = manager.detect_compatibility(&payload_dir);
 
+    let content_hash = crate::models::compute_dir_hash(&payload_dir).unwrap_or_default();
+
     let (unit_version, unit_name) = if let Some(first_unit) = units.first() {
         (
             if first_unit.version.is_empty() { "1.0.0".to_string() } else { first_unit.version.clone() },
@@ -1586,6 +1711,7 @@ pub fn import_from_asset_library_with_progress(app: AppHandle, asset_id: String)
     plugin.versions.push(plugin_version);
     plugin.compatibility = compatibility;
     plugin.name = unit_name;
+    plugin.content_hash = content_hash;
 
     let storage = get_storage(&app);
     let mut plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
@@ -1941,8 +2067,18 @@ pub fn batch_remove_plugins(app: AppHandle, plugin_ids: Vec<String>) -> Result<B
     let mut failed_count = 0;
     let mut errors = Vec::new();
 
+    let plugins_base_dir = get_data_dir(&app).join("plugins");
+
     for plugin_id in &plugin_ids {
-        if plugins.iter().any(|p| p.plugin_id == *plugin_id) {
+        if let Some(_plugin) = plugins.iter().find(|p| p.plugin_id == *plugin_id) {
+            let plugin_dir = plugins_base_dir.join(plugin_id);
+            if plugin_dir.exists() {
+                if let Err(e) = fs::remove_dir_all(&plugin_dir) {
+                    errors.push(format!("删除插件 {} 文件失败: {}", plugin_id, e));
+                    failed_count += 1;
+                    continue;
+                }
+            }
             plugins.retain(|p| p.plugin_id != *plugin_id);
             success_count += 1;
         } else {
@@ -1950,6 +2086,11 @@ pub fn batch_remove_plugins(app: AppHandle, plugin_ids: Vec<String>) -> Result<B
             errors.push(format!("未找到插件: {}", plugin_id));
         }
     }
+
+    let mut bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
+    bindings.retain(|b| !plugin_ids.contains(&b.plugin_id));
+    storage.save("bindings.json", &bindings)
+        .map_err(|e| format!("保存绑定关系失败: {}", e))?;
 
     storage.save("plugins.json", &plugins)
         .map_err(|e| format!("保存插件列表失败: {}", e))?;

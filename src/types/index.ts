@@ -31,6 +31,7 @@ export interface Plugin {
   versions: PluginVersion[]
   compatibility: 'Godot3' | 'Godot4' | 'Both' | 'Unknown'
   is_favorite?: boolean
+  content_hash?: string
   created_at: string
   updated_at: string
 }
@@ -304,4 +305,17 @@ export interface AssetImportProgress {
   stage: 'downloading' | 'extracting' | 'parsing' | 'complete' | 'error'
   progress: number
   message: string
+}
+
+export interface ScannedPlugin {
+  path: string
+  plugin_name: string
+  project_name: string
+}
+
+export interface PluginStorageStats {
+  total_size_bytes: number
+  total_size_display: string
+  version_count: number
+  binding_count: number
 }

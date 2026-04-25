@@ -221,6 +221,9 @@ pub fn run() {
             commands::batch_bind_plugins,
             commands::batch_unbind_plugins,
             commands::batch_apply_changes,
+            commands::get_plugin_storage_stats,
+            commands::remove_plugin_version,
+            commands::get_plugin_bindings,
         ))
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

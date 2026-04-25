@@ -1,6 +1,60 @@
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+use std::path::Path;
+use std::fs;
+
+pub fn compute_dir_hash(dir: &Path) -> Result<String, String> {
+    let mut hasher = DefaultHasher::new();
+    compute_dir_hash_recursive(dir, &mut hasher)?;
+    Ok(format!("{:016x}", hasher.finish()))
+}
+
+fn compute_dir_hash_recursive(dir: &Path, hasher: &mut DefaultHasher) -> Result<(), String> {
+    if !dir.exists() {
+        return Ok(());
+    }
+    let mut entries: Vec<_> = fs::read_dir(dir)
+        .map_err(|e| format!("读取目录失败: {}", e))?
+        .filter_map(|e| e.ok())
+        .collect();
+    entries.sort_by_key(|e| e.file_name());
+
+    for entry in entries {
+        let path = entry.path();
+        let file_name = entry.file_name();
+        file_name.to_string_lossy().hash(hasher);
+
+        if path.is_dir() {
+            let name_lower = file_name.to_string_lossy().to_lowercase();
+            if [".git", ".svn", ".hg", "node_modules", "__pycache__", ".godot", ".import", "build", "dist", ".cache"]
+                .iter().any(|s| name_lower == *s) {
+                continue;
+            }
+            compute_dir_hash_recursive(&path, hasher)?;
+        } else {
+            let file_name_str = file_name.to_string_lossy();
+            if file_name_str == ".harbor-managed" {
+                continue;
+            }
+            if let Ok(content) = fs::read(&path) {
+                content.len().hash(hasher);
+                if content.len() <= 65536 {
+                    content.hash(hasher);
+                } else {
+                    content[..65536].hash(hasher);
+                    let mid = content.len() / 2;
+                    content[mid..mid.min(mid + 65536)].hash(hasher);
+                    let start = content.len().saturating_sub(65536);
+                    content[start..].hash(hasher);
+                }
+            }
+        }
+    }
+    Ok(())
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum SourceType {
@@ -31,6 +85,13 @@ pub struct PluginUnit {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScannedPlugin {
+    pub path: String,
+    pub plugin_name: String,
+    pub project_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginVersion {
     pub version_id: String,
     pub version: String,
@@ -58,6 +119,8 @@ pub struct Plugin {
     pub compatibility: Compatibility,
     #[serde(default)]
     pub is_favorite: bool,
+    #[serde(default)]
+    pub content_hash: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -74,6 +137,7 @@ impl Plugin {
             versions: Vec::new(),
             compatibility: Compatibility::Unknown,
             is_favorite: false,
+            content_hash: String::new(),
             created_at: now,
             updated_at: now,
         }

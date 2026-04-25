@@ -1,27 +1,41 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#4A90D9"/>
-      <stop offset="100%" stop-color="#2B6CB0"/>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0A0E17"/>
+      <stop offset="100%" stop-color="#121829"/>
     </linearGradient>
-    <linearGradient id="gear" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#5DA0E0"/>
-      <stop offset="100%" stop-color="#3B7CC5"/>
+    <linearGradient id="gearGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2859EE"/>
+      <stop offset="50%" stop-color="#644DEE"/>
+      <stop offset="100%" stop-color="#17C9F4"/>
     </linearGradient>
-    <linearGradient id="inner" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#3A7BBF"/>
-      <stop offset="100%" stop-color="#2B5F9E"/>
+    <linearGradient id="innerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1A3AAF"/>
+      <stop offset="50%" stop-color="#4A35C0"/>
+      <stop offset="100%" stop-color="#0E8FB8"/>
     </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#2859EE"/>
+      <stop offset="50%" stop-color="#644DEE"/>
+      <stop offset="100%" stop-color="#17C9F4"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
   </defs>
 
-  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <rect width="512" height="512" rx="96" fill="url(#bgGrad)"/>
 
-  <g transform="translate(256,220)">
+  <g transform="translate(256,220)" filter="url(#glow)">
     <path d="
       M 0,-170 L 28,-158 L 32,-122 L 64,-126 L 80,-98 L 56,-74 L 76,-48 L 100,-56 L 120,-30 L 98,-8 L 118,20 L 142,16 L 150,46 L 126,56 L 134,86 L 108,90 L 104,120 L 78,116 L 66,144 L 40,132 L 20,156 L 0,140 L -20,156 L -40,132 L -66,144 L -78,116 L -104,120 L -108,90 L -134,86 L -126,56 L -150,46 L -142,16 L -118,20 L -98,-8 L -120,-30 L -100,-56 L -76,-48 L -56,-74 L -80,-98 L -64,-126 L -32,-122 L -28,-158 Z
-    " fill="url(#gear)"/>
+    " fill="url(#gearGrad)"/>
 
-    <circle cx="0" cy="0" r="72" fill="url(#inner)"/>
+    <circle cx="0" cy="0" r="72" fill="url(#innerGrad)"/>
 
     <g fill="none" stroke="#FFFFFF" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="0" cy="-30" r="18" stroke-width="12"/>
@@ -34,6 +48,6 @@
     <path d="M -8 80 Q 0 96 8 80" fill="#FFFFFF" stroke="none"/>
   </g>
 
-  <path d="M 140 400 Q 170 386 200 400 Q 230 414 260 400 Q 290 386 320 400 Q 350 414 380 400" fill="none" stroke="#FFFFFF" stroke-width="5" opacity="0.35"/>
-  <path d="M 155 420 Q 185 406 215 420 Q 245 434 275 420 Q 305 406 335 420 Q 365 434 395 420" fill="none" stroke="#FFFFFF" stroke-width="3.5" opacity="0.2"/>
+  <path d="M 140 400 Q 170 386 200 400 Q 230 414 260 400 Q 290 386 320 400 Q 350 414 380 400" fill="none" stroke="url(#accentGrad)" stroke-width="5" opacity="0.5"/>
+  <path d="M 155 420 Q 185 406 215 420 Q 245 434 275 420 Q 305 406 335 420 Q 365 434 395 420" fill="none" stroke="url(#accentGrad)" stroke-width="3.5" opacity="0.3"/>
 </svg>
