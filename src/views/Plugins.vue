@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
 import type { Plugin, PluginUpdateInfo, PluginDependency } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
@@ -8,6 +9,7 @@ import { useDialogEscape } from '@/composables/useDialogEscape'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const toast = useToast()
+const { t } = useI18n()
 const plugins = ref<Plugin[]>([])
 const isLoading = ref(false)
 const gitUrl = ref('')
@@ -327,21 +329,21 @@ void loadPluginDependencies
 <template>
   <div class="space-y-6">
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">插件仓库</h1>
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ t('plugins.title') }}</h1>
       <div class="flex flex-wrap gap-2">
         <button
           @click="checkPluginUpdates"
           :disabled="isCheckingUpdates || isLoading"
           class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 text-sm"
         >
-          {{ isCheckingUpdates ? '检查中...' : '检查更新' }}
+          {{ isCheckingUpdates ? t('plugins.checkingUpdates') : t('plugins.checkUpdates') }}
         </button>
         <button
           @click="importFromProjects"
           :disabled="isLoading"
           class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 text-sm"
         >
-          从项目导入
+          {{ t('plugins.fromProjects') }}
         </button>
         <button
           @click="importFromLocal"

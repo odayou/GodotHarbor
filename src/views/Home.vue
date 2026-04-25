@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { api } from '@/api'
 import type { DashboardStats } from '@/types'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 
 const router = useRouter()
+const { t } = useI18n()
 const stats = ref<DashboardStats>({
   project_count: 0,
   plugin_count: 0,
@@ -53,11 +55,10 @@ const navigateTo = (path: string) => {
   <div class="space-y-6">
     <div class="card">
       <h1 class="text-2xl font-bold text-gray-900 dark:text-content-primary mb-4">
-        欢迎使用 Godot Harbor
+        {{ t('home.welcome') }}
       </h1>
       <p class="text-gray-600 dark:text-content-secondary">
-        Godot Harbor 是一款独立的桌面应用，用于管理 Godot 插件、项目和引擎。
-        让插件只需导入一次，即可被多个项目复用。
+        {{ t('home.desc') }}
       </p>
     </div>
 
@@ -73,7 +74,7 @@ const navigateTo = (path: string) => {
             </svg>
           </div>
           <div class="ml-4">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">项目</h3>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('home.projects') }}</h3>
             <p class="text-2xl font-bold text-gray-700 dark:text-content-primary">{{ stats.project_count }}</p>
           </div>
         </div>
@@ -90,7 +91,7 @@ const navigateTo = (path: string) => {
             </svg>
           </div>
           <div class="ml-4">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">插件</h3>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ t('home.plugins') }}</h3>
             <p class="text-2xl font-bold text-gray-700 dark:text-gray-300">{{ stats.plugin_count }}</p>
           </div>
         </div>
@@ -107,7 +108,7 @@ const navigateTo = (path: string) => {
             </svg>
           </div>
           <div class="ml-4">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">绑定</h3>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ t('home.bindings') }}</h3>
             <p class="text-2xl font-bold text-gray-700 dark:text-gray-300">{{ stats.binding_count }}</p>
           </div>
         </div>
@@ -124,7 +125,7 @@ const navigateTo = (path: string) => {
             </svg>
           </div>
           <div class="ml-4">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">引擎</h3>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ t('home.engines') }}</h3>
             <p class="text-2xl font-bold text-gray-700 dark:text-gray-300">{{ stats.engine_count }}</p>
           </div>
         </div>
@@ -132,7 +133,7 @@ const navigateTo = (path: string) => {
     </div>
 
     <div v-if="stats.recent_projects.length > 0" class="card">
-      <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">最近项目</h2>
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('home.recentProjects') }}</h2>
       <div class="space-y-2">
         <div
           v-for="project in stats.recent_projects"
@@ -159,49 +160,49 @@ const navigateTo = (path: string) => {
               'badge-error'
             ]"
           >
-            {{ project.status === 'Ready' ? '就绪' : project.status === 'Warning' ? '警告' : '错误' }}
+            {{ project.status === 'Ready' ? t('projects.status.ready') : project.status === 'Warning' ? t('projects.status.warning') : t('projects.status.error') }}
           </span>
         </div>
       </div>
     </div>
 
     <div class="card">
-      <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">快速开始</h2>
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('home.quickStart') }}</h2>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div
           class="p-4 border border-gray-200 dark:border-surface-border rounded-lg cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors"
           @click="navigateTo('/projects')"
         >
-          <h3 class="font-medium text-gray-900 dark:text-content-primary mb-2">1. 扫描项目</h3>
+          <h3 class="font-medium text-gray-900 dark:text-content-primary mb-2">{{ t('home.step1') }}</h3>
           <p class="text-sm text-gray-600 dark:text-content-secondary">
-            设置项目扫描目录，自动发现本地 Godot 项目
+            {{ t('home.step1Desc') }}
           </p>
         </div>
         <div
           class="p-4 border border-gray-200 dark:border-surface-border rounded-lg cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors"
           @click="navigateTo('/plugins')"
         >
-          <h3 class="font-medium text-gray-900 dark:text-content-primary mb-2">2. 导入插件</h3>
+          <h3 class="font-medium text-gray-900 dark:text-content-primary mb-2">{{ t('home.step2') }}</h3>
           <p class="text-sm text-gray-600 dark:text-content-secondary">
-            从本地目录或 Git 仓库导入插件到 Vault
+            {{ t('home.step2Desc') }}
           </p>
         </div>
         <div
           class="p-4 border border-gray-200 dark:border-surface-border rounded-lg cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors"
           @click="navigateTo('/linker')"
         >
-          <h3 class="font-medium text-gray-900 dark:text-content-primary mb-2">3. 绑定插件</h3>
+          <h3 class="font-medium text-gray-900 dark:text-content-primary mb-2">{{ t('home.step3') }}</h3>
           <p class="text-sm text-gray-600 dark:text-content-secondary">
-            为项目选择需要的插件和版本
+            {{ t('home.step3Desc') }}
           </p>
         </div>
         <div
           class="p-4 border border-gray-200 dark:border-surface-border rounded-lg cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors"
           @click="navigateTo('/engines')"
         >
-          <h3 class="font-medium text-gray-900 dark:text-content-primary mb-2">4. 注册引擎</h3>
+          <h3 class="font-medium text-gray-900 dark:text-content-primary mb-2">{{ t('home.step4') }}</h3>
           <p class="text-sm text-gray-600 dark:text-content-secondary">
-            注册 Godot 引擎并绑定到项目
+            {{ t('home.step4Desc') }}
           </p>
         </div>
       </div>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
 import type { Project, Engine, ProjectEngineBinding, MovedProjectCandidate } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
@@ -10,6 +11,7 @@ import { useDialogEscape } from '@/composables/useDialogEscape'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const toast = useToast()
+const { t } = useI18n()
 const projects = ref<Project[]>([])
 const engines = ref<Engine[]>([])
 const isLoading = ref(false)
@@ -549,33 +551,33 @@ const confirmRelocate = async () => {
         <svg class="mx-auto h-12 w-12 text-primary-500 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
         </svg>
-        <p class="text-lg font-semibold text-primary-600 dark:text-primary-400">拖放 Godot 项目目录到此处</p>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">将自动识别包含 project.godot 的目录</p>
+        <p class="text-lg font-semibold text-primary-600 dark:text-primary-400">{{ t('projects.dragTitle') }}</p>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ t('projects.dragDesc') }}</p>
       </div>
     </div>
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">项目管理</h1>
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ t('projects.title') }}</h1>
       <div class="flex flex-wrap gap-2">
         <button
           @click="showScanDialog = true"
           :disabled="isLoading"
           class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 text-sm"
         >
-          扫描项目
+          {{ t('projects.scan') }}
         </button>
         <button
           @click="quickScan"
           :disabled="isLoading"
           class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 text-sm"
         >
-          快速扫描
+          {{ t('projects.quickScan') }}
         </button>
         <button
           @click="addProject"
           :disabled="isLoading"
           class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 text-sm"
         >
-          添加项目
+          {{ t('projects.add') }}
         </button>
       </div>
     </div>
@@ -586,7 +588,7 @@ const confirmRelocate = async () => {
           <input
             v-model="searchQuery"
             type="text"
-            placeholder="搜索项目名称或路径..."
+            :placeholder="t('projects.search')"
             class="w-full px-4 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
           />
         </div>
@@ -595,20 +597,20 @@ const confirmRelocate = async () => {
             v-model="filterGroup"
             class="px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
           >
-            <option value="all">全部分组</option>
-            <option value="ungrouped">未分组</option>
+            <option value="all">{{ t('projects.allGroups') }}</option>
+            <option value="ungrouped">{{ t('projects.ungrouped') }}</option>
             <option v-for="group in availableGroups" :key="group" :value="group">{{ group }}</option>
           </select>
           <select
             v-model="filterStatus"
             class="px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
           >
-            <option value="all">全部状态</option>
-            <option value="Ready">就绪</option>
-            <option value="Warning">警告</option>
-            <option value="Error">错误</option>
-            <option value="Conflict">冲突</option>
-            <option value="MissingSource">源缺失</option>
+            <option value="all">{{ t('projects.allStatus') }}</option>
+            <option value="Ready">{{ t('projects.status.ready') }}</option>
+            <option value="Warning">{{ t('projects.status.warning') }}</option>
+            <option value="Error">{{ t('projects.status.error') }}</option>
+            <option value="Conflict">{{ t('projects.status.conflict') || '冲突' }}</option>
+            <option value="MissingSource">{{ t('projects.status.missingSource') || '源缺失' }}</option>
           </select>
         </div>
       </div>
@@ -616,18 +618,18 @@ const confirmRelocate = async () => {
 
     <div v-if="isBatchMode && selectedCount > 0" class="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-3 flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <span class="text-sm font-medium text-primary-700 dark:text-primary-300">已选择 {{ selectedCount }} 个项目</span>
+        <span class="text-sm font-medium text-primary-700 dark:text-primary-300">{{ t('projects.selectedCount', { count: selectedCount }) }}</span>
         <button
           @click="selectAllProjects"
           class="text-xs text-primary-600 dark:text-primary-400 hover:underline"
         >
-          全选
+          {{ t('common.selectAll') }}
         </button>
         <button
           @click="clearSelection"
           class="text-xs text-gray-500 dark:text-gray-400 hover:underline"
         >
-          取消选择
+          {{ t('common.deselectAll') }}
         </button>
       </div>
       <div class="flex gap-2">
@@ -635,7 +637,7 @@ const confirmRelocate = async () => {
           @click="batchRemoveProjects"
           class="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
         >
-          批量删除 ({{ selectedCount }})
+          {{ t('common.batchDelete') }} ({{ selectedCount }})
         </button>
       </div>
     </div>

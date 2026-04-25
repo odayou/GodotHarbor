@@ -25,11 +25,14 @@ export default {
     status: {
       ready: 'Ready',
       warning: 'Warning',
-      error: 'Error'
+      error: 'Error',
+      conflict: 'Conflict',
+      missingSource: 'Missing Source'
     },
     search: 'Search project name or path...',
     allGroups: 'All Groups',
     ungrouped: 'Ungrouped',
+    selectedCount: '{count} projects selected',
     allStatus: 'All Status',
     launch: 'Launch',
     setGroup: 'Set Group',
@@ -85,7 +88,9 @@ export default {
     details: 'Plugin Details',
     version: 'Version',
     sourceType: 'Source',
-    deleteConfirm: 'Are you sure to delete this plugin? This operation will remove the plugin from the vault but won\'t affect copies already mounted to projects.'
+    deleteConfirm: 'Are you sure to delete this plugin? This operation will remove the plugin from the vault but won\'t affect copies already mounted to projects.',
+    checkUpdates: 'Check Updates',
+    checkingUpdates: 'Checking...'
   },
   linker: {
     title: 'Plugin Binding',
@@ -168,7 +173,10 @@ export default {
     delete: 'Delete',
     loading: 'Loading...',
     close: 'Close',
-    save: 'Save'
+    save: 'Save',
+    selectAll: 'Select All',
+    deselectAll: 'Deselect All',
+    batchDelete: 'Batch Delete'
   },
   home: {
     welcome: 'Welcome to Godot Harbor',
@@ -177,6 +185,8 @@ export default {
     plugins: 'Plugins',
     bindings: 'Bindings',
     quickStart: 'Quick Start',
+    recentProjects: 'Recent Projects',
+    engines: 'Engines',
     step1: '1. Scan Projects',
     step1Desc: 'Set project scan directories to automatically discover local Godot projects',
     step2: '2. Import Plugins',
@@ -188,7 +198,11 @@ export default {
   },
   sidebar: {
     collapse: 'Collapse Sidebar',
-    expand: 'Expand Sidebar'
+    expand: 'Expand Sidebar',
+    toggleShortcut: 'Toggle sidebar collapse',
+    toggleThemeShortcut: 'Toggle theme',
+    toggleThemeModeShortcut: 'Toggle dark/light mode',
+    openCommandPaletteShortcut: 'Open command palette'
   },
   statusbar: {
     newVersionAvailable: 'New version available',

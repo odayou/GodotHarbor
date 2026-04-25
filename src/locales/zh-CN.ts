@@ -25,11 +25,14 @@ export default {
     status: {
       ready: '就绪',
       warning: '警告',
-      error: '错误'
+      error: '错误',
+      conflict: '冲突',
+      missingSource: '源缺失'
     },
     search: '搜索项目名称或路径...',
     allGroups: '全部分组',
     ungrouped: '未分组',
+    selectedCount: '已选择 {count} 个项目',
     allStatus: '全部状态',
     launch: '启动',
     setGroup: '设置分组',
@@ -85,7 +88,9 @@ export default {
     details: '插件详情',
     version: '版本',
     sourceType: '来源',
-    deleteConfirm: '确定要删除此插件吗？此操作将从仓库中移除插件，但不会影响已挂载到项目中的副本。'
+    deleteConfirm: '确定要删除此插件吗？此操作将从仓库中移除插件，但不会影响已挂载到项目中的副本。',
+    checkUpdates: '检查更新',
+    checkingUpdates: '检查中...'
   },
   linker: {
     title: '插件绑定',
@@ -168,7 +173,10 @@ export default {
     delete: '删除',
     loading: '加载中...',
     close: '关闭',
-    save: '保存'
+    save: '保存',
+    selectAll: '全选',
+    deselectAll: '取消选择',
+    batchDelete: '批量删除'
   },
   home: {
     welcome: '欢迎使用 Godot Harbor',
@@ -177,6 +185,8 @@ export default {
     plugins: '插件',
     bindings: '绑定',
     quickStart: '快速开始',
+    recentProjects: '最近项目',
+    engines: '引擎',
     step1: '1. 扫描项目',
     step1Desc: '设置项目扫描目录，自动发现本地 Godot 项目',
     step2: '2. 导入插件',
@@ -188,7 +198,11 @@ export default {
   },
   sidebar: {
     collapse: '折叠侧边栏',
-    expand: '展开侧边栏'
+    expand: '展开侧边栏',
+    toggleShortcut: '切换侧边栏折叠',
+    toggleThemeShortcut: '切换主题',
+    toggleThemeModeShortcut: '切换深色/浅色模式',
+    openCommandPaletteShortcut: '打开命令面板'
   },
   statusbar: {
     newVersionAvailable: '有新版本可用',
