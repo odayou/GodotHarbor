@@ -164,6 +164,8 @@ pub struct Settings {
     pub theme: String,
     #[serde(default = "default_true")]
     pub auto_scan_on_startup: bool,
+    #[serde(default)]
+    pub sidebar_collapsed: bool,
 }
 
 fn default_true() -> bool { true }
@@ -176,6 +178,7 @@ impl Default for Settings {
             language: "zh-CN".to_string(),
             theme: "light".to_string(),
             auto_scan_on_startup: true,
+            sidebar_collapsed: false,
         }
     }
 }

@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import { RouterView } from 'vue-router'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useKeyboardShortcuts } from './composables/useKeyboardShortcuts'
 import { useTheme } from './composables/useTheme'
+import { useSidebar } from './composables/useSidebar'
 import Sidebar from './components/layout/Sidebar.vue'
 import Header from './components/layout/Header.vue'
 import StatusBar from './components/layout/StatusBar.vue'
@@ -11,9 +13,23 @@ import OnboardingGuide from './components/OnboardingGuide.vue'
 
 const { registerShortcut } = useKeyboardShortcuts()
 const { currentTheme, setTheme } = useTheme()
+const { initSidebarState, toggleSidebar } = useSidebar()
 
 getCurrentWindow().show().catch((e) => {
   console.error('Failed to show window:', e)
+})
+
+onMounted(() => {
+  initSidebarState()
+})
+
+registerShortcut({
+  key: 'b',
+  ctrl: true,
+  handler: () => {
+    toggleSidebar()
+  },
+  description: '切换侧边栏折叠'
 })
 
 registerShortcut({

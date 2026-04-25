@@ -273,7 +273,8 @@ export const useSettingsStore = defineStore('settings', () => {
     mount_strategy: 'Symlink',
     language: 'zh-CN',
     theme: 'light',
-    auto_scan_on_startup: true
+    auto_scan_on_startup: true,
+    sidebar_collapsed: false
   })
   const loading = ref(false)
   const error = ref<string | null>(null)

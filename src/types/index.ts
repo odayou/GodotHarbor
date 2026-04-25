@@ -62,6 +62,7 @@ export interface Settings {
   language: string
   theme: string
   auto_scan_on_startup: boolean
+  sidebar_collapsed?: boolean
 }
 
 export interface ApplyResult {
