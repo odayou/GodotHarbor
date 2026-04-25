@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { api } from '@/api'
-import type { Project, Engine, ProjectEngineBinding } from '@/types'
+import type { Project, Engine, ProjectEngineBinding, MovedProjectCandidate } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { convertFileSrc } from '@tauri-apps/api/core'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
+import { useDialog } from '@/composables/useDialog'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const toast = useToast()
 const projects = ref<Project[]>([])
@@ -27,11 +30,21 @@ const searchQuery = ref('')
 const filterGroup = ref<string>('all')
 const filterStatus = ref<string>('all')
 const availableGroups = ref<string[]>([])
+let unlisten: UnlistenFn | null = null
 
-onMounted(() => {
+onMounted(async () => {
   loadProjects()
   loadGroups()
   loadEngines()
+  unlisten = await listen('scan-complete', () => {
+    loadProjects()
+  })
+})
+
+onUnmounted(() => {
+  if (unlisten) {
+    unlisten()
+  }
 })
 
 const getIconUrl = (iconPath: string) => {
@@ -100,10 +113,47 @@ const loadProjects = async () => {
     const result = await api.getProjects()
     projects.value = result
     await loadGroups()
+    await checkMovedProjects()
   } catch (error) {
     toast.error(`加载项目失败: ${error}`)
   } finally {
     isLoading.value = false
+  }
+}
+
+const showMovedDialog = ref(false)
+const movedCandidates = ref<MovedProjectCandidate[]>([])
+
+const checkMovedProjects = async () => {
+  try {
+    const candidates = await api.detectMovedProjects()
+    if (candidates.length > 0) {
+      movedCandidates.value = candidates
+      showMovedDialog.value = true
+    }
+  } catch (error) {
+    console.error('检测迁移项目失败:', error)
+  }
+}
+
+const confirmMovedProject = async (candidate: MovedProjectCandidate) => {
+  try {
+    await api.confirmProjectRelocation(candidate.project_id, candidate.new_path)
+    toast.success(`项目 ${candidate.old_name} 已迁移到新路径`)
+    movedCandidates.value = movedCandidates.value.filter(c => c.project_id !== candidate.project_id)
+    if (movedCandidates.value.length === 0) {
+      showMovedDialog.value = false
+    }
+    await loadProjects()
+  } catch (error) {
+    toast.error(`迁移失败: ${error}`)
+  }
+}
+
+const dismissMovedProject = (candidate: MovedProjectCandidate) => {
+  movedCandidates.value = movedCandidates.value.filter(c => c.project_id !== candidate.project_id)
+  if (movedCandidates.value.length === 0) {
+    showMovedDialog.value = false
   }
 }
 
@@ -191,7 +241,7 @@ const confirm = (title: string, message: string, onConfirm: () => void) => {
   showConfirmDialog.value = true
 }
 
-const executeConfirm = () => {
+const onConfirmDialogConfirm = () => {
   if (confirmAction.value) {
     confirmAction.value.onConfirm()
   }
@@ -353,6 +403,46 @@ const launchProject = async (project: Project, engineId?: string) => {
     toast.error(`启动项目失败: ${error}`)
   } finally {
     isLaunching.value = false
+  }
+}
+
+const showRelocateDialog = ref(false)
+const relocateProjectId = ref('')
+const relocateNewPath = ref('')
+
+const openRelocateDialog = (project: Project) => {
+  relocateProjectId.value = project.project_id
+  relocateNewPath.value = ''
+  showRelocateDialog.value = true
+}
+
+const selectRelocatePath = async () => {
+  try {
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      title: '选择项目新路径'
+    })
+    if (selected && typeof selected === 'string') {
+      relocateNewPath.value = selected
+    }
+  } catch (error) {
+    toast.error(`选择目录失败: ${error}`)
+  }
+}
+
+const confirmRelocate = async () => {
+  if (!relocateNewPath.value) {
+    toast.warning('请选择新路径')
+    return
+  }
+  try {
+    await api.relocateProject(relocateProjectId.value, relocateNewPath.value)
+    toast.success('项目路径已更新')
+    showRelocateDialog.value = false
+    await loadProjects()
+  } catch (error) {
+    toast.error(`重新定位失败: ${error}`)
   }
 }
 </script>
@@ -522,6 +612,15 @@ const launchProject = async (project: Project, engineId?: string) => {
               <span class="text-gray-600 dark:text-gray-400">Godot {{ project.godot_version }}</span>
               <div class="flex items-center gap-2">
                 <button
+                  v-if="project.status === 'MissingSource'"
+                  @click.stop="openRelocateDialog(project)"
+                  class="px-2 py-1 rounded text-xs font-medium bg-purple-600 text-white hover:bg-purple-700"
+                  title="重新定位项目"
+                >
+                  重新定位
+                </button>
+                <button
+                  v-else
                   @click.stop="launchProject(project)"
                   :disabled="isLaunching || engines.length === 0"
                   class="px-2 py-1 rounded text-xs font-medium bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
@@ -740,26 +839,93 @@ const launchProject = async (project: Project, engineId?: string) => {
       </div>
     </div>
 
-    <div v-if="showConfirmDialog && confirmAction" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <ConfirmDialog
+      v-model="showConfirmDialog"
+      :title="confirmAction?.title || ''"
+      :description="confirmAction?.message || ''"
+      confirm-text="确认删除"
+      @confirm="onConfirmDialogConfirm"
+    />
+
+    <div v-if="showRelocateDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-          {{ confirmAction.title }}
-        </h3>
-        <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
-          {{ confirmAction.message }}
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">重新定位项目</h3>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          项目路径已失效，请选择新的项目目录。
         </p>
-        <div class="flex justify-end space-x-3">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">新路径</label>
+          <div class="flex gap-2">
+            <input
+              v-model="relocateNewPath"
+              type="text"
+              readonly
+              placeholder="请选择项目目录"
+              class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+            />
+            <button
+              @click="selectRelocatePath"
+              class="px-4 py-2 bg-gray-100 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 text-sm whitespace-nowrap"
+            >
+              浏览
+            </button>
+          </div>
+        </div>
+        <div class="flex justify-end space-x-3 mt-6">
           <button
-            @click="showConfirmDialog = false; confirmAction = null"
+            @click="showRelocateDialog = false"
             class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
           >
             取消
           </button>
           <button
-            @click="executeConfirm"
-            class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            @click="confirmRelocate"
+            :disabled="!relocateNewPath"
+            class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
           >
-            确认删除
+            确认
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showMovedDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">检测到项目迁移</h3>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          以下项目的路径已失效，但发现了同名项目。是否更新路径？
+        </p>
+        <div class="space-y-3 max-h-60 overflow-y-auto">
+          <div v-for="candidate in movedCandidates" :key="candidate.project_id" class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <h4 class="font-medium text-gray-900 dark:text-gray-100">{{ candidate.old_name }}</h4>
+                <p class="text-xs text-red-500 dark:text-red-400 mt-1">旧路径: {{ candidate.old_path }}</p>
+                <p class="text-xs text-green-500 dark:text-green-400">新路径: {{ candidate.new_path }}</p>
+              </div>
+              <div class="flex gap-2">
+                <button
+                  @click="confirmMovedProject(candidate)"
+                  class="px-3 py-1 bg-primary-600 text-white rounded hover:bg-primary-700 text-sm"
+                >
+                  更新
+                </button>
+                <button
+                  @click="dismissMovedProject(candidate)"
+                  class="px-3 py-1 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-500 text-sm"
+                >
+                  忽略
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="flex justify-end mt-4">
+          <button
+            @click="showMovedDialog = false"
+            class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+          >
+            关闭
           </button>
         </div>
       </div>

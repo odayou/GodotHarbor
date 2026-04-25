@@ -85,6 +85,7 @@ pub enum ProjectStatus {
     Ready,
     Warning,
     Error,
+    MissingSource,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -161,7 +162,11 @@ pub struct Settings {
     pub mount_strategy: MountStrategy,
     pub language: String,
     pub theme: String,
+    #[serde(default = "default_true")]
+    pub auto_scan_on_startup: bool,
 }
+
+fn default_true() -> bool { true }
 
 impl Default for Settings {
     fn default() -> Self {
@@ -170,6 +175,7 @@ impl Default for Settings {
             mount_strategy: MountStrategy::Symlink,
             language: "zh-CN".to_string(),
             theme: "light".to_string(),
+            auto_scan_on_startup: true,
         }
     }
 }
@@ -290,4 +296,13 @@ pub struct LaunchResult {
     pub success: bool,
     pub pid: Option<u32>,
     pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DashboardStats {
+    pub project_count: usize,
+    pub plugin_count: usize,
+    pub binding_count: usize,
+    pub engine_count: usize,
+    pub recent_projects: Vec<Project>,
 }

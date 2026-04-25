@@ -6,6 +6,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { useToast } from '@/composables/useToast'
 import { useI18n } from '@/composables/useI18n'
 import { useTheme } from '@/composables/useTheme'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const toast = useToast()
 const { t, setLocale } = useI18n()
@@ -191,9 +192,17 @@ const importTeamConfig = async (configId: string) => {
   }
 }
 
-const deleteTeamConfig = async (configId: string) => {
+const showDeleteTeamConfigConfirm = ref(false)
+const deleteTeamConfigId = ref('')
+
+const confirmDeleteTeamConfig = (configId: string) => {
+  deleteTeamConfigId.value = configId
+  showDeleteTeamConfigConfirm.value = true
+}
+
+const onDeleteTeamConfigConfirm = async () => {
   try {
-    await api.deleteTeamConfig(configId)
+    await api.deleteTeamConfig(deleteTeamConfigId.value)
     toast.success('团队配置已删除')
     await loadTeamConfigs()
   } catch (error) {
@@ -386,7 +395,7 @@ const formatDate = (dateStr: string) => {
                     导入
                   </button>
                   <button
-                    @click="deleteTeamConfig(config.config_id)"
+                    @click="confirmDeleteTeamConfig(config.config_id)"
                     class="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
                   >
                     删除
@@ -464,5 +473,13 @@ const formatDate = (dateStr: string) => {
         </div>
       </div>
     </div>
+
+    <ConfirmDialog
+      v-model="showDeleteTeamConfigConfirm"
+      title="确认删除团队配置"
+      description="确定要删除此团队配置吗？此操作不可撤销。"
+      confirm-text="确认删除"
+      @confirm="onDeleteTeamConfigConfirm"
+    />
   </div>
 </template>

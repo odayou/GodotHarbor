@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 use std::fs;
+use serde::{Serialize, Deserialize};
 use tauri::{AppHandle, Manager, Emitter};
 use crate::models::*;
 use crate::storage::Storage;
@@ -113,7 +114,15 @@ pub fn scan_projects(app: AppHandle, root_dirs: Vec<String>) -> Result<Vec<Proje
 #[tauri::command]
 pub fn get_projects(app: AppHandle) -> Result<Vec<Project>, String> {
     let storage = get_storage(&app);
-    let projects: Vec<Project> = storage.load_or_default("projects.json");
+    let mut projects: Vec<Project> = storage.load_or_default("projects.json");
+
+    for project in projects.iter_mut() {
+        let project_path = std::path::Path::new(&project.path);
+        if !project_path.exists() || !project_path.join("project.godot").exists() {
+            project.status = ProjectStatus::MissingSource;
+        }
+    }
+
     Ok(projects)
 }
 
@@ -1260,4 +1269,219 @@ pub fn import_from_asset_library(app: AppHandle, asset_id: String) -> Result<Plu
         log_operation(&app, "import_asset_library", &asset_id.to_string(), &format!("已从 Asset Library 导入插件: {}", plugin.name));
         Ok(plugin)
     }
+}
+
+#[tauri::command]
+pub fn get_dashboard_stats(app: AppHandle) -> Result<DashboardStats, String> {
+    let storage = get_storage(&app);
+
+    let projects: Vec<Project> = storage.load_or_default("projects.json");
+    let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+    let engines: Vec<Engine> = storage.load_or_default("engines.json");
+    let bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
+
+    let mut total_bindings = 0;
+    for project in &projects {
+        let project_bindings: Vec<ProjectBinding> = bindings.iter()
+            .filter(|b| b.project_id == project.project_id)
+            .cloned()
+            .collect();
+        total_bindings += project_bindings.len();
+    }
+
+    let mut recent_projects = projects.clone();
+    recent_projects.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+    recent_projects.truncate(5);
+
+    Ok(DashboardStats {
+        project_count: projects.len(),
+        plugin_count: plugins.len(),
+        binding_count: total_bindings,
+        engine_count: engines.len(),
+        recent_projects,
+    })
+}
+
+#[tauri::command]
+pub async fn auto_scan_projects(app: AppHandle) -> Result<Vec<Project>, String> {
+    let settings: Settings = {
+        let storage = get_storage(&app);
+        storage.load_or_default("settings.json")
+    };
+
+    if !settings.auto_scan_on_startup {
+        return Ok(Vec::new());
+    }
+
+    let scan_dirs = if settings.scan_directories.is_empty() {
+        let mut default_dirs = Vec::new();
+
+        if cfg!(windows) {
+            if let Some(userprofile) = std::env::var("USERPROFILE").ok() {
+                default_dirs.push(format!("{}\\Documents", userprofile));
+                default_dirs.push(format!("{}\\Desktop", userprofile));
+            }
+            for drive in ['D', 'E', 'F'] {
+                let drive_path = format!("{}:\\", drive);
+                if std::path::Path::new(&drive_path).exists() {
+                    default_dirs.push(drive_path);
+                }
+            }
+        } else {
+            if let Some(home) = std::env::var("HOME").ok() {
+                default_dirs.push(format!("{}/Documents", home));
+                default_dirs.push(format!("{}/projects", home));
+                default_dirs.push(format!("{}/Documents/godot", home));
+            }
+        }
+
+        default_dirs
+    } else {
+        settings.scan_directories
+    };
+
+    let mut all_new_projects = Vec::new();
+    let storage = get_storage(&app);
+    let mut existing_projects: Vec<Project> = storage.load_or_default("projects.json");
+    let existing_paths: Vec<String> = existing_projects.iter().map(|p| p.path.clone()).collect();
+
+    for dir in &scan_dirs {
+        if !std::path::Path::new(dir).exists() {
+            continue;
+        }
+
+        match ProjectScanner::scan_directory(dir) {
+            Ok(scanned) => {
+                for project in scanned {
+                    if !existing_paths.contains(&project.path) {
+                        existing_projects.push(project.clone());
+                        all_new_projects.push(project);
+                    }
+                }
+            }
+            Err(_) => continue,
+        }
+    }
+
+    if !all_new_projects.is_empty() {
+        storage.save("projects.json", &existing_projects)
+            .map_err(|e| format!("保存项目失败: {}", e))?;
+
+        log_operation(&app, "auto_scan", "", &format!("自动扫描发现 {} 个新项目", all_new_projects.len()));
+    }
+
+    let _ = app.emit("scan-complete", &all_new_projects);
+
+    Ok(all_new_projects)
+}
+
+#[tauri::command]
+pub fn relocate_project(app: AppHandle, project_id: String, new_path: String) -> Result<Project, String> {
+    let new_project_path = std::path::Path::new(&new_path);
+    if !new_project_path.exists() {
+        return Err("指定的新路径不存在".to_string());
+    }
+    if !new_project_path.join("project.godot").exists() {
+        return Err("指定路径不是有效的 Godot 项目".to_string());
+    }
+
+    let storage = get_storage(&app);
+    let mut projects: Vec<Project> = storage.load_or_default("projects.json");
+
+    let project = projects.iter_mut()
+        .find(|p| p.project_id == project_id)
+        .ok_or("未找到指定项目".to_string())?;
+
+    let old_path = project.path.clone();
+    project.path = new_path.clone();
+    project.status = ProjectStatus::Ready;
+
+    let updated_project = project.clone();
+
+    storage.save("projects.json", &projects)
+        .map_err(|e| format!("保存项目失败: {}", e))?;
+
+    log_operation(&app, "relocate_project", &project_id,
+        &format!("项目路径已从 {} 更新为 {}", old_path, new_path));
+
+    Ok(updated_project)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MovedProjectCandidate {
+    pub project_id: String,
+    pub old_path: String,
+    pub old_name: String,
+    pub new_path: String,
+    pub new_name: String,
+}
+
+#[tauri::command]
+pub fn detect_moved_projects(app: AppHandle) -> Result<Vec<MovedProjectCandidate>, String> {
+    let storage = get_storage(&app);
+    let projects: Vec<Project> = storage.load_or_default("projects.json");
+
+    let missing_projects: Vec<&Project> = projects.iter()
+        .filter(|p| !std::path::Path::new(&p.path).exists())
+        .collect();
+
+    if missing_projects.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let settings: Settings = storage.load_or_default("settings.json");
+    let scan_dirs = if settings.scan_directories.is_empty() {
+        let mut default_dirs = Vec::new();
+        if cfg!(windows) {
+            if let Some(userprofile) = std::env::var("USERPROFILE").ok() {
+                default_dirs.push(format!("{}\\Documents", userprofile));
+                default_dirs.push(format!("{}\\Desktop", userprofile));
+            }
+        } else {
+            if let Some(home) = std::env::var("HOME").ok() {
+                default_dirs.push(format!("{}/Documents", home));
+                default_dirs.push(format!("{}/projects", home));
+            }
+        }
+        default_dirs
+    } else {
+        settings.scan_directories
+    };
+
+    let mut all_scanned = Vec::new();
+    for dir in &scan_dirs {
+        if std::path::Path::new(dir).exists() {
+            if let Ok(scanned) = ProjectScanner::scan_directory(dir) {
+                all_scanned.extend(scanned);
+            }
+        }
+    }
+
+    let existing_paths: Vec<String> = projects.iter().map(|p| p.path.clone()).collect();
+    let new_projects: Vec<&Project> = all_scanned.iter()
+        .filter(|p| !existing_paths.contains(&p.path))
+        .collect();
+
+    let mut candidates = Vec::new();
+
+    for missing in &missing_projects {
+        for new_proj in &new_projects {
+            if missing.name == new_proj.name {
+                candidates.push(MovedProjectCandidate {
+                    project_id: missing.project_id.clone(),
+                    old_path: missing.path.clone(),
+                    old_name: missing.name.clone(),
+                    new_path: new_proj.path.clone(),
+                    new_name: new_proj.name.clone(),
+                });
+            }
+        }
+    }
+
+    Ok(candidates)
+}
+
+#[tauri::command]
+pub fn confirm_project_relocation(app: AppHandle, project_id: String, new_path: String) -> Result<Project, String> {
+    relocate_project(app, project_id, new_path)
 }

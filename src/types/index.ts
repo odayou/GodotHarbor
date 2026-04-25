@@ -61,6 +61,7 @@ export interface Settings {
   mount_strategy: 'Symlink' | 'Junction' | 'Copy'
   language: string
   theme: string
+  auto_scan_on_startup: boolean
 }
 
 export interface ApplyResult {
@@ -130,4 +131,20 @@ export interface LaunchResult {
   success: boolean
   pid: number | null
   error: string | null
+}
+
+export interface DashboardStats {
+  project_count: number
+  plugin_count: number
+  binding_count: number
+  engine_count: number
+  recent_projects: Project[]
+}
+
+export interface MovedProjectCandidate {
+  project_id: string
+  old_path: string
+  old_name: string
+  new_path: string
+  new_name: string
 }

@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import { RouterView } from 'vue-router'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useKeyboardShortcuts } from './composables/useKeyboardShortcuts'
 import { useTheme } from './composables/useTheme'
 import Sidebar from './components/layout/Sidebar.vue'
@@ -29,6 +31,14 @@ registerShortcut({
     setTheme(currentTheme.value === 'dark' ? 'light' : 'dark')
   },
   description: '切换深色/浅色模式'
+})
+
+onMounted(async () => {
+  try {
+    await getCurrentWindow().show()
+  } catch (e) {
+    console.error('Failed to show window:', e)
+  }
 })
 </script>
 

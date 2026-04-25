@@ -2,6 +2,7 @@ import { ref, computed } from 'vue'
 
 const messages: Record<string, Record<string, string>> = {
   'zh-CN': {
+    'nav.home': '首页',
     'nav.projects': '项目管理',
     'nav.plugins': '插件仓库',
     'nav.linker': '插件绑定',
@@ -158,6 +159,7 @@ const messages: Record<string, Record<string, string>> = {
     'home.step4Desc': '一键将插件挂载到项目 addons 目录',
   },
   'en': {
+    'nav.home': 'Home',
     'nav.projects': 'Projects',
     'nav.plugins': 'Plugins',
     'nav.linker': 'Linker',

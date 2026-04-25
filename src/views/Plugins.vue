@@ -4,6 +4,8 @@ import { api } from '@/api'
 import type { Plugin, PluginUpdateInfo, PluginDependency } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useToast } from '@/composables/useToast'
+import { useI18n } from '@/composables/useI18n'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const toast = useToast()
 const plugins = ref<Plugin[]>([])
@@ -161,14 +163,17 @@ const importAsset = async (assetId: string, assetTitle: string) => {
   }
 }
 
-const removePlugin = async (pluginId: string) => {
-  const plugin = plugins.value.find(p => p.plugin_id === pluginId)
-  const name = plugin?.name || pluginId
-  if (!window.confirm(`确定要删除插件 "${name}" 吗？此操作将从仓库中移除插件，但不会影响已挂载到项目中的副本。`)) {
-    return
-  }
+const showDeletePluginConfirm = ref(false)
+const deletePluginId = ref('')
+
+const confirmRemovePlugin = (pluginId: string) => {
+  deletePluginId.value = pluginId
+  showDeletePluginConfirm.value = true
+}
+
+const onRemovePluginConfirm = async () => {
   try {
-    await api.removePlugin(pluginId)
+    await api.removePlugin(deletePluginId.value)
     toast.success('插件已删除')
     await loadPlugins()
   } catch (error) {
@@ -378,7 +383,7 @@ const showPluginDetails = async (plugin: Plugin) => {
             </p>
           </div>
           <button
-            @click.stop="removePlugin(plugin.plugin_id)"
+            @click.stop="confirmRemovePlugin(plugin.plugin_id)"
             class="text-red-600 hover:text-red-800 ml-2"
           >
             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -587,5 +592,13 @@ const showPluginDetails = async (plugin: Plugin) => {
         </div>
       </div>
     </div>
+
+    <ConfirmDialog
+      v-model="showDeletePluginConfirm"
+      title="确认删除插件"
+      description="此操作将从仓库中移除插件，但不会影响已挂载到项目中的副本。"
+      confirm-text="确认删除"
+      @confirm="onRemovePluginConfirm"
+    />
   </div>
 </template>

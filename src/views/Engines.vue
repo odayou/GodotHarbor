@@ -4,6 +4,7 @@ import { api } from '@/api'
 import type { Engine } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useToast } from '@/composables/useToast'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const toast = useToast()
 const engines = ref<Engine[]>([])
@@ -12,6 +13,8 @@ const showAddDialog = ref(false)
 const newEnginePath = ref('')
 const newEngineName = ref('')
 const isRegistering = ref(false)
+const showDeleteConfirm = ref(false)
+const deleteTargetId = ref('')
 
 onMounted(() => {
   loadEngines()
@@ -68,14 +71,14 @@ const registerEngine = async () => {
   }
 }
 
-const removeEngine = async (engineId: string) => {
-  const engine = engines.value.find(e => e.engine_id === engineId)
-  const name = engine?.name || engineId
-  if (!window.confirm(`确定要删除引擎 "${name}" 吗？`)) {
-    return
-  }
+const confirmRemoveEngine = (engineId: string) => {
+  deleteTargetId.value = engineId
+  showDeleteConfirm.value = true
+}
+
+const onRemoveEngineConfirm = async () => {
   try {
-    await api.removeEngine(engineId)
+    await api.removeEngine(deleteTargetId.value)
     toast.success('引擎已删除')
     await loadEngines()
   } catch (error) {
@@ -182,7 +185,7 @@ const setDefault = async (engineId: string) => {
               </svg>
             </button>
             <button
-              @click="removeEngine(engine.engine_id)"
+              @click="confirmRemoveEngine(engine.engine_id)"
               class="text-red-600 hover:text-red-800 p-1"
             >
               <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -262,5 +265,13 @@ const setDefault = async (engineId: string) => {
         </div>
       </div>
     </div>
+
+    <ConfirmDialog
+      v-model="showDeleteConfirm"
+      title="确认删除引擎"
+      :description="`确定要删除引擎吗？此操作不可撤销。`"
+      confirm-text="确认删除"
+      @confirm="onRemoveEngineConfirm"
+    />
   </div>
 </template>

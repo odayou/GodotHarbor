@@ -11,7 +11,9 @@ import type {
   PluginUpdateInfo,
   PluginDependency,
   TeamSharedConfig,
-  LaunchResult
+  LaunchResult,
+  DashboardStats,
+  MovedProjectCandidate
 } from '@/types'
 
 export const api = {
@@ -197,6 +199,22 @@ export const api = {
 
   async importFromAssetLibrary(assetId: string): Promise<Plugin> {
     return await invoke('import_from_asset_library', { assetId })
+  },
+
+  async getDashboardStats(): Promise<DashboardStats> {
+    return await invoke('get_dashboard_stats')
+  },
+
+  async relocateProject(projectId: string, newPath: string): Promise<Project> {
+    return await invoke('relocate_project', { projectId, newPath })
+  },
+
+  async detectMovedProjects(): Promise<MovedProjectCandidate[]> {
+    return await invoke('detect_moved_projects')
+  },
+
+  async confirmProjectRelocation(projectId: string, newPath: string): Promise<Project> {
+    return await invoke('confirm_project_relocation', { projectId, newPath })
   }
 }
 

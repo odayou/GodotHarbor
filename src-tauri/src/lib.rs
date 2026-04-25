@@ -27,6 +27,12 @@ pub fn run() {
             let logs_dir = data_dir.join("logs");
             std::fs::create_dir_all(&logs_dir)
                 .expect("Failed to create logs directory");
+
+            let handle = app_handle.clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = commands::auto_scan_projects(handle).await;
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -69,6 +75,11 @@ pub fn run() {
             commands::resolve_plugin_dependencies,
             commands::search_asset_library,
             commands::import_from_asset_library,
+            commands::get_dashboard_stats,
+            commands::auto_scan_projects,
+            commands::relocate_project,
+            commands::detect_moved_projects,
+            commands::confirm_project_relocation,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
