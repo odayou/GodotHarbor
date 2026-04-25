@@ -44,6 +44,12 @@ pub fn run() {
                 let _ = commands::auto_scan_projects(handle).await;
             });
 
+            let discover_handle = app_handle.clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+                let _ = commands::auto_discover_engines(discover_handle);
+            });
+
             let watcher_handle = app_handle.clone();
             let watcher_app = app_handle.clone();
             tauri::async_runtime::spawn(async move {
@@ -146,6 +152,7 @@ pub fn run() {
             commands::confirm_project_relocation,
             commands::sync_projects,
             commands::restart_fs_watcher,
+            commands::auto_discover_engines,
             commands::check_godot_updates,
         ])
         .run(tauri::generate_context!())

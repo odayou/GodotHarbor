@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { api } from '@/api'
 import type { Engine } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
 import { useDialogEscape } from '@/composables/useDialogEscape'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
@@ -16,11 +17,21 @@ const newEngineName = ref('')
 const isRegistering = ref(false)
 const showDeleteConfirm = ref(false)
 const deleteTargetId = ref('')
+let unlistenDiscover: UnlistenFn | null = null
 
 useDialogEscape(showAddDialog)
 
-onMounted(() => {
+onMounted(async () => {
   loadEngines()
+  unlistenDiscover = await listen('engines-discovered', () => {
+    loadEngines()
+  })
+})
+
+onUnmounted(() => {
+  if (unlistenDiscover) {
+    unlistenDiscover()
+  }
 })
 
 const defaultEngine = computed(() => {

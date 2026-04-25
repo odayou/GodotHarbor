@@ -228,6 +228,10 @@ export const api = {
 
   async restartFsWatcher(): Promise<void> {
     return await invoke('restart_fs_watcher')
+  },
+
+  async autoDiscoverEngines(): Promise<Engine[]> {
+    return await invoke('auto_discover_engines')
   }
 }
 

@@ -12,7 +12,7 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 const toast = useToast()
 const { t, setLocale } = useI18n()
 const { setTheme, initTheme } = useTheme()
-const settings = ref<Settings>({ scan_directories: [], mount_strategy: 'Symlink', language: 'zh-CN', theme: 'system', auto_scan_on_startup: true })
+const settings = ref<Settings>({ scan_directories: [], mount_strategy: 'Symlink', language: 'zh-CN', theme: 'system', auto_scan_on_startup: true, auto_discover_engines: true })
 const isLoading = ref(false)
 const logs = ref<LogEntry[]>([])
 const showLogs = ref(false)
@@ -36,7 +36,7 @@ const loadSettings = async () => {
   isLoading.value = true
   try {
     const result = await api.getSettings()
-    settings.value = { scan_directories: result.scan_directories || [], mount_strategy: result.mount_strategy || 'Symlink', language: result.language || 'zh-CN', theme: result.theme || 'system', auto_scan_on_startup: result.auto_scan_on_startup ?? true }
+    settings.value = { scan_directories: result.scan_directories || [], mount_strategy: result.mount_strategy || 'Symlink', language: result.language || 'zh-CN', theme: result.theme || 'system', auto_scan_on_startup: result.auto_scan_on_startup ?? true, auto_discover_engines: result.auto_discover_engines ?? true }
     setLocale(settings.value.language)
     if (['light', 'dark', 'system'].includes(settings.value.theme)) setTheme(settings.value.theme as 'light' | 'dark' | 'system')
   } catch (error) { toast.error(`加载设置失败: ${error}`) }
@@ -247,6 +247,16 @@ const formatDate = (dateStr: string) => {
           </div>
           <div v-if="!settings.scan_directories?.length" class="text-sm text-gray-500 dark:text-gray-400 py-2">{{ t('settings.noDirs') }}</div>
           <button @click="addScanDirectory" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm">{{ t('settings.addDir') }}</button>
+        </div>
+        <div class="mt-4 space-y-3">
+          <label class="flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" v-model="settings.auto_scan_on_startup" class="w-4 h-4 text-primary-600 rounded" />
+            <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.autoScanOnStartup') }}</span>
+          </label>
+          <label class="flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" v-model="settings.auto_discover_engines" class="w-4 h-4 text-primary-600 rounded" />
+            <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.autoDiscoverEngines') }}</span>
+          </label>
         </div>
       </div>
       <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">

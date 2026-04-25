@@ -64,6 +64,7 @@ export interface Settings {
   theme: string
   auto_scan_on_startup: boolean
   sidebar_collapsed?: boolean
+  auto_discover_engines?: boolean
 }
 
 export interface ApplyResult {

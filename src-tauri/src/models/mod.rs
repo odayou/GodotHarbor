@@ -169,6 +169,8 @@ pub struct Settings {
     pub auto_scan_on_startup: bool,
     #[serde(default)]
     pub sidebar_collapsed: bool,
+    #[serde(default = "default_true")]
+    pub auto_discover_engines: bool,
 }
 
 fn default_true() -> bool { true }
@@ -182,6 +184,7 @@ impl Default for Settings {
             theme: "light".to_string(),
             auto_scan_on_startup: true,
             sidebar_collapsed: false,
+            auto_discover_engines: true,
         }
     }
 }

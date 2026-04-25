@@ -1599,3 +1599,47 @@ pub fn check_godot_updates(app: AppHandle) -> Result<crate::version_checker::God
 
     Ok(result)
 }
+
+#[tauri::command]
+pub fn auto_discover_engines(app: AppHandle) -> Result<Vec<Engine>, String> {
+    let settings: Settings = {
+        let storage = get_storage(&app);
+        storage.load_or_default("settings.json")
+    };
+
+    if !settings.auto_discover_engines {
+        return Ok(Vec::new());
+    }
+
+    let storage = get_storage(&app);
+    let mut engines: Vec<Engine> = storage.load_or_default("engines.json");
+    let existing_paths: Vec<String> = engines.iter().map(|e| e.path.clone()).collect();
+
+    let discovered = crate::engine::EngineManager::discover_engines(&existing_paths);
+
+    if discovered.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let discovered_count = discovered.len();
+    let first_engine = engines.is_empty();
+    for engine in &discovered {
+        if first_engine && engines.is_empty() {
+            let mut e = engine.clone();
+            e.is_default = true;
+            engines.push(e);
+        } else {
+            engines.push(engine.clone());
+        }
+    }
+
+    storage.save("engines.json", &engines)
+        .map_err(|e| format!("保存引擎列表失败: {}", e))?;
+
+    let _ = app.emit("engines-discovered", &discovered);
+
+    log_operation(&app, "auto_discover_engines", "",
+        &format!("自动发现 {} 个 Godot 引擎", discovered_count));
+
+    Ok(discovered)
+}
