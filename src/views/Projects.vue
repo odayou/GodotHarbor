@@ -55,11 +55,12 @@ const toggleProjectSelection = (project: Project, event: MouseEvent | Event) => 
       selectedProjectIds.value.add(projectId)
     }
   } else {
-    if (selectedProjectIds.value.has(projectId) && selectedProjectIds.value.size === 1) {
-      selectedProjectIds.value.clear()
-      isBatchMode.value = false
+    if (selectedProjectIds.value.has(projectId)) {
+      selectedProjectIds.value.delete(projectId)
+      if (selectedProjectIds.value.size === 0) {
+        isBatchMode.value = false
+      }
     } else {
-      selectedProjectIds.value.clear()
       selectedProjectIds.value.add(projectId)
       isBatchMode.value = true
     }
@@ -692,9 +693,8 @@ const confirmRelocate = async () => {
                 <input
                   type="checkbox"
                   :checked="selectedProjectIds.has(project.project_id)"
-                  @change="toggleProjectSelection(project, $event)"
+                  @click.stop="toggleProjectSelection(project, $event)"
                   class="w-4 h-4 text-primary-600 rounded flex-shrink-0 cursor-pointer"
-                  @click.stop
                 />
                 <div 
                   class="min-w-0 flex-1 cursor-pointer hover:text-primary-600 dark:hover:text-primary-400"

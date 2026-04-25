@@ -47,11 +47,12 @@ const togglePluginSelection = (plugin: Plugin, event: MouseEvent | Event) => {
       selectedPluginIds.value.add(pluginId)
     }
   } else {
-    if (selectedPluginIds.value.has(pluginId) && selectedPluginIds.value.size === 1) {
-      selectedPluginIds.value.clear()
-      isBatchMode.value = false
+    if (selectedPluginIds.value.has(pluginId)) {
+      selectedPluginIds.value.delete(pluginId)
+      if (selectedPluginIds.value.size === 0) {
+        isBatchMode.value = false
+      }
     } else {
-      selectedPluginIds.value.clear()
       selectedPluginIds.value.add(pluginId)
       isBatchMode.value = true
     }
@@ -493,9 +494,8 @@ void loadPluginDependencies
               <input
                 type="checkbox"
                 :checked="selectedPluginIds.has(plugin.plugin_id)"
-                @change="togglePluginSelection(plugin, $event)"
+                @click.stop="togglePluginSelection(plugin, $event)"
                 class="w-4 h-4 text-primary-600 rounded flex-shrink-0 mt-1 cursor-pointer"
-                @click.stop
               />
               <div class="min-w-0 flex-1 cursor-pointer" @click="togglePluginSelection(plugin, $event)">
                 <div class="flex items-center gap-2">

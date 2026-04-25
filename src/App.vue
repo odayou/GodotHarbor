@@ -68,7 +68,7 @@ registerShortcut({
 </script>
 
 <template>
-  <div class="flex h-screen bg-white dark:bg-surface-layer">
+  <div class="flex h-screen bg-white dark:bg-surface-layer" @contextmenu.prevent>
     <Sidebar />
     <div class="flex-1 flex flex-col overflow-hidden">
       <Header />

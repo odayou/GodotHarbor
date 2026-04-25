@@ -71,10 +71,9 @@ const toggleProjectSelection = (project: Project, event: MouseEvent | Event) => 
       selectedProjectIds.value.add(projectId)
     }
   } else {
-    if (selectedProjectIds.value.has(projectId) && selectedProjectIds.value.size === 1) {
-      selectedProjectIds.value.clear()
+    if (selectedProjectIds.value.has(projectId)) {
+      selectedProjectIds.value.delete(projectId)
     } else {
-      selectedProjectIds.value.clear()
       selectedProjectIds.value.add(projectId)
     }
   }
@@ -105,10 +104,9 @@ const toggleAvailablePluginSelection = (plugin: Plugin, event: MouseEvent | Even
       selectedAvailablePluginIds.value.add(pluginId)
     }
   } else {
-    if (selectedAvailablePluginIds.value.has(pluginId) && selectedAvailablePluginIds.value.size === 1) {
-      selectedAvailablePluginIds.value.clear()
+    if (selectedAvailablePluginIds.value.has(pluginId)) {
+      selectedAvailablePluginIds.value.delete(pluginId)
     } else {
-      selectedAvailablePluginIds.value.clear()
       selectedAvailablePluginIds.value.add(pluginId)
     }
   }
@@ -134,10 +132,9 @@ const toggleBoundPluginSelection = (pluginId: string, event: MouseEvent | Event)
       selectedBoundPluginIds.value.add(pluginId)
     }
   } else {
-    if (selectedBoundPluginIds.value.has(pluginId) && selectedBoundPluginIds.value.size === 1) {
-      selectedBoundPluginIds.value.clear()
+    if (selectedBoundPluginIds.value.has(pluginId)) {
+      selectedBoundPluginIds.value.delete(pluginId)
     } else {
-      selectedBoundPluginIds.value.clear()
       selectedBoundPluginIds.value.add(pluginId)
     }
   }
@@ -661,8 +658,7 @@ const closeApplyDialog = () => {
               type="checkbox"
               :checked="selectedProjectIds.has(project.project_id)"
               class="w-3.5 h-3.5 text-primary-600 rounded flex-shrink-0 cursor-pointer"
-              @click.stop
-              @change="toggleProjectSelection(project, $event)"
+              @click.stop="toggleProjectSelection(project, $event)"
             />
             <div class="min-w-0 flex-1">
               <div class="font-medium truncate">{{ project.name }}</div>
@@ -714,8 +710,7 @@ const closeApplyDialog = () => {
                 type="checkbox"
                 :checked="selectedAvailablePluginIds.has(plugin.plugin_id)"
                 class="w-3.5 h-3.5 text-primary-600 rounded flex-shrink-0 cursor-pointer"
-                @click.stop
-                @change="toggleAvailablePluginSelection(plugin, $event)"
+                @click.stop="toggleAvailablePluginSelection(plugin, $event)"
               />
               <div class="min-w-0 flex-1">
                 <h4 class="font-medium text-gray-900 dark:text-gray-100 text-sm truncate">{{ plugin.name }}</h4>
@@ -782,8 +777,7 @@ const closeApplyDialog = () => {
                 type="checkbox"
                 :checked="selectedBoundPluginIds.has(item.binding.plugin_id)"
                 class="w-3.5 h-3.5 text-red-600 rounded flex-shrink-0 cursor-pointer"
-                @click.stop
-                @change="toggleBoundPluginSelection(item.binding.plugin_id, $event)"
+                @click.stop="toggleBoundPluginSelection(item.binding.plugin_id, $event)"
               />
               <div class="min-w-0 flex-1">
                 <h4 class="font-medium text-gray-900 dark:text-gray-100 text-sm truncate">
