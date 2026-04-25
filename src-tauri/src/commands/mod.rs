@@ -1192,6 +1192,37 @@ pub fn get_app_version(app: AppHandle) -> Result<String, String> {
 }
 
 #[tauri::command]
+pub fn check_hot_update(app: AppHandle, manifest_url: Option<String>) -> Result<Option<HotUpdateInfo>, String> {
+    let url = manifest_url.unwrap_or_else(|| "https://godotharbor.odayou.workers.dev/hot-update/manifest.json".to_string());
+    let data_dir = get_data_dir(&app);
+    let manager = crate::hot_update::HotUpdateManager::new(data_dir);
+    let current_version = app.config().version.clone().unwrap_or_default();
+    manager.check_for_hot_update(&url, &current_version)
+}
+
+#[tauri::command]
+pub fn install_hot_update(app: AppHandle, manifest_url: Option<String>) -> Result<(), String> {
+    let url = manifest_url.unwrap_or_else(|| "https://godotharbor.odayou.workers.dev/hot-update/manifest.json".to_string());
+    let data_dir = get_data_dir(&app);
+    let manager = crate::hot_update::HotUpdateManager::new(data_dir);
+    manager.download_and_apply(&app, &url)
+}
+
+#[tauri::command]
+pub fn rollback_hot_update(app: AppHandle) -> Result<(), String> {
+    let data_dir = get_data_dir(&app);
+    let manager = crate::hot_update::HotUpdateManager::new(data_dir);
+    manager.rollback(&app)
+}
+
+#[tauri::command]
+pub fn get_current_hot_update_version(app: AppHandle) -> Result<Option<String>, String> {
+    let data_dir = get_data_dir(&app);
+    let manager = crate::hot_update::HotUpdateManager::new(data_dir);
+    manager.get_current_hot_update_version()
+}
+
+#[tauri::command]
 pub fn get_operation_logs(app: AppHandle, limit: Option<usize>) -> Result<Vec<LogEntry>, String> {
     let logger = get_logger(&app);
     logger.get_logs(limit.unwrap_or(100))

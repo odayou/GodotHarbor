@@ -85,7 +85,41 @@
       </div>
     </div>
 
-    <div v-if="!isChecking && !appUpdate && pluginUpdates.length === 0 && engineUpdates.length === 0 && lastCheckedAt" class="card text-center py-12">
+    <div v-if="hotUpdate" class="card">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">热更新</h3>
+          <p class="text-sm text-gray-500 dark:text-content-secondary mt-1">
+            版本: {{ hotUpdate.version }} ({{ hotUpdate.download_size }} bytes)
+          </p>
+          <p v-if="hotUpdate.release_notes" class="text-sm text-gray-600 dark:text-content-secondary mt-2 whitespace-pre-wrap bg-gray-50 dark:bg-surface-layer rounded-lg p-3">
+            {{ hotUpdate.release_notes }}
+          </p>
+        </div>
+        <button @click="installHotUpdate" :disabled="isInstallingHotUpdate" class="btn-primary">
+          {{ isInstallingHotUpdate ? '安装中...' : '安装热更新' }}
+        </button>
+      </div>
+      <div v-if="isInstallingHotUpdate" class="mt-3">
+        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+          <div class="bg-primary-600 h-2.5 rounded-full transition-all" :style="{ width: hotUpdateProgress + '%' }"></div>
+        </div>
+        <p class="text-xs text-gray-500 dark:text-content-secondary mt-1">{{ hotUpdateMessage }}</p>
+      </div>
+    </div>
+
+    <div v-if="currentHotUpdateVersion" class="card">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-sm font-medium text-gray-700 dark:text-content-primary">当前热更新版本: {{ currentHotUpdateVersion }}</h3>
+        </div>
+        <button @click="rollbackHotUpdate" class="px-3 py-1.5 text-sm border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20">
+          回滚热更新
+        </button>
+      </div>
+    </div>
+
+    <div v-if="!isChecking && !appUpdate && pluginUpdates.length === 0 && engineUpdates.length === 0 && !hotUpdate && lastCheckedAt" class="card text-center py-12">
       <svg class="mx-auto h-12 w-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
@@ -98,7 +132,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { api } from '@/api'
-import type { AppUpdateInfo, PluginUpdateInfo, VersionUpdateInfo } from '@/types'
+import type { AppUpdateInfo, PluginUpdateInfo, VersionUpdateInfo, HotUpdateInfo } from '@/types'
 import { listen } from '@tauri-apps/api/event'
 
 const isChecking = ref(false)
@@ -110,6 +144,11 @@ const lastCheckedAt = ref('')
 const appUpdate = ref<AppUpdateInfo | null>(null)
 const pluginUpdates = ref<PluginUpdateInfo[]>([])
 const engineUpdates = ref<VersionUpdateInfo[]>([])
+const hotUpdate = ref<HotUpdateInfo | null>(null)
+const currentHotUpdateVersion = ref<string | null>(null)
+const isInstallingHotUpdate = ref(false)
+const hotUpdateProgress = ref(0)
+const hotUpdateMessage = ref('')
 
 const unlisteners: (() => void)[] = []
 
@@ -121,7 +160,11 @@ onMounted(async () => {
   const unlisten2 = await listen('updates-available', () => {
     checkAll()
   })
-  unlisteners.push(unlisten1, unlisten2)
+  const unlisten3 = await listen('hot-update-progress', (event: any) => {
+    hotUpdateProgress.value = event.payload.progress || 0
+    hotUpdateMessage.value = event.payload.message || ''
+  })
+  unlisteners.push(unlisten1, unlisten2, unlisten3)
   checkAll()
 })
 
@@ -144,6 +187,15 @@ const checkAll = async () => {
         appUpdate.value = appUpd
       } catch {}
     }
+
+    try {
+      const hotUpd = await api.checkHotUpdate()
+      hotUpdate.value = hotUpd
+    } catch {}
+
+    try {
+      currentHotUpdateVersion.value = await api.getCurrentHotUpdateVersion()
+    } catch {}
   } catch (error) {
     console.error('Check updates failed:', error)
   } finally {
@@ -197,6 +249,30 @@ const batchUpdateAllPlugins = async () => {
     console.error('Batch update failed:', error)
   } finally {
     isUpdatingPlugins.value = false
+  }
+}
+
+const installHotUpdate = async () => {
+  isInstallingHotUpdate.value = true
+  hotUpdateProgress.value = 0
+  hotUpdateMessage.value = '准备下载热更新...'
+  try {
+    await api.installHotUpdate()
+    hotUpdate.value = null
+    currentHotUpdateVersion.value = await api.getCurrentHotUpdateVersion()
+  } catch (error) {
+    hotUpdateMessage.value = `热更新失败: ${error}`
+  } finally {
+    isInstallingHotUpdate.value = false
+  }
+}
+
+const rollbackHotUpdate = async () => {
+  try {
+    await api.rollbackHotUpdate()
+    currentHotUpdateVersion.value = null
+  } catch (error) {
+    console.error('Rollback failed:', error)
   }
 }
 </script>

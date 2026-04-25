@@ -27,7 +27,8 @@ import type {
   DuplicateCheckResult,
   TotalStorageStats,
   AppUpdateInfo,
-  UpdateCheckResult
+  UpdateCheckResult,
+  HotUpdateInfo
 } from '@/types'
 
 export const api = {
@@ -329,6 +330,22 @@ export const api = {
 
   async getAppVersion(): Promise<string> {
     return await invoke('get_app_version')
+  },
+
+  async checkHotUpdate(manifestUrl?: string): Promise<HotUpdateInfo | null> {
+    return await invoke('check_hot_update', { manifestUrl: manifestUrl || null })
+  },
+
+  async installHotUpdate(manifestUrl?: string): Promise<void> {
+    return await invoke('install_hot_update', { manifestUrl: manifestUrl || null })
+  },
+
+  async rollbackHotUpdate(): Promise<void> {
+    return await invoke('rollback_hot_update')
+  },
+
+  async getCurrentHotUpdateVersion(): Promise<string | null> {
+    return await invoke('get_current_hot_update_version')
   }
 }
 

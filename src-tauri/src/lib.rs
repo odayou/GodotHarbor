@@ -10,6 +10,7 @@ pub mod godot_resolver;
 pub mod version_checker;
 pub mod watcher;
 pub mod update_scheduler;
+pub mod hot_update;
 
 use tauri::Manager;
 use std::sync::Mutex;
@@ -239,6 +240,10 @@ pub fn run() {
             commands::skip_app_version,
             commands::check_all_updates,
             commands::get_app_version,
+            commands::check_hot_update,
+            commands::install_hot_update,
+            commands::rollback_hot_update,
+            commands::get_current_hot_update_version,
         ))
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
