@@ -231,6 +231,17 @@ Godot Harbor 是一款独立桌面应用，用于为 Godot 开发者提供统一
 - [ ] 模板可导出/导入（JSON 格式），方便团队共享
 - [ ] 与现有"团队配置"功能整合
 
+#### 9.6 Asset Library API 增强
+> 详细实现方案请参考：ASSET_LIBRARY_ITERATION_PLAN.md
+- [ ] 高级搜索功能：添加按资产类型、Godot 版本、成本等筛选条件
+- [ ] 资产详细信息展示：显示完整描述、版本历史、评分等
+- [ ] 导入进度显示：实时展示下载和导入进度
+- [ ] 完善错误处理和提示：提供更清晰的错误信息和解决方案
+- [ ] 批量操作功能：支持同时导入多个资产
+- [ ] 自动更新检测：定期检查 Asset Library 中的资产更新
+- [ ] 媒体预览功能：支持显示资产截图和视频预览
+- [ ] 搜索结果缓存：优化 API 调用性能
+
 ### 阶段十：v0.5 性能与架构优化（P2）
 
 #### 10.1 Pinia Store 集成
@@ -248,6 +259,27 @@ Godot Harbor 是一款独立桌面应用，用于为 Godot 开发者提供统一
 - [ ] `router.beforeEach` 中更新窗口标题为 "Godot Harbor - {页面名}"
 - [ ] 配置 `scrollBehavior` 恢复滚动位置
 - [ ] 路由 meta 中配置页面标题和所需数据预加载
+
+### 阶段十一：v0.6 Plugin Store 生态（P3+）
+> 详细实现方案请参考：ASSET_LIBRARY_ITERATION_PLAN.md
+
+#### 11.1 完整 Plugin Store
+- [ ] 支持社区插件贡献
+- [ ] 实现插件评分系统
+- [ ] 完善插件分类体系
+- [ ] 开发推荐系统
+- [ ] 集成插件统计信息
+
+#### 11.2 多源支持
+- [ ] 支持多个插件仓库
+- [ ] 兼容不同版本的 Asset Library API
+- [ ] 提供仓库管理功能
+
+#### 11.3 高级功能
+- [ ] 插件评论系统
+- [ ] 插件依赖自动解析
+- [ ] 插件使用分析
+- [ ] 插件发布工具集成
 
 ## 技术实现要点
 
@@ -332,6 +364,16 @@ fn import_plugin_from_local(path: String) -> Result<PluginPackage, String>;
 #[tauri::command]
 fn import_plugin_from_git(url: String) -> Result<PluginPackage, String>;        
 
+// Asset Library 管理
+#[tauri::command]
+fn search_asset_library(query: String) -> Result<serde_json::Value, String>;
+
+#[tauri::command]
+fn import_from_asset_library(asset_id: String) -> Result<Plugin, String>;
+
+#[tauri::command]
+fn check_asset_updates() -> Result<Vec<PluginUpdateInfo>, String>;
+
 // 绑定管理
 #[tauri::command]
 fn bind_plugin(project_id: String, plugin_id: String, version: String) -> Result<(), String>;
@@ -365,6 +407,8 @@ fn apply_changes(project_id: String) -> Result<ApplyResult, String>;
 1. 引擎管理
 2. 项目快速启动
 3. 自动更新检测
+4. Plugin Store 生态
+5. 多源插件仓库支持
 
 ## 验收标准
 
