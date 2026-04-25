@@ -69,6 +69,10 @@ export interface Settings {
   onboarding_completed?: boolean
   plugin_storage_path?: string
   auto_check_plugin_updates?: boolean
+  auto_check_app_updates?: boolean
+  auto_check_engine_updates?: boolean
+  update_check_interval_hours?: number
+  skipped_app_version?: string
 }
 
 export interface ApplyResult {
@@ -118,10 +122,12 @@ export interface PluginDependency {
 
 export interface PluginUpdateInfo {
   plugin_id: string
+  plugin_name: string
   current_version: string
   latest_version: string
   update_available: boolean
   release_notes: string
+  source_url: string
 }
 
 export interface TeamSharedConfig {
@@ -338,4 +344,40 @@ export interface TotalStorageStats {
   orphaned_size_bytes: number
   orphaned_size_display: string
   duplicate_hash_count: number
+}
+
+export interface AppUpdateInfo {
+  current_version: string
+  latest_version: string
+  release_notes: string
+  pub_date: string
+  download_size: number | null
+  is_hot_update: boolean
+}
+
+export interface HotUpdateInfo {
+  version: string
+  min_compatible_app_version: string
+  max_compatible_app_version: string
+  release_notes: string
+  pub_date: string
+  download_size: number
+  checksum: string
+  download_url: string
+}
+
+export interface UpdateCheckResult {
+  app_update: AppUpdateInfo | null
+  hot_update: HotUpdateInfo | null
+  plugin_updates: PluginUpdateInfo[]
+  engine_updates: VersionUpdateInfo[]
+  checked_at: string
+}
+
+export interface UpdateProgress {
+  update_type: string
+  target_id: string
+  stage: string
+  progress: number
+  message: string
 }

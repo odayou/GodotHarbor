@@ -25,7 +25,9 @@ import type {
   ScannedPlugin,
   PluginStorageStats,
   DuplicateCheckResult,
-  TotalStorageStats
+  TotalStorageStats,
+  AppUpdateInfo,
+  UpdateCheckResult
 } from '@/types'
 
 export const api = {
@@ -303,6 +305,30 @@ export const api = {
 
   async updateGitPlugin(pluginId: string): Promise<Plugin> {
     return await invoke('update_git_plugin', { pluginId })
+  },
+
+  async checkAppUpdate(): Promise<AppUpdateInfo | null> {
+    return await invoke('check_app_update')
+  },
+
+  async installAppUpdate(): Promise<void> {
+    return await invoke('install_app_update')
+  },
+
+  async batchUpdatePlugins(pluginIds: string[]): Promise<BatchResult> {
+    return await invoke('batch_update_plugins', { pluginIds })
+  },
+
+  async skipAppVersion(version: string): Promise<void> {
+    return await invoke('skip_app_version', { version })
+  },
+
+  async checkAllUpdates(): Promise<UpdateCheckResult> {
+    return await invoke('check_all_updates')
+  },
+
+  async getAppVersion(): Promise<string> {
+    return await invoke('get_app_version')
   }
 }
 

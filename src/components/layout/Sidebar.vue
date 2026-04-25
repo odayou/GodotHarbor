@@ -22,6 +22,7 @@ const menuItems = [
   { path: '/plugins', icon: 'puzzle', labelKey: 'nav.plugins' },
   { path: '/linker', icon: 'link', labelKey: 'nav.linker' },
   { path: '/engines', icon: 'engine', labelKey: 'nav.engines' },
+  { path: '/updates', icon: 'update', labelKey: 'nav.updates' },
   { path: '/roadmap', icon: 'roadmap', labelKey: 'nav.roadmap' },
   { path: '/about', icon: 'about', labelKey: 'nav.about' },
   { path: '/settings', icon: 'settings', labelKey: 'nav.settings' }

@@ -6,6 +6,7 @@ export default {
     plugins: '插件仓库',
     linker: '插件绑定',
     engines: '引擎管理',
+    updates: '更新中心',
     roadmap: '路线图',
     about: '关于',
     settings: '设置'

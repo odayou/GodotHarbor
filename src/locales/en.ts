@@ -6,6 +6,7 @@ export default {
     plugins: 'Plugins',
     linker: 'Plugin Binding',
     engines: 'Engines',
+    updates: 'Updates',
     roadmap: 'Roadmap',
     about: 'About',
     settings: 'Settings'
