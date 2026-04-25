@@ -2,13 +2,16 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/api'
+import { useOnboarding } from '@/composables/useOnboarding'
 
 const router = useRouter()
 const currentStep = ref(0)
-const isVisible = ref(false)
+const { isVisible, hideOnboarding } = useOnboarding()
 
 const checkFirstTime = async () => {
   try {
+    const settings = await api.getSettings()
+    if (settings.onboarding_completed) return
     const [projects, plugins] = await Promise.all([
       api.getProjects(),
       api.getPlugins()
@@ -52,6 +55,14 @@ const currentStepData = computed(() => steps[currentStep.value])
 const isLastStep = computed(() => currentStep.value === steps.length - 1)
 const progress = computed(() => ((currentStep.value + 1) / steps.length) * 100)
 
+const markOnboardingCompleted = async () => {
+  try {
+    const settings = await api.getSettings()
+    settings.onboarding_completed = true
+    await api.saveSettings(settings)
+  } catch {}
+}
+
 const next = () => {
   if (isLastStep.value) {
     finish()
@@ -71,8 +82,10 @@ const goToStep = () => {
   finish()
 }
 
-const finish = () => {
-  isVisible.value = false
+const finish = async () => {
+  hideOnboarding()
+  currentStep.value = 0
+  await markOnboardingCompleted()
 }
 </script>
 

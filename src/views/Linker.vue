@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, withErrorLogging } from '@/api'
-import type { Project, Plugin, PluginVersion, PluginUnit, ProjectBinding, ApplyResult } from '@/types'
+import type { Project, Plugin, PluginVersion, PluginUnit, ProjectBinding, ApplyResult, BatchApplyResult, BatchBindingRequest } from '@/types'
 import { useToast } from '@/composables/useToast'
 import { useDialogEscape } from '@/composables/useDialogEscape'
 
@@ -16,6 +16,14 @@ const isLoading = ref(false)
 const showApplyDialog = ref(false)
 const applyResult = ref<ApplyResult | null>(null)
 const isApplying = ref(false)
+
+const selectedProjectIds = ref<Set<string>>(new Set())
+const selectedAvailablePluginIds = ref<Set<string>>(new Set())
+const selectedBoundPluginIds = ref<Set<string>>(new Set())
+
+const lastClickedProjectIdx = ref(-1)
+const lastClickedAvailablePluginIdx = ref(-1)
+const lastClickedBoundPluginIdx = ref(-1)
 
 const selectedProject = computed(() =>
   projects.value.find(p => p.project_id === selectedProjectId.value)
@@ -40,6 +48,306 @@ const boundPlugins = computed(() =>
     return { binding: b, plugin, version }
   })
 )
+
+const selectedProjectCount = computed(() => selectedProjectIds.value.size)
+const selectedAvailablePluginCount = computed(() => selectedAvailablePluginIds.value.size)
+const selectedBoundPluginCount = computed(() => selectedBoundPluginIds.value.size)
+
+const toggleProjectSelection = (project: Project, event: MouseEvent | Event) => {
+  const mouseEvent = event as MouseEvent
+  const projectId = project.project_id
+  const idx = projects.value.findIndex(p => p.project_id === projectId)
+
+  if (mouseEvent.shiftKey && lastClickedProjectIdx.value >= 0) {
+    const start = Math.min(lastClickedProjectIdx.value, idx)
+    const end = Math.max(lastClickedProjectIdx.value, idx)
+    for (let i = start; i <= end; i++) {
+      selectedProjectIds.value.add(projects.value[i].project_id)
+    }
+  } else if (mouseEvent.ctrlKey || mouseEvent.metaKey) {
+    if (selectedProjectIds.value.has(projectId)) {
+      selectedProjectIds.value.delete(projectId)
+    } else {
+      selectedProjectIds.value.add(projectId)
+    }
+  } else {
+    if (selectedProjectIds.value.has(projectId) && selectedProjectIds.value.size === 1) {
+      selectedProjectIds.value.clear()
+    } else {
+      selectedProjectIds.value.clear()
+      selectedProjectIds.value.add(projectId)
+    }
+  }
+
+  lastClickedProjectIdx.value = idx
+  selectedProjectIds.value = new Set(selectedProjectIds.value)
+
+  if (selectedProjectIds.value.size === 1) {
+    selectedProjectId.value = Array.from(selectedProjectIds.value)[0]
+  }
+}
+
+const toggleAvailablePluginSelection = (plugin: Plugin, event: MouseEvent | Event) => {
+  const mouseEvent = event as MouseEvent
+  const pluginId = plugin.plugin_id
+  const idx = availablePlugins.value.findIndex(p => p.plugin_id === pluginId)
+
+  if (mouseEvent.shiftKey && lastClickedAvailablePluginIdx.value >= 0) {
+    const start = Math.min(lastClickedAvailablePluginIdx.value, idx)
+    const end = Math.max(lastClickedAvailablePluginIdx.value, idx)
+    for (let i = start; i <= end; i++) {
+      selectedAvailablePluginIds.value.add(availablePlugins.value[i].plugin_id)
+    }
+  } else if (mouseEvent.ctrlKey || mouseEvent.metaKey) {
+    if (selectedAvailablePluginIds.value.has(pluginId)) {
+      selectedAvailablePluginIds.value.delete(pluginId)
+    } else {
+      selectedAvailablePluginIds.value.add(pluginId)
+    }
+  } else {
+    if (selectedAvailablePluginIds.value.has(pluginId) && selectedAvailablePluginIds.value.size === 1) {
+      selectedAvailablePluginIds.value.clear()
+    } else {
+      selectedAvailablePluginIds.value.clear()
+      selectedAvailablePluginIds.value.add(pluginId)
+    }
+  }
+
+  lastClickedAvailablePluginIdx.value = idx
+  selectedAvailablePluginIds.value = new Set(selectedAvailablePluginIds.value)
+}
+
+const toggleBoundPluginSelection = (pluginId: string, event: MouseEvent | Event) => {
+  const mouseEvent = event as MouseEvent
+  const idx = boundPlugins.value.findIndex(b => b.binding.plugin_id === pluginId)
+
+  if (mouseEvent.shiftKey && lastClickedBoundPluginIdx.value >= 0) {
+    const start = Math.min(lastClickedBoundPluginIdx.value, idx)
+    const end = Math.max(lastClickedBoundPluginIdx.value, idx)
+    for (let i = start; i <= end; i++) {
+      selectedBoundPluginIds.value.add(boundPlugins.value[i].binding.plugin_id)
+    }
+  } else if (mouseEvent.ctrlKey || mouseEvent.metaKey) {
+    if (selectedBoundPluginIds.value.has(pluginId)) {
+      selectedBoundPluginIds.value.delete(pluginId)
+    } else {
+      selectedBoundPluginIds.value.add(pluginId)
+    }
+  } else {
+    if (selectedBoundPluginIds.value.has(pluginId) && selectedBoundPluginIds.value.size === 1) {
+      selectedBoundPluginIds.value.clear()
+    } else {
+      selectedBoundPluginIds.value.clear()
+      selectedBoundPluginIds.value.add(pluginId)
+    }
+  }
+
+  lastClickedBoundPluginIdx.value = idx
+  selectedBoundPluginIds.value = new Set(selectedBoundPluginIds.value)
+}
+
+const selectAllProjects = () => {
+  for (const p of projects.value) {
+    selectedProjectIds.value.add(p.project_id)
+  }
+  selectedProjectIds.value = new Set(selectedProjectIds.value)
+}
+
+const clearProjectSelection = () => {
+  selectedProjectIds.value.clear()
+  selectedProjectIds.value = new Set(selectedProjectIds.value)
+  lastClickedProjectIdx.value = -1
+}
+
+const selectAllAvailablePlugins = () => {
+  for (const p of availablePlugins.value) {
+    selectedAvailablePluginIds.value.add(p.plugin_id)
+  }
+  selectedAvailablePluginIds.value = new Set(selectedAvailablePluginIds.value)
+}
+
+const clearAvailablePluginSelection = () => {
+  selectedAvailablePluginIds.value.clear()
+  selectedAvailablePluginIds.value = new Set(selectedAvailablePluginIds.value)
+  lastClickedAvailablePluginIdx.value = -1
+}
+
+const selectAllBoundPlugins = () => {
+  for (const item of boundPlugins.value) {
+    selectedBoundPluginIds.value.add(item.binding.plugin_id)
+  }
+  selectedBoundPluginIds.value = new Set(selectedBoundPluginIds.value)
+}
+
+const clearBoundPluginSelection = () => {
+  selectedBoundPluginIds.value.clear()
+  selectedBoundPluginIds.value = new Set(selectedBoundPluginIds.value)
+  lastClickedBoundPluginIdx.value = -1
+}
+
+const showBatchBindDialog = ref(false)
+const isBatchBinding = ref(false)
+
+const batchBindPlugins = async () => {
+  const targetProjectIds = Array.from(selectedProjectIds.value)
+  const targetPluginIds = Array.from(selectedAvailablePluginIds.value)
+
+  if (targetProjectIds.length === 0) {
+    toast.warning('请先选择至少一个项目')
+    return
+  }
+  if (targetPluginIds.length === 0) {
+    toast.warning('请先选择至少一个插件')
+    return
+  }
+
+  showBatchBindDialog.value = true
+}
+
+const confirmBatchBind = async () => {
+  const targetProjectIds = Array.from(selectedProjectIds.value)
+  const targetPluginIds = Array.from(selectedAvailablePluginIds.value)
+
+  const batchBindings: BatchBindingRequest[] = []
+  for (const projectId of targetProjectIds) {
+    for (const pluginId of targetPluginIds) {
+      const plugin = plugins.value.find(p => p.plugin_id === pluginId)
+      if (!plugin || !plugin.versions.length) continue
+
+      const version = plugin.versions[0]
+      const unit = version.units[0]
+      if (!unit) continue
+
+      const existingBinding = bindings.value.find(b => b.project_id === projectId && b.plugin_id === pluginId)
+      if (existingBinding) continue
+
+      batchBindings.push({
+        project_id: projectId,
+        plugin_id: pluginId,
+        version_id: version.version_id,
+        unit_id: unit.unit_id,
+        mount_path: `addons/${unit.name}`
+      })
+    }
+  }
+
+  if (batchBindings.length === 0) {
+    toast.info('没有需要绑定的组合（所有选中项目已绑定选中插件）')
+    showBatchBindDialog.value = false
+    return
+  }
+
+  isBatchBinding.value = true
+  try {
+    const result = await api.batchBindPlugins(batchBindings)
+    if (result.failed_count > 0) {
+      toast.warning(`批量绑定完成: 成功 ${result.success_count} 个, 失败 ${result.failed_count} 个`)
+    } else {
+      toast.success(`已成功绑定 ${result.success_count} 个插件`)
+    }
+    clearAvailablePluginSelection()
+    showBatchBindDialog.value = false
+    if (selectedProjectId.value) {
+      await loadBindings(selectedProjectId.value)
+    }
+  } catch (error) {
+    toast.error(`批量绑定失败: ${error}`)
+  } finally {
+    isBatchBinding.value = false
+  }
+}
+
+const showBatchUnbindDialog = ref(false)
+const isBatchUnbinding = ref(false)
+
+const batchUnbindPlugins = async () => {
+  if (!selectedProjectId.value) {
+    toast.warning('请先选择一个项目')
+    return
+  }
+  if (selectedBoundPluginIds.value.size === 0) {
+    toast.warning('请先选择要解绑的插件')
+    return
+  }
+  showBatchUnbindDialog.value = true
+}
+
+const confirmBatchUnbind = async () => {
+  if (!selectedProjectId.value) return
+  const pluginIds = Array.from(selectedBoundPluginIds.value)
+
+  isBatchUnbinding.value = true
+  try {
+    const result = await api.batchUnbindPlugins(selectedProjectId.value, pluginIds)
+    if (result.failed_count > 0) {
+      toast.warning(`批量解绑完成: 成功 ${result.success_count} 个, 失败 ${result.failed_count} 个`)
+    } else {
+      toast.success(`已成功解绑 ${result.success_count} 个插件`)
+    }
+    clearBoundPluginSelection()
+    showBatchUnbindDialog.value = false
+    await loadBindings(selectedProjectId.value)
+  } catch (error) {
+    toast.error(`批量解绑失败: ${error}`)
+  } finally {
+    isBatchUnbinding.value = false
+  }
+}
+
+const showBatchApplyDialog = ref(false)
+const batchApplyResult = ref<BatchApplyResult | null>(null)
+const isBatchApplying = ref(false)
+
+const batchApplyChanges = () => {
+  const targetIds = selectedProjectIds.value.size > 0
+    ? Array.from(selectedProjectIds.value)
+    : (selectedProjectId.value ? [selectedProjectId.value] : [])
+
+  if (targetIds.length === 0) {
+    toast.warning('请先选择至少一个项目')
+    return
+  }
+
+  const projectsWithBindings = targetIds.filter(id =>
+    bindings.value.some(b => b.project_id === id)
+  )
+
+  if (projectsWithBindings.length === 0) {
+    toast.warning('选中的项目没有绑定任何插件')
+    return
+  }
+
+  showBatchApplyDialog.value = true
+}
+
+const confirmBatchApply = async () => {
+  const targetIds = selectedProjectIds.value.size > 0
+    ? Array.from(selectedProjectIds.value)
+    : (selectedProjectId.value ? [selectedProjectId.value] : [])
+
+  if (targetIds.length === 0) return
+
+  isBatchApplying.value = true
+  try {
+    batchApplyResult.value = await api.batchApplyChanges(targetIds)
+    const successCount = batchApplyResult.value.results.filter(r => r.success).length
+    const failCount = batchApplyResult.value.results.filter(r => !r.success).length
+    if (failCount > 0) {
+      toast.warning(`批量应用完成: 成功 ${successCount} 个, 失败 ${failCount} 个`)
+    } else {
+      toast.success(`已成功应用 ${successCount} 个项目的变更`)
+    }
+  } catch (error) {
+    toast.error(`批量应用变更失败: ${error}`)
+  } finally {
+    isBatchApplying.value = false
+  }
+}
+
+const closeBatchApplyDialog = () => {
+  showBatchApplyDialog.value = false
+  batchApplyResult.value = null
+}
 
 onMounted(async () => {
   await loadData()
@@ -77,6 +385,8 @@ const loadBindings = async (projectId: string) => {
 
 watch(selectedProjectId, async (newId) => {
   if (newId) {
+    selectedBoundPluginIds.value.clear()
+    selectedBoundPluginIds.value = new Set(selectedBoundPluginIds.value)
     await loadBindings(newId)
   }
 })
@@ -134,6 +444,9 @@ const selectedUnitIdx = ref(0)
 
 useDialogEscape(showApplyDialog)
 useDialogEscape(showVersionDialog)
+useDialogEscape(showBatchBindDialog)
+useDialogEscape(showBatchUnbindDialog)
+useDialogEscape(showBatchApplyDialog)
 
 const openVersionSelect = (plugin: Plugin) => {
   versionSelectPlugin.value = plugin
@@ -272,20 +585,29 @@ const closeApplyDialog = () => {
   <div class="space-y-4 lg:space-y-6">
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
       <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">插件绑定</h1>
-      <button
-        @click="showGraphView = !showGraphView"
-        class="px-4 py-2 text-sm rounded-lg transition-colors"
-        :class="showGraphView ? 'bg-primary-600 text-white' : 'bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-500'"
-      >
-        {{ showGraphView ? '列表视图' : '图形视图' }}
-      </button>
-      <button
-        @click="confirmApply"
-        :disabled="isLoading || !selectedProjectId || projectBindings.length === 0"
-        class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 text-sm"
-      >
-        应用变更
-      </button>
+      <div class="flex flex-wrap gap-2">
+        <button
+          @click="showGraphView = !showGraphView"
+          class="px-4 py-2 text-sm rounded-lg transition-colors"
+          :class="showGraphView ? 'bg-primary-600 text-white' : 'bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-500'"
+        >
+          {{ showGraphView ? '列表视图' : '图形视图' }}
+        </button>
+        <button
+          @click="batchApplyChanges"
+          :disabled="isLoading"
+          class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 text-sm"
+        >
+          批量应用变更
+        </button>
+        <button
+          @click="confirmApply"
+          :disabled="isLoading || !selectedProjectId || projectBindings.length === 0"
+          class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 text-sm"
+        >
+          应用变更
+        </button>
+      </div>
     </div>
 
     <div v-if="isLoading && projects.length === 0" class="flex justify-center py-12">
@@ -313,28 +635,63 @@ const closeApplyDialog = () => {
 
     <div v-else class="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
       <div class="lg:col-span-3 bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">项目列表</h3>
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">项目列表</h3>
+          <div v-if="selectedProjectCount > 0" class="flex items-center gap-2">
+            <span class="text-xs text-primary-600 dark:text-primary-400">已选 {{ selectedProjectCount }}</span>
+            <button @click="selectAllProjects" class="text-xs text-primary-600 dark:text-primary-400 hover:underline">全选</button>
+            <button @click="clearProjectSelection" class="text-xs text-gray-500 dark:text-gray-400 hover:underline">清除</button>
+          </div>
+        </div>
         <div class="space-y-1 max-h-64 lg:max-h-none overflow-y-auto">
-          <button
+          <div
             v-for="project in projects"
             :key="project.project_id"
-            @click="selectedProjectId = project.project_id"
+            @click="toggleProjectSelection(project, $event)"
             :class="[
-              'w-full text-left px-3 py-2 rounded-lg transition-colors text-sm',
-              selectedProjectId === project.project_id
-                ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400'
-                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+              'w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-sm cursor-pointer',
+              selectedProjectIds.has(project.project_id)
+                ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 ring-1 ring-primary-300 dark:ring-primary-700'
+                : selectedProjectId === project.project_id
+                  ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
+                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
             ]"
           >
-            <div class="font-medium truncate">{{ project.name }}</div>
-            <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Godot {{ project.godot_version }}</div>
-          </button>
+            <input
+              type="checkbox"
+              :checked="selectedProjectIds.has(project.project_id)"
+              class="w-3.5 h-3.5 text-primary-600 rounded flex-shrink-0 cursor-pointer"
+              @click.stop
+              @change="toggleProjectSelection(project, $event)"
+            />
+            <div class="min-w-0 flex-1">
+              <div class="font-medium truncate">{{ project.name }}</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Godot {{ project.godot_version }}</div>
+            </div>
+          </div>
         </div>
       </div>
 
       <div class="lg:col-span-5 bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">可用插件</h3>
-        <div v-if="!selectedProjectId" class="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">可用插件</h3>
+          <div class="flex items-center gap-2">
+            <div v-if="selectedAvailablePluginCount > 0">
+              <span class="text-xs text-primary-600 dark:text-primary-400">已选 {{ selectedAvailablePluginCount }}</span>
+              <button @click="selectAllAvailablePlugins" class="text-xs text-primary-600 dark:text-primary-400 hover:underline ml-1">全选</button>
+              <button @click="clearAvailablePluginSelection" class="text-xs text-gray-500 dark:text-gray-400 hover:underline ml-1">清除</button>
+            </div>
+            <button
+              v-if="selectedProjectCount > 0 && selectedAvailablePluginCount > 0"
+              @click="batchBindPlugins"
+              :disabled="isLoading"
+              class="px-3 py-1 bg-primary-600 text-white text-xs rounded hover:bg-primary-700 disabled:opacity-50 whitespace-nowrap"
+            >
+              批量绑定 ({{ selectedProjectCount }}项目 × {{ selectedAvailablePluginCount }}插件)
+            </button>
+          </div>
+        </div>
+        <div v-if="!selectedProjectId && selectedProjectCount === 0" class="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
           请先选择一个项目
         </div>
         <div v-else-if="availablePlugins.length === 0" class="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
@@ -344,17 +701,32 @@ const closeApplyDialog = () => {
           <div
             v-for="plugin in availablePlugins"
             :key="plugin.plugin_id"
-            class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg"
+            :class="[
+              'flex items-center justify-between p-3 border rounded-lg cursor-pointer',
+              selectedAvailablePluginIds.has(plugin.plugin_id)
+                ? 'border-primary-300 dark:border-primary-700 bg-primary-50 dark:bg-primary-900/10'
+                : 'border-gray-200 dark:border-gray-700'
+            ]"
+            @click="toggleAvailablePluginSelection(plugin, $event)"
           >
-            <div class="min-w-0 flex-1">
-              <h4 class="font-medium text-gray-900 dark:text-gray-100 text-sm truncate">{{ plugin.name }}</h4>
-              <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                v{{ plugin.versions[0]?.version || '1.0.0' }} · {{ plugin.author || '未知' }}
-              </p>
+            <div class="flex items-center gap-2 min-w-0 flex-1">
+              <input
+                type="checkbox"
+                :checked="selectedAvailablePluginIds.has(plugin.plugin_id)"
+                class="w-3.5 h-3.5 text-primary-600 rounded flex-shrink-0 cursor-pointer"
+                @click.stop
+                @change="toggleAvailablePluginSelection(plugin, $event)"
+              />
+              <div class="min-w-0 flex-1">
+                <h4 class="font-medium text-gray-900 dark:text-gray-100 text-sm truncate">{{ plugin.name }}</h4>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  v{{ plugin.versions[0]?.version || '1.0.0' }} · {{ plugin.author || '未知' }}
+                </p>
+              </div>
             </div>
             <button
-              @click="bindPluginToProject(plugin.plugin_id)"
-              :disabled="isLoading"
+              @click.stop="bindPluginToProject(plugin.plugin_id)"
+              :disabled="isLoading || (!selectedProjectId && selectedProjectCount === 0)"
               class="ml-2 px-3 py-1 bg-primary-600 text-white text-xs rounded hover:bg-primary-700 disabled:opacity-50 whitespace-nowrap"
             >
               绑定
@@ -364,12 +736,29 @@ const closeApplyDialog = () => {
       </div>
 
       <div class="lg:col-span-4 bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
-          已绑定插件
-          <span v-if="projectBindings.length > 0" class="text-xs font-normal text-gray-500 dark:text-gray-400 ml-1">
-            ({{ projectBindings.length }})
-          </span>
-        </h3>
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+            已绑定插件
+            <span v-if="projectBindings.length > 0" class="text-xs font-normal text-gray-500 dark:text-gray-400 ml-1">
+              ({{ projectBindings.length }})
+            </span>
+          </h3>
+          <div class="flex items-center gap-2">
+            <div v-if="selectedBoundPluginCount > 0">
+              <span class="text-xs text-red-600 dark:text-red-400">已选 {{ selectedBoundPluginCount }}</span>
+              <button @click="selectAllBoundPlugins" class="text-xs text-primary-600 dark:text-primary-400 hover:underline ml-1">全选</button>
+              <button @click="clearBoundPluginSelection" class="text-xs text-gray-500 dark:text-gray-400 hover:underline ml-1">清除</button>
+            </div>
+            <button
+              v-if="selectedBoundPluginCount > 0 && selectedProjectId"
+              @click="batchUnbindPlugins"
+              :disabled="isLoading"
+              class="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 disabled:opacity-50 whitespace-nowrap"
+            >
+              批量解绑 ({{ selectedBoundPluginCount }})
+            </button>
+          </div>
+        </div>
         <div v-if="!selectedProjectId" class="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
           请先选择一个项目
         </div>
@@ -380,18 +769,33 @@ const closeApplyDialog = () => {
           <div
             v-for="item in boundPlugins"
             :key="item.binding.plugin_id"
-            class="flex items-center justify-between p-3 border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/10 rounded-lg"
+            :class="[
+              'flex items-center justify-between p-3 border rounded-lg cursor-pointer',
+              selectedBoundPluginIds.has(item.binding.plugin_id)
+                ? 'border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/10'
+                : 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/10'
+            ]"
+            @click="toggleBoundPluginSelection(item.binding.plugin_id, $event)"
           >
-            <div class="min-w-0 flex-1">
-              <h4 class="font-medium text-gray-900 dark:text-gray-100 text-sm truncate">
-                {{ item.plugin?.name || '未知插件' }}
-              </h4>
-              <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                → {{ item.binding.mount_path }}
-              </p>
+            <div class="flex items-center gap-2 min-w-0 flex-1">
+              <input
+                type="checkbox"
+                :checked="selectedBoundPluginIds.has(item.binding.plugin_id)"
+                class="w-3.5 h-3.5 text-red-600 rounded flex-shrink-0 cursor-pointer"
+                @click.stop
+                @change="toggleBoundPluginSelection(item.binding.plugin_id, $event)"
+              />
+              <div class="min-w-0 flex-1">
+                <h4 class="font-medium text-gray-900 dark:text-gray-100 text-sm truncate">
+                  {{ item.plugin?.name || '未知插件' }}
+                </h4>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  → {{ item.binding.mount_path }}
+                </p>
+              </div>
             </div>
             <button
-              @click="unbindPluginFromProject(item.binding.plugin_id)"
+              @click.stop="unbindPluginFromProject(item.binding.plugin_id)"
               :disabled="isLoading"
               class="ml-2 text-red-600 hover:text-red-800 text-xs whitespace-nowrap"
             >
@@ -516,6 +920,169 @@ const closeApplyDialog = () => {
           <div class="flex justify-end mt-4">
             <button
               @click="closeApplyDialog"
+              class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+            >
+              关闭
+            </button>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <div v-if="showBatchBindDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" @click="showBatchBindDialog = false">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-4 lg:p-6 w-full max-w-lg shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">确认批量绑定</h3>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+          将为 <strong class="text-gray-900 dark:text-gray-100">{{ selectedProjectCount }} 个项目</strong> 绑定
+          <strong class="text-gray-900 dark:text-gray-100">{{ selectedAvailablePluginCount }} 个插件</strong>：
+        </p>
+        <div class="space-y-3 mb-6 max-h-60 overflow-y-auto">
+          <div>
+            <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">目标项目：</p>
+            <div class="flex flex-wrap gap-1">
+              <span
+                v-for="id in selectedProjectIds"
+                :key="id"
+                class="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs rounded"
+              >
+                {{ projects.find(p => p.project_id === id)?.name || id }}
+              </span>
+            </div>
+          </div>
+          <div>
+            <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">绑定插件：</p>
+            <div class="flex flex-wrap gap-1">
+              <span
+                v-for="id in selectedAvailablePluginIds"
+                :key="id"
+                class="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 text-xs rounded"
+              >
+                {{ plugins.find(p => p.plugin_id === id)?.name || id }}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div class="flex justify-end space-x-3">
+          <button
+            @click="showBatchBindDialog = false"
+            class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+          >
+            取消
+          </button>
+          <button
+            @click="confirmBatchBind"
+            :disabled="isBatchBinding"
+            class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+          >
+            {{ isBatchBinding ? '绑定中...' : '确认绑定' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showBatchUnbindDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" @click="showBatchUnbindDialog = false">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-4 lg:p-6 w-full max-w-md shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">确认批量解绑</h3>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+          将从项目 <strong class="text-gray-900 dark:text-gray-100">{{ selectedProject?.name }}</strong> 解绑
+          <strong class="text-red-600 dark:text-red-400">{{ selectedBoundPluginCount }} 个插件</strong>：
+        </p>
+        <div class="flex flex-wrap gap-1 mb-6">
+          <span
+            v-for="id in selectedBoundPluginIds"
+            :key="id"
+            class="px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 text-xs rounded"
+          >
+            {{ plugins.find(p => p.plugin_id === id)?.name || id }}
+          </span>
+        </div>
+        <div class="flex justify-end space-x-3">
+          <button
+            @click="showBatchUnbindDialog = false"
+            class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+          >
+            取消
+          </button>
+          <button
+            @click="confirmBatchUnbind"
+            :disabled="isBatchUnbinding"
+            class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+          >
+            {{ isBatchUnbinding ? '解绑中...' : '确认解绑' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showBatchApplyDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" @click="closeBatchApplyDialog">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-4 lg:p-6 w-full max-w-lg shadow-xl" @click.stop>
+        <template v-if="!batchApplyResult">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">确认批量应用变更</h3>
+          <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            将为以下项目应用所有插件绑定变更：
+          </p>
+          <div class="space-y-1 mb-6 max-h-48 overflow-y-auto">
+            <div
+              v-for="id in (selectedProjectIds.size > 0 ? selectedProjectIds : (selectedProjectId ? [selectedProjectId] : []))"
+              :key="id"
+              class="flex items-center gap-2 text-sm p-2 bg-gray-50 dark:bg-gray-700 rounded"
+            >
+              <svg class="h-4 w-4 text-primary-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              </svg>
+              <span class="text-gray-900 dark:text-gray-100">{{ projects.find(p => p.project_id === id)?.name || id }}</span>
+              <span class="text-gray-500 dark:text-gray-400 text-xs ml-auto">
+                {{ bindings.filter(b => b.project_id === id).length }} 个绑定
+              </span>
+            </div>
+          </div>
+          <div class="flex justify-end space-x-3">
+            <button
+              @click="closeBatchApplyDialog"
+              class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+            >
+              取消
+            </button>
+            <button
+              @click="confirmBatchApply"
+              :disabled="isBatchApplying"
+              class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+            >
+              {{ isBatchApplying ? '应用中...' : '确认应用' }}
+            </button>
+          </div>
+        </template>
+        <template v-else>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">批量应用结果</h3>
+          <div class="space-y-3 max-h-80 overflow-y-auto">
+            <div
+              v-for="result in batchApplyResult.results"
+              :key="result.project_id"
+              :class="[
+                'p-3 rounded-lg border',
+                result.success ? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/10' : 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10'
+              ]"
+            >
+              <div class="flex items-center justify-between">
+                <span class="font-medium text-sm text-gray-900 dark:text-gray-100">{{ result.project_name }}</span>
+                <span :class="['text-xs px-2 py-0.5 rounded', result.success ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300']">
+                  {{ result.success ? '成功' : '失败' }}
+                </span>
+              </div>
+              <div v-if="result.created.length > 0" class="mt-1 text-xs text-green-600 dark:text-green-400">
+                创建 {{ result.created.length }} 项
+              </div>
+              <div v-if="result.removed.length > 0" class="mt-0.5 text-xs text-yellow-600 dark:text-yellow-400">
+                移除 {{ result.removed.length }} 项
+              </div>
+              <div v-if="result.errors.length > 0" class="mt-0.5 text-xs text-red-600 dark:text-red-400">
+                错误: {{ result.errors.join(', ') }}
+              </div>
+            </div>
+          </div>
+          <div class="flex justify-end mt-4">
+            <button
+              @click="closeBatchApplyDialog"
               class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
             >
               关闭

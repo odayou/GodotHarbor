@@ -1592,6 +1592,248 @@ pub fn check_godot_updates(app: AppHandle) -> Result<crate::version_checker::God
 }
 
 #[tauri::command]
+pub fn batch_remove_projects(app: AppHandle, project_ids: Vec<String>) -> Result<BatchResult, String> {
+    let storage = get_storage(&app);
+    let mut projects: Vec<Project> = storage.load_or_default("projects.json");
+    let mut success_count = 0;
+    let mut failed_count = 0;
+    let mut errors = Vec::new();
+
+    for project_id in &project_ids {
+        if projects.iter().any(|p| p.project_id == *project_id) {
+            projects.retain(|p| p.project_id != *project_id);
+            success_count += 1;
+        } else {
+            failed_count += 1;
+            errors.push(format!("未找到项目: {}", project_id));
+        }
+    }
+
+    storage.save("projects.json", &projects)
+        .map_err(|e| format!("保存项目列表失败: {}", e))?;
+
+    log_operation(&app, "batch_remove_projects", "",
+        &format!("批量删除项目: 成功 {}, 失败 {}", success_count, failed_count));
+
+    Ok(BatchResult { success_count, failed_count, errors })
+}
+
+#[tauri::command]
+pub fn batch_remove_plugins(app: AppHandle, plugin_ids: Vec<String>) -> Result<BatchResult, String> {
+    let storage = get_storage(&app);
+    let mut plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+    let mut success_count = 0;
+    let mut failed_count = 0;
+    let mut errors = Vec::new();
+
+    for plugin_id in &plugin_ids {
+        if plugins.iter().any(|p| p.plugin_id == *plugin_id) {
+            plugins.retain(|p| p.plugin_id != *plugin_id);
+            success_count += 1;
+        } else {
+            failed_count += 1;
+            errors.push(format!("未找到插件: {}", plugin_id));
+        }
+    }
+
+    storage.save("plugins.json", &plugins)
+        .map_err(|e| format!("保存插件列表失败: {}", e))?;
+
+    log_operation(&app, "batch_remove_plugins", "",
+        &format!("批量删除插件: 成功 {}, 失败 {}", success_count, failed_count));
+
+    Ok(BatchResult { success_count, failed_count, errors })
+}
+
+#[tauri::command]
+pub fn batch_bind_plugins(app: AppHandle, bindings: Vec<BatchBindingRequest>) -> Result<BatchResult, String> {
+    let storage = get_storage(&app);
+    let projects: Vec<Project> = storage.load_or_default("projects.json");
+    let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+    let mut all_bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
+
+    let mut success_count = 0;
+    let mut failed_count = 0;
+    let mut errors = Vec::new();
+
+    for req in &bindings {
+        if !projects.iter().any(|p| p.project_id == req.project_id) {
+            failed_count += 1;
+            errors.push(format!("未找到项目: {}", req.project_id));
+            continue;
+        }
+        if !plugins.iter().any(|p| p.plugin_id == req.plugin_id) {
+            failed_count += 1;
+            errors.push(format!("未找到插件: {}", req.plugin_id));
+            continue;
+        }
+        if req.mount_path.is_empty() {
+            failed_count += 1;
+            errors.push(format!("挂载路径为空: 项目 {} 插件 {}", req.project_id, req.plugin_id));
+            continue;
+        }
+
+        all_bindings.retain(|b| !(b.project_id == req.project_id && b.plugin_id == req.plugin_id));
+        let binding = ProjectBinding::new(
+            req.project_id.clone(),
+            req.plugin_id.clone(),
+            req.version_id.clone(),
+            req.unit_id.clone(),
+            req.mount_path.clone(),
+        );
+        all_bindings.push(binding);
+        success_count += 1;
+    }
+
+    storage.save("bindings.json", &all_bindings)
+        .map_err(|e| format!("保存绑定关系失败: {}", e))?;
+
+    log_operation(&app, "batch_bind_plugins", "",
+        &format!("批量绑定插件: 成功 {}, 失败 {}", success_count, failed_count));
+
+    Ok(BatchResult { success_count, failed_count, errors })
+}
+
+#[tauri::command]
+pub fn batch_unbind_plugins(app: AppHandle, project_id: String, plugin_ids: Vec<String>) -> Result<BatchResult, String> {
+    let storage = get_storage(&app);
+    let mut bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
+
+    let mut success_count = 0;
+    let mut failed_count = 0;
+    let mut errors = Vec::new();
+
+    let projects: Vec<Project> = storage.load_or_default("projects.json");
+    let project = match projects.iter().find(|p| p.project_id == project_id) {
+        Some(p) => p,
+        None => return Err("未找到指定项目".to_string()),
+    };
+
+    for plugin_id in &plugin_ids {
+        let binding = bindings.iter()
+            .find(|b| b.project_id == project_id && b.plugin_id == *plugin_id);
+
+        if let Some(binding) = binding {
+            let mount_path = binding.mount_path.clone();
+            let addons_dir = std::path::Path::new(&project.path).join("addons");
+            if addons_dir.exists() {
+                let plugin_path = addons_dir.join(&mount_path);
+                if plugin_path.exists() {
+                    let metadata = std::fs::symlink_metadata(&plugin_path);
+                    let is_link = metadata.as_ref().map(|m| m.file_type().is_symlink()).unwrap_or(false);
+                    let is_junction = if cfg!(windows) {
+                        use std::os::windows::fs::MetadataExt;
+                        metadata.as_ref().map(|m| m.file_attributes() & 0x400 != 0).unwrap_or(false)
+                    } else {
+                        false
+                    };
+                    if is_link || is_junction {
+                        let _ = std::fs::remove_dir(&plugin_path);
+                    } else {
+                        let _ = std::fs::remove_dir_all(&plugin_path);
+                    }
+                }
+            }
+            bindings.retain(|b| !(b.project_id == project_id && b.plugin_id == *plugin_id));
+            success_count += 1;
+        } else {
+            failed_count += 1;
+            errors.push(format!("未找到绑定关系: 插件 {}", plugin_id));
+        }
+    }
+
+    storage.save("bindings.json", &bindings)
+        .map_err(|e| format!("保存绑定关系失败: {}", e))?;
+
+    log_operation(&app, "batch_unbind_plugins", &project_id,
+        &format!("批量解绑插件: 成功 {}, 失败 {}", success_count, failed_count));
+
+    Ok(BatchResult { success_count, failed_count, errors })
+}
+
+#[tauri::command]
+pub fn batch_apply_changes(app: AppHandle, project_ids: Vec<String>) -> Result<BatchApplyResult, String> {
+    let storage = get_storage(&app);
+    let projects: Vec<Project> = storage.load_or_default("projects.json");
+    let all_bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
+    let settings: Settings = storage.load_or_default("settings.json");
+    let linker = Linker::new(settings.mount_strategy);
+    let data_dir = get_data_dir(&app);
+    let plugin_base_path = data_dir.join("plugins");
+
+    let mut results = Vec::new();
+
+    for project_id in &project_ids {
+        let project = match projects.iter().find(|p| p.project_id == *project_id) {
+            Some(p) => p,
+            None => {
+                results.push(ProjectApplyResult {
+                    project_id: project_id.clone(),
+                    project_name: String::new(),
+                    success: false,
+                    created: Vec::new(),
+                    removed: Vec::new(),
+                    errors: vec![format!("未找到项目: {}", project_id)],
+                });
+                continue;
+            }
+        };
+
+        let desired_bindings: Vec<ProjectBinding> = all_bindings.iter()
+            .filter(|b| b.project_id == *project_id)
+            .cloned()
+            .collect();
+
+        if desired_bindings.is_empty() {
+            results.push(ProjectApplyResult {
+                project_id: project_id.clone(),
+                project_name: project.name.clone(),
+                success: true,
+                created: Vec::new(),
+                removed: Vec::new(),
+                errors: Vec::new(),
+            });
+            continue;
+        }
+
+        let current_bindings: Vec<ProjectBinding> = Vec::new();
+
+        match linker.apply_bindings(
+            &project.path,
+            &current_bindings,
+            &desired_bindings,
+            &plugin_base_path.to_string_lossy()
+        ) {
+            Ok(apply_result) => {
+                results.push(ProjectApplyResult {
+                    project_id: project_id.clone(),
+                    project_name: project.name.clone(),
+                    success: apply_result.success,
+                    created: apply_result.created,
+                    removed: apply_result.removed,
+                    errors: apply_result.errors,
+                });
+            }
+            Err(e) => {
+                results.push(ProjectApplyResult {
+                    project_id: project_id.clone(),
+                    project_name: project.name.clone(),
+                    success: false,
+                    created: Vec::new(),
+                    removed: Vec::new(),
+                    errors: vec![format!("应用变更失败: {}", e)],
+                });
+            }
+        }
+    }
+
+    log_operation(&app, "batch_apply_changes", "",
+        &format!("批量应用变更完成，共处理 {} 个项目", results.len()));
+
+    Ok(BatchApplyResult { results })
+}
+
+#[tauri::command]
 pub fn auto_discover_engines(app: AppHandle) -> Result<Vec<Engine>, String> {
     let settings: Settings = {
         let storage = get_storage(&app);

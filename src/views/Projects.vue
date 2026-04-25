@@ -32,6 +32,79 @@ const filterStatus = ref<string>('all')
 const availableGroups = ref<string[]>([])
 let unlisten: UnlistenFn | null = null
 
+const selectedProjectIds = ref<Set<string>>(new Set())
+const lastClickedIndex = ref<number>(-1)
+const isBatchMode = ref(false)
+
+const toggleProjectSelection = (project: Project, event: MouseEvent | Event) => {
+  const mouseEvent = event as MouseEvent
+  const projectId = project.project_id
+  const currentList = filteredProjects.value
+  const currentIndex = currentList.findIndex(p => p.project_id === projectId)
+
+  if (mouseEvent.shiftKey && lastClickedIndex.value >= 0) {
+    const start = Math.min(lastClickedIndex.value, currentIndex)
+    const end = Math.max(lastClickedIndex.value, currentIndex)
+    for (let i = start; i <= end; i++) {
+      selectedProjectIds.value.add(currentList[i].project_id)
+    }
+  } else if (mouseEvent.ctrlKey || mouseEvent.metaKey) {
+    if (selectedProjectIds.value.has(projectId)) {
+      selectedProjectIds.value.delete(projectId)
+    } else {
+      selectedProjectIds.value.add(projectId)
+    }
+  } else {
+    if (selectedProjectIds.value.has(projectId) && selectedProjectIds.value.size === 1) {
+      selectedProjectIds.value.clear()
+      isBatchMode.value = false
+    } else {
+      selectedProjectIds.value.clear()
+      selectedProjectIds.value.add(projectId)
+      isBatchMode.value = true
+    }
+  }
+
+  lastClickedIndex.value = currentIndex
+  selectedProjectIds.value = new Set(selectedProjectIds.value)
+}
+
+const selectAllProjects = () => {
+  for (const p of filteredProjects.value) {
+    selectedProjectIds.value.add(p.project_id)
+  }
+  selectedProjectIds.value = new Set(selectedProjectIds.value)
+  isBatchMode.value = true
+}
+
+const clearSelection = () => {
+  selectedProjectIds.value.clear()
+  selectedProjectIds.value = new Set(selectedProjectIds.value)
+  isBatchMode.value = false
+  lastClickedIndex.value = -1
+}
+
+const selectedCount = computed(() => selectedProjectIds.value.size)
+
+const batchRemoveProjects = async () => {
+  const ids = Array.from(selectedProjectIds.value)
+  if (ids.length === 0) return
+  confirm('批量删除项目', `确定要删除选中的 ${ids.length} 个项目吗？此操作仅从列表中移除，不会删除项目文件。`, async () => {
+    try {
+      const result = await api.batchRemoveProjects(ids)
+      if (result.failed_count > 0) {
+        toast.warning(`批量删除完成: 成功 ${result.success_count} 个, 失败 ${result.failed_count} 个`)
+      } else {
+        toast.success(`已成功删除 ${result.success_count} 个项目`)
+      }
+      clearSelection()
+      await loadProjects()
+    } catch (error) {
+      toast.error(`批量删除项目失败: ${error}`)
+    }
+  })
+}
+
 onMounted(async () => {
   loadProjects()
   loadGroups()
@@ -108,11 +181,6 @@ const loadGroups = async () => {
   } catch (error) {
     console.error('Failed to load groups:', error)
   }
-}
-
-const showProjectDetails = (project: Project) => {
-  selectedProject.value = project
-  showProjectDetail.value = true
 }
 
 const loadProjects = async () => {
@@ -540,6 +608,32 @@ const confirmRelocate = async () => {
       </div>
     </div>
 
+    <div v-if="isBatchMode && selectedCount > 0" class="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="text-sm font-medium text-primary-700 dark:text-primary-300">已选择 {{ selectedCount }} 个项目</span>
+        <button
+          @click="selectAllProjects"
+          class="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+        >
+          全选
+        </button>
+        <button
+          @click="clearSelection"
+          class="text-xs text-gray-500 dark:text-gray-400 hover:underline"
+        >
+          取消选择
+        </button>
+      </div>
+      <div class="flex gap-2">
+        <button
+          @click="batchRemoveProjects"
+          class="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
+        >
+          批量删除 ({{ selectedCount }})
+        </button>
+      </div>
+    </div>
+
     <div v-if="isLoading" class="flex justify-center py-12">
       <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
     </div>
@@ -588,26 +682,24 @@ const confirmRelocate = async () => {
           <div
             v-for="project in (filterGroup === 'all' ? groupProjects : filteredProjects)"
             :key="project.project_id"
-            class="bg-white dark:bg-surface-card rounded-xl shadow hover:shadow-md transition-shadow p-5"
+            :class="[
+              'bg-white dark:bg-surface-card rounded-xl shadow hover:shadow-md transition-shadow p-5',
+              selectedProjectIds.has(project.project_id) ? 'ring-2 ring-primary-500' : ''
+            ]"
           >
             <div class="flex items-start justify-between min-w-0">
-              <div 
-                class="flex items-center gap-3 min-w-0 flex-1 cursor-pointer hover:text-primary-600 dark:hover:text-primary-400"
-                @click="showProjectDetails(project)"
-              >
-                <div class="flex-shrink-0 w-10 h-10 rounded-lg overflow-hidden bg-gray-100 dark:bg-surface-layer flex items-center justify-center">
-                  <img
-                    v-if="project.icon_path"
-                    :src="getIconUrl(project.icon_path)"
-                    :alt="project.name"
-                    class="w-10 h-10 object-contain"
-                    @error="($event.target as HTMLImageElement).style.display = 'none'"
-                  />
-                  <svg v-else class="w-6 h-6 text-gray-400 dark:text-content-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                  </svg>
-                </div>
-                <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-3 min-w-0 flex-1">
+                <input
+                  type="checkbox"
+                  :checked="selectedProjectIds.has(project.project_id)"
+                  @change="toggleProjectSelection(project, $event)"
+                  class="w-4 h-4 text-primary-600 rounded flex-shrink-0 cursor-pointer"
+                  @click.stop
+                />
+                <div 
+                  class="min-w-0 flex-1 cursor-pointer hover:text-primary-600 dark:hover:text-primary-400"
+                  @click="toggleProjectSelection(project, $event)"
+                >
                   <div class="flex items-center gap-2">
                     <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary truncate">
                       {{ project.name }}

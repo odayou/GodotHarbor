@@ -5,15 +5,18 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useKeyboardShortcuts } from './composables/useKeyboardShortcuts'
 import { useTheme } from './composables/useTheme'
 import { useSidebar } from './composables/useSidebar'
+import { useCommandPalette } from './composables/useCommandPalette'
 import Sidebar from './components/layout/Sidebar.vue'
 import Header from './components/layout/Header.vue'
 import StatusBar from './components/layout/StatusBar.vue'
 import ToastContainer from './components/ToastContainer.vue'
 import OnboardingGuide from './components/OnboardingGuide.vue'
+import CommandPalette from './components/CommandPalette.vue'
 
 const { registerShortcut } = useKeyboardShortcuts()
 const { currentTheme, setTheme } = useTheme()
 const { initSidebarState, toggleSidebar } = useSidebar()
+const { openPalette } = useCommandPalette()
 
 getCurrentWindow().show().catch((e) => {
   console.error('Failed to show window:', e)
@@ -52,6 +55,16 @@ registerShortcut({
   },
   description: '切换深色/浅色模式'
 })
+
+registerShortcut({
+  key: 'k',
+  ctrl: true,
+  handler: () => {
+    openPalette()
+  },
+  description: '打开命令面板',
+  global: true
+})
 </script>
 
 <template>
@@ -66,5 +79,6 @@ registerShortcut({
     </div>
     <ToastContainer />
     <OnboardingGuide />
+    <CommandPalette />
   </div>
 </template>

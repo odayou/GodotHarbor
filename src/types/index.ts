@@ -65,6 +65,7 @@ export interface Settings {
   auto_scan_on_startup: boolean
   sidebar_collapsed?: boolean
   auto_discover_engines?: boolean
+  onboarding_completed?: boolean
 }
 
 export interface ApplyResult {
@@ -187,4 +188,31 @@ export interface GodotVersionCheckResult {
   local_engines: LocalEngineVersion[]
   updates_available: VersionUpdateInfo[]
   checked_at: string
+}
+
+export interface BatchResult {
+  success_count: number
+  failed_count: number
+  errors: string[]
+}
+
+export interface BatchBindingRequest {
+  project_id: string
+  plugin_id: string
+  version_id: string
+  unit_id: string
+  mount_path: string
+}
+
+export interface ProjectApplyResult {
+  project_id: string
+  project_name: string
+  success: boolean
+  created: string[]
+  removed: string[]
+  errors: string[]
+}
+
+export interface BatchApplyResult {
+  results: ProjectApplyResult[]
 }

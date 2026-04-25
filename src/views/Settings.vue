@@ -7,6 +7,7 @@ import { useToast } from '@/composables/useToast'
 import { useI18n } from '@/composables/useI18n'
 import { useTheme } from '@/composables/useTheme'
 import { useDialogEscape } from '@/composables/useDialogEscape'
+import { useOnboarding } from '@/composables/useOnboarding'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const toast = useToast()
@@ -223,6 +224,19 @@ const formatDate = (dateStr: string) => {
     return dateStr
   }
 }
+
+const { showOnboarding } = useOnboarding()
+
+const resetOnboarding = async () => {
+  try {
+    const currentSettings = await api.getSettings()
+    currentSettings.onboarding_completed = false
+    await api.saveSettings(currentSettings)
+    showOnboarding()
+  } catch (error) {
+    toast.error(`重置引导失败: ${error}`)
+  }
+}
 </script>
 
 <template>
@@ -286,6 +300,21 @@ const formatDate = (dateStr: string) => {
               <option value="system">{{ t('settings.themeSystem') }}</option>
             </select>
           </div>
+        </div>
+      </div>
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.other') }}</h2>
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.showOnboarding') }}</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ t('settings.showOnboardingDesc') }}</p>
+          </div>
+          <button
+            @click="resetOnboarding"
+            class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors text-sm"
+          >
+            {{ t('settings.showOnboarding') }}
+          </button>
         </div>
       </div>
       <div class="flex justify-end">

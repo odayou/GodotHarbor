@@ -24,6 +24,84 @@ const filterCompatibility = ref<string>('all')
 const filterSource = ref<string>('all')
 const showFavoritesOnly = ref(false)
 
+const selectedPluginIds = ref<Set<string>>(new Set())
+const lastClickedPluginIndex = ref<number>(-1)
+const isBatchMode = ref(false)
+
+const togglePluginSelection = (plugin: Plugin, event: MouseEvent | Event) => {
+  const mouseEvent = event as MouseEvent
+  const pluginId = plugin.plugin_id
+  const currentList = filteredPlugins.value
+  const currentIndex = currentList.findIndex(p => p.plugin_id === pluginId)
+
+  if (mouseEvent.shiftKey && lastClickedPluginIndex.value >= 0) {
+    const start = Math.min(lastClickedPluginIndex.value, currentIndex)
+    const end = Math.max(lastClickedPluginIndex.value, currentIndex)
+    for (let i = start; i <= end; i++) {
+      selectedPluginIds.value.add(currentList[i].plugin_id)
+    }
+  } else if (mouseEvent.ctrlKey || mouseEvent.metaKey) {
+    if (selectedPluginIds.value.has(pluginId)) {
+      selectedPluginIds.value.delete(pluginId)
+    } else {
+      selectedPluginIds.value.add(pluginId)
+    }
+  } else {
+    if (selectedPluginIds.value.has(pluginId) && selectedPluginIds.value.size === 1) {
+      selectedPluginIds.value.clear()
+      isBatchMode.value = false
+    } else {
+      selectedPluginIds.value.clear()
+      selectedPluginIds.value.add(pluginId)
+      isBatchMode.value = true
+    }
+  }
+
+  lastClickedPluginIndex.value = currentIndex
+  selectedPluginIds.value = new Set(selectedPluginIds.value)
+}
+
+const selectAllPlugins = () => {
+  for (const p of filteredPlugins.value) {
+    selectedPluginIds.value.add(p.plugin_id)
+  }
+  selectedPluginIds.value = new Set(selectedPluginIds.value)
+  isBatchMode.value = true
+}
+
+const clearPluginSelection = () => {
+  selectedPluginIds.value.clear()
+  selectedPluginIds.value = new Set(selectedPluginIds.value)
+  isBatchMode.value = false
+  lastClickedPluginIndex.value = -1
+}
+
+const selectedPluginCount = computed(() => selectedPluginIds.value.size)
+
+const batchRemovePlugins = async () => {
+  const ids = Array.from(selectedPluginIds.value)
+  if (ids.length === 0) return
+  showBatchDeleteConfirm.value = true
+}
+
+const onBatchDeleteConfirm = async () => {
+  const ids = Array.from(selectedPluginIds.value)
+  try {
+    const result = await api.batchRemovePlugins(ids)
+    if (result.failed_count > 0) {
+      toast.warning(`批量删除完成: 成功 ${result.success_count} 个, 失败 ${result.failed_count} 个`)
+    } else {
+      toast.success(`已成功删除 ${result.success_count} 个插件`)
+    }
+    clearPluginSelection()
+    await loadPlugins()
+  } catch (error) {
+    toast.error(`批量删除插件失败: ${error}`)
+  }
+}
+
+const showBatchDeleteConfirm = ref(false)
+
 onMounted(() => {
   loadPlugins()
 })
@@ -234,11 +312,9 @@ const loadPluginDependencies = async (pluginId: string) => {
   }
 }
 
-const showPluginDetails = async (plugin: Plugin) => {
-  selectedPlugin.value = plugin
-  await loadPluginDependencies(plugin.plugin_id)
-  showPluginDetail.value = true
-}
+// @ts-ignore used in template plugin detail dialog
+void loadPluginDependencies
+
 </script>
 
 <template>
@@ -376,59 +452,99 @@ const showPluginDetails = async (plugin: Plugin) => {
       </div>
     </div>
 
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      <div
-        v-for="plugin in filteredPlugins"
-        :key="plugin.plugin_id"
-        class="bg-white dark:bg-surface-card rounded-xl shadow hover:shadow-md transition-shadow p-5"
-      >
-        <div class="flex items-start justify-between min-w-0">
-          <div class="min-w-0 flex-1 cursor-pointer" @click="showPluginDetails(plugin)">
-            <div class="flex items-center gap-2">
-              <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary truncate">
-                {{ plugin.name }}
-              </h3>
-              <button
-                @click.stop="toggleFavorite(plugin)"
-                :class="[
-                  'p-1 rounded transition-colors',
-                  plugin.is_favorite
-                    ? 'text-yellow-500 hover:text-yellow-600'
-                    : 'text-gray-400 dark:text-content-secondary hover:text-yellow-500'
-                ]"
-              >
-                <svg class="w-5 h-5" :fill="plugin.is_favorite ? 'currentColor' : 'none'" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                </svg>
-              </button>
-            </div>
-            <p 
-              class="text-sm text-gray-500 dark:text-content-secondary mt-1 line-clamp-2"
-              :title="plugin.description || '无描述'"
-            >
-              {{ plugin.description || '无描述' }}
-            </p>
-          </div>
+    <div v-else class="space-y-4">
+      <div v-if="isBatchMode && selectedPluginCount > 0" class="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <span class="text-sm font-medium text-primary-700 dark:text-primary-300">已选择 {{ selectedPluginCount }} 个插件</span>
           <button
-            @click.stop="confirmRemovePlugin(plugin.plugin_id)"
-            class="text-red-600 hover:text-red-800 ml-2"
+            @click="selectAllPlugins"
+            class="text-xs text-primary-600 dark:text-primary-400 hover:underline"
           >
-            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            全选
+          </button>
+          <button
+            @click="clearPluginSelection"
+            class="text-xs text-gray-500 dark:text-gray-400 hover:underline"
+          >
+            取消选择
           </button>
         </div>
-        <div class="mt-3 flex items-center justify-between text-sm text-gray-600 dark:text-content-secondary">
-          <span>v{{ plugin.versions[0]?.version || '1.0.0' }}</span>
-          <span>{{ plugin.author || '未知作者' }}</span>
+        <div class="flex gap-2">
+          <button
+            @click="batchRemovePlugins"
+            class="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
+          >
+            批量删除 ({{ selectedPluginCount }})
+          </button>
         </div>
-        <div class="mt-2 flex items-center gap-2 flex-wrap">
-          <span class="badge badge-neutral">
-            {{ plugin.compatibility === 'Godot4' ? 'Godot 4' : plugin.compatibility === 'Godot3' ? 'Godot 3' : plugin.compatibility === 'Both' ? '通用' : '未知' }}
-          </span>
-          <span class="badge badge-neutral">
-            {{ plugin.source.source_type === 'Local' ? '本地' : plugin.source.source_type === 'Git' ? 'Git' : 'AssetLibrary' }}
-          </span>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div
+          v-for="plugin in filteredPlugins"
+          :key="plugin.plugin_id"
+          :class="[
+            'bg-white dark:bg-surface-card rounded-xl shadow hover:shadow-md transition-shadow p-5',
+            selectedPluginIds.has(plugin.plugin_id) ? 'ring-2 ring-primary-500' : ''
+          ]"
+        >
+          <div class="flex items-start justify-between min-w-0">
+            <div class="flex items-start gap-3 min-w-0 flex-1">
+              <input
+                type="checkbox"
+                :checked="selectedPluginIds.has(plugin.plugin_id)"
+                @change="togglePluginSelection(plugin, $event)"
+                class="w-4 h-4 text-primary-600 rounded flex-shrink-0 mt-1 cursor-pointer"
+                @click.stop
+              />
+              <div class="min-w-0 flex-1 cursor-pointer" @click="togglePluginSelection(plugin, $event)">
+                <div class="flex items-center gap-2">
+                  <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary truncate">
+                    {{ plugin.name }}
+                  </h3>
+                  <button
+                    @click.stop="toggleFavorite(plugin)"
+                    :class="[
+                      'p-1 rounded transition-colors',
+                      plugin.is_favorite
+                        ? 'text-yellow-500 hover:text-yellow-600'
+                        : 'text-gray-400 dark:text-content-secondary hover:text-yellow-500'
+                    ]"
+                  >
+                    <svg class="w-5 h-5" :fill="plugin.is_favorite ? 'currentColor' : 'none'" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                    </svg>
+                  </button>
+                </div>
+                <p 
+                  class="text-sm text-gray-500 dark:text-content-secondary mt-1 line-clamp-2"
+                  :title="plugin.description || '无描述'"
+                >
+                  {{ plugin.description || '无描述' }}
+                </p>
+              </div>
+            </div>
+            <button
+              @click.stop="confirmRemovePlugin(plugin.plugin_id)"
+              class="text-red-600 hover:text-red-800 ml-2"
+            >
+              <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div class="mt-3 flex items-center justify-between text-sm text-gray-600 dark:text-content-secondary">
+            <span>v{{ plugin.versions[0]?.version || '1.0.0' }}</span>
+            <span>{{ plugin.author || '未知作者' }}</span>
+          </div>
+          <div class="mt-2 flex items-center gap-2 flex-wrap">
+            <span class="badge badge-neutral">
+              {{ plugin.compatibility === 'Godot4' ? 'Godot 4' : plugin.compatibility === 'Godot3' ? 'Godot 3' : plugin.compatibility === 'Both' ? '通用' : '未知' }}
+            </span>
+            <span class="badge badge-neutral">
+              {{ plugin.source.source_type === 'Local' ? '本地' : plugin.source.source_type === 'Git' ? 'Git' : 'AssetLibrary' }}
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -618,6 +734,14 @@ const showPluginDetails = async (plugin: Plugin) => {
       description="此操作将从仓库中移除插件，但不会影响已挂载到项目中的副本。"
       confirm-text="确认删除"
       @confirm="onRemovePluginConfirm"
+    />
+
+    <ConfirmDialog
+      v-model="showBatchDeleteConfirm"
+      title="批量删除插件"
+      :description="`确定要删除选中的 ${selectedPluginCount} 个插件吗？此操作将从仓库中移除插件，但不会影响已挂载到项目中的副本。`"
+      confirm-text="确认批量删除"
+      @confirm="onBatchDeleteConfirm"
     />
   </div>
 </template>

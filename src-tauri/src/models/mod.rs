@@ -171,6 +171,8 @@ pub struct Settings {
     pub sidebar_collapsed: bool,
     #[serde(default = "default_true")]
     pub auto_discover_engines: bool,
+    #[serde(default)]
+    pub onboarding_completed: bool,
 }
 
 fn default_true() -> bool { true }
@@ -185,6 +187,7 @@ impl Default for Settings {
             auto_scan_on_startup: true,
             sidebar_collapsed: false,
             auto_discover_engines: true,
+            onboarding_completed: false,
         }
     }
 }
@@ -305,6 +308,37 @@ pub struct LaunchResult {
     pub success: bool,
     pub pid: Option<u32>,
     pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchResult {
+    pub success_count: usize,
+    pub failed_count: usize,
+    pub errors: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchBindingRequest {
+    pub project_id: String,
+    pub plugin_id: String,
+    pub version_id: String,
+    pub unit_id: String,
+    pub mount_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchApplyResult {
+    pub results: Vec<ProjectApplyResult>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectApplyResult {
+    pub project_id: String,
+    pub project_name: String,
+    pub success: bool,
+    pub created: Vec<String>,
+    pub removed: Vec<String>,
+    pub errors: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

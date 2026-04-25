@@ -14,7 +14,10 @@ import type {
   LaunchResult,
   DashboardStats,
   MovedProjectCandidate,
-  GodotVersionCheckResult
+  GodotVersionCheckResult,
+  BatchResult,
+  BatchBindingRequest,
+  BatchApplyResult
 } from '@/types'
 
 export const api = {
@@ -232,6 +235,26 @@ export const api = {
 
   async autoDiscoverEngines(): Promise<Engine[]> {
     return await invoke('auto_discover_engines')
+  },
+
+  async batchRemoveProjects(projectIds: string[]): Promise<BatchResult> {
+    return await invoke('batch_remove_projects', { projectIds })
+  },
+
+  async batchRemovePlugins(pluginIds: string[]): Promise<BatchResult> {
+    return await invoke('batch_remove_plugins', { pluginIds })
+  },
+
+  async batchBindPlugins(bindings: BatchBindingRequest[]): Promise<BatchResult> {
+    return await invoke('batch_bind_plugins', { bindings })
+  },
+
+  async batchUnbindPlugins(projectId: string, pluginIds: string[]): Promise<BatchResult> {
+    return await invoke('batch_unbind_plugins', { projectId, pluginIds })
+  },
+
+  async batchApplyChanges(projectIds: string[]): Promise<BatchApplyResult> {
+    return await invoke('batch_apply_changes', { projectIds })
   }
 }
 

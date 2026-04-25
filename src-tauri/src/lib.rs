@@ -154,6 +154,11 @@ pub fn run() {
             commands::restart_fs_watcher,
             commands::auto_discover_engines,
             commands::check_godot_updates,
+            commands::batch_remove_projects,
+            commands::batch_remove_plugins,
+            commands::batch_bind_plugins,
+            commands::batch_unbind_plugins,
+            commands::batch_apply_changes,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
