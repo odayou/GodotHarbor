@@ -4,10 +4,12 @@ import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
 import type { Plugin, PluginUpdateInfo, PluginDependency, AssetLibrarySearchResult, AssetLibrarySearchResponse, AssetLibraryCategory, AssetLibraryAsset, AssetImportProgress } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
-import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
 import { useDialogEscape } from '@/composables/useDialogEscape'
+import { usePluginStore } from '@/stores'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+
+const pluginStore = usePluginStore()
 
 const toast = useToast()
 const { t } = useI18n()
@@ -206,7 +208,6 @@ const showAssetLibraryDialog = ref(false)
 const assetSearchQuery = ref('')
 const assetSearchResults = ref<AssetLibrarySearchResult[]>([])
 const isSearchingAssets = ref(false)
-const isImportingAsset = ref<string | null>(null)
 const assetCategories = ref<AssetLibraryCategory[]>([])
 const assetFilterType = ref<string>('any')
 const assetFilterCategory = ref<string>('')
@@ -219,22 +220,16 @@ const assetTotalItems = ref(0)
 const selectedAssetIds = ref<Set<string>>(new Set())
 const assetDetail = ref<AssetLibraryAsset | null>(null)
 const showAssetDetailDialog = ref(false)
-const importProgress = ref<AssetImportProgress | null>(null)
 const searchCache = ref<Map<string, { data: AssetLibrarySearchResponse; timestamp: number }>>(new Map())
-
-let unlistenProgress: UnlistenFn | null = null
+const categoriesLoaded = ref(false)
+let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
 onMounted(async () => {
   loadPlugins()
-  unlistenProgress = await listen<AssetImportProgress>('asset-import-progress', (event) => {
-    importProgress.value = event.payload
-  })
 })
 
 onUnmounted(() => {
-  if (unlistenProgress) {
-    unlistenProgress()
-  }
+  // 清理工作
 })
 
 const showDeletePluginConfirm = ref(false)
@@ -254,10 +249,11 @@ const openAssetLibrary = async () => {
   assetCurrentPage.value = 0
   assetTotalPages.value = 0
   assetTotalItems.value = 0
-  if (assetCategories.value.length === 0) {
+  if (!categoriesLoaded.value || assetCategories.value.length === 0) {
     try {
       const config = await api.getAssetLibraryConfigure()
       assetCategories.value = config.categories || []
+      categoriesLoaded.value = true
     } catch (error) {
       console.error('Failed to load categories:', error)
     }
@@ -276,7 +272,20 @@ const getCacheKey = () => {
   })
 }
 
-const searchAssets = async () => {
+const searchAssets = (immediate = false) => {
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer)
+  }
+  if (immediate) {
+    doSearch()
+  } else {
+    searchDebounceTimer = setTimeout(() => {
+      doSearch()
+    }, 400)
+  }
+}
+
+const doSearch = async () => {
   isSearchingAssets.value = true
   try {
     const cacheKey = getCacheKey()
@@ -313,14 +322,14 @@ const searchAssets = async () => {
 const assetPrevPage = () => {
   if (assetCurrentPage.value > 0) {
     assetCurrentPage.value--
-    searchAssets()
+    searchAssets(true)
   }
 }
 
 const assetNextPage = () => {
   if (assetCurrentPage.value < assetTotalPages.value - 1) {
     assetCurrentPage.value++
-    searchAssets()
+    searchAssets(true)
   }
 }
 
@@ -335,8 +344,7 @@ const toggleAssetSelection = (assetId: string) => {
 }
 
 const importAsset = async (assetId: string, assetTitle: string) => {
-  isImportingAsset.value = assetId
-  importProgress.value = null
+  pluginStore.setImporting(assetId)
   try {
     await api.importFromAssetLibraryWithProgress(assetId)
     toast.success(t('assetLibrary.importSuccess') + ': ' + assetTitle)
@@ -344,8 +352,7 @@ const importAsset = async (assetId: string, assetTitle: string) => {
   } catch (error) {
     toast.error(t('assetLibrary.importFailed') + ': ' + error)
   } finally {
-    isImportingAsset.value = null
-    importProgress.value = null
+    pluginStore.resetImportProgress()
   }
 }
 
@@ -357,17 +364,18 @@ const batchImportAssets = async () => {
   let failCount = 0
   for (let i = 0; i < ids.length; i++) {
     const assetId = ids[i]
-    isImportingAsset.value = assetId
-    importProgress.value = null
+    pluginStore.setImporting(assetId)
     try {
       await api.importFromAssetLibraryWithProgress(assetId)
       successCount++
     } catch {
       failCount++
+    } finally {
+      if (i === ids.length - 1) {
+        pluginStore.resetImportProgress()
+      }
     }
   }
-  isImportingAsset.value = null
-  importProgress.value = null
   selectedAssetIds.value = new Set()
   if (failCount > 0) {
     toast.warning(t('common.batchDeleteComplete', { success: successCount, failed: failCount }))
@@ -790,10 +798,11 @@ void loadPluginDependencies
             type="text"
             :placeholder="t('assetLibrary.searchPlaceholder')"
             class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
-            @keyup.enter="searchAssets"
+            @input="searchAssets()"
+            @keyup.enter="searchAssets(true)"
           />
           <button
-            @click="searchAssets"
+            @click="searchAssets(true)"
             :disabled="isSearchingAssets"
             class="btn-primary disabled:opacity-50 text-sm"
           >
@@ -802,28 +811,28 @@ void loadPluginDependencies
         </div>
 
         <div class="flex flex-wrap gap-2 mb-3">
-          <select v-model="assetFilterType" @change="searchAssets" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
+          <select v-model="assetFilterType" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
             <option value="any">{{ t('assetLibrary.typeAny') }}</option>
             <option value="addon">{{ t('assetLibrary.typeAddon') }}</option>
             <option value="project">{{ t('assetLibrary.typeProject') }}</option>
           </select>
-          <select v-model="assetFilterCategory" @change="searchAssets" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
+          <select v-model="assetFilterCategory" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
             <option value="">{{ t('assetLibrary.categoryAll') }}</option>
             <option v-for="cat in assetCategories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
           </select>
-          <select v-model="assetFilterGodotVersion" @change="searchAssets" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
+          <select v-model="assetFilterGodotVersion" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
             <option value="any">{{ t('assetLibrary.godotVersion') }}: Any</option>
             <option value="4.0">Godot 4.x</option>
             <option value="3.0">Godot 3.x</option>
           </select>
-          <select v-model="assetFilterSupport" @change="searchAssets" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
+          <select v-model="assetFilterSupport" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
             <option value="">{{ t('assetLibrary.supportLevel') }}: All</option>
             <option value="official">{{ t('assetLibrary.supportOfficial') }}</option>
             <option value="featured">{{ t('assetLibrary.supportFeatured') }}</option>
             <option value="community">{{ t('assetLibrary.supportCommunity') }}</option>
             <option value="testing">{{ t('assetLibrary.supportTesting') }}</option>
           </select>
-          <select v-model="assetSortBy" @change="searchAssets" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
+          <select v-model="assetSortBy" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
             <option value="updated">{{ t('assetLibrary.sortUpdated') }}</option>
             <option value="rating">{{ t('assetLibrary.sortRating') }}</option>
             <option value="name">{{ t('assetLibrary.sortName') }}</option>
@@ -842,15 +851,15 @@ void loadPluginDependencies
           </button>
         </div>
 
-        <div v-if="importProgress && isImportingAsset" class="mb-3">
+        <div v-if="pluginStore.importProgress && pluginStore.isImporting" class="mb-3">
           <div class="flex items-center justify-between text-xs text-gray-600 dark:text-content-secondary mb-1">
-            <span>{{ importProgress.message }}</span>
-            <span>{{ Math.round(importProgress.progress * 100) }}%</span>
+            <span>{{ pluginStore.importProgress.message }}</span>
+            <span>{{ Math.round(pluginStore.importProgress.progress * 100) }}%</span>
           </div>
           <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
             <div
               class="bg-primary-600 h-2 rounded-full transition-all duration-300"
-              :style="{ width: `${importProgress.progress * 100}%` }"
+              :style="{ width: `${pluginStore.importProgress.progress * 100}%` }"
             ></div>
           </div>
         </div>
@@ -882,6 +891,7 @@ void loadPluginDependencies
                 :src="asset.icon_url"
                 :alt="asset.title"
                 class="w-10 h-10 rounded object-cover flex-shrink-0"
+                loading="lazy"
                 @error="($event.target as HTMLImageElement).style.display = 'none'"
               />
               <div v-else class="w-10 h-10 rounded bg-gray-200 dark:bg-gray-600 flex items-center justify-center flex-shrink-0">
@@ -970,6 +980,7 @@ void loadPluginDependencies
               :key="preview.preview_id"
               :src="preview.thumbnail"
               class="h-20 rounded object-cover flex-shrink-0 cursor-pointer hover:opacity-80"
+              loading="lazy"
               @click="openPreviewLink(preview.link)"
             />
           </div>
@@ -985,10 +996,10 @@ void loadPluginDependencies
         <div class="flex items-center gap-2">
           <button
             @click="importAsset(assetDetail.asset_id, assetDetail.title); showAssetDetailDialog = false; assetDetail = null"
-            :disabled="isImportingAsset === assetDetail.asset_id"
+            :disabled="pluginStore.isImporting === assetDetail.asset_id"
             class="btn-primary disabled:opacity-50 text-sm"
           >
-            {{ isImportingAsset === assetDetail.asset_id ? t('assetLibrary.importing') : t('assetLibrary.import') }}
+            {{ pluginStore.isImporting === assetDetail.asset_id ? t('assetLibrary.importing') : t('assetLibrary.import') }}
           </button>
           <a
             v-if="assetDetail.browse_url"

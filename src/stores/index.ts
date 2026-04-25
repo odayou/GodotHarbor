@@ -104,6 +104,8 @@ export const usePluginStore = defineStore('plugins', () => {
   const plugins = ref<Plugin[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const importProgress = ref<any>(null)
+  const isImporting = ref<string | null>(null)
 
   const loadPlugins = async () => {
     loading.value = true
@@ -178,15 +180,33 @@ export const usePluginStore = defineStore('plugins', () => {
     }
   }
 
+  const setImportProgress = (progress: any) => {
+    importProgress.value = progress
+  }
+
+  const setImporting = (assetId: string | null) => {
+    isImporting.value = assetId
+  }
+
+  const resetImportProgress = () => {
+    importProgress.value = null
+    isImporting.value = null
+  }
+
   return {
     plugins,
     loading,
     error,
+    importProgress,
+    isImporting,
     loadPlugins,
     importFromLocal,
     importFromGit,
     removePlugin,
-    toggleFavorite
+    toggleFavorite,
+    setImportProgress,
+    setImporting,
+    resetImportProgress
   }
 })
 

@@ -63,11 +63,11 @@ pub fn run() {
                     let mut default_dirs = Vec::new();
                     if cfg!(windows) {
                         if let Some(userprofile) = std::env::var("USERPROFILE").ok() {
-                            default_dirs.push(format!("{}\\Documents", userprofile));
-                            default_dirs.push(format!("{}\\Desktop", userprofile));
+                            default_dirs.push(format!(r"{}\Documents", userprofile));
+                            default_dirs.push(format!(r"{}\Desktop", userprofile));
                         }
                         for drive in ['D', 'E', 'F'] {
-                            let drive_path = format!("{}:\\", drive);
+                            let drive_path = format!(r"{}:", drive);
                             if std::path::Path::new(&drive_path).exists() {
                                 default_dirs.push(drive_path);
                             }
@@ -103,9 +103,22 @@ pub fn run() {
                 }
             });
 
+            // 处理窗口关闭事件，改为隐藏而不是退出
+            let app_clone = app_handle.clone();
+            if let Some(window) = app.get_webview_window("main") {
+                window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        if let Some(window) = app_clone.get_webview_window("main") {
+                            let _ = window.hide();
+                        }
+                    }
+                });
+            }
+
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![
+        .invoke_handler(tauri::generate_handler!(
             commands::get_settings,
             commands::save_settings,
             commands::scan_projects,
@@ -162,7 +175,7 @@ pub fn run() {
             commands::batch_bind_plugins,
             commands::batch_unbind_plugins,
             commands::batch_apply_changes,
-        ])
+        ))
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

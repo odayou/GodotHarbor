@@ -1,17 +1,22 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, onUnmounted } from 'vue'
 import { RouterView } from 'vue-router'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { listen } from '@tauri-apps/api/event'
 import { useKeyboardShortcuts } from './composables/useKeyboardShortcuts'
 import { useTheme } from './composables/useTheme'
 import { useSidebar } from './composables/useSidebar'
 import { useCommandPalette } from './composables/useCommandPalette'
+import { usePluginStore } from './stores'
 import Sidebar from './components/layout/Sidebar.vue'
 import Header from './components/layout/Header.vue'
 import StatusBar from './components/layout/StatusBar.vue'
 import ToastContainer from './components/ToastContainer.vue'
 import OnboardingGuide from './components/OnboardingGuide.vue'
 import CommandPalette from './components/CommandPalette.vue'
+
+const pluginStore = usePluginStore()
+let unlistenProgress: any = null
 
 const { registerShortcut } = useKeyboardShortcuts()
 const { currentTheme, setTheme } = useTheme()
@@ -22,8 +27,19 @@ getCurrentWindow().show().catch((e) => {
   console.error('Failed to show window:', e)
 })
 
-onMounted(() => {
+onMounted(async () => {
   initSidebarState()
+  
+  // 监听资产导入进度事件
+  unlistenProgress = await listen('asset-import-progress', (event) => {
+    pluginStore.setImportProgress(event.payload)
+  })
+})
+
+onUnmounted(() => {
+  if (unlistenProgress) {
+    unlistenProgress()
+  }
 })
 
 registerShortcut({
