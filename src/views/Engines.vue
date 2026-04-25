@@ -46,7 +46,7 @@ const loadEngines = async () => {
     const result = await api.getEngines()
     engines.value = result
   } catch (error) {
-    toast.error(`加载引擎列表失败: ${error}`)
+    toast.error(t('common.loadFailed', { error }))
   } finally {
     isLoading.value = false
   }
@@ -57,31 +57,31 @@ const selectEnginePath = async () => {
     const selected = await open({
       directory: true,
       multiple: false,
-      title: '选择 Godot 引擎目录'
+      title: t('engines.selectEngineDir')
     })
     if (selected && typeof selected === 'string') {
       newEnginePath.value = selected
     }
   } catch (error) {
-    toast.error(`选择目录失败: ${error}`)
+    toast.error(t('common.selectDirFailed', { error }))
   }
 }
 
 const registerEngine = async () => {
   if (!newEnginePath.value) {
-    toast.warning('请选择引擎目录')
+    toast.warning(t('engines.selectEngineDirFirst'))
     return
   }
   isRegistering.value = true
   try {
     const result = await api.registerEngine(newEnginePath.value, newEngineName.value)
-    toast.success(`成功注册引擎: ${result.name}`)
+    toast.success(t('common.addProjectSuccess', { name: result.name }))
     showAddDialog.value = false
     newEnginePath.value = ''
     newEngineName.value = ''
     await loadEngines()
   } catch (error) {
-    toast.error(`注册引擎失败: ${error}`)
+    toast.error(t('common.addProjectFailed', { error }))
   } finally {
     isRegistering.value = false
   }
@@ -95,20 +95,20 @@ const confirmRemoveEngine = (engineId: string) => {
 const onRemoveEngineConfirm = async () => {
   try {
     await api.removeEngine(deleteTargetId.value)
-    toast.success('引擎已删除')
+    toast.success(t('common.projectDeleted'))
     await loadEngines()
   } catch (error) {
-    toast.error(`删除引擎失败: ${error}`)
+    toast.error(t('common.deleteFailed', { error }))
   }
 }
 
 const setDefault = async (engineId: string) => {
   try {
     await api.setDefaultEngine(engineId)
-    toast.success('已将选中的引擎设为默认')
+    toast.success(t('engines.defaultSet'))
     await loadEngines()
   } catch (error) {
-    toast.error(`设置默认引擎失败: ${error}`)
+    toast.error(t('common.loadFailed', { error }))
   }
 }
 </script>
@@ -127,19 +127,19 @@ const setDefault = async (engineId: string) => {
 
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5">
       <div class="flex items-center gap-4">
-        <div class="flex items-center gap-2">
-          <svg class="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
-          <span class="text-sm text-gray-600 dark:text-gray-400">默认引擎:</span>
+          <div class="flex items-center gap-2">
+            <svg class="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <span class="text-sm text-gray-600 dark:text-gray-400">{{ t('engines.defaultEngine') }}:</span>
+          </div>
+          <span v-if="defaultEngine" class="text-sm font-medium text-gray-900 dark:text-gray-100">
+            {{ defaultEngine.name }} (v{{ defaultEngine.version }})
+          </span>
+          <span v-else class="text-sm text-yellow-600 dark:text-yellow-400">
+            {{ t('engines.noDefaultEngine') }}
+          </span>
         </div>
-        <span v-if="defaultEngine" class="text-sm font-medium text-gray-900 dark:text-gray-100">
-          {{ defaultEngine.name }} (v{{ defaultEngine.version }})
-        </span>
-        <span v-else class="text-sm text-yellow-600 dark:text-yellow-400">
-          未设置默认引擎
-        </span>
-      </div>
     </div>
 
     <div v-if="isLoading" class="flex justify-center py-12">
@@ -150,9 +150,9 @@ const setDefault = async (engineId: string) => {
       <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
       </svg>
-      <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">暂无已注册的引擎</h3>
+      <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('engines.empty') }}</h3>
       <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-        注册 Godot 引擎以启动项目
+        {{ t('engines.emptyDesc') }}
       </p>
       <div class="mt-4 flex justify-center">
         <button
@@ -162,7 +162,7 @@ const setDefault = async (engineId: string) => {
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
           </svg>
-          注册引擎
+          {{ t('engines.register') }}
         </button>
       </div>
     </div>
@@ -223,9 +223,9 @@ const setDefault = async (engineId: string) => {
         </div>
         <div class="mt-4 space-y-2">
           <div class="flex items-center gap-2 text-sm">
-            <span class="text-gray-500 dark:text-gray-400">类型:</span>
+            <span class="text-gray-500 dark:text-gray-400">{{ t('engines.type') }}:</span>
             <span class="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
-              {{ engine.engine_type === 'Godot4' ? 'Godot 4' : engine.engine_type === 'Godot3' ? 'Godot 3' : '未知' }}
+              {{ engine.engine_type === 'Godot4' ? 'Godot 4' : engine.engine_type === 'Godot3' ? 'Godot 3' : t('engines.unknown') }}
             </span>
           </div>
           <div class="text-sm text-gray-500 dark:text-gray-400 truncate" :title="engine.path">
@@ -237,35 +237,35 @@ const setDefault = async (engineId: string) => {
 
     <div v-if="showAddDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showAddDialog = false; newEnginePath = ''; newEngineName = ''">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">注册新引擎</h3>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('engines.registerTitle') }}</h3>
         <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          选择 Godot 引擎的安装目录（包含 godot.exe 或 godot 可执行文件的目录）
+          {{ t('engines.registerDesc') }}
         </p>
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">引擎名称（可选）</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('engines.engineName') }}</label>
             <input
               v-model="newEngineName"
               type="text"
-              placeholder="留空则使用目录名"
+              :placeholder="t('engines.engineNamePlaceholder')"
               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
             />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">引擎路径</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('engines.enginePath') }}</label>
             <div class="flex gap-2">
               <input
                 v-model="newEnginePath"
                 type="text"
                 readonly
-                placeholder="请选择引擎目录"
+                :placeholder="t('engines.enginePathPlaceholder')"
                 class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
               />
               <button
                 @click="selectEnginePath"
                 class="px-4 py-2 bg-gray-100 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 text-sm whitespace-nowrap"
               >
-                浏览
+                {{ t('projects.browse') }}
               </button>
             </div>
           </div>
@@ -275,14 +275,14 @@ const setDefault = async (engineId: string) => {
             @click="showAddDialog = false; newEnginePath = ''; newEngineName = ''"
             class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
           >
-            取消
+            {{ t('common.cancel') }}
           </button>
           <button
             @click="registerEngine"
             :disabled="isRegistering || !newEnginePath"
             class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
           >
-            {{ isRegistering ? '注册中...' : '注册' }}
+            {{ isRegistering ? t('engines.registering') : t('engines.register') }}
           </button>
         </div>
       </div>
@@ -290,9 +290,9 @@ const setDefault = async (engineId: string) => {
 
     <ConfirmDialog
       v-model="showDeleteConfirm"
-      title="确认删除引擎"
-      :description="`确定要删除引擎吗？此操作不可撤销。`"
-      confirm-text="确认删除"
+      :title="t('engines.deleteConfirm')"
+      :description="t('engines.deleteConfirmDesc')"
+      :confirm-text="t('common.confirm')"
       @confirm="onRemoveEngineConfirm"
     />
   </div>

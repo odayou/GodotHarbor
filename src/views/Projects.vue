@@ -96,14 +96,14 @@ const batchRemoveProjects = async () => {
     try {
       const result = await api.batchRemoveProjects(ids)
       if (result.failed_count > 0) {
-        toast.warning(`批量删除完成: 成功 ${result.success_count} 个, 失败 ${result.failed_count} 个`)
+        toast.warning(t('common.batchDeleteComplete', { success: result.success_count, failed: result.failed_count }))
       } else {
-        toast.success(`已成功删除 ${result.success_count} 个项目`)
+        toast.success(t('common.batchDeleteSuccess', { count: result.success_count }))
       }
       clearSelection()
       await loadProjects()
     } catch (error) {
-      toast.error(`批量删除项目失败: ${error}`)
+      toast.error(t('common.batchDeleteFailed', { error }))
     }
   })
 }
@@ -199,7 +199,7 @@ const loadProjects = async () => {
     await loadGroups()
     await checkMovedProjects()
   } catch (error) {
-    toast.error(`加载项目失败: ${error}`)
+    toast.error(t('common.loadFailed', { error }))
   } finally {
     isLoading.value = false
   }
@@ -223,14 +223,14 @@ const checkMovedProjects = async () => {
 const confirmMovedProject = async (candidate: MovedProjectCandidate) => {
   try {
     await api.confirmProjectRelocation(candidate.project_id, candidate.new_path)
-    toast.success(`项目 ${candidate.old_name} 已迁移到新路径`)
+    toast.success(t('common.projectMigrated', { name: candidate.old_name }))
     movedCandidates.value = movedCandidates.value.filter(c => c.project_id !== candidate.project_id)
     if (movedCandidates.value.length === 0) {
       showMovedDialog.value = false
     }
     await loadProjects()
   } catch (error) {
-    toast.error(`迁移失败: ${error}`)
+    toast.error(t('common.migrationFailed', { error }))
   }
 }
 
@@ -252,13 +252,13 @@ const selectScanDir = async () => {
       scanDirInput.value = selected
     }
   } catch (error) {
-    toast.error(`选择目录失败: ${error}`)
+    toast.error(t('common.selectDirFailed', { error }))
   }
 }
 
 const startScan = async () => {
   if (!scanDirInput.value) {
-    toast.warning('请先选择扫描目录')
+    toast.warning(t('common.selectDirFirst'))
     return
   }
   showScanDialog.value = false
@@ -266,10 +266,10 @@ const startScan = async () => {
   try {
     const result = await api.scanProjects([scanDirInput.value])
     projects.value = result
-    toast.success(`扫描完成，发现 ${result.length} 个项目`)
+    toast.success(t('common.scanComplete', { count: result.length }))
     await loadProjects()
   } catch (error) {
-    toast.error(`扫描项目失败: ${error}`)
+    toast.error(t('common.scanFailed', { error }))
   } finally {
     isLoading.value = false
   }
@@ -281,17 +281,17 @@ const quickScan = async () => {
     const settings = await api.getSettings()
     const rootDirs = settings.scan_directories?.length ? settings.scan_directories : []
     if (rootDirs.length === 0) {
-      toast.info('未配置扫描目录，请先在设置中添加或手动选择目录')
+      toast.info(t('common.noScanDir'))
       showScanDialog.value = true
       isLoading.value = false
       return
     }
     const result = await api.scanProjects(rootDirs)
     projects.value = result
-    toast.success(`扫描完成，发现 ${result.length} 个项目`)
+    toast.success(t('common.scanComplete', { count: result.length }))
     await loadProjects()
   } catch (error) {
-    toast.error(`扫描项目失败: ${error}`)
+    toast.error(t('common.scanFailed', { error }))
   } finally {
     isLoading.value = false
   }
@@ -307,11 +307,11 @@ const addProject = async () => {
     if (selected && typeof selected === 'string') {
       isLoading.value = true
       const result = await api.addProject(selected)
-      toast.success(`成功添加项目: ${result.name}`)
+      toast.success(t('common.addProjectSuccess', { name: result.name }))
       await loadProjects()
     }
   } catch (error) {
-    toast.error(`添加项目失败: ${error}`)
+    toast.error(t('common.addProjectFailed', { error }))
   } finally {
     isLoading.value = false
   }
@@ -370,7 +370,7 @@ const onDrop = async (e: DragEvent) => {
     try {
       isLoading.value = true
       const result = await api.addProject(path)
-      toast.success(`成功添加项目: ${result.name}`)
+      toast.success(t('common.addProjectSuccess', { name: result.name }))
     } catch (error: any) {
       if (!String(error).includes('已存在')) {
         console.log('Skipped non-project path:', path)
@@ -388,10 +388,10 @@ const removeProject = async (projectId: string) => {
   confirm('删除项目', `确定要删除项目 "${name}" 吗？此操作仅从列表中移除，不会删除项目文件。`, async () => {
     try {
       await api.removeProject(projectId)
-      toast.success('项目已删除')
+      toast.success(t('common.projectDeleted'))
       await loadProjects()
     } catch (error) {
-      toast.error(`删除项目失败: ${error}`)
+      toast.error(t('common.deleteFailed', { error }))
     }
   })
 }
@@ -411,13 +411,13 @@ const saveGroup = async () => {
     if (project) {
       project.group = groupInput.value
     }
-    toast.success('分组已更新')
+    toast.success(t('common.groupUpdated'))
     showGroupDialog.value = false
     editingProjectId.value = null
     groupInput.value = ''
     await loadGroups()
   } catch (error) {
-    toast.error(`更新分组失败: ${error}`)
+    toast.error(t('common.groupUpdateFailed', { error }))
   }
 }
 
@@ -449,15 +449,15 @@ const openEngineDialog = async (project: Project) => {
 
 const bindEngine = async () => {
   if (!selectedProject.value || !selectedEngineId.value) {
-    toast.warning('请选择引擎')
+    toast.warning(t('common.selectEngine'))
     return
   }
   try {
     await api.bindProjectEngine(selectedProject.value.project_id, selectedEngineId.value, customArgs.value)
-    toast.success('引擎绑定成功')
+    toast.success(t('common.engineBindSuccess'))
     showEngineDialog.value = false
   } catch (error) {
-    toast.error(`绑定引擎失败: ${error}`)
+    toast.error(t('common.engineBindFailed', { error }))
   }
 }
 
@@ -465,12 +465,12 @@ const unbindEngine = async () => {
   if (!selectedProject.value) return
   try {
     await api.unbindProjectEngine(selectedProject.value.project_id)
-    toast.success('已解除引擎绑定')
+    toast.success(t('common.engineUnbindSuccess'))
     projectEngineBinding.value = null
     selectedEngineId.value = ''
     customArgs.value = ''
   } catch (error) {
-    toast.error(`解除绑定失败: ${error}`)
+    toast.error(t('common.engineUnbindFailed', { error }))
   }
 }
 
@@ -479,12 +479,12 @@ const launchProject = async (project: Project, engineId?: string) => {
   try {
     const result = await api.launchProjectWithEngine(project.project_id, engineId)
     if (result.success) {
-      toast.success(`项目已启动 (PID: ${result.pid})`)
+      toast.success(t('common.projectLaunched', { pid: result.pid }))
     } else {
-      toast.error(result.error || '启动失败')
+      toast.error(result.error || t('common.launchFailed'))
     }
   } catch (error) {
-    toast.error(`启动项目失败: ${error}`)
+    toast.error(t('common.projectLaunchFailed', { error }))
   } finally {
     isLaunching.value = false
   }
@@ -518,22 +518,22 @@ const selectRelocatePath = async () => {
       relocateNewPath.value = selected
     }
   } catch (error) {
-    toast.error(`选择目录失败: ${error}`)
+    toast.error(t('common.selectDirFailed', { error }))
   }
 }
 
 const confirmRelocate = async () => {
   if (!relocateNewPath.value) {
-    toast.warning('请选择新路径')
+    toast.warning(t('common.selectNewPath'))
     return
   }
   try {
     await api.relocateProject(relocateProjectId.value, relocateNewPath.value)
-    toast.success('项目路径已更新')
+    toast.success(t('common.projectPathUpdated'))
     showRelocateDialog.value = false
     await loadProjects()
   } catch (error) {
-    toast.error(`重新定位失败: ${error}`)
+    toast.error(t('common.relocateFailed', { error }))
   }
 }
 </script>
@@ -751,9 +751,9 @@ const confirmRelocate = async () => {
                   v-if="project.status === 'MissingSource'"
                   @click.stop="openRelocateDialog(project)"
                   class="px-2 py-1 rounded text-xs font-medium bg-primary-600 text-white hover:bg-primary-700 transition-colors"
-                  title="重新定位项目"
+                  :title="t('projects.relocate')"
                 >
-                  重新定位
+                  {{ t('projects.relocate') }}
                 </button>
                 <button
                   v-else
@@ -985,25 +985,25 @@ const confirmRelocate = async () => {
 
     <div v-if="showRelocateDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showRelocateDialog = false">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">重新定位项目</h3>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('projects.relocateTitle') }}</h3>
         <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-          项目路径已失效，请选择新的项目目录。
+          {{ t('projects.relocateDesc') }}
         </p>
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">新路径</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('projects.newPath') }}</label>
           <div class="flex gap-2">
             <input
               v-model="relocateNewPath"
               type="text"
               readonly
-              placeholder="请选择项目目录"
+              :placeholder="t('projects.scanPlaceholder')"
               class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
             />
             <button
               @click="selectRelocatePath"
               class="px-4 py-2 bg-gray-100 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 text-sm whitespace-nowrap"
             >
-              浏览
+              {{ t('projects.browse') }}
             </button>
           </div>
         </div>
@@ -1012,14 +1012,14 @@ const confirmRelocate = async () => {
             @click="showRelocateDialog = false"
             class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
           >
-            取消
+            {{ t('common.cancel') }}
           </button>
           <button
             @click="confirmRelocate"
             :disabled="!relocateNewPath"
             class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
           >
-            确认
+            {{ t('projects.confirm') }}
           </button>
         </div>
       </div>
@@ -1027,30 +1027,30 @@ const confirmRelocate = async () => {
 
     <div v-if="showMovedDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showMovedDialog = false">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">检测到项目迁移</h3>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ t('projects.detectProjectMigration') }}</h3>
         <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-          以下项目的路径已失效，但发现了同名项目。是否更新路径？
+          {{ t('projects.migrationDesc') }}
         </p>
         <div class="space-y-3 max-h-60 overflow-y-auto">
           <div v-for="candidate in movedCandidates" :key="candidate.project_id" class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
             <div class="flex items-center justify-between">
               <div>
                 <h4 class="font-medium text-gray-900 dark:text-gray-100">{{ candidate.old_name }}</h4>
-                <p class="text-xs text-red-500 dark:text-red-400 mt-1">旧路径: {{ candidate.old_path }}</p>
-                <p class="text-xs text-green-500 dark:text-green-400">新路径: {{ candidate.new_path }}</p>
+                <p class="text-xs text-red-500 dark:text-red-400 mt-1">{{ t('projects.oldPath') }}: {{ candidate.old_path }}</p>
+                <p class="text-xs text-green-500 dark:text-green-400">{{ t('projects.newPath') }}: {{ candidate.new_path }}</p>
               </div>
               <div class="flex gap-2">
                 <button
                   @click="confirmMovedProject(candidate)"
                   class="px-3 py-1 bg-primary-600 text-white rounded hover:bg-primary-700 text-sm"
                 >
-                  更新
+                  {{ t('projects.update') }}
                 </button>
                 <button
                   @click="dismissMovedProject(candidate)"
                   class="px-3 py-1 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-500 text-sm"
                 >
-                  忽略
+                  {{ t('projects.ignore') }}
                 </button>
               </div>
             </div>
@@ -1061,7 +1061,7 @@ const confirmRelocate = async () => {
             @click="showMovedDialog = false"
             class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
           >
-            关闭
+            {{ t('common.close') }}
           </button>
         </div>
       </div>

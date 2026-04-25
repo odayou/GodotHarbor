@@ -92,14 +92,14 @@ const onBatchDeleteConfirm = async () => {
   try {
     const result = await api.batchRemovePlugins(ids)
     if (result.failed_count > 0) {
-      toast.warning(`批量删除完成: 成功 ${result.success_count} 个, 失败 ${result.failed_count} 个`)
+      toast.warning(t('common.batchDeleteComplete', { success: result.success_count, failed: result.failed_count }))
     } else {
-      toast.success(`已成功删除 ${result.success_count} 个插件`)
+      toast.success(t('common.batchDeleteSuccess', { count: result.success_count }))
     }
     clearPluginSelection()
     await loadPlugins()
   } catch (error) {
-    toast.error(`批量删除插件失败: ${error}`)
+    toast.error(t('common.batchDeleteFailed', { error }))
   }
 }
 
@@ -138,7 +138,7 @@ const loadPlugins = async () => {
     const result = await api.getPlugins()
     plugins.value = result
   } catch (error) {
-    toast.error(`加载插件列表失败: ${error}`)
+    toast.error(t('common.loadFailed', { error }))
   } finally {
     isLoading.value = false
   }
@@ -149,16 +149,16 @@ const importFromLocal = async () => {
     const selected = await open({
       directory: true,
       multiple: false,
-      title: '选择 Godot 插件目录'
+      title: t('plugins.selectPluginDir')
     })
     if (selected && typeof selected === 'string') {
       isLoading.value = true
       const result = await api.importPluginFromLocal(selected)
-      toast.success(`成功导入插件: ${result.name}`)
+      toast.success(t('common.addProjectSuccess', { name: result.name }))
       await loadPlugins()
     }
   } catch (error) {
-    toast.error(`导入插件失败: ${error}`)
+    toast.error(t('common.addProjectFailed', { error }))
   } finally {
     isLoading.value = false
   }
@@ -169,18 +169,18 @@ const importFromFile = async () => {
     const selected = await open({
       directory: false,
       multiple: false,
-      title: '选择插件配置文件 (plugin.cfg)',
+      title: t('plugins.selectPluginFile'),
       filters: [{ name: 'Plugin Config', extensions: ['cfg'] }]
     })
     if (selected && typeof selected === 'string') {
       isLoading.value = true
       const dirPath = selected.substring(0, selected.lastIndexOf(/[/\\]/.test(selected) ? (selected.includes('\\') ? '\\' : '/') : '/'))
       const result = await api.importPluginFromLocal(dirPath || selected)
-      toast.success(`成功导入插件: ${result.name}`)
+      toast.success(t('common.addProjectSuccess', { name: result.name }))
       await loadPlugins()
     }
   } catch (error) {
-    toast.error(`导入插件失败: ${error}`)
+    toast.error(t('common.addProjectFailed', { error }))
   } finally {
     isLoading.value = false
   }
@@ -188,18 +188,18 @@ const importFromFile = async () => {
 
 const importFromGit = async () => {
   if (!gitUrl.value) {
-    toast.warning('请输入 Git URL')
+    toast.warning(t('plugins.enterGitUrl'))
     return
   }
   isLoading.value = true
   try {
     const result = await api.importPluginFromGit(gitUrl.value)
-    toast.success(`成功导入插件: ${result.name}`)
+    toast.success(t('common.addProjectSuccess', { name: result.name }))
     gitUrl.value = ''
     showGitDialog.value = false
     await loadPlugins()
   } catch (error) {
-    toast.error(`从 Git 导入插件失败: ${error}`)
+    toast.error(t('common.addProjectFailed', { error }))
   } finally {
     isLoading.value = false
   }
@@ -229,7 +229,7 @@ const searchAssets = async () => {
     const result = await api.searchAssetLibrary(assetSearchQuery.value) as any
     assetSearchResults.value = result?.result || []
   } catch (error) {
-    toast.error(`搜索失败: ${error}`)
+    toast.error(t('common.loadFailed', { error }))
   } finally {
     isSearchingAssets.value = false
   }
@@ -239,11 +239,11 @@ const importAsset = async (assetId: string, assetTitle: string) => {
   isImportingAsset.value = assetId
   try {
     await api.importFromAssetLibrary(assetId)
-    toast.success(`已导入: ${assetTitle}`)
+    toast.success(t('common.addProjectSuccess', { name: assetTitle }))
     await loadPlugins()
     showAssetLibraryDialog.value = false
   } catch (error) {
-    toast.error(`导入失败: ${error}`)
+    toast.error(t('common.addProjectFailed', { error }))
   } finally {
     isImportingAsset.value = null
   }
@@ -260,10 +260,10 @@ const confirmRemovePlugin = (pluginId: string) => {
 const onRemovePluginConfirm = async () => {
   try {
     await api.removePlugin(deletePluginId.value)
-    toast.success('插件已删除')
+    toast.success(t('common.projectDeleted'))
     await loadPlugins()
   } catch (error) {
-    toast.error(`删除插件失败: ${error}`)
+    toast.error(t('common.deleteFailed', { error }))
   }
 }
 
@@ -271,9 +271,9 @@ const toggleFavorite = async (plugin: Plugin) => {
   try {
     const newState = await api.togglePluginFavorite(plugin.plugin_id)
     plugin.is_favorite = newState
-    toast.success(newState ? '已添加到收藏' : '已取消收藏')
+    toast.success(newState ? t('plugins.addedToFavorites') : t('plugins.removedFromFavorites'))
   } catch (error) {
-    toast.error(`操作失败: ${error}`)
+    toast.error(t('common.loadFailed', { error }))
   }
 }
 
@@ -282,13 +282,13 @@ const importFromProjects = async () => {
   try {
     const importedPlugins = await api.importPluginsFromProjects()
     if (importedPlugins.length > 0) {
-      toast.success(`成功导入 ${importedPlugins.length} 个插件`)
+      toast.success(t('common.scanComplete', { count: importedPlugins.length }))
     } else {
-      toast.info('没有发现新的插件可以导入')
+      toast.info(t('plugins.noNewPluginsFound'))
     }
     await loadPlugins()
   } catch (error) {
-    toast.error(`从项目导入插件失败: ${error}`)
+    toast.error(t('common.loadFailed', { error }))
   } finally {
     isLoading.value = false
   }
@@ -300,7 +300,7 @@ const checkPluginUpdates = async () => {
     pluginUpdates.value = await api.checkPluginUpdates()
     showUpdatesDialog.value = true
   } catch (error) {
-    toast.error(`检查更新失败: ${error}`)
+    toast.error(t('common.loadFailed', { error }))
   } finally {
     isCheckingUpdates.value = false
   }

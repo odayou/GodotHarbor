@@ -192,11 +192,11 @@ const batchBindPlugins = async () => {
   const targetPluginIds = Array.from(selectedAvailablePluginIds.value)
 
   if (targetProjectIds.length === 0) {
-    toast.warning('请先选择至少一个项目')
+    toast.warning(t('linker.selectProject'))
     return
   }
   if (targetPluginIds.length === 0) {
-    toast.warning('请先选择至少一个插件')
+    toast.warning(t('linker.selectPlugin'))
     return
   }
 
@@ -231,7 +231,7 @@ const confirmBatchBind = async () => {
   }
 
   if (batchBindings.length === 0) {
-    toast.info('没有需要绑定的组合（所有选中项目已绑定选中插件）')
+    toast.info(t('linker.noBindingsNeeded'))
     showBatchBindDialog.value = false
     return
   }
@@ -240,9 +240,9 @@ const confirmBatchBind = async () => {
   try {
     const result = await api.batchBindPlugins(batchBindings)
     if (result.failed_count > 0) {
-      toast.warning(`批量绑定完成: 成功 ${result.success_count} 个, 失败 ${result.failed_count} 个`)
+      toast.warning(t('common.batchDeleteComplete', { success: result.success_count, failed: result.failed_count }))
     } else {
-      toast.success(`已成功绑定 ${result.success_count} 个插件`)
+      toast.success(t('common.batchDeleteSuccess', { count: result.success_count }))
     }
     clearAvailablePluginSelection()
     showBatchBindDialog.value = false
@@ -250,7 +250,7 @@ const confirmBatchBind = async () => {
       await loadBindings(selectedProjectId.value)
     }
   } catch (error) {
-    toast.error(`批量绑定失败: ${error}`)
+    toast.error(t('common.loadFailed', { error }))
   } finally {
     isBatchBinding.value = false
   }
@@ -261,11 +261,11 @@ const isBatchUnbinding = ref(false)
 
 const batchUnbindPlugins = async () => {
   if (!selectedProjectId.value) {
-    toast.warning('请先选择一个项目')
+    toast.warning(t('linker.selectProject'))
     return
   }
   if (selectedBoundPluginIds.value.size === 0) {
-    toast.warning('请先选择要解绑的插件')
+    toast.warning(t('linker.selectPlugin'))
     return
   }
   showBatchUnbindDialog.value = true
@@ -279,15 +279,15 @@ const confirmBatchUnbind = async () => {
   try {
     const result = await api.batchUnbindPlugins(selectedProjectId.value, pluginIds)
     if (result.failed_count > 0) {
-      toast.warning(`批量解绑完成: 成功 ${result.success_count} 个, 失败 ${result.failed_count} 个`)
+      toast.warning(t('common.batchDeleteComplete', { success: result.success_count, failed: result.failed_count }))
     } else {
-      toast.success(`已成功解绑 ${result.success_count} 个插件`)
+      toast.success(t('common.batchDeleteSuccess', { count: result.success_count }))
     }
     clearBoundPluginSelection()
     showBatchUnbindDialog.value = false
     await loadBindings(selectedProjectId.value)
   } catch (error) {
-    toast.error(`批量解绑失败: ${error}`)
+    toast.error(t('common.loadFailed', { error }))
   } finally {
     isBatchUnbinding.value = false
   }
@@ -303,7 +303,7 @@ const batchApplyChanges = () => {
     : (selectedProjectId.value ? [selectedProjectId.value] : [])
 
   if (targetIds.length === 0) {
-    toast.warning('请先选择至少一个项目')
+    toast.warning(t('linker.selectProject'))
     return
   }
 
@@ -312,7 +312,7 @@ const batchApplyChanges = () => {
   )
 
   if (projectsWithBindings.length === 0) {
-    toast.warning('选中的项目没有绑定任何插件')
+    toast.warning(t('linker.noBindings'))
     return
   }
 
@@ -332,12 +332,12 @@ const confirmBatchApply = async () => {
     const successCount = batchApplyResult.value.results.filter(r => r.success).length
     const failCount = batchApplyResult.value.results.filter(r => !r.success).length
     if (failCount > 0) {
-      toast.warning(`批量应用完成: 成功 ${successCount} 个, 失败 ${failCount} 个`)
+      toast.warning(t('common.batchDeleteComplete', { success: successCount, failed: failCount }))
     } else {
-      toast.success(`已成功应用 ${successCount} 个项目的变更`)
+      toast.success(t('common.batchDeleteSuccess', { count: successCount }))
     }
   } catch (error) {
-    toast.error(`批量应用变更失败: ${error}`)
+    toast.error(t('common.loadFailed', { error }))
   } finally {
     isBatchApplying.value = false
   }
@@ -368,7 +368,7 @@ const loadData = async () => {
       await loadBindings(selectedProjectId.value)
     }
   } catch (error) {
-    toast.error(`加载数据失败: ${error}`)
+    toast.error(t('common.loadFailed', { error }))
   } finally {
     isLoading.value = false
   }
@@ -378,7 +378,7 @@ const loadBindings = async (projectId: string) => {
   try {
     bindings.value = await withErrorLogging('Linker.loadBindings', () => api.getProjectBindings(projectId))
   } catch (error) {
-    toast.error(`加载绑定关系失败: ${error}`)
+    toast.error(t('common.loadFailed', { error }))
   }
 }
 
@@ -460,7 +460,7 @@ const confirmVersionSelect = async () => {
   const version = plugin.versions[selectedVersionIdx.value]
   const unit = version?.units[selectedUnitIdx.value]
   if (!version || !unit) {
-    toast.warning('该插件版本没有可用的单元')
+    toast.warning(t('linker.noPluginUnits'))
     return
   }
   const mountPath = `addons/${unit.name}`
@@ -476,10 +476,10 @@ const confirmVersionSelect = async () => {
         mountPath
       )
     )
-    toast.success(`已绑定插件: ${plugin.name} v${version.version}`)
+    toast.success(t('linker.pluginBound', { name: plugin.name, version: version.version }))
     await loadBindings(selectedProjectId.value)
   } catch (error) {
-    toast.error(`绑定插件失败: ${error}`)
+    toast.error(t('common.loadFailed', { error }))
   } finally {
     isLoading.value = false
     versionSelectPlugin.value = null
@@ -490,14 +490,14 @@ const bindPluginToProject = (plugin_id: string) => {
   if (!selectedProjectId.value) return
   const plugin = plugins.value.find(p => p.plugin_id === plugin_id)
   if (!plugin || !plugin.versions.length) {
-    toast.warning('该插件没有可用版本')
+    toast.warning(t('linker.noPluginVersions'))
     return
   }
   if (plugin.versions.length === 1 && plugin.versions[0].units.length <= 1) {
     const version = plugin.versions[0]
     const unit = version.units[0]
     if (!unit) {
-      toast.warning('该插件版本没有可用的单元')
+      toast.warning(t('linker.noPluginUnits'))
       return
     }
     doBindPlugin(plugin, version, unit)
@@ -520,10 +520,10 @@ const doBindPlugin = async (plugin: Plugin, version: PluginVersion, unit: Plugin
         mountPath
       )
     )
-    toast.success(`已绑定插件: ${plugin.name}`)
+    toast.success(t('linker.pluginBound', { name: plugin.name, version: version.version }))
     await loadBindings(selectedProjectId.value)
   } catch (error) {
-    toast.error(`绑定插件失败: ${error}`)
+    toast.error(t('common.loadFailed', { error }))
   } finally {
     isLoading.value = false
   }
@@ -538,10 +538,10 @@ const unbindPluginFromProject = async (plugin_id: string) => {
     await withErrorLogging('Linker.unbindPlugin', () =>
       api.unbindPlugin(selectedProjectId.value!, plugin_id)
     )
-    toast.success('已取消绑定')
+    toast.success(t('linker.pluginUnbound'))
     await loadBindings(selectedProjectId.value)
   } catch (error) {
-    toast.error(`取消绑定失败: ${error}`)
+    toast.error(t('common.loadFailed', { error }))
   } finally {
     isLoading.value = false
   }
@@ -549,7 +549,7 @@ const unbindPluginFromProject = async (plugin_id: string) => {
 
 const confirmApply = () => {
   if (projectBindings.value.length === 0) {
-    toast.warning('当前项目没有绑定任何插件')
+    toast.warning(t('linker.noBindings'))
     return
   }
   showApplyDialog.value = true
@@ -563,12 +563,12 @@ const applyChanges = async () => {
       api.applyChanges(selectedProjectId.value!)
     )
     if (applyResult.value.success) {
-      toast.success('变更已成功应用')
+      toast.success(t('linker.applySuccess'))
     } else {
-      toast.error(`应用变更时出现错误: ${applyResult.value.errors.join(', ')}`)
+      toast.error(t('linker.applyFailed', { errors: applyResult.value.errors.join(', ') }))
     }
   } catch (error) {
-    toast.error(`应用变更失败: ${error}`)
+    toast.error(t('common.loadFailed', { error }))
   } finally {
     isApplying.value = false
   }
