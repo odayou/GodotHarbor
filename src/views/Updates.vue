@@ -126,13 +126,44 @@
       <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-content-primary">一切已是最新</h3>
       <p class="mt-1 text-sm text-gray-500 dark:text-content-secondary">所有应用、插件和引擎均为最新版本</p>
     </div>
+
+    <div v-if="updateHistory.length > 0" class="card">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary cursor-pointer" @click="showHistory = !showHistory">
+          更新历史 ({{ updateHistory.length }})
+          <span class="text-sm text-gray-500">{{ showHistory ? '▲' : '▼' }}</span>
+        </h3>
+        <button @click="clearHistory" class="px-3 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer text-gray-700 dark:text-content-secondary">
+          清空历史
+        </button>
+      </div>
+      <div v-if="showHistory" class="space-y-2 max-h-96 overflow-y-auto">
+        <div v-for="entry in updateHistory" :key="entry.id" class="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700 last:border-0">
+          <div>
+            <span class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ entry.target_name }}</span>
+            <span class="text-xs text-gray-500 dark:text-content-secondary ml-2">
+              {{ entry.from_version }} → {{ entry.to_version }}
+            </span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs px-1.5 py-0.5 rounded"
+              :class="entry.status === 'success' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'">
+              {{ entry.status === 'success' ? '成功' : '失败' }}
+            </span>
+            <span class="text-xs text-gray-400 dark:text-content-secondary">
+              {{ new Date(entry.applied_at).toLocaleDateString() }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { api } from '@/api'
-import type { AppUpdateInfo, PluginUpdateInfo, VersionUpdateInfo, HotUpdateInfo } from '@/types'
+import type { AppUpdateInfo, PluginUpdateInfo, VersionUpdateInfo, HotUpdateInfo, UpdateHistoryEntry } from '@/types'
 import { listen } from '@tauri-apps/api/event'
 
 const isChecking = ref(false)
@@ -149,6 +180,8 @@ const currentHotUpdateVersion = ref<string | null>(null)
 const isInstallingHotUpdate = ref(false)
 const hotUpdateProgress = ref(0)
 const hotUpdateMessage = ref('')
+const updateHistory = ref<UpdateHistoryEntry[]>([])
+const showHistory = ref(false)
 
 const unlisteners: (() => void)[] = []
 
@@ -195,6 +228,10 @@ const checkAll = async () => {
 
     try {
       currentHotUpdateVersion.value = await api.getCurrentHotUpdateVersion()
+    } catch {}
+
+    try {
+      updateHistory.value = await api.getUpdateHistory()
     } catch {}
   } catch (error) {
     console.error('Check updates failed:', error)
@@ -273,6 +310,15 @@ const rollbackHotUpdate = async () => {
     currentHotUpdateVersion.value = null
   } catch (error) {
     console.error('Rollback failed:', error)
+  }
+}
+
+const clearHistory = async () => {
+  try {
+    await api.clearUpdateHistory()
+    updateHistory.value = []
+  } catch (error) {
+    console.error('Clear history failed:', error)
   }
 }
 </script>

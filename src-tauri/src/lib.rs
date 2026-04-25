@@ -244,6 +244,8 @@ pub fn run() {
             commands::install_hot_update,
             commands::rollback_hot_update,
             commands::get_current_hot_update_version,
+            commands::get_update_history,
+            commands::clear_update_history,
         ))
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

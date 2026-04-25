@@ -484,3 +484,15 @@ pub struct UpdateProgress {
     pub progress: u32,
     pub message: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateHistoryEntry {
+    pub id: String,
+    pub update_type: String,
+    pub target_name: String,
+    pub from_version: String,
+    pub to_version: String,
+    pub status: String,
+    pub applied_at: String,
+    pub notes: String,
+}

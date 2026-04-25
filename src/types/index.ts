@@ -381,3 +381,14 @@ export interface UpdateProgress {
   progress: number
   message: string
 }
+
+export interface UpdateHistoryEntry {
+  id: string
+  update_type: string
+  target_name: string
+  from_version: string
+  to_version: string
+  status: string
+  applied_at: string
+  notes: string
+}

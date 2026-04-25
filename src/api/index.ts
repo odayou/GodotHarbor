@@ -28,7 +28,8 @@ import type {
   TotalStorageStats,
   AppUpdateInfo,
   UpdateCheckResult,
-  HotUpdateInfo
+  HotUpdateInfo,
+  UpdateHistoryEntry
 } from '@/types'
 
 export const api = {
@@ -346,6 +347,14 @@ export const api = {
 
   async getCurrentHotUpdateVersion(): Promise<string | null> {
     return await invoke('get_current_hot_update_version')
+  },
+
+  async getUpdateHistory(): Promise<UpdateHistoryEntry[]> {
+    return await invoke('get_update_history')
+  },
+
+  async clearUpdateHistory(): Promise<void> {
+    return await invoke('clear_update_history')
   }
 }
 

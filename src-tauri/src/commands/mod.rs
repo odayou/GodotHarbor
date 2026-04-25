@@ -938,6 +938,8 @@ pub fn update_git_plugin(app: AppHandle, plugin_id: String) -> Result<Plugin, St
     }
 
     let git_url = plugin.source.url.clone();
+    let old_version = plugin.versions.first().map(|v| v.version.clone()).unwrap_or_default();
+    let plugin_name = plugin.name.clone();
     let manager = get_plugin_manager(&app);
     let updated_plugin = manager.import_from_git(&git_url, &app)
         .map_err(|e| format!("更新Git插件失败: {}", e))?;
@@ -956,6 +958,7 @@ pub fn update_git_plugin(app: AppHandle, plugin_id: String) -> Result<Plugin, St
         .map_err(|e| format!("保存插件列表失败: {}", e))?;
 
     log_operation(&app, "update_git_plugin", &plugin_id, &format!("已更新Git插件: {}", result.name));
+    record_update_history(&app, "plugin", &plugin_name, &old_version, &result.versions.last().map(|v| v.version.clone()).unwrap_or_default(), "success", "");
     Ok(result)
 }
 
@@ -1220,6 +1223,44 @@ pub fn get_current_hot_update_version(app: AppHandle) -> Result<Option<String>, 
     let data_dir = get_data_dir(&app);
     let manager = crate::hot_update::HotUpdateManager::new(data_dir);
     manager.get_current_hot_update_version()
+}
+
+#[tauri::command]
+pub fn get_update_history(app: AppHandle) -> Result<Vec<crate::models::UpdateHistoryEntry>, String> {
+    let storage = get_storage(&app);
+    let history: Vec<crate::models::UpdateHistoryEntry> = storage.load_or_default("update_history.json");
+    Ok(history)
+}
+
+#[tauri::command]
+pub fn clear_update_history(app: AppHandle) -> Result<(), String> {
+    let storage = get_storage(&app);
+    let empty: Vec<crate::models::UpdateHistoryEntry> = Vec::new();
+    storage.save("update_history.json", &empty)
+        .map_err(|e| format!("保存更新历史失败: {}", e))?;
+    Ok(())
+}
+
+fn record_update_history(app: &AppHandle, update_type: &str, target_name: &str, from_version: &str, to_version: &str, status: &str, notes: &str) {
+    let storage = get_storage(app);
+    let mut history: Vec<crate::models::UpdateHistoryEntry> = storage.load_or_default("update_history.json");
+    
+    history.insert(0, crate::models::UpdateHistoryEntry {
+        id: uuid::Uuid::new_v4().to_string(),
+        update_type: update_type.to_string(),
+        target_name: target_name.to_string(),
+        from_version: from_version.to_string(),
+        to_version: to_version.to_string(),
+        status: status.to_string(),
+        applied_at: chrono::Utc::now().to_rfc3339(),
+        notes: notes.to_string(),
+    });
+
+    if history.len() > 100 {
+        history.truncate(100);
+    }
+
+    let _ = storage.save("update_history.json", &history);
 }
 
 #[tauri::command]
