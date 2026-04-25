@@ -563,9 +563,9 @@ const applyChanges = async () => {
       api.applyChanges(selectedProjectId.value!)
     )
     if (applyResult.value.success) {
-      toast.success(t('linker.applySuccess'))
+      toast.success(t('linker.bindingApplySuccess'))
     } else {
-      toast.error(t('linker.applyFailed', { errors: applyResult.value.errors.join(', ') }))
+      toast.error(t('linker.bindingApplyFailed', { errors: applyResult.value.errors.join(', ') }))
     }
   } catch (error) {
     toast.error(t('common.loadFailed', { error }))

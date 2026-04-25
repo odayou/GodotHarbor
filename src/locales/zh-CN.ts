@@ -144,8 +144,8 @@ export default {
     noPluginVersions: '该插件没有可用版本',
     pluginBound: '已绑定插件: {name} v{version}',
     pluginUnbound: '已取消绑定',
-    applySuccess: '变更已成功应用',
-    applyFailed: '应用变更时出现错误: {errors}'
+    bindingApplySuccess: '变更已成功应用',
+    bindingApplyFailed: '应用变更时出现错误: {errors}'
   },
   engines: {
     title: '引擎管理',

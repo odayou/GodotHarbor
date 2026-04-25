@@ -144,8 +144,8 @@ export default {
     noPluginVersions: 'This plugin has no available versions',
     pluginBound: 'Plugin bound: {name} v{version}',
     pluginUnbound: 'Unbound successfully',
-    applySuccess: 'Changes applied successfully',
-    applyFailed: 'Error applying changes: {errors}'
+    bindingApplySuccess: 'Changes applied successfully',
+    bindingApplyFailed: 'Error applying changes: {errors}'
   },
   engines: {
     title: 'Engine Management',
