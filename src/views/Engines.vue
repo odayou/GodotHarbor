@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
 import type { Engine } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
@@ -9,6 +10,7 @@ import { useDialogEscape } from '@/composables/useDialogEscape'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const toast = useToast()
+const { t } = useI18n()
 const engines = ref<Engine[]>([])
 const isLoading = ref(false)
 const showAddDialog = ref(false)
@@ -114,12 +116,12 @@ const setDefault = async (engineId: string) => {
 <template>
   <div class="space-y-6">
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">引擎管理</h1>
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ t('engines.title') }}</h1>
       <button
         @click="showAddDialog = true"
         class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm"
       >
-        注册新引擎
+        {{ t('engines.register') }}
       </button>
     </div>
 

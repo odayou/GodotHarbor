@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { api, withErrorLogging } from '@/api'
 import type { Project, Plugin, PluginVersion, PluginUnit, ProjectBinding, ApplyResult, BatchApplyResult, BatchBindingRequest } from '@/types'
@@ -8,6 +9,7 @@ import { useDialogEscape } from '@/composables/useDialogEscape'
 
 const router = useRouter()
 const toast = useToast()
+const { t } = useI18n()
 const projects = ref<Project[]>([])
 const plugins = ref<Plugin[]>([])
 const bindings = ref<ProjectBinding[]>([])
@@ -581,14 +583,14 @@ const closeApplyDialog = () => {
 <template>
   <div class="space-y-4 lg:space-y-6">
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">插件绑定</h1>
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ t('linker.title') }}</h1>
       <div class="flex flex-wrap gap-2">
         <button
           @click="showGraphView = !showGraphView"
           class="px-4 py-2 text-sm rounded-lg transition-colors"
           :class="showGraphView ? 'bg-primary-600 text-white' : 'bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-500'"
         >
-          {{ showGraphView ? '列表视图' : '图形视图' }}
+          {{ showGraphView ? t('linker.listView') : t('linker.graphView') }}
         </button>
         <button
           @click="batchApplyChanges"
@@ -602,7 +604,7 @@ const closeApplyDialog = () => {
           :disabled="isLoading || !selectedProjectId || projectBindings.length === 0"
           class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 text-sm"
         >
-          应用变更
+          {{ t('linker.apply') }}
         </button>
       </div>
     </div>
@@ -615,8 +617,8 @@ const closeApplyDialog = () => {
       <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
       </svg>
-      <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">暂无项目</h3>
-      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">请先在项目管理中添加项目</p>
+      <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('linker.emptyProject') }}</h3>
+      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('linker.emptyProjectDesc') }}</p>
       <div class="mt-4 flex justify-center">
         <button
           @click="router.push('/projects')"

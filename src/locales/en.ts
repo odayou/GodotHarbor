@@ -117,7 +117,11 @@ export default {
     selectUnitLabel: 'Select Unit',
     mountPath: 'Mount Path',
     confirmBind: 'Confirm Bind',
-    goToProjects: 'Go to Projects'
+    goToProjects: 'Go to Projects',
+    listView: 'List View',
+    graphView: 'Graph View',
+    emptyProject: 'No Projects',
+    emptyProjectDesc: 'Please add projects in project management first'
   },
   engines: {
     title: 'Engine Management',

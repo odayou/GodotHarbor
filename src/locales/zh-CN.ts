@@ -117,7 +117,11 @@ export default {
     selectUnitLabel: '选择单元',
     mountPath: '挂载路径',
     confirmBind: '确认绑定',
-    goToProjects: '前往项目'
+    goToProjects: '前往项目',
+    listView: '列表视图',
+    graphView: '图形视图',
+    emptyProject: '暂无项目',
+    emptyProjectDesc: '请先在项目管理中添加项目'
   },
   engines: {
     title: '引擎管理',
