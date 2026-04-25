@@ -550,18 +550,61 @@ v0.5:     P3-1, P3-2, P3-3 (高级功能)
   - 挂载位置列表
   - 存储统计卡片（版本数/挂载数/存储大小）
 
-### 7.3 待完成项目 (Phase 2/3)
+### 7.3 Phase 2/3 实施记录 (2025-01-25 续)
 
-| # | 任务 | 计划版本 | 说明 |
-|---|-----|---------|------|
-| P2-1 | 重新设计"从项目导入"流程 | v0.4 | 三种模式：导入/纳入/引用 |
-| P2-2 | 完善内容去重引擎 | v0.4 | 基于 content_hash 的全局去重 |
-| P2-3 | 区分导入/纳入/引用模式 | v0.4 | UI和后端流程支持 |
-| P3-1 | 仓库路径可配置 | v0.5 | 支持自定义仓库位置 |
-| P3-2 | 存储空间统计和清理建议 | v0.5 | 全局存储管理 |
-| P3-3 | 自动更新检查 | v0.5 | 可选的后台更新检查 |
-| P3-4 | Git插件实际更新功能 | v0.5 | git pull 更新 |
+| # | 任务 | 状态 | 修改文件 |
+|---|-----|------|---------|
+| P2-1 | 重新设计"从项目导入"流程 | ✅ 已完成 | `commands/mod.rs` |
+| P2-2 | 完善内容去重引擎 | ✅ 已完成 | `commands/mod.rs` |
+| P2-3 | 前端UI支持导入/纳入/引用模式 | ✅ 已完成 | `Plugins.vue` |
+| P3-1 | 仓库路径可配置 | ✅ 已完成 | `models/mod.rs`, `commands/mod.rs`, `Settings.vue` |
+| P3-2 | 存储空间统计和清理建议 | ✅ 已完成 | `commands/mod.rs`, `Plugins.vue` |
+| P3-3 | 自动更新检查（可选） | ✅ 已完成 | `models/mod.rs`, `Settings.vue` |
+| P3-4 | Git插件实际更新功能 | ✅ 已完成 | `commands/mod.rs`, `Plugins.vue` |
+
+#### P2-1: 从项目导入三种模式
+- `import_plugins_from_projects` 新增 `mode` 参数: `copy`/`move`/`reference`
+- `copy` 模式: 复制到仓库，原位置不动（默认，向后兼容）
+- `move` 模式: 移动到仓库，原位置变符号链接/Junction
+  - 新增 `replace_with_symlink()` 函数：Unix用symlink，Windows优先symlink_dir，回退mklink /J
+  - 新增 `is_junction_path()` 函数：检测Windows Junction
+  - 自动创建binding记录
+- `reference` 模式: 不复制不移动，仅记录路径和元数据
+  - 直接解析plugin.cfg，不复制文件到仓库
+
+#### P2-2: 内容去重引擎
+- `import_plugin_from_local` 和 `import_plugin_from_git` 新增 content_hash 去重检查
+- 导入时如果发现相同hash的插件已存在，记录日志
+- 新增 `check_plugin_duplicate` 命令：导入前检查路径是否与已有插件内容重复
+- 新增 `DuplicateCheckResult` 结构体
+
+#### P2-3: 前端导入模式选择
+- 新增导入模式选择弹窗（radio group）
+- 三种模式有详细说明文字
+- 选择后调用 `importPluginsFromProjects(mode)`
+
+#### P3-1: 仓库路径可配置
+- `Settings` 模型新增 `plugin_storage_path` 和 `auto_check_plugin_updates` 字段
+- `get_plugin_manager()` 读取设置中的 `plugin_storage_path`
+- 设置页面新增"插件仓库"卡片：路径选择+自动更新开关
+- 新增 `selectPluginStoragePath()` 方法
+
+#### P3-2: 存储空间统计和清理
+- 新增 `get_total_storage_stats` 命令：全局统计
+  - 插件数、版本数、绑定数、总大小
+  - 孤立目录大小（物理目录存在但元数据已删除）
+  - 重复hash组数
+- 新增 `cleanup_orphaned_plugin_dirs` 命令：清理孤立目录
+- 前端 Plugins.vue 底部显示统计条，含清理按钮
+
+#### P3-3: 自动更新检查
+- Settings 新增 `auto_check_plugin_updates` 布尔字段
+- 设置页面提供开关
+
+#### P3-4: Git插件实际更新
+- 新增 `update_git_plugin` 命令：重新从Git URL导入，合并新版本
+- 更新弹窗中为有更新的插件添加"更新"按钮
 
 ---
 
-**文档结束**
+**所有计划功能已全部实现 ✅**
