@@ -184,6 +184,11 @@ const loadGroups = async () => {
   }
 }
 
+const showProjectDetails = (project: Project) => {
+  selectedProject.value = project
+  showProjectDetail.value = true
+}
+
 const loadProjects = async () => {
   isLoading.value = true
   try {
@@ -698,7 +703,7 @@ const confirmRelocate = async () => {
                 />
                 <div 
                   class="min-w-0 flex-1 cursor-pointer hover:text-primary-600 dark:hover:text-primary-400"
-                  @click="toggleProjectSelection(project, $event)"
+                  @click="showProjectDetails(project)"
                 >
                   <div class="flex items-center gap-2">
                     <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary truncate">

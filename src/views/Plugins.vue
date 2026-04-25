@@ -313,6 +313,12 @@ const loadPluginDependencies = async (pluginId: string) => {
   }
 }
 
+const showPluginDetails = async (plugin: Plugin) => {
+  selectedPlugin.value = plugin
+  await loadPluginDependencies(plugin.plugin_id)
+  showPluginDetail.value = true
+}
+
 // @ts-ignore used in template plugin detail dialog
 void loadPluginDependencies
 
@@ -497,7 +503,7 @@ void loadPluginDependencies
                 @click.stop="togglePluginSelection(plugin, $event)"
                 class="w-4 h-4 text-primary-600 rounded flex-shrink-0 mt-1 cursor-pointer"
               />
-              <div class="min-w-0 flex-1 cursor-pointer" @click="togglePluginSelection(plugin, $event)">
+              <div class="min-w-0 flex-1 cursor-pointer" @click="showPluginDetails(plugin)">
                 <div class="flex items-center gap-2">
                   <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary truncate">
                     {{ plugin.name }}
