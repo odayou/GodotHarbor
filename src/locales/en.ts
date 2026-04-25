@@ -269,6 +269,7 @@ export default {
     batchDeleteComplete: 'Batch delete complete: {success} succeeded, {failed} failed',
     batchDeleteSuccess: 'Successfully deleted {count} projects',
     batchDeleteFailed: 'Batch delete failed: {error}',
+    batchImportSuccess: 'Successfully imported {count} assets',
     loadFailed: 'Load failed: {error}',
     projectMigrated: 'Project {name} has been migrated to new path',
     migrationFailed: 'Migration failed: {error}',

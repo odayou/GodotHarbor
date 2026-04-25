@@ -269,6 +269,7 @@ export default {
     batchDeleteComplete: '批量删除完成: 成功 {success} 个, 失败 {failed} 个',
     batchDeleteSuccess: '已成功删除 {count} 个项目',
     batchDeleteFailed: '批量删除项目失败: {error}',
+    batchImportSuccess: '已成功导入 {count} 个资产',
     loadFailed: '加载失败: {error}',
     projectMigrated: '项目 {name} 已迁移到新路径',
     migrationFailed: '迁移失败: {error}',

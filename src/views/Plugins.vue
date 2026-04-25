@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
 import type { Plugin, PluginUpdateInfo, PluginDependency, AssetLibrarySearchResult, AssetLibrarySearchResponse, AssetLibraryCategory, AssetLibraryAsset, AssetImportProgress } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
+import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { useToast } from '@/composables/useToast'
 import { useDialogEscape } from '@/composables/useDialogEscape'
 import { usePluginStore } from '@/stores'
@@ -13,6 +14,22 @@ const pluginStore = usePluginStore()
 
 const toast = useToast()
 const { t } = useI18n()
+
+const sendImportNotification = async (title: string, body: string) => {
+  try {
+    let permissionGranted = await isPermissionGranted()
+    if (!permissionGranted) {
+      const permission = await requestPermission()
+      permissionGranted = permission === 'granted'
+    }
+    if (permissionGranted) {
+      sendNotification({ title, body })
+    }
+  } catch (e) {
+    console.error('Notification error:', e)
+  }
+}
+
 const plugins = ref<Plugin[]>([])
 const isLoading = ref(false)
 const gitUrl = ref('')
@@ -348,6 +365,7 @@ const importAsset = async (assetId: string, assetTitle: string) => {
   try {
     await api.importFromAssetLibraryWithProgress(assetId)
     toast.success(t('assetLibrary.importSuccess') + ': ' + assetTitle)
+    sendImportNotification('Godot Harbor', t('assetLibrary.importSuccess') + ': ' + assetTitle)
     await loadPlugins()
   } catch (error) {
     toast.error(t('assetLibrary.importFailed') + ': ' + error)
@@ -379,8 +397,10 @@ const batchImportAssets = async () => {
   selectedAssetIds.value = new Set()
   if (failCount > 0) {
     toast.warning(t('common.batchDeleteComplete', { success: successCount, failed: failCount }))
+    sendImportNotification('Godot Harbor', t('common.batchDeleteComplete', { success: successCount, failed: failCount }))
   } else {
     toast.success(t('common.batchDeleteSuccess', { count: successCount }))
+    sendImportNotification('Godot Harbor', t('common.batchImportSuccess', { count: successCount }))
   }
   await loadPlugins()
 }
