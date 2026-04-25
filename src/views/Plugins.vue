@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
-import type { Plugin, PluginUpdateInfo, PluginDependency, AssetLibrarySearchResult, AssetLibrarySearchResponse, AssetLibraryCategory, AssetLibraryAsset, PluginStorageStats, ProjectBinding } from '@/types'
+import type { Plugin, PluginUpdateInfo, PluginDependency, AssetLibrarySearchResult, AssetLibrarySearchResponse, AssetLibraryCategory, AssetLibraryAsset, PluginStorageStats, ProjectBinding, TotalStorageStats } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { useToast } from '@/composables/useToast'
@@ -40,6 +40,9 @@ const pluginDependencies = ref<PluginDependency[]>([])
 const pluginStorageStats = ref<PluginStorageStats | null>(null)
 const pluginBindings = ref<ProjectBinding[]>([])
 const showUpdatesDialog = ref(false)
+const showImportModeDialog = ref(false)
+const importMode = ref<'copy' | 'move' | 'reference'>('copy')
+const totalStorageStats = ref<TotalStorageStats | null>(null)
 const pluginUpdates = ref<PluginUpdateInfo[]>([])
 const isCheckingUpdates = ref(false)
 
@@ -245,6 +248,7 @@ let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
 onMounted(async () => {
   loadPlugins()
+  loadTotalStorageStats()
 })
 
 onUnmounted(() => {
@@ -259,6 +263,7 @@ useDialogEscape(showPluginDetail)
 useDialogEscape(showAssetLibraryDialog)
 useDialogEscape(showAssetDetailDialog)
 useDialogEscape(showUpdatesDialog)
+useDialogEscape(showImportModeDialog)
 
 const openAssetLibrary = async () => {
   showAssetLibraryDialog.value = true
@@ -446,11 +451,17 @@ const toggleFavorite = async (plugin: Plugin) => {
 }
 
 const importFromProjects = async () => {
+  showImportModeDialog.value = true
+}
+
+const doImportFromProjects = async () => {
+  showImportModeDialog.value = false
   isLoading.value = true
   try {
-    const importedPlugins = await api.importPluginsFromProjects()
+    const importedPlugins = await api.importPluginsFromProjects(importMode.value)
     if (importedPlugins.length > 0) {
-      toast.success(t('common.scanComplete', { count: importedPlugins.length }))
+      const modeLabel = importMode.value === 'copy' ? '复制' : importMode.value === 'move' ? '纳入' : '引用'
+      toast.success(`以${modeLabel}模式导入了 ${importedPlugins.length} 个插件`)
     } else {
       toast.info(t('plugins.noNewPluginsFound'))
     }
@@ -471,6 +482,38 @@ const checkPluginUpdates = async () => {
     toast.error(t('common.loadFailed', { error }))
   } finally {
     isCheckingUpdates.value = false
+  }
+}
+
+const updateGitPlugin = async (pluginId: string) => {
+  try {
+    const result = await api.updateGitPlugin(pluginId)
+    toast.success(`插件 ${result.name} 已更新`)
+    await loadPlugins()
+  } catch (error) {
+    toast.error(t('common.loadFailed', { error }))
+  }
+}
+
+const loadTotalStorageStats = async () => {
+  try {
+    totalStorageStats.value = await api.getTotalStorageStats()
+  } catch (e) {
+    console.error('Failed to load total storage stats:', e)
+  }
+}
+
+const cleanupOrphaned = async () => {
+  try {
+    const count = await api.cleanupOrphanedPluginDirs()
+    if (count > 0) {
+      toast.success(`已清理 ${count} 个孤立目录`)
+      await loadTotalStorageStats()
+    } else {
+      toast.info('没有需要清理的孤立目录')
+    }
+  } catch (error) {
+    toast.error(t('common.loadFailed', { error }))
   }
 }
 
@@ -1161,12 +1204,21 @@ const closePluginDetail = () => {
                   当前版本: {{ update.current_version }} → 最新版本: {{ update.latest_version }}
                 </div>
               </div>
-              <span v-if="update.update_available" class="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                有更新
-              </span>
-              <span v-else class="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-600 dark:text-gray-400">
-                已是最新
-              </span>
+              <div class="flex items-center gap-2">
+                <button
+                  v-if="update.update_available"
+                  @click="updateGitPlugin(update.plugin_id)"
+                  class="px-3 py-1 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700"
+                >
+                  更新
+                </button>
+                <span v-if="update.update_available" class="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                  有更新
+                </span>
+                <span v-else class="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-600 dark:text-gray-400">
+                  已是最新
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -1178,6 +1230,70 @@ const closePluginDetail = () => {
             关闭
           </button>
         </div>
+      </div>
+    </div>
+
+    <div v-if="showImportModeDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showImportModeDialog = false">
+      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">从项目导入插件</h3>
+        <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">选择导入模式：</p>
+        <div class="space-y-3 mb-6">
+          <label class="flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors"
+            :class="importMode === 'copy' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-surface-layer'">
+            <input type="radio" v-model="importMode" value="copy" class="mt-1" />
+            <div>
+              <div class="font-medium text-gray-900 dark:text-content-primary text-sm">复制到仓库（推荐）</div>
+              <div class="text-xs text-gray-500 dark:text-content-secondary mt-0.5">将插件复制到仓库管理，项目中的原文件保持不变</div>
+            </div>
+          </label>
+          <label class="flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors"
+            :class="importMode === 'move' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-surface-layer'">
+            <input type="radio" v-model="importMode" value="move" class="mt-1" />
+            <div>
+              <div class="font-medium text-gray-900 dark:text-content-primary text-sm">纳入管理</div>
+              <div class="text-xs text-gray-500 dark:text-content-secondary mt-0.5">将插件移动到仓库，原位置变为符号链接指向仓库，节省空间</div>
+            </div>
+          </label>
+          <label class="flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors"
+            :class="importMode === 'reference' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-surface-layer'">
+            <input type="radio" v-model="importMode" value="reference" class="mt-1" />
+            <div>
+              <div class="font-medium text-gray-900 dark:text-content-primary text-sm">仅记录索引</div>
+              <div class="text-xs text-gray-500 dark:text-content-secondary mt-0.5">不复制不移动，仅在仓库中记录插件位置和元数据</div>
+            </div>
+          </label>
+        </div>
+        <div class="flex justify-end gap-3">
+          <button @click="showImportModeDialog = false" class="btn-secondary">取消</button>
+          <button @click="doImportFromProjects" class="btn-primary">开始导入</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="totalStorageStats" class="card">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-4 text-sm text-gray-600 dark:text-content-secondary">
+          <span>{{ totalStorageStats.total_plugins }} 个插件</span>
+          <span class="text-gray-300 dark:text-content-secondary">|</span>
+          <span>{{ totalStorageStats.total_versions }} 个版本</span>
+          <span class="text-gray-300 dark:text-content-secondary">|</span>
+          <span>{{ totalStorageStats.total_bindings }} 个挂载</span>
+          <span class="text-gray-300 dark:text-content-secondary">|</span>
+          <span>占用 {{ totalStorageStats.total_size_display }}</span>
+          <span v-if="totalStorageStats.orphaned_size_bytes > 0" class="text-orange-500">
+            | {{ totalStorageStats.orphaned_size_display }} 可清理
+          </span>
+          <span v-if="totalStorageStats.duplicate_hash_count > 0" class="text-yellow-500">
+            | {{ totalStorageStats.duplicate_hash_count }} 组内容重复
+          </span>
+        </div>
+        <button
+          v-if="totalStorageStats.orphaned_size_bytes > 0"
+          @click="cleanupOrphaned"
+          class="px-3 py-1 text-xs border border-orange-300 dark:border-orange-700 text-orange-600 dark:text-orange-400 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20"
+        >
+          清理孤立文件
+        </button>
       </div>
     </div>
 

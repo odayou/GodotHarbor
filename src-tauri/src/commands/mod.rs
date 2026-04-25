@@ -23,8 +23,14 @@ fn get_storage(app: &AppHandle) -> Storage {
 }
 
 fn get_plugin_manager(app: &AppHandle) -> PluginManager {
-    let data_dir = get_data_dir(app);
-    PluginManager::new(data_dir.join("plugins"))
+    let storage = get_storage(app);
+    let settings: Settings = storage.load_or_default("settings.json");
+    let plugins_dir = if settings.plugin_storage_path.is_empty() {
+        get_data_dir(app).join("plugins")
+    } else {
+        PathBuf::from(&settings.plugin_storage_path)
+    };
+    PluginManager::new(plugins_dir)
 }
 
 fn get_logger(app: &AppHandle) -> OperationLogger {
@@ -187,12 +193,21 @@ pub fn import_plugin_from_local(app: AppHandle, path: String) -> Result<Plugin, 
     let existing_idx = plugins.iter().position(|p| p.source.url == new_plugin.source.url);
     if let Some(idx) = existing_idx {
         plugins[idx].versions.extend(new_plugin.versions);
+        if !new_plugin.content_hash.is_empty() {
+            plugins[idx].content_hash = new_plugin.content_hash.clone();
+        }
         let result = plugins[idx].clone();
         storage.save("plugins.json", &plugins)
             .map_err(|e| format!("保存插件列表失败: {}", e))?;
         log_operation(&app, "import_plugin", &path, &format!("已为插件 {} 添加新版本", plugin_name));
         Ok(result)
     } else {
+        if !new_plugin.content_hash.is_empty() {
+            if let Some(dup) = plugins.iter().find(|p| !p.content_hash.is_empty() && p.content_hash == new_plugin.content_hash) {
+                log_operation(&app, "import_plugin", &path, 
+                    &format!("插件 {} 与已有插件 {} 内容相同(hash匹配)", plugin_name, dup.name));
+            }
+        }
         plugins.push(new_plugin.clone());
         storage.save("plugins.json", &plugins)
             .map_err(|e| format!("保存插件列表失败: {}", e))?;
@@ -218,12 +233,21 @@ pub fn import_plugin_from_git(app: AppHandle, url: String) -> Result<Plugin, Str
     let existing_idx = plugins.iter().position(|p| p.source.url == new_plugin.source.url);
     if let Some(idx) = existing_idx {
         plugins[idx].versions.extend(new_plugin.versions);
+        if !new_plugin.content_hash.is_empty() {
+            plugins[idx].content_hash = new_plugin.content_hash.clone();
+        }
         let result = plugins[idx].clone();
         storage.save("plugins.json", &plugins)
             .map_err(|e| format!("保存插件列表失败: {}", e))?;
         log_operation(&app, "import_plugin_git", &url, &format!("已为插件 {} 添加新版本", plugin_name));
         Ok(result)
     } else {
+        if !new_plugin.content_hash.is_empty() {
+            if let Some(dup) = plugins.iter().find(|p| !p.content_hash.is_empty() && p.content_hash == new_plugin.content_hash) {
+                log_operation(&app, "import_plugin_git", &url, 
+                    &format!("插件 {} 与已有插件 {} 内容相同(hash匹配)", plugin_name, dup.name));
+            }
+        }
         plugins.push(new_plugin.clone());
         storage.save("plugins.json", &plugins)
             .map_err(|e| format!("保存插件列表失败: {}", e))?;
@@ -470,7 +494,12 @@ pub fn scan_project_plugins(app: AppHandle) -> Result<Vec<crate::models::Scanned
 }
 
 #[tauri::command]
-pub fn import_plugins_from_projects(app: AppHandle) -> Result<Vec<Plugin>, String> {
+pub fn import_plugins_from_projects(app: AppHandle, mode: Option<String>) -> Result<Vec<Plugin>, String> {
+    let import_mode = mode.unwrap_or_else(|| "copy".to_string());
+    if !["copy", "move", "reference"].contains(&import_mode.as_str()) {
+        return Err("无效的导入模式，支持: copy, move, reference".to_string());
+    }
+
     let storage = get_storage(&app);
     let projects: Vec<Project> = storage.load_or_default("projects.json");
 
@@ -493,35 +522,129 @@ pub fn import_plugins_from_projects(app: AppHandle) -> Result<Vec<Plugin>, Strin
         .map(|p| p.name.to_lowercase())
         .collect();
 
-    for scanned in scanned_plugins {
+    for scanned in &scanned_plugins {
         let path_str = scanned.path.clone();
+        let plugin_name_lower = scanned.plugin_name.to_lowercase();
 
         let already_imported = plugins.iter()
-            .any(|p| p.source.url == path_str);
+            .any(|p| p.source.url == path_str || p.name.to_lowercase() == plugin_name_lower);
 
         if already_imported {
             continue;
         }
 
-        match manager.import_from_local(&path_str) {
-            Ok(plugin) => {
-                let plugin_name_lower = plugin.name.to_lowercase();
-                if seen_names.contains(&plugin_name_lower) {
-                    if let Some(idx) = plugins.iter().position(|p| p.name.to_lowercase() == plugin_name_lower) {
-                        plugins[idx].versions.extend(plugin.versions);
-                        if !plugin.content_hash.is_empty() {
-                            plugins[idx].content_hash = plugin.content_hash.clone();
-                        }
-                        let result = plugins[idx].clone();
-                        imported_plugins.push(result);
+        match import_mode.as_str() {
+            "copy" => {
+                match manager.import_from_local(&path_str) {
+                    Ok(plugin) => {
+                        seen_names.insert(plugin.name.to_lowercase());
+                        imported_plugins.push(plugin.clone());
+                        plugins.push(plugin);
                     }
-                } else {
-                    seen_names.insert(plugin_name_lower);
-                    imported_plugins.push(plugin.clone());
-                    plugins.push(plugin);
+                    Err(e) => eprintln!("Failed to import plugin from {}: {}", path_str, e),
                 }
             }
-            Err(e) => eprintln!("Failed to import plugin from {}: {}", path_str, e),
+            "move" => {
+                match manager.import_from_local(&path_str) {
+                    Ok(mut plugin) => {
+                        let source_path = Path::new(&path_str);
+                        if let Ok(metadata) = fs::symlink_metadata(source_path) {
+                            if metadata.file_type().is_symlink() || is_junction_path(source_path) {
+                                if let Ok(link_target) = fs::read_link(source_path) {
+                                    plugin.source.url = link_target.to_string_lossy().to_string();
+                                }
+                            }
+                        }
+                        let plugin_id = plugin.plugin_id.clone();
+                        let version = plugin.versions.first();
+                        let version_id = version.map(|v| v.version_id.clone()).unwrap_or_default();
+                        let payload_path = version
+                            .map(|v| v.path.clone())
+                            .unwrap_or_default();
+
+                        if let Err(e) = replace_with_symlink(source_path, &payload_path) {
+                            eprintln!("Warning: failed to replace with symlink: {}", e);
+                        }
+
+                        seen_names.insert(plugin.name.to_lowercase());
+                        imported_plugins.push(plugin.clone());
+                        plugins.push(plugin);
+
+                        let mut bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
+                        let project = projects.iter().find(|p| path_str.starts_with(&p.path));
+                        if let Some(proj) = project {
+                            let mount_path = path_str.replace(&format!("{}/", proj.path.replace('\\', "/")), "")
+                                .replace(&format!("{}\\", proj.path), "");
+                            bindings.push(ProjectBinding::new(
+                                proj.project_id.clone(),
+                                plugin_id,
+                                version_id,
+                                String::new(),
+                                mount_path,
+                            ));
+                            storage.save("bindings.json", &bindings)
+                                .map_err(|e| format!("保存绑定关系失败: {}", e))?;
+                        }
+                    }
+                    Err(e) => eprintln!("Failed to import plugin from {}: {}", path_str, e),
+                }
+            }
+            "reference" => {
+                let source = Path::new(&path_str);
+                let plugin_name = scanned.plugin_name.clone();
+                let plugin_source = PluginSource {
+                    source_type: SourceType::Local,
+                    url: path_str.clone(),
+                    imported_at: chrono::Utc::now(),
+                };
+                let mut plugin = Plugin::new(plugin_name.clone(), plugin_source);
+                plugin.content_hash = compute_dir_hash(source).unwrap_or_default();
+
+                match manager.parse_plugin_units(source) {
+                    Ok(units) => {
+                        let (unit_version, unit_name, unit_description, unit_author) =
+                            if let Some(first_unit) = units.first() {
+                                (
+                                    if first_unit.version.is_empty() { "1.0.0".to_string() } else { first_unit.version.clone() },
+                                    if first_unit.name.is_empty() { plugin_name } else { first_unit.name.clone() },
+                                    first_unit.description.clone(),
+                                    first_unit.author.clone(),
+                                )
+                            } else {
+                                ("1.0.0".to_string(), plugin_name, String::new(), String::new())
+                            };
+                        let version_id = Uuid::new_v4().to_string();
+                        let plugin_version = PluginVersion {
+                            version_id,
+                            version: unit_version,
+                            path: path_str.clone(),
+                            created_at: chrono::Utc::now(),
+                            units,
+                        };
+                        plugin.versions.push(plugin_version);
+                        plugin.compatibility = manager.detect_compatibility(source);
+                        plugin.name = unit_name;
+                        plugin.description = unit_description;
+                        plugin.author = unit_author;
+                    }
+                    Err(_) => {
+                        let version_id = Uuid::new_v4().to_string();
+                        let plugin_version = PluginVersion {
+                            version_id,
+                            version: "1.0.0".to_string(),
+                            path: path_str.clone(),
+                            created_at: chrono::Utc::now(),
+                            units: Vec::new(),
+                        };
+                        plugin.versions.push(plugin_version);
+                    }
+                }
+
+                seen_names.insert(plugin.name.to_lowercase());
+                imported_plugins.push(plugin.clone());
+                plugins.push(plugin);
+            }
+            _ => {}
         }
     }
 
@@ -529,9 +652,68 @@ pub fn import_plugins_from_projects(app: AppHandle) -> Result<Vec<Plugin>, Strin
         .map_err(|e| format!("保存插件列表失败: {}", e))?;
 
     log_operation(&app, "import_plugins_from_projects", "", 
-        &format!("从项目导入了 {} 个插件", imported_plugins.len()));
+        &format!("从项目以 {} 模式导入了 {} 个插件", import_mode, imported_plugins.len()));
 
     Ok(imported_plugins)
+}
+
+fn is_junction_path(path: &Path) -> bool {
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        if let Ok(metadata) = fs::symlink_metadata(path) {
+            const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+            return metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0;
+        }
+    }
+    let _ = path;
+    false
+}
+
+fn replace_with_symlink(original_path: &Path, repo_payload_path: &str) -> Result<(), String> {
+    let payload = Path::new(repo_payload_path);
+    if !payload.exists() {
+        return Err("仓库中的插件路径不存在".to_string());
+    }
+    let parent = original_path.parent()
+        .ok_or_else(|| "无法获取父目录".to_string())?;
+    let temp_name = format!(".harbor-tmp-{}", uuid::Uuid::new_v4());
+    let temp_path = parent.join(&temp_name);
+    fs::rename(original_path, &temp_path)
+        .map_err(|e| format!("重命名原始目录失败: {}", e))?;
+
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(payload, original_path)
+            .map_err(|e| {
+                let _ = fs::rename(&temp_path, original_path);
+                format!("创建符号链接失败: {}", e)
+            })?;
+    }
+
+    #[cfg(windows)]
+    {
+        match std::os::windows::fs::symlink_dir(payload, original_path) {
+            Ok(_) => {}
+            Err(_) => {
+                let output = std::process::Command::new("cmd")
+                    .args(&["/C", "mklink", "/J"])
+                    .arg(original_path)
+                    .arg(payload)
+                    .output()
+                    .map_err(|e| format!("执行mklink失败: {}", e))?;
+                if !output.status.success() {
+                    let _ = fs::rename(&temp_path, original_path);
+                    return Err(format!("创建Junction失败: {}", String::from_utf8_lossy(&output.stderr)));
+                }
+            }
+        }
+    }
+
+    fs::remove_dir_all(&temp_path)
+        .map_err(|e| format!("删除临时目录失败: {}", e))?;
+
+    Ok(())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -625,6 +807,156 @@ pub fn get_plugin_bindings(app: AppHandle, plugin_id: String) -> Result<Vec<Proj
     let storage = get_storage(&app);
     let bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
     Ok(bindings.into_iter().filter(|b| b.plugin_id == plugin_id).collect())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DuplicateCheckResult {
+    pub is_duplicate: bool,
+    pub duplicate_plugin_id: Option<String>,
+    pub duplicate_plugin_name: Option<String>,
+    pub content_hash: String,
+}
+
+#[tauri::command]
+pub fn check_plugin_duplicate(app: AppHandle, path: String) -> Result<DuplicateCheckResult, String> {
+    let source = Path::new(&path);
+    if !source.exists() {
+        return Err("指定路径不存在".to_string());
+    }
+    let content_hash = crate::models::compute_dir_hash(source)
+        .map_err(|e| format!("计算内容hash失败: {}", e))?;
+
+    let storage = get_storage(&app);
+    let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+
+    let duplicate = plugins.iter()
+        .find(|p| !p.content_hash.is_empty() && p.content_hash == content_hash);
+
+    Ok(DuplicateCheckResult {
+        is_duplicate: duplicate.is_some(),
+        duplicate_plugin_id: duplicate.map(|p| p.plugin_id.clone()),
+        duplicate_plugin_name: duplicate.map(|p| p.name.clone()),
+        content_hash,
+    })
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TotalStorageStats {
+    pub total_plugins: usize,
+    pub total_versions: usize,
+    pub total_bindings: usize,
+    pub total_size_bytes: u64,
+    pub total_size_display: String,
+    pub orphaned_size_bytes: u64,
+    pub orphaned_size_display: String,
+    pub duplicate_hash_count: usize,
+}
+
+#[tauri::command]
+pub fn get_total_storage_stats(app: AppHandle) -> Result<TotalStorageStats, String> {
+    let storage = get_storage(&app);
+    let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+    let bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
+
+    let total_versions: usize = plugins.iter().map(|p| p.versions.len()).sum();
+    let total_size_bytes = dir_size(&get_data_dir(&app).join("plugins"));
+
+    let plugins_dir = get_data_dir(&app).join("plugins");
+    let mut orphaned_size: u64 = 0;
+    if plugins_dir.exists() {
+        if let Ok(entries) = fs::read_dir(&plugins_dir) {
+            for entry in entries.filter_map(|e| e.ok()) {
+                let entry_path = entry.path();
+                if entry_path.is_dir() {
+                    let dir_name = entry_path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                    if !plugins.iter().any(|p| p.plugin_id == dir_name) {
+                        orphaned_size += dir_size(&entry_path);
+                    }
+                }
+            }
+        }
+    }
+
+    let mut hash_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    for p in &plugins {
+        if !p.content_hash.is_empty() {
+            *hash_counts.entry(p.content_hash.clone()).or_insert(0) += 1;
+        }
+    }
+    let duplicate_hash_count = hash_counts.values().filter(|&&c| c > 1).count();
+
+    Ok(TotalStorageStats {
+        total_plugins: plugins.len(),
+        total_versions,
+        total_bindings: bindings.len(),
+        total_size_bytes,
+        total_size_display: format_size(total_size_bytes),
+        orphaned_size_bytes: orphaned_size,
+        orphaned_size_display: format_size(orphaned_size),
+        duplicate_hash_count,
+    })
+}
+
+#[tauri::command]
+pub fn cleanup_orphaned_plugin_dirs(app: AppHandle) -> Result<u64, String> {
+    let storage = get_storage(&app);
+    let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+    let plugins_dir = get_data_dir(&app).join("plugins");
+
+    let mut cleaned = 0u64;
+    if plugins_dir.exists() {
+        if let Ok(entries) = fs::read_dir(&plugins_dir) {
+            for entry in entries.filter_map(|e| e.ok()) {
+                let entry_path = entry.path();
+                if entry_path.is_dir() {
+                    let dir_name = entry_path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                    if !plugins.iter().any(|p| p.plugin_id == dir_name) {
+                        if let Ok(()) = fs::remove_dir_all(&entry_path) {
+                            cleaned += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    log_operation(&app, "cleanup_orphaned", "", &format!("清理了 {} 个孤立目录", cleaned));
+    Ok(cleaned)
+}
+
+#[tauri::command]
+pub fn update_git_plugin(app: AppHandle, plugin_id: String) -> Result<Plugin, String> {
+    let storage = get_storage(&app);
+    let mut plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+
+    let plugin = plugins.iter()
+        .find(|p| p.plugin_id == plugin_id)
+        .ok_or("未找到指定插件".to_string())?;
+
+    if plugin.source.source_type != SourceType::Git {
+        return Err("仅支持更新Git来源的插件".to_string());
+    }
+
+    let git_url = plugin.source.url.clone();
+    let manager = get_plugin_manager(&app);
+    let updated_plugin = manager.import_from_git(&git_url, &app)
+        .map_err(|e| format!("更新Git插件失败: {}", e))?;
+
+    let idx = plugins.iter().position(|p| p.plugin_id == plugin_id)
+        .ok_or("未找到指定插件".to_string())?;
+
+    plugins[idx].versions.extend(updated_plugin.versions);
+    if !updated_plugin.content_hash.is_empty() {
+        plugins[idx].content_hash = updated_plugin.content_hash;
+    }
+    plugins[idx].updated_at = chrono::Utc::now();
+
+    let result = plugins[idx].clone();
+    storage.save("plugins.json", &plugins)
+        .map_err(|e| format!("保存插件列表失败: {}", e))?;
+
+    log_operation(&app, "update_git_plugin", &plugin_id, &format!("已更新Git插件: {}", result.name));
+    Ok(result)
 }
 
 #[tauri::command]

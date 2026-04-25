@@ -67,6 +67,8 @@ export interface Settings {
   sidebar_collapsed?: boolean
   auto_discover_engines?: boolean
   onboarding_completed?: boolean
+  plugin_storage_path?: string
+  auto_check_plugin_updates?: boolean
 }
 
 export interface ApplyResult {
@@ -318,4 +320,22 @@ export interface PluginStorageStats {
   total_size_display: string
   version_count: number
   binding_count: number
+}
+
+export interface DuplicateCheckResult {
+  is_duplicate: boolean
+  duplicate_plugin_id: string | null
+  duplicate_plugin_name: string | null
+  content_hash: string
+}
+
+export interface TotalStorageStats {
+  total_plugins: number
+  total_versions: number
+  total_bindings: number
+  total_size_bytes: number
+  total_size_display: string
+  orphaned_size_bytes: number
+  orphaned_size_display: string
+  duplicate_hash_count: number
 }

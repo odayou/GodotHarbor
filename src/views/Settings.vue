@@ -13,7 +13,7 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 const toast = useToast()
 const { t, locale } = useI18n()
 const { setTheme, initTheme } = useTheme()
-const settings = ref<Settings>({ scan_directories: [], mount_strategy: 'Symlink', language: 'zh-CN', theme: 'system', auto_scan_on_startup: true, auto_discover_engines: true })
+const settings = ref<Settings>({ scan_directories: [], mount_strategy: 'Symlink', language: 'zh-CN', theme: 'system', auto_scan_on_startup: true, auto_discover_engines: true, plugin_storage_path: '', auto_check_plugin_updates: false })
 const isLoading = ref(false)
 const logs = ref<LogEntry[]>([])
 const showLogs = ref(false)
@@ -37,7 +37,7 @@ const loadSettings = async () => {
   isLoading.value = true
   try {
     const result = await api.getSettings()
-    settings.value = { scan_directories: result.scan_directories || [], mount_strategy: result.mount_strategy || 'Symlink', language: result.language || 'zh-CN', theme: result.theme || 'system', auto_scan_on_startup: result.auto_scan_on_startup ?? true, auto_discover_engines: result.auto_discover_engines ?? true }
+    settings.value = { scan_directories: result.scan_directories || [], mount_strategy: result.mount_strategy || 'Symlink', language: result.language || 'zh-CN', theme: result.theme || 'system', auto_scan_on_startup: result.auto_scan_on_startup ?? true, auto_discover_engines: result.auto_discover_engines ?? true, plugin_storage_path: result.plugin_storage_path || '', auto_check_plugin_updates: result.auto_check_plugin_updates ?? false }
     locale.value = settings.value.language
     if (['light', 'dark', 'system', 'volcano'].includes(settings.value.theme)) setTheme(settings.value.theme as 'light' | 'dark' | 'system' | 'volcano')
   } catch (error) { toast.error(`加载设置失败: ${error}`) }
@@ -93,6 +93,15 @@ const selectBackupPath = async () => {
     const selected = await open({ directory: true, multiple: false, title: '选择备份目录' })
     if (selected && typeof selected === 'string') {
       backupPath.value = selected
+    }
+  } catch (error) { toast.error(`选择目录失败: ${error}`) }
+}
+
+const selectPluginStoragePath = async () => {
+  try {
+    const selected = await open({ directory: true, multiple: false, title: '选择插件仓库存储路径' })
+    if (selected && typeof selected === 'string') {
+      settings.value.plugin_storage_path = selected
     }
   } catch (error) { toast.error(`选择目录失败: ${error}`) }
 }
@@ -281,6 +290,33 @@ const resetOnboarding = async () => {
           <option value="Junction">{{ t('settings.junction') }}</option>
           <option value="Copy">{{ t('settings.copy') }}</option>
         </select>
+      </div>
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">插件仓库</h2>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">仓库存储路径</label>
+            <div class="flex gap-2">
+              <input
+                type="text"
+                v-model="settings.plugin_storage_path"
+                placeholder="留空使用默认路径"
+                class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+              />
+              <button
+                @click="selectPluginStoragePath"
+                class="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+              >
+                浏览
+              </button>
+            </div>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">设置插件文件的存储位置。留空则使用应用数据目录下的默认路径。修改后新导入的插件将存储到新位置。</p>
+          </div>
+          <label class="flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" v-model="settings.auto_check_plugin_updates" class="w-4 h-4 text-primary-600 rounded" />
+            <span class="text-sm text-gray-700 dark:text-gray-300">自动检查插件更新</span>
+          </label>
+        </div>
       </div>
       <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.appearance') }}</h2>

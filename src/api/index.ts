@@ -23,7 +23,9 @@ import type {
   AssetLibraryConfigure,
   AssetLibraryAsset,
   ScannedPlugin,
-  PluginStorageStats
+  PluginStorageStats,
+  DuplicateCheckResult,
+  TotalStorageStats
 } from '@/types'
 
 export const api = {
@@ -99,8 +101,8 @@ export const api = {
     return await invoke('scan_project_plugins')
   },
 
-  async importPluginsFromProjects(): Promise<Plugin[]> {
-    return await invoke('import_plugins_from_projects')
+  async importPluginsFromProjects(mode?: string): Promise<Plugin[]> {
+    return await invoke('import_plugins_from_projects', { mode: mode || null })
   },
 
   async getOperationLogs(limit?: number): Promise<LogEntry[]> {
@@ -285,6 +287,22 @@ export const api = {
 
   async getPluginBindings(pluginId: string): Promise<ProjectBinding[]> {
     return await invoke('get_plugin_bindings', { pluginId })
+  },
+
+  async checkPluginDuplicate(path: string): Promise<DuplicateCheckResult> {
+    return await invoke('check_plugin_duplicate', { path })
+  },
+
+  async getTotalStorageStats(): Promise<TotalStorageStats> {
+    return await invoke('get_total_storage_stats')
+  },
+
+  async cleanupOrphanedPluginDirs(): Promise<number> {
+    return await invoke('cleanup_orphaned_plugin_dirs')
+  },
+
+  async updateGitPlugin(pluginId: string): Promise<Plugin> {
+    return await invoke('update_git_plugin', { pluginId })
   }
 }
 

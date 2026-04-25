@@ -237,6 +237,10 @@ pub struct Settings {
     pub auto_discover_engines: bool,
     #[serde(default)]
     pub onboarding_completed: bool,
+    #[serde(default)]
+    pub plugin_storage_path: String,
+    #[serde(default)]
+    pub auto_check_plugin_updates: bool,
 }
 
 fn default_true() -> bool { true }
@@ -252,6 +256,8 @@ impl Default for Settings {
             sidebar_collapsed: false,
             auto_discover_engines: true,
             onboarding_completed: false,
+            plugin_storage_path: String::new(),
+            auto_check_plugin_updates: false,
         }
     }
 }
