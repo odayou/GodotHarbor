@@ -55,11 +55,11 @@ registerShortcut({
 </script>
 
 <template>
-  <div class="flex h-screen bg-gray-50 dark:bg-gray-900">
+  <div class="flex h-screen bg-white dark:bg-surface-layer">
     <Sidebar />
     <div class="flex-1 flex flex-col overflow-hidden">
       <Header />
-      <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
+      <main class="flex-1 overflow-x-hidden overflow-y-auto bg-white dark:bg-surface-layer p-4 md:p-6">
         <RouterView />
       </main>
       <StatusBar />

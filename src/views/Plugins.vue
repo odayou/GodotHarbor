@@ -291,20 +291,20 @@ const showPluginDetails = async (plugin: Plugin) => {
       </div>
     </div>
 
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5">
+    <div class="card">
       <div class="flex flex-col lg:flex-row gap-4">
         <div class="flex-1">
           <input
             v-model="searchQuery"
             type="text"
             placeholder="搜索插件名称、描述或作者..."
-            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+            class="w-full px-4 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-sm"
           />
         </div>
         <div class="flex flex-wrap gap-2 items-center">
           <select
             v-model="filterCompatibility"
-            class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+            class="px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-sm"
           >
             <option value="all">全部版本</option>
             <option value="Godot4">Godot 4</option>
@@ -313,7 +313,7 @@ const showPluginDetails = async (plugin: Plugin) => {
           </select>
           <select
             v-model="filterSource"
-            class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+            class="px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-sm"
           >
             <option value="all">全部来源</option>
             <option value="Local">本地</option>
@@ -326,7 +326,7 @@ const showPluginDetails = async (plugin: Plugin) => {
               'px-3 py-2 rounded-lg text-sm font-medium transition-colors',
               showFavoritesOnly
                 ? 'bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-400'
-                : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                : 'bg-gray-100 text-gray-700 dark:bg-surface-layer dark:text-content-primary hover:bg-gray-200 dark:hover:bg-surface-layer'
             ]"
           >
             <span class="flex items-center gap-1">
@@ -380,12 +380,12 @@ const showPluginDetails = async (plugin: Plugin) => {
       <div
         v-for="plugin in filteredPlugins"
         :key="plugin.plugin_id"
-        class="bg-white dark:bg-gray-800 rounded-xl shadow hover:shadow-md transition-shadow p-5"
+        class="bg-white dark:bg-surface-card rounded-xl shadow hover:shadow-md transition-shadow p-5"
       >
         <div class="flex items-start justify-between min-w-0">
           <div class="min-w-0 flex-1 cursor-pointer" @click="showPluginDetails(plugin)">
             <div class="flex items-center gap-2">
-              <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100 truncate">
+              <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary truncate">
                 {{ plugin.name }}
               </h3>
               <button
@@ -394,7 +394,7 @@ const showPluginDetails = async (plugin: Plugin) => {
                   'p-1 rounded transition-colors',
                   plugin.is_favorite
                     ? 'text-yellow-500 hover:text-yellow-600'
-                    : 'text-gray-400 hover:text-yellow-500'
+                    : 'text-gray-400 dark:text-content-secondary hover:text-yellow-500'
                 ]"
               >
                 <svg class="w-5 h-5" :fill="plugin.is_favorite ? 'currentColor' : 'none'" stroke="currentColor" viewBox="0 0 24 24">
@@ -403,7 +403,7 @@ const showPluginDetails = async (plugin: Plugin) => {
               </button>
             </div>
             <p 
-              class="text-sm text-gray-500 dark:text-gray-400 mt-1 line-clamp-2"
+              class="text-sm text-gray-500 dark:text-content-secondary mt-1 line-clamp-2"
               :title="plugin.description || '无描述'"
             >
               {{ plugin.description || '无描述' }}
@@ -418,23 +418,15 @@ const showPluginDetails = async (plugin: Plugin) => {
             </svg>
           </button>
         </div>
-        <div class="mt-3 flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+        <div class="mt-3 flex items-center justify-between text-sm text-gray-600 dark:text-content-secondary">
           <span>v{{ plugin.versions[0]?.version || '1.0.0' }}</span>
           <span>{{ plugin.author || '未知作者' }}</span>
         </div>
         <div class="mt-2 flex items-center gap-2 flex-wrap">
-          <span
-            :class="[
-              'px-2 py-0.5 rounded text-xs font-medium',
-              plugin.compatibility === 'Godot4' ? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' :
-              plugin.compatibility === 'Godot3' ? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' :
-              plugin.compatibility === 'Both' ? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' :
-              'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
-            ]"
-          >
+          <span class="badge badge-neutral">
             {{ plugin.compatibility === 'Godot4' ? 'Godot 4' : plugin.compatibility === 'Godot3' ? 'Godot 3' : plugin.compatibility === 'Both' ? '通用' : '未知' }}
           </span>
-          <span class="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+          <span class="badge badge-neutral">
             {{ plugin.source.source_type === 'Local' ? '本地' : plugin.source.source_type === 'Git' ? 'Git' : 'AssetLibrary' }}
           </span>
         </div>
@@ -442,28 +434,28 @@ const showPluginDetails = async (plugin: Plugin) => {
     </div>
 
     <div v-if="showGitDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showGitDialog = false; gitUrl = ''">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">从 Git 导入</h3>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">从 Git 导入</h3>
+        <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">
           输入 Git 仓库 URL，将克隆并导入其中的 Godot 插件
         </p>
         <input
           v-model="gitUrl"
           type="text"
           placeholder="https://github.com/user/plugin-repo.git"
-          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+          class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
         />
         <div class="flex justify-end space-x-3 mt-6">
           <button
             @click="showGitDialog = false; gitUrl = ''"
-            class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+            class="btn-secondary"
           >
             取消
           </button>
           <button
             @click="importFromGit"
             :disabled="isLoading || !gitUrl"
-            class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+            class="btn-primary disabled:opacity-50"
           >
             导入
           </button>
@@ -472,46 +464,46 @@ const showPluginDetails = async (plugin: Plugin) => {
     </div>
 
     <div v-if="showPluginDetail && selectedPlugin" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showPluginDetail = false; selectedPlugin = null; pluginDependencies = []">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-2">
           {{ selectedPlugin.name }}
         </h3>
         <div class="mb-4">
-          <span class="text-sm text-gray-500 dark:text-gray-400">
+          <span class="text-sm text-gray-500 dark:text-content-secondary">
             作者: {{ selectedPlugin.author || '未知作者' }}
           </span>
-          <span class="mx-2 text-gray-300">|</span>
-          <span class="text-sm text-gray-500 dark:text-gray-400">
+          <span class="mx-2 text-gray-300 dark:text-content-secondary">|</span>
+          <span class="text-sm text-gray-500 dark:text-content-secondary">
             版本: v{{ selectedPlugin.versions[0]?.version || '1.0.0' }}
           </span>
         </div>
         <div class="mb-4">
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">描述</h4>
-          <p class="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap bg-gray-50 dark:bg-gray-700 rounded-lg p-3 max-h-60 overflow-y-auto">
+          <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">描述</h4>
+          <p class="text-sm text-gray-600 dark:text-content-secondary whitespace-pre-wrap bg-gray-50 dark:bg-surface-layer rounded-lg p-3 max-h-60 overflow-y-auto">
             {{ selectedPlugin.description || '无描述' }}
           </p>
         </div>
         <div class="mb-4">
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">来源</h4>
-          <p class="text-sm text-gray-600 dark:text-gray-400">
+          <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">来源</h4>
+          <p class="text-sm text-gray-600 dark:text-content-secondary">
             {{ selectedPlugin.source.source_type === 'Local' ? '本地目录' : selectedPlugin.source.source_type === 'Git' ? 'Git 仓库' : 'AssetLibrary' }}
             <span v-if="selectedPlugin.source.url" class="block text-xs mt-1 break-all">{{ selectedPlugin.source.url }}</span>
           </p>
         </div>
         <div v-if="pluginDependencies.length > 0" class="mb-4">
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">依赖关系</h4>
-          <div class="space-y-2 bg-gray-50 dark:bg-gray-700 rounded-lg p-3 max-h-40 overflow-y-auto">
-            <div v-for="dep in pluginDependencies" :key="dep.plugin_id" class="text-sm text-gray-600 dark:text-gray-400">
+          <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">依赖关系</h4>
+          <div class="space-y-2 bg-gray-50 dark:bg-surface-layer rounded-lg p-3 max-h-40 overflow-y-auto">
+            <div v-for="dep in pluginDependencies" :key="dep.plugin_id" class="text-sm text-gray-600 dark:text-content-secondary">
               <span class="font-medium">{{ dep.plugin_id }}</span>
               <span v-if="dep.version_constraint"> ({{ dep.version_constraint }})</span>
-              <span v-if="dep.is_optional" class="ml-2 text-xs text-gray-500">(可选)</span>
+              <span v-if="dep.is_optional" class="ml-2 text-xs text-gray-500 dark:text-content-secondary">(可选)</span>
             </div>
           </div>
         </div>
         <div class="flex justify-end">
           <button
             @click="showPluginDetail = false; selectedPlugin = null; pluginDependencies = []"
-            class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+            class="btn-secondary"
           >
             关闭
           </button>
@@ -520,10 +512,10 @@ const showPluginDetails = async (plugin: Plugin) => {
     </div>
 
     <div v-if="showAssetLibraryDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showAssetLibraryDialog = false">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl" @click.stop>
+      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl" @click.stop>
         <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Asset Library</h3>
-          <button @click="showAssetLibraryDialog = false" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">Asset Library</h3>
+          <button @click="showAssetLibraryDialog = false" class="text-gray-500 dark:text-content-secondary hover:text-gray-700 dark:hover:text-content-primary">
             <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -534,33 +526,33 @@ const showPluginDetails = async (plugin: Plugin) => {
             v-model="assetSearchQuery"
             type="text"
             placeholder="搜索 Asset Library..."
-            class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+            class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
             @keyup.enter="searchAssets"
           />
           <button
             @click="searchAssets"
             :disabled="isSearchingAssets"
-            class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm"
+            class="btn-primary disabled:opacity-50 text-sm"
           >
             {{ isSearchingAssets ? '搜索中...' : '搜索' }}
           </button>
         </div>
         <div class="space-y-3 max-h-80 overflow-y-auto">
-          <div v-if="assetSearchResults.length === 0" class="text-center py-8 text-gray-500 dark:text-gray-400">
+          <div v-if="assetSearchResults.length === 0" class="text-center py-8 text-gray-500 dark:text-content-secondary">
             输入关键词搜索 Asset Library
           </div>
-          <div v-for="asset in assetSearchResults" :key="asset.asset_id" class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+          <div v-for="asset in assetSearchResults" :key="asset.asset_id" class="bg-gray-50 dark:bg-surface-layer rounded-lg p-4">
             <div class="flex items-center justify-between">
               <div>
-                <span class="font-medium text-gray-900 dark:text-gray-100">{{ asset.title }}</span>
-                <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                <span class="font-medium text-gray-900 dark:text-content-primary">{{ asset.title }}</span>
+                <div class="text-sm text-gray-500 dark:text-content-secondary mt-1">
                   {{ asset.author }} · {{ asset.category }}
                 </div>
               </div>
               <button
                 @click="importAsset(asset.asset_id, asset.title)"
                 :disabled="isImportingAsset === asset.asset_id"
-                class="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm"
+                class="btn-primary disabled:opacity-50 text-sm px-3 py-1.5"
               >
                 {{ isImportingAsset === asset.asset_id ? '导入中...' : '导入' }}
               </button>
@@ -570,7 +562,7 @@ const showPluginDetails = async (plugin: Plugin) => {
         <div class="flex justify-end mt-4">
           <button
             @click="showAssetLibraryDialog = false"
-            class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+            class="btn-secondary"
           >
             关闭
           </button>

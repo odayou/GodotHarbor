@@ -506,20 +506,20 @@ const confirmRelocate = async () => {
       </div>
     </div>
 
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5">
+    <div class="card">
       <div class="flex flex-col lg:flex-row gap-4">
         <div class="flex-1">
           <input
             v-model="searchQuery"
             type="text"
             placeholder="搜索项目名称或路径..."
-            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+            class="w-full px-4 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
           />
         </div>
         <div class="flex flex-wrap gap-2 items-center">
           <select
             v-model="filterGroup"
-            class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+            class="px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
           >
             <option value="all">全部分组</option>
             <option value="ungrouped">未分组</option>
@@ -527,7 +527,7 @@ const confirmRelocate = async () => {
           </select>
           <select
             v-model="filterStatus"
-            class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+            class="px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
           >
             <option value="all">全部状态</option>
             <option value="Ready">就绪</option>
@@ -545,18 +545,18 @@ const confirmRelocate = async () => {
     </div>
 
     <div v-else-if="filteredProjects.length === 0" class="text-center py-12">
-      <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-content-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
       </svg>
-      <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">暂无项目</h3>
-      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+      <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-content-primary">暂无项目</h3>
+      <p class="mt-1 text-sm text-gray-500 dark:text-content-secondary">
         开始扫描或手动添加 Godot 项目
       </p>
       <div class="mt-4 flex justify-center gap-3">
         <button
           @click="showScanDialog = true"
           :disabled="isLoading"
-          class="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 text-sm"
+          class="inline-flex items-center gap-1.5 btn-primary disabled:opacity-50 text-sm"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -566,7 +566,7 @@ const confirmRelocate = async () => {
         <button
           @click="addProject"
           :disabled="isLoading"
-          class="inline-flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 text-sm"
+          class="inline-flex items-center gap-1.5 btn-secondary disabled:opacity-50 text-sm"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -579,23 +579,23 @@ const confirmRelocate = async () => {
     <div v-else class="space-y-6">
       <div v-for="(groupProjects, groupName) in (filterGroup === 'all' ? groupedProjects : { all: filteredProjects })" :key="groupName" class="space-y-3">
         <div v-if="filterGroup === 'all' && Object.keys(groupedProjects).length > 1" class="flex items-center gap-2">
-          <h2 class="text-lg font-semibold text-gray-700 dark:text-gray-300">
+          <h2 class="text-lg font-semibold text-gray-700 dark:text-content-primary">
             {{ groupName === '未分组' ? '未分组' : groupName }}
           </h2>
-          <span class="text-sm text-gray-500 dark:text-gray-400">({{ groupProjects.length }} 个项目)</span>
+          <span class="text-sm text-gray-500 dark:text-content-secondary">({{ groupProjects.length }} 个项目)</span>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           <div
             v-for="project in (filterGroup === 'all' ? groupProjects : filteredProjects)"
             :key="project.project_id"
-            class="bg-white dark:bg-gray-800 rounded-xl shadow hover:shadow-md transition-shadow p-5"
+            class="bg-white dark:bg-surface-card rounded-xl shadow hover:shadow-md transition-shadow p-5"
           >
             <div class="flex items-start justify-between min-w-0">
               <div 
                 class="flex items-center gap-3 min-w-0 flex-1 cursor-pointer hover:text-primary-600 dark:hover:text-primary-400"
                 @click="showProjectDetails(project)"
               >
-                <div class="flex-shrink-0 w-10 h-10 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                <div class="flex-shrink-0 w-10 h-10 rounded-lg overflow-hidden bg-gray-100 dark:bg-surface-layer flex items-center justify-center">
                   <img
                     v-if="project.icon_path"
                     :src="getIconUrl(project.icon_path)"
@@ -603,24 +603,24 @@ const confirmRelocate = async () => {
                     class="w-10 h-10 object-contain"
                     @error="($event.target as HTMLImageElement).style.display = 'none'"
                   />
-                  <svg v-else class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg v-else class="w-6 h-6 text-gray-400 dark:text-content-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                   </svg>
                 </div>
                 <div class="min-w-0 flex-1">
                   <div class="flex items-center gap-2">
-                    <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100 truncate">
+                    <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary truncate">
                       {{ project.name }}
                     </h3>
                     <span
                       v-if="project.group"
                       @click.stop="openGroupDialog(project)"
-                      class="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 cursor-pointer"
+                      class="badge badge-neutral hover:bg-gray-200 dark:hover:bg-surface-layer cursor-pointer"
                     >
                       {{ project.group }}
                     </span>
                   </div>
-                  <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 truncate" :title="project.path">
+                  <p class="text-sm text-gray-500 dark:text-content-secondary mt-1 truncate" :title="project.path">
                     {{ project.path }}
                   </p>
                 </div>
@@ -646,7 +646,7 @@ const confirmRelocate = async () => {
               </div>
             </div>
             <div class="mt-3 flex items-center justify-between text-sm">
-              <span class="text-gray-600 dark:text-gray-400">Godot {{ project.godot_version }}</span>
+              <span class="text-gray-600 dark:text-content-secondary">Godot {{ project.godot_version }}</span>
               <div class="flex items-center gap-2">
                 <button
                   v-if="project.status === 'MissingSource'"
@@ -667,12 +667,12 @@ const confirmRelocate = async () => {
                 </button>
                 <span
                   :class="[
-                    'px-2 py-0.5 rounded text-xs font-medium',
-                    project.status === 'Ready' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
-                    project.status === 'Warning' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                    project.status === 'Conflict' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
-                    project.status === 'MissingSource' ? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' :
-                    'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                    'badge',
+                    project.status === 'Ready' ? 'badge-success' :
+                    project.status === 'Warning' ? 'badge-warning' :
+                    project.status === 'Conflict' ? 'badge-error' :
+                    project.status === 'MissingSource' ? 'badge-neutral' :
+                    'badge-error'
                   ]"
                 >
                   {{ project.status === 'Ready' ? '就绪' : project.status === 'Warning' ? '警告' : project.status === 'Conflict' ? '冲突' : project.status === 'MissingSource' ? '源缺失' : '错误' }}

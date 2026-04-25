@@ -20,10 +20,27 @@ export default {
           800: '#075985',
           900: '#0c4a6e',
         },
+        surface: {
+          base: '#0B0F19',
+          layer: '#111827',
+          card: '#1F2937',
+          border: '#374151',
+        },
+        content: {
+          primary: '#E5E7EB',
+          secondary: '#9CA3AF',
+        },
+        brand: {
+          indigo: '#6366F1',
+          cyan: '#06B6D4',
+        },
         godot: {
           blue: '#478cbf',
           dark: '#202531',
         }
+      },
+      backgroundImage: {
+        'brand-gradient': 'linear-gradient(135deg, #6366F1 0%, #06B6D4 100%)',
       }
     },
   },

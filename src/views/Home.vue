@@ -51,11 +51,11 @@ const navigateTo = (path: string) => {
 
 <template>
   <div class="space-y-6">
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5">
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+    <div class="card">
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-content-primary mb-4">
         欢迎使用 Godot Harbor
       </h1>
-      <p class="text-gray-600 dark:text-gray-400">
+      <p class="text-gray-600 dark:text-content-secondary">
         Godot Harbor 是一款独立的桌面应用，用于管理 Godot 插件、项目和引擎。
         让插件只需导入一次，即可被多个项目复用。
       </p>
@@ -67,14 +67,14 @@ const navigateTo = (path: string) => {
         @click="navigateTo('/projects')"
       >
         <div class="flex items-center">
-          <div class="p-3 rounded-lg bg-gray-100 dark:bg-gray-700">
-            <svg class="w-6 h-6 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div class="p-3 rounded-lg bg-gray-100 dark:bg-surface-layer">
+            <svg class="w-6 h-6 text-gray-600 dark:text-content-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
             </svg>
           </div>
           <div class="ml-4">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">项目</h3>
-            <p class="text-2xl font-bold text-gray-700 dark:text-gray-300">{{ stats.project_count }}</p>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">项目</h3>
+            <p class="text-2xl font-bold text-gray-700 dark:text-content-primary">{{ stats.project_count }}</p>
           </div>
         </div>
       </div>
@@ -131,32 +131,32 @@ const navigateTo = (path: string) => {
       </div>
     </div>
 
-    <div v-if="stats.recent_projects.length > 0" class="bg-white dark:bg-gray-800 rounded-xl shadow p-5">
-      <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">最近项目</h2>
+    <div v-if="stats.recent_projects.length > 0" class="card">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">最近项目</h2>
       <div class="space-y-2">
         <div
           v-for="project in stats.recent_projects"
           :key="project.project_id"
-          class="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
+          class="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer cursor-pointer transition-colors"
           @click="navigateTo('/projects')"
         >
           <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
-              <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="w-8 h-8 rounded bg-gray-100 dark:bg-surface-layer flex items-center justify-center">
+              <svg class="w-4 h-4 text-gray-500 dark:text-content-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
               </svg>
             </div>
             <div>
-              <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ project.name }}</h4>
-              <p class="text-xs text-gray-500 dark:text-gray-400">Godot {{ project.godot_version }}</p>
+              <h4 class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ project.name }}</h4>
+              <p class="text-xs text-gray-500 dark:text-content-secondary">Godot {{ project.godot_version }}</p>
             </div>
           </div>
           <span
             :class="[
-              'px-2 py-0.5 rounded text-xs font-medium',
-              project.status === 'Ready' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
-              project.status === 'Warning' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' :
-              'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+              'badge',
+              project.status === 'Ready' ? 'badge-success' :
+              project.status === 'Warning' ? 'badge-warning' :
+              'badge-error'
             ]"
           >
             {{ project.status === 'Ready' ? '就绪' : project.status === 'Warning' ? '警告' : '错误' }}
@@ -165,42 +165,42 @@ const navigateTo = (path: string) => {
       </div>
     </div>
 
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5">
-      <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">快速开始</h2>
+    <div class="card">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">快速开始</h2>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div
-          class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors"
+          class="p-4 border border-gray-200 dark:border-surface-border rounded-lg cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors"
           @click="navigateTo('/projects')"
         >
-          <h3 class="font-medium text-gray-900 dark:text-gray-100 mb-2">1. 扫描项目</h3>
-          <p class="text-sm text-gray-600 dark:text-gray-400">
+          <h3 class="font-medium text-gray-900 dark:text-content-primary mb-2">1. 扫描项目</h3>
+          <p class="text-sm text-gray-600 dark:text-content-secondary">
             设置项目扫描目录，自动发现本地 Godot 项目
           </p>
         </div>
         <div
-          class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors"
+          class="p-4 border border-gray-200 dark:border-surface-border rounded-lg cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors"
           @click="navigateTo('/plugins')"
         >
-          <h3 class="font-medium text-gray-900 dark:text-gray-100 mb-2">2. 导入插件</h3>
-          <p class="text-sm text-gray-600 dark:text-gray-400">
+          <h3 class="font-medium text-gray-900 dark:text-content-primary mb-2">2. 导入插件</h3>
+          <p class="text-sm text-gray-600 dark:text-content-secondary">
             从本地目录或 Git 仓库导入插件到 Vault
           </p>
         </div>
         <div
-          class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors"
+          class="p-4 border border-gray-200 dark:border-surface-border rounded-lg cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors"
           @click="navigateTo('/linker')"
         >
-          <h3 class="font-medium text-gray-900 dark:text-gray-100 mb-2">3. 绑定插件</h3>
-          <p class="text-sm text-gray-600 dark:text-gray-400">
+          <h3 class="font-medium text-gray-900 dark:text-content-primary mb-2">3. 绑定插件</h3>
+          <p class="text-sm text-gray-600 dark:text-content-secondary">
             为项目选择需要的插件和版本
           </p>
         </div>
         <div
-          class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors"
+          class="p-4 border border-gray-200 dark:border-surface-border rounded-lg cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors"
           @click="navigateTo('/engines')"
         >
-          <h3 class="font-medium text-gray-900 dark:text-gray-100 mb-2">4. 注册引擎</h3>
-          <p class="text-sm text-gray-600 dark:text-gray-400">
+          <h3 class="font-medium text-gray-900 dark:text-content-primary mb-2">4. 注册引擎</h3>
+          <p class="text-sm text-gray-600 dark:text-content-secondary">
             注册 Godot 引擎并绑定到项目
           </p>
         </div>

@@ -11,7 +11,7 @@ const { isCollapsed, toggleSidebar } = useSidebar()
 
 const asideClass = computed(() => {
   return [
-    'bg-white dark:bg-gray-800 shadow-lg flex flex-col shrink-0 transition-all duration-200 ease-in-out',
+    'bg-white dark:bg-surface-card shadow-lg flex flex-col shrink-0 transition-all duration-200 ease-in-out',
     isCollapsed.value ? 'w-16' : 'w-64'
   ]
 })
@@ -36,7 +36,7 @@ const navigateTo = (path: string) => {
   <aside :class="asideClass">
     <div
       :class="[
-        'h-16 border-b border-gray-200 dark:border-gray-700 flex items-center',
+        'h-16 border-b border-gray-200 dark:border-surface-border flex items-center',
         isCollapsed ? 'justify-center px-0' : 'justify-center gap-2 px-2'
       ]"
     >
@@ -91,7 +91,7 @@ const navigateTo = (path: string) => {
                 : 'px-4 py-3 text-sm font-medium',
               route.path === item.path
                 ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400'
-                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                : 'text-gray-700 dark:text-content-primary hover:bg-gray-100 dark:hover:bg-surface-layer'
             ]"
             :title="isCollapsed ? t(item.labelKey) : undefined"
           >
@@ -131,12 +131,12 @@ const navigateTo = (path: string) => {
       </ul>
     </nav>
 
-    <div class="border-t border-gray-200 dark:border-gray-700 p-2">
+    <div class="border-t border-gray-200 dark:border-surface-border p-2">
       <button
         @click="toggleSidebar"
         :class="[
           'w-full flex items-center rounded-lg transition-colors',
-          isCollapsed ? 'justify-center p-2' : 'px-4 py-2 text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700',
+          isCollapsed ? 'justify-center p-2' : 'px-4 py-2 text-sm text-gray-500 dark:text-content-secondary hover:bg-gray-100 dark:hover:bg-surface-layer',
         ]"
         :title="isCollapsed ? t('sidebar.expand') : t('sidebar.collapse')"
       >
