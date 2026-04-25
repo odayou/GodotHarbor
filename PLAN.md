@@ -260,6 +260,58 @@ Godot Harbor 是一款独立桌面应用，用于为 Godot 开发者提供统一
 - [ ] 配置 `scrollBehavior` 恢复滚动位置
 - [ ] 路由 meta 中配置页面标题和所需数据预加载
 
+#### 10.4 扫描发现性能优化（基于 Godot 编辑器研究）
+
+> 详细方案参考：ENGINE_DISCOVERY.md
+
+**10.4.1 SmartWalk 自定义遍历器（找到即停）** — P1
+- [ ] 实现自定义栈式 DFS 遍历器替代 walkdir，支持动态剪枝
+- [ ] 项目扫描：找到 `project.godot` 后停止递归该子目录（Godot 项目不嵌套）
+- [ ] 引擎扫描：找到 Godot 可执行文件后停止递归
+- [ ] 保留深度限制（项目 5 层、引擎 3 层）和目录过滤（SKIP_DIRS）
+- [ ] 保留 rayon 并行能力，每个搜索根目录并行执行 SmartWalk
+- [ ] 预期收益：减少无效遍历 30-50%
+
+**10.4.2 mtime 增量更新** — P1
+- [ ] 缓存中记录每个项目/插件的标记文件 `mtime`（`project.godot`/`plugin.cfg`）
+- [ ] Project/Plugin 模型新增 `last_parsed_mtime` 字段
+- [ ] 启动时先检查 mtime，未变则跳过解析直接使用缓存
+- [ ] 仅对 mtime 变化的条目执行完整解析
+- [ ] `sync_projects` 命令改为基于 mtime 的增量同步
+- [ ] 预期收益：项目多时启动速度提升 5-10x
+
+**10.4.3 图标缓存** — P2
+- [ ] 创建 `data_dir/icon_cache/` 目录
+- [ ] 解析图标后复制到缓存目录，文件名 `{project_id}_{hash}.png`
+- [ ] 前端优先加载缓存图标，缓存不存在时触发后端解析
+- [ ] `project.godot` mtime 变化时重新解析并更新缓存
+- [ ] 预期收益：避免每次启动重复解析 `.import` 文件
+
+**10.4.4 读取 Godot 编辑器 projects.cfg** — P2
+- [ ] 定位 Godot 编辑器配置目录（Windows: `%APPDATA%/Godot/`，macOS: `~/Library/Application Support/Godot/`，Linux: `~/.config/godot/`）
+- [ ] 解析 `projects.cfg`（INI 格式，section 名为项目路径）
+- [ ] 验证路径有效性（`project.godot` 是否存在）
+- [ ] 作为项目扫描的第一层策略，零遍历发现已有项目
+- [ ] 合并到 GodotHarbor 项目列表（去重）
+- [ ] 预期收益：零文件系统遍历，直接获取用户在 Godot 编辑器中已注册的项目
+
+**10.4.5 引擎发现子进程并发限流** — P2
+- [ ] 对 `godot --version` 子进程调用限制并发数（最多 8 个并行）
+- [ ] 使用 `rayon` 的线程池配置或 `Semaphore` 控制并发
+- [ ] 预期收益：避免同时启动过多子进程导致系统卡顿
+
+**10.4.6 扫描结果流式返回** — P2
+- [ ] 扫描过程中每发现 N 个项目（如每 5 个）通过 Tauri 事件发送到前端
+- [ ] 前端收到批次结果后立即展示，无需等待全部扫描完成
+- [ ] 新增 `scan-progress` 事件（包含已发现数量、当前扫描目录、进度百分比）
+- [ ] 预期收益：用户感知的等待时间大幅缩短
+
+**10.4.7 文件系统监听增强** — P2
+- [ ] 事件类型细分：`project.godot` 创建/修改/删除触发不同处理逻辑
+- [ ] 防抖策略分级：`project.godot` 变化 2 秒防抖，`plugin.cfg` 变化 5 秒防抖，其他 10 秒
+- [ ] 监听范围优化：仅监听已发现项目的根目录，而非整个搜索目录树
+- [ ] 预期收益：更精准响应变化，减少无关事件触发
+
 ### 阶段十一：v0.6 Plugin Store 生态（P3+）
 > 详细实现方案请参考：ASSET_LIBRARY_ITERATION_PLAN.md
 
