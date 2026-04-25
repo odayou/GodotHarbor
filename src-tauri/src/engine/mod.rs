@@ -1,8 +1,15 @@
 use std::path::Path;
+use std::collections::HashSet;
 use crate::models::{Engine, EngineType};
 use anyhow::{Result, anyhow};
+use rayon::prelude::*;
+use regex::Regex;
+use walkdir::WalkDir;
+
+const MAX_SCAN_DEPTH: usize = 3;
 
 pub struct EngineManager {
+    #[allow(dead_code)]
     engines_base_path: std::path::PathBuf,
 }
 
@@ -19,14 +26,9 @@ impl EngineManager {
             return Err(anyhow!("引擎路径不存在"));
         }
 
-        let exe_name = if cfg!(windows) { "godot.exe" } else { "godot" };
-        let exe_path = engine_path.join(exe_name);
-
-        if !exe_path.exists() {
-            let alt_exe = engine_path.join(format!("bin/{}", exe_name));
-            if !alt_exe.exists() {
-                return Err(anyhow!("未在指定路径找到 Godot 可执行文件"));
-            }
+        let exe_path = Self::find_executable_in_dir(engine_path);
+        if exe_path.is_none() {
+            return Err(anyhow!("未在指定路径找到 Godot 可执行文件"));
         }
 
         let version_output = Self::get_version_from_executable(path)?;
@@ -36,17 +38,71 @@ impl EngineManager {
         Ok((engine_type, version))
     }
 
-    fn get_version_from_executable(path: &str) -> Result<String> {
-        let exe_name = if cfg!(windows) { "godot.exe" } else { "godot" };
-        let exe_path = Path::new(path).join(exe_name);
+    fn find_executable_in_dir(dir: &Path) -> Option<std::path::PathBuf> {
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() && Self::is_godot_executable(&path) {
+                    return Some(path);
+                }
+            }
+        }
 
-        let actual_exe = if exe_path.exists() {
-            exe_path
-        } else {
-            Path::new(path).join(format!("bin/{}", exe_name))
+        let bin_dir = dir.join("bin");
+        if bin_dir.exists() {
+            if let Ok(entries) = std::fs::read_dir(&bin_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_file() && Self::is_godot_executable(&path) {
+                        return Some(path);
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
+    fn is_godot_executable(path: &Path) -> bool {
+        let file_name = match path.file_name().and_then(|n| n.to_str()) {
+            Some(name) => name,
+            None => return false,
         };
 
-        let output = std::process::Command::new(&actual_exe)
+        let lower = file_name.to_lowercase();
+
+        if lower.contains("template") || lower.contains("project") {
+            return false;
+        }
+
+        #[cfg(windows)]
+        {
+            if !lower.ends_with(".exe") {
+                return false;
+            }
+            let stem = lower.trim_end_matches(".exe");
+            stem == "godot"
+                || stem == "godot3"
+                || stem == "godot4"
+                || stem.starts_with("godot_v")
+        }
+
+        #[cfg(not(windows))]
+        {
+            lower == "godot"
+                || lower == "godot3"
+                || lower == "godot4"
+                || lower.starts_with("godot_v")
+                || lower.starts_with("godot_v") && lower.contains("_linux")
+        }
+    }
+
+    fn get_version_from_executable(dir: &str) -> Result<String> {
+        let dir_path = Path::new(dir);
+        let exe_path = Self::find_executable_in_dir(dir_path)
+            .ok_or_else(|| anyhow!("未找到 Godot 可执行文件"))?;
+
+        let output = std::process::Command::new(&exe_path)
             .arg("--version")
             .output()?;
 
@@ -58,9 +114,10 @@ impl EngineManager {
     }
 
     fn detect_engine_type(version_output: &str) -> EngineType {
-        if version_output.contains("4.") {
+        let version_str = version_output.trim();
+        if version_str.starts_with('4') || version_str.contains(".4.") {
             EngineType::Godot4
-        } else if version_output.contains("3.") {
+        } else if version_str.starts_with('3') || version_str.contains(".3.") {
             EngineType::Godot3
         } else {
             EngineType::Unknown
@@ -72,11 +129,20 @@ impl EngineManager {
         if version_str.is_empty() {
             return "Unknown".to_string();
         }
-        let parts: Vec<&str> = version_str.split_whitespace().collect();
-        if parts.is_empty() {
-            return "Unknown".to_string();
+
+        let re = Regex::new(r"(\d+\.\d+[\.\d]*)").unwrap();
+        if let Some(caps) = re.captures(version_str) {
+            if let Some(m) = caps.get(1) {
+                return m.as_str().to_string();
+            }
         }
-        parts.last().unwrap_or(&"Unknown").to_string()
+
+        let parts: Vec<&str> = version_str.split_whitespace().collect();
+        if !parts.is_empty() {
+            return parts[0].to_string();
+        }
+
+        "Unknown".to_string()
     }
 
     pub fn validate_engine_path(path: &str) -> bool {
@@ -84,188 +150,414 @@ impl EngineManager {
         if !engine_path.exists() {
             return false;
         }
-
-        let exe_name = if cfg!(windows) { "godot.exe" } else { "godot" };
-        let exe_path = engine_path.join(exe_name);
-        if exe_path.exists() {
-            return true;
-        }
-
-        let alt_exe = engine_path.join(format!("bin/{}", exe_name));
-        alt_exe.exists()
+        Self::find_executable_in_dir(engine_path).is_some()
     }
 
     pub fn get_engine_info(path: &str) -> Result<Engine> {
         let (engine_type, version) = Self::detect_engine(path)?;
 
-        let name = if cfg!(windows) {
-            Path::new(path)
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("Godot")
-                .to_string()
-        } else {
-            Path::new(path)
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("Godot")
-                .to_string()
-        };
+        let name = Path::new(path)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("Godot")
+            .to_string();
 
         Ok(Engine::new(name, path.to_string(), engine_type, version))
     }
 
     pub fn discover_engines(existing_paths: &[String]) -> Vec<Engine> {
         let mut discovered = Vec::new();
-        let search_dirs = Self::get_search_directories();
+        let mut seen_paths: HashSet<String> = existing_paths.iter().cloned().collect();
 
-        for dir in &search_dirs {
-            if !dir.exists() {
-                continue;
+        let platform_engines = Self::discover_from_platform();
+        for engine in platform_engines {
+            if !seen_paths.contains(&engine.path) {
+                seen_paths.insert(engine.path.clone());
+                discovered.push(engine);
             }
-            // 搜索当前目录和子目录
-            Self::search_directory(&dir, existing_paths, &mut discovered);
         }
 
-        Self::discover_from_path(existing_paths)
-            .into_iter()
-            .for_each(|engine| {
-                if !discovered.iter().any(|e| e.path == engine.path) {
-                    discovered.push(engine);
-                }
-            });
+        let path_engines = Self::discover_from_path();
+        for engine in path_engines {
+            if !seen_paths.contains(&engine.path) {
+                seen_paths.insert(engine.path.clone());
+                discovered.push(engine);
+            }
+        }
+
+        let search_dirs = Self::get_search_directories();
+        let dir_engines = Self::search_directories_parallel(&search_dirs, &seen_paths);
+        for engine in dir_engines {
+            if !seen_paths.contains(&engine.path) {
+                seen_paths.insert(engine.path.clone());
+                discovered.push(engine);
+            }
+        }
 
         discovered
     }
 
-    fn search_directory(dir: &std::path::Path, existing_paths: &[String], discovered: &mut Vec<Engine>) {
-        if let Ok(entries) = std::fs::read_dir(dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_dir() {
-                    let path_str = path.to_string_lossy().to_string();
-                    if existing_paths.contains(&path_str) {
+    pub fn discover_engines_with_custom_paths(
+        existing_paths: &[String],
+        custom_paths: &[String],
+    ) -> Vec<Engine> {
+        let mut all_discovered = Self::discover_engines(existing_paths);
+        let mut seen_paths: HashSet<String> = existing_paths.iter().cloned().collect();
+        for e in &all_discovered {
+            seen_paths.insert(e.path.clone());
+        }
+
+        let custom_dirs: Vec<std::path::PathBuf> = custom_paths
+            .iter()
+            .filter(|p| Path::new(p).exists())
+            .map(std::path::PathBuf::from)
+            .collect();
+
+        let custom_engines = Self::search_directories_parallel(&custom_dirs, &seen_paths);
+        for engine in custom_engines {
+            if !seen_paths.contains(&engine.path) {
+                seen_paths.insert(engine.path.clone());
+                all_discovered.push(engine);
+            }
+        }
+
+        all_discovered
+    }
+
+    #[cfg(windows)]
+    fn discover_from_platform() -> Vec<Engine> {
+        Self::discover_from_windows_registry()
+    }
+
+    #[cfg(target_os = "macos")]
+    fn discover_from_platform() -> Vec<Engine> {
+        let mut results = Vec::new();
+        results.extend(Self::discover_from_macos_applications());
+        results.extend(Self::discover_from_macos_spotlight());
+        results
+    }
+
+    #[cfg(target_os = "linux")]
+    fn discover_from_platform() -> Vec<Engine> {
+        Self::discover_from_linux_desktop_entries()
+    }
+
+    #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
+    fn discover_from_platform() -> Vec<Engine> {
+        Vec::new()
+    }
+
+    #[cfg(windows)]
+    fn discover_from_windows_registry() -> Vec<Engine> {
+        use winreg::enums::*;
+        use winreg::RegKey;
+
+        let mut found = Vec::new();
+        let mut seen = HashSet::new();
+
+        let hives = [
+            (HKEY_LOCAL_MACHINE, vec![
+                r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+                r"SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+            ]),
+            (HKEY_CURRENT_USER, vec![
+                r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+            ]),
+        ];
+
+        for (hive, subkeys) in &hives {
+            let root = RegKey::predef(*hive);
+            for subkey in subkeys {
+                if let Ok(uninstall_key) = root.open_subkey(subkey) {
+                    for entry in uninstall_key.enum_keys().flatten() {
+                        if let Ok(app_key) = uninstall_key.open_subkey(&entry) {
+                            let display_name: Result<String, _> = app_key.get_value("DisplayName");
+                            if let Ok(name) = display_name {
+                                if name.to_lowercase().contains("godot") {
+                                    let install_location: Result<String, _> = app_key.get_value("InstallLocation");
+                                    let display_icon: Result<String, _> = app_key.get_value("DisplayIcon");
+                                    let uninstall_string: Result<String, _> = app_key.get_value("UninstallString");
+
+                                    let dir_path = install_location
+                                        .ok()
+                                        .or_else(|| display_icon.ok().and_then(|s| {
+                                            let p = Path::new(&s);
+                                            p.parent().map(|pp| pp.to_string_lossy().to_string())
+                                        }))
+                                        .or_else(|| uninstall_string.ok().and_then(|s| {
+                                            let p = Path::new(&s);
+                                            p.parent().map(|pp| pp.to_string_lossy().to_string())
+                                        }));
+
+                                    if let Some(dir_str) = dir_path {
+                                        let dir_path = Path::new(&dir_str);
+                                        let canonical = dir_path.to_string_lossy().to_string();
+
+                                        if seen.contains(&canonical) {
+                                            continue;
+                                        }
+
+                                        if Self::validate_engine_path(&canonical) {
+                                            seen.insert(canonical.clone());
+                                            match Self::get_engine_info(&canonical) {
+                                                Ok(engine) => found.push(engine),
+                                                Err(_) => {}
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        found
+    }
+
+    #[cfg(target_os = "macos")]
+    fn discover_from_macos_applications() -> Vec<Engine> {
+        let mut found = Vec::new();
+        let mut seen = HashSet::new();
+
+        let app_dirs = [
+            "/Applications",
+        ];
+
+        let home = std::env::var("HOME").unwrap_or_default();
+        let user_app_dir = format!("{}/Applications", home);
+
+        let mut search_paths: Vec<&str> = app_dirs.to_vec();
+        let user_app_ref: &str = &user_app_dir;
+        search_paths.push(user_app_ref);
+
+        for dir_str in &search_paths {
+            let dir = Path::new(dir_str);
+            if !dir.exists() {
+                continue;
+            }
+            if let Ok(entries) = std::fs::read_dir(dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if !path.is_dir() {
                         continue;
                     }
-
-                    let dir_name = path.file_name()
+                    let file_name = path.file_name()
                         .and_then(|n| n.to_str())
                         .unwrap_or("")
                         .to_lowercase();
-                    let contains_godot = dir_name.contains("godot");
 
-                    if contains_godot {
-                        if Self::validate_engine_path(&path_str) {
-                            match Self::get_engine_info(&path_str) {
-                                Ok(engine) => {
-                                    let already_found = discovered
-                                        .iter()
-                                        .any(|e: &Engine| e.path == engine.path);
-                                    if !already_found {
-                                        discovered.push(engine);
+                    if !file_name.starts_with("godot") || !file_name.ends_with(".app") {
+                        continue;
+                    }
+
+                    let macos_dir = path.join("Contents").join("MacOS");
+                    if !macos_dir.exists() {
+                        continue;
+                    }
+
+                    if let Ok(exe_entries) = std::fs::read_dir(&macos_dir) {
+                        for exe_entry in exe_entries.flatten() {
+                            let exe_path = exe_entry.path();
+                            if exe_path.is_file() {
+                                let canonical = path.to_string_lossy().to_string();
+                                if seen.contains(&canonical) {
+                                    continue;
+                                }
+
+                                let parent_str = path.parent()
+                                    .map(|p| p.to_string_lossy().to_string())
+                                    .unwrap_or_default();
+
+                                if Self::validate_engine_path(&parent_str) {
+                                    seen.insert(canonical);
+                                    match Self::get_engine_info(&parent_str) {
+                                        Ok(engine) => found.push(engine),
+                                        Err(_) => {}
+                                    }
+                                } else {
+                                    let exe_str = exe_path.to_string_lossy().to_string();
+                                    let output = std::process::Command::new(&exe_path)
+                                        .arg("--version")
+                                        .output();
+                                    if let Ok(output) = output {
+                                        if output.status.success() {
+                                            let version_output = String::from_utf8_lossy(&output.stdout).to_string();
+                                            let engine_type = Self::detect_engine_type(&version_output);
+                                            let version = Self::parse_version(&version_output);
+                                            let name = path.file_stem()
+                                                .and_then(|n| n.to_str())
+                                                .unwrap_or("Godot")
+                                                .to_string();
+                                            let engine_dir = exe_path.parent()
+                                                .map(|p| p.to_string_lossy().to_string())
+                                                .unwrap_or_default();
+                                            seen.insert(canonical);
+                                            found.push(Engine::new(name, engine_dir, engine_type, version));
+                                        }
                                     }
                                 }
-                                Err(_) => {},
+                                break;
                             }
                         }
-                        Self::search_directory(&path, existing_paths, discovered);
                     }
                 }
             }
         }
+
+        found
     }
 
-    fn get_search_directories() -> Vec<std::path::PathBuf> {
-        let mut dirs = Vec::new();
+    #[cfg(target_os = "macos")]
+    fn discover_from_macos_spotlight() -> Vec<Engine> {
+        let mut found = Vec::new();
 
-        if cfg!(windows) {
-            if let Some(program_files) = std::env::var("ProgramFiles").ok() {
-                dirs.push(std::path::PathBuf::from(&program_files));
-                dirs.push(std::path::PathBuf::from(&program_files).join("Godot"));
-                dirs.push(std::path::PathBuf::from(&program_files).join("Tools"));
-                dirs.push(std::path::PathBuf::from(&program_files).join("Games"));
-            }
-            if let Some(program_files_x86) = std::env::var("ProgramFiles(x86)").ok() {
-                dirs.push(std::path::PathBuf::from(&program_files_x86));
-                dirs.push(std::path::PathBuf::from(&program_files_x86).join("Godot"));
-                dirs.push(std::path::PathBuf::from(&program_files_x86).join("Tools"));
-                dirs.push(std::path::PathBuf::from(&program_files_x86).join("Games"));
-            }
-            if let Some(local_app_data) = std::env::var("LOCALAPPDATA").ok() {
-                dirs.push(std::path::PathBuf::from(&local_app_data).join("Programs"));
-                dirs.push(std::path::PathBuf::from(&local_app_data).join("Godot"));
-                dirs.push(std::path::PathBuf::from(&local_app_data).join("Tools"));
-            }
-            if let Some(userprofile) = std::env::var("USERPROFILE").ok() {
-                dirs.push(std::path::PathBuf::from(&userprofile).join("Downloads"));
-                dirs.push(std::path::PathBuf::from(&userprofile).join("Documents"));
-                dirs.push(std::path::PathBuf::from(&userprofile).join("Documents").join("Godot"));
-                dirs.push(std::path::PathBuf::from(&userprofile).join("Desktop"));
-                dirs.push(std::path::PathBuf::from(&userprofile).join("Godot"));
-                dirs.push(std::path::PathBuf::from(&userprofile).join("Tools"));
-                dirs.push(std::path::PathBuf::from(&userprofile).join("Games"));
-                dirs.push(std::path::PathBuf::from(&userprofile).join("Programs"));
-            }
-            for drive in ['C', 'D', 'E', 'F'] {
-                let drive_path = std::path::PathBuf::from(format!("{}:", drive));
-                if drive_path.exists() {
-                    dirs.push(drive_path.clone());
-                    dirs.push(drive_path.join("Godot"));
-                    dirs.push(drive_path.join("Tools"));
-                    dirs.push(drive_path.join("Games"));
-                    dirs.push(drive_path.join("Programs"));
-                    dirs.push(drive_path.join("Software"));
+        let output = std::process::Command::new("mdfind")
+            .arg("kMDItemCFBundleIdentifier == 'org.godotengine.godot*'")
+            .output();
+
+        if let Ok(output) = output {
+            if output.status.success() {
+                let result = String::from_utf8_lossy(&output.stdout);
+                for line in result.lines() {
+                    let app_path = line.trim();
+                    if !app_path.is_empty() && Path::new(app_path).exists() {
+                        let parent = Path::new(app_path).parent()
+                            .map(|p| p.to_string_lossy().to_string())
+                            .unwrap_or_default();
+
+                        if Self::validate_engine_path(&parent) {
+                            match Self::get_engine_info(&parent) {
+                                Ok(engine) => {
+                                    if !found.iter().any(|e: &Engine| e.path == engine.path) {
+                                        found.push(engine);
+                                    }
+                                }
+                                Err(_) => {}
+                            }
+                        }
+                    }
                 }
             }
-        } else if cfg!(target_os = "macos") {
-            dirs.push(std::path::PathBuf::from("/Applications"));
-            if let Some(home) = std::env::var("HOME").ok() {
-                dirs.push(std::path::PathBuf::from(&home).join("Applications"));
-                dirs.push(std::path::PathBuf::from(&home).join("Downloads"));
-                dirs.push(std::path::PathBuf::from(&home).join("Documents"));
-                dirs.push(std::path::PathBuf::from(&home).join("Godot"));
-                dirs.push(std::path::PathBuf::from(&home).join("Tools"));
-                dirs.push(std::path::PathBuf::from(&home).join("Games"));
-            }
-            dirs.push(std::path::PathBuf::from("/usr/local/bin"));
-        } else {
-            if let Some(home) = std::env::var("HOME").ok() {
-                dirs.push(std::path::PathBuf::from(&home).join(".local").join("bin"));
-                dirs.push(std::path::PathBuf::from(&home).join("Downloads"));
-                dirs.push(std::path::PathBuf::from(&home).join("bin"));
-                dirs.push(std::path::PathBuf::from(&home).join(".godot"));
-                dirs.push(std::path::PathBuf::from(&home).join("Godot"));
-                dirs.push(std::path::PathBuf::from(&home).join("Tools"));
-                dirs.push(std::path::PathBuf::from(&home).join("Games"));
-                dirs.push(std::path::PathBuf::from(&home).join("Documents"));
-            }
-            dirs.push(std::path::PathBuf::from("/usr/local/bin"));
-            dirs.push(std::path::PathBuf::from("/usr/bin"));
-            dirs.push(std::path::PathBuf::from("/opt"));
-            dirs.push(std::path::PathBuf::from("/opt/godot"));
-            dirs.push(std::path::PathBuf::from("/opt/tools"));
         }
 
-        dirs
+        found
     }
 
-    fn discover_from_path(existing_paths: &[String]) -> Vec<Engine> {
+    #[cfg(target_os = "linux")]
+    fn discover_from_linux_desktop_entries() -> Vec<Engine> {
         let mut found = Vec::new();
+        let mut seen = HashSet::new();
+
+        let home = std::env::var("HOME").unwrap_or_default();
+
+        let desktop_dirs = [
+            "/usr/share/applications",
+            format!("{}/.local/share/applications", home),
+            "/var/lib/flatpak/exports/share/applications",
+            format!("{}/.local/share/flatpak/exports/share/applications", home),
+        ];
+
+        for dir_str in &desktop_dirs {
+            let dir = Path::new(dir_str);
+            if !dir.exists() {
+                continue;
+            }
+            if let Ok(entries) = std::fs::read_dir(dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    let file_name = path.file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("")
+                        .to_lowercase();
+
+                    if !file_name.starts_with("godot") || !file_name.ends_with(".desktop") {
+                        continue;
+                    }
+
+                    if let Ok(content) = std::fs::read_to_string(&path) {
+                        for line in content.lines() {
+                            let trimmed = line.trim();
+                            if trimmed.starts_with("Exec=") {
+                                let exec_value = trimmed.trim_start_matches("Exec=");
+                                let exe_path_str = exec_value
+                                    .split_whitespace()
+                                    .next()
+                                    .unwrap_or("")
+                                    .trim_start_matches('"')
+                                    .trim_end_matches('"');
+
+                                if exe_path_str.is_empty() {
+                                    continue;
+                                }
+
+                                let exe_path = Path::new(exe_path_str);
+                                if !exe_path.exists() {
+                                    continue;
+                                }
+
+                                let parent_str = exe_path.parent()
+                                    .map(|p| p.to_string_lossy().to_string())
+                                    .unwrap_or_default();
+
+                                if seen.contains(&parent_str) {
+                                    continue;
+                                }
+
+                                if Self::validate_engine_path(&parent_str) {
+                                    seen.insert(parent_str.clone());
+                                    match Self::get_engine_info(&parent_str) {
+                                        Ok(engine) => found.push(engine),
+                                        Err(_) => {}
+                                    }
+                                } else {
+                                    let output = std::process::Command::new(exe_path)
+                                        .arg("--version")
+                                        .output();
+                                    if let Ok(output) = output {
+                                        if output.status.success() {
+                                            let version_output = String::from_utf8_lossy(&output.stdout).to_string();
+                                            let engine_type = Self::detect_engine_type(&version_output);
+                                            let version = Self::parse_version(&version_output);
+                                            let name = path.file_stem()
+                                                .and_then(|n| n.to_str())
+                                                .unwrap_or("Godot")
+                                                .to_string();
+                                            seen.insert(parent_str.clone());
+                                            found.push(Engine::new(name, parent_str, engine_type, version));
+                                        }
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        found
+    }
+
+    fn discover_from_path() -> Vec<Engine> {
+        let mut found = Vec::new();
+        let mut seen = HashSet::new();
 
         let path_var = std::env::var("PATH").unwrap_or_default();
         let separator = if cfg!(windows) { ';' } else { ':' };
+
+        let candidates: Vec<&str> = if cfg!(windows) {
+            vec!["godot.exe", "godot4.exe", "godot3.exe"]
+        } else {
+            vec!["godot", "godot4", "godot3"]
+        };
 
         for dir_str in path_var.split(separator) {
             let dir = std::path::Path::new(dir_str);
             if !dir.exists() {
                 continue;
             }
-
-            let candidates = if cfg!(windows) {
-                vec!["godot.exe", "godot4.exe", "godot3.exe"]
-            } else {
-                vec!["godot", "godot4", "godot3"]
-            };
 
             for candidate in &candidates {
                 let exe_path = dir.join(candidate);
@@ -276,10 +568,7 @@ impl EngineManager {
                 let parent = exe_path.parent().unwrap_or(dir);
                 let parent_str = parent.to_string_lossy().to_string();
 
-                if existing_paths.contains(&parent_str) {
-                    continue;
-                }
-                if found.iter().any(|e: &Engine| e.path == parent_str) {
+                if seen.contains(&parent_str) {
                     continue;
                 }
 
@@ -301,19 +590,156 @@ impl EngineManager {
 
                 let name = format!(
                     "Godot {}",
-                    if matches!(engine_type, EngineType::Godot4) {
-                        "4"
-                    } else if matches!(engine_type, EngineType::Godot3) {
-                        "3"
-                    } else {
-                        ""
+                    match engine_type {
+                        EngineType::Godot4 => "4",
+                        EngineType::Godot3 => "3",
+                        EngineType::Unknown => "",
                     }
                 );
 
+                seen.insert(parent_str.clone());
                 found.push(Engine::new(name, parent_str, engine_type, version));
             }
         }
 
         found
+    }
+
+    fn search_directories_parallel(
+        dirs: &[std::path::PathBuf],
+        seen_paths: &HashSet<String>,
+    ) -> Vec<Engine> {
+        let results: Vec<Vec<Engine>> = dirs
+            .par_iter()
+            .filter_map(|dir| {
+                if !dir.exists() {
+                    return None;
+                }
+                let mut local_found = Vec::new();
+                let mut local_seen = seen_paths.clone();
+
+                for entry in WalkDir::new(dir)
+                    .max_depth(MAX_SCAN_DEPTH)
+                    .follow_links(false)
+                    .into_iter()
+                    .filter_map(|e| e.ok())
+                {
+                    let path = entry.path();
+                    if !path.is_dir() {
+                        continue;
+                    }
+
+                    let path_str = path.to_string_lossy().to_string();
+                    if local_seen.contains(&path_str) {
+                        continue;
+                    }
+
+                    let dir_name = path.file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("")
+                        .to_lowercase();
+
+                    let is_godot_dir = dir_name.contains("godot")
+                        || Self::dir_contains_godot_executable(path);
+
+                    if is_godot_dir {
+                        if Self::validate_engine_path(&path_str) {
+                            match Self::get_engine_info(&path_str) {
+                                Ok(engine) => {
+                                    if !local_seen.contains(&engine.path) {
+                                        local_seen.insert(engine.path.clone());
+                                        local_found.push(engine);
+                                    }
+                                }
+                                Err(_) => {}
+                            }
+                        }
+                    }
+                }
+
+                if local_found.is_empty() {
+                    None
+                } else {
+                    Some(local_found)
+                }
+            })
+            .collect();
+
+        let mut all_engines = Vec::new();
+        let mut global_seen = seen_paths.clone();
+        for engines in results {
+            for engine in engines {
+                if !global_seen.contains(&engine.path) {
+                    global_seen.insert(engine.path.clone());
+                    all_engines.push(engine);
+                }
+            }
+        }
+
+        all_engines
+    }
+
+    fn dir_contains_godot_executable(dir: &Path) -> bool {
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() && Self::is_godot_executable(&path) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    fn get_search_directories() -> Vec<std::path::PathBuf> {
+        let mut dirs = Vec::new();
+
+        if cfg!(windows) {
+            if let Some(program_files) = std::env::var("ProgramFiles").ok() {
+                dirs.push(std::path::PathBuf::from(&program_files));
+                dirs.push(std::path::PathBuf::from(&program_files).join("Godot"));
+                dirs.push(std::path::PathBuf::from(&program_files).join("Tools"));
+            }
+            if let Some(program_files_x86) = std::env::var("ProgramFiles(x86)").ok() {
+                dirs.push(std::path::PathBuf::from(&program_files_x86));
+                dirs.push(std::path::PathBuf::from(&program_files_x86).join("Godot"));
+                dirs.push(std::path::PathBuf::from(&program_files_x86).join("Tools"));
+            }
+            if let Some(local_app_data) = std::env::var("LOCALAPPDATA").ok() {
+                dirs.push(std::path::PathBuf::from(&local_app_data).join("Programs"));
+                dirs.push(std::path::PathBuf::from(&local_app_data).join("Godot"));
+            }
+            if let Some(userprofile) = std::env::var("USERPROFILE").ok() {
+                dirs.push(std::path::PathBuf::from(&userprofile).join("Downloads"));
+                dirs.push(std::path::PathBuf::from(&userprofile).join("Desktop"));
+                dirs.push(std::path::PathBuf::from(&userprofile).join("Godot"));
+                dirs.push(std::path::PathBuf::from(&userprofile).join("Tools"));
+                dirs.push(std::path::PathBuf::from(&userprofile).join("Programs"));
+            }
+        } else if cfg!(target_os = "macos") {
+            dirs.push(std::path::PathBuf::from("/Applications"));
+            if let Some(home) = std::env::var("HOME").ok() {
+                dirs.push(std::path::PathBuf::from(&home).join("Applications"));
+                dirs.push(std::path::PathBuf::from(&home).join("Downloads"));
+                dirs.push(std::path::PathBuf::from(&home).join("Godot"));
+                dirs.push(std::path::PathBuf::from(&home).join("Tools"));
+            }
+            dirs.push(std::path::PathBuf::from("/usr/local/bin"));
+        } else {
+            if let Some(home) = std::env::var("HOME").ok() {
+                dirs.push(std::path::PathBuf::from(&home).join(".local").join("bin"));
+                dirs.push(std::path::PathBuf::from(&home).join("Downloads"));
+                dirs.push(std::path::PathBuf::from(&home).join("bin"));
+                dirs.push(std::path::PathBuf::from(&home).join(".godot"));
+                dirs.push(std::path::PathBuf::from(&home).join("Godot"));
+                dirs.push(std::path::PathBuf::from(&home).join("Tools"));
+            }
+            dirs.push(std::path::PathBuf::from("/usr/local/bin"));
+            dirs.push(std::path::PathBuf::from("/usr/bin"));
+            dirs.push(std::path::PathBuf::from("/opt"));
+            dirs.push(std::path::PathBuf::from("/opt/godot"));
+        }
+
+        dirs
     }
 }

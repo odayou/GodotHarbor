@@ -1614,14 +1614,36 @@ pub fn auto_discover_engines(app: AppHandle) -> Result<Vec<Engine>, String> {
 
     let storage = get_storage(&app);
     let mut engines: Vec<Engine> = storage.load_or_default("engines.json");
+
+    let mut removed_count = 0;
+    engines.retain(|e| {
+        let valid = std::path::Path::new(&e.path).exists();
+        if !valid {
+            removed_count += 1;
+        }
+        valid
+    });
+    if removed_count > 0 {
+        let _ = storage.save("engines.json", &engines);
+        log_operation(&app, "auto_discover_engines", "",
+            &format!("清理 {} 个失效引擎", removed_count));
+    }
+
     let existing_paths: Vec<String> = engines.iter().map(|e| e.path.clone()).collect();
 
     log_operation(&app, "auto_discover_engines", "", "开始自动发现引擎");
 
-    let discovered = crate::engine::EngineManager::discover_engines(&existing_paths);
+    let discovered = if settings.scan_directories.is_empty() {
+        crate::engine::EngineManager::discover_engines(&existing_paths)
+    } else {
+        crate::engine::EngineManager::discover_engines_with_custom_paths(
+            &existing_paths,
+            &settings.scan_directories,
+        )
+    };
 
     if discovered.is_empty() {
-        log_operation(&app, "auto_discover_engines", "", "未发现任何引擎");
+        log_operation(&app, "auto_discover_engines", "", "未发现新引擎");
         return Ok(Vec::new());
     }
 
