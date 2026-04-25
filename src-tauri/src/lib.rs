@@ -7,6 +7,7 @@ pub mod linker;
 pub mod operation_log;
 pub mod engine;
 pub mod godot_resolver;
+pub mod version_checker;
 
 use tauri::Manager;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -31,6 +32,14 @@ pub fn run() {
             let handle = app_handle.clone();
             tauri::async_runtime::spawn(async move {
                 let _ = commands::auto_scan_projects(handle).await;
+            });
+
+            let show_handle = app_handle.clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                if let Some(window) = show_handle.get_webview_window("main") {
+                    let _ = window.show();
+                }
             });
 
             Ok(())
@@ -80,6 +89,7 @@ pub fn run() {
             commands::relocate_project,
             commands::detect_moved_projects,
             commands::confirm_project_relocation,
+            commands::check_godot_updates,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

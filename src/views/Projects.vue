@@ -6,7 +6,6 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
-import { useDialog } from '@/composables/useDialog'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const toast = useToast()

@@ -1485,3 +1485,33 @@ pub fn detect_moved_projects(app: AppHandle) -> Result<Vec<MovedProjectCandidate
 pub fn confirm_project_relocation(app: AppHandle, project_id: String, new_path: String) -> Result<Project, String> {
     relocate_project(app, project_id, new_path)
 }
+
+#[tauri::command]
+pub fn check_godot_updates(app: AppHandle) -> Result<crate::version_checker::GodotVersionCheckResult, String> {
+    let storage = get_storage(&app);
+    let engines: Vec<Engine> = storage.load_or_default("engines.json");
+
+    let local_engines: Vec<crate::version_checker::LocalEngineVersion> = engines.iter()
+        .map(|e| crate::version_checker::LocalEngineVersion {
+            engine_id: e.engine_id.clone(),
+            name: e.name.clone(),
+            version: e.version.clone(),
+            engine_type: format!("{:?}", e.engine_type),
+        })
+        .collect();
+
+    let data_dir = get_data_dir(&app);
+    let cache_dir = data_dir.join("cache");
+    let checker = crate::version_checker::VersionChecker::new(cache_dir);
+
+    let result = checker.check_for_updates(local_engines)?;
+
+    if !result.updates_available.is_empty() {
+        let _ = app.emit("godot-update-available", &result.updates_available);
+    }
+
+    log_operation(&app, "check_godot_updates", "",
+        &format!("Godot 版本检查完成，发现 {} 个可用更新", result.updates_available.len()));
+
+    Ok(result)
+}

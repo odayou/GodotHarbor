@@ -7,6 +7,8 @@ const messages: Record<string, Record<string, string>> = {
     'nav.plugins': '插件仓库',
     'nav.linker': '插件绑定',
     'nav.engines': '引擎管理',
+    'nav.roadmap': '路线图',
+    'nav.about': '关于',
     'nav.settings': '设置',
     'projects.title': '项目管理',
     'projects.scan': '扫描项目',
@@ -157,6 +159,12 @@ const messages: Record<string, Record<string, string>> = {
     'home.step3Desc': '为项目选择需要的插件和版本',
     'home.step4': '4. 应用变更',
     'home.step4Desc': '一键将插件挂载到项目 addons 目录',
+    'statusbar.newVersionAvailable': '有新版本可用',
+    'statusbar.checkUpdates': '检查更新',
+    'statusbar.lastChecked': '上次检查',
+    'statusbar.updateAvailable': 'Godot 引擎更新可用',
+    'statusbar.majorUpdate': '大版本更新',
+    'statusbar.downloadPage': '查看下载页面',
   },
   'en': {
     'nav.home': 'Home',
@@ -164,6 +172,8 @@ const messages: Record<string, Record<string, string>> = {
     'nav.plugins': 'Plugins',
     'nav.linker': 'Linker',
     'nav.engines': 'Engines',
+    'nav.roadmap': 'Roadmap',
+    'nav.about': 'About',
     'nav.settings': 'Settings',
     'projects.title': 'Project Management',
     'projects.scan': 'Scan Projects',
@@ -314,6 +324,12 @@ const messages: Record<string, Record<string, string>> = {
     'home.step3Desc': 'Select plugins and versions for your projects',
     'home.step4': '4. Apply Changes',
     'home.step4Desc': 'Mount plugins to project addons directory with one click',
+    'statusbar.newVersionAvailable': 'New version available',
+    'statusbar.checkUpdates': 'Check for updates',
+    'statusbar.lastChecked': 'Last checked',
+    'statusbar.updateAvailable': 'Godot Engine Updates Available',
+    'statusbar.majorUpdate': 'Major Update',
+    'statusbar.downloadPage': 'View download page',
   }
 }
 

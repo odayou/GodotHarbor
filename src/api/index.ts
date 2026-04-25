@@ -13,7 +13,8 @@ import type {
   TeamSharedConfig,
   LaunchResult,
   DashboardStats,
-  MovedProjectCandidate
+  MovedProjectCandidate,
+  GodotVersionCheckResult
 } from '@/types'
 
 export const api = {
@@ -215,6 +216,10 @@ export const api = {
 
   async confirmProjectRelocation(projectId: string, newPath: string): Promise<Project> {
     return await invoke('confirm_project_relocation', { projectId, newPath })
+  },
+
+  async checkGodotUpdates(): Promise<GodotVersionCheckResult> {
+    return await invoke('check_godot_updates')
   }
 }
 

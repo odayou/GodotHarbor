@@ -148,3 +148,40 @@ export interface MovedProjectCandidate {
   new_path: string
   new_name: string
 }
+
+export interface GodotReleaseInfo {
+  version: string
+  tag_name: string
+  release_url: string
+  release_notes: string
+  published_at: string
+  is_stable: boolean
+  major: number
+  minor: number
+  patch: number
+}
+
+export interface LocalEngineVersion {
+  engine_id: string
+  name: string
+  version: string
+  engine_type: string
+}
+
+export interface VersionUpdateInfo {
+  engine_id: string
+  engine_name: string
+  current_version: string
+  latest_version: string
+  download_url: string
+  release_notes: string
+  is_major_update: boolean
+}
+
+export interface GodotVersionCheckResult {
+  latest_godot4: GodotReleaseInfo | null
+  latest_godot3: GodotReleaseInfo | null
+  local_engines: LocalEngineVersion[]
+  updates_available: VersionUpdateInfo[]
+  checked_at: string
+}
