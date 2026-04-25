@@ -1,17 +1,17 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
 import type { Settings, LogEntry, TeamSharedConfig, Project } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useToast } from '@/composables/useToast'
-import { useI18n } from '@/composables/useI18n'
 import { useTheme } from '@/composables/useTheme'
 import { useDialogEscape } from '@/composables/useDialogEscape'
 import { useOnboarding } from '@/composables/useOnboarding'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const toast = useToast()
-const { t, setLocale } = useI18n()
+const { t, locale } = useI18n()
 const { setTheme, initTheme } = useTheme()
 const settings = ref<Settings>({ scan_directories: [], mount_strategy: 'Symlink', language: 'zh-CN', theme: 'system', auto_scan_on_startup: true, auto_discover_engines: true })
 const isLoading = ref(false)
@@ -38,13 +38,13 @@ const loadSettings = async () => {
   try {
     const result = await api.getSettings()
     settings.value = { scan_directories: result.scan_directories || [], mount_strategy: result.mount_strategy || 'Symlink', language: result.language || 'zh-CN', theme: result.theme || 'system', auto_scan_on_startup: result.auto_scan_on_startup ?? true, auto_discover_engines: result.auto_discover_engines ?? true }
-    setLocale(settings.value.language)
+    locale.value = settings.value.language
     if (['light', 'dark', 'system'].includes(settings.value.theme)) setTheme(settings.value.theme as 'light' | 'dark' | 'system')
   } catch (error) { toast.error(`加载设置失败: ${error}`) }
   finally { isLoading.value = false }
 }
 
-watch(() => settings.value.language, (lang) => { setLocale(lang) })
+watch(() => settings.value.language, (lang) => { locale.value = lang })
 watch(() => settings.value.theme, (theme) => { if (['light', 'dark', 'system'].includes(theme)) setTheme(theme as 'light' | 'dark' | 'system') })
 
 const addScanDirectory = async () => {

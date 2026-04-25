@@ -1,10 +1,10 @@
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useProjectStore } from '@/stores'
 import { usePluginStore } from '@/stores'
 import { useTheme } from '@/composables/useTheme'
 import { useSidebar } from '@/composables/useSidebar'
-import { useI18n } from '@/composables/useI18n'
 
 export interface SearchItem {
   id: string
@@ -133,7 +133,7 @@ export function useCommandPalette() {
   const pluginStore = usePluginStore()
   const { currentTheme, setTheme } = useTheme()
   const { toggleSidebar } = useSidebar()
-  const { t, setLocale, locale } = useI18n()
+  const { t, locale } = useI18n()
 
   const allItems = computed<SearchItem[]>(() => {
     const items: SearchItem[] = []
@@ -272,7 +272,7 @@ export function useCommandPalette() {
         icon: 'language',
         keywords: `language english chinese 中英 切换语言`,
         action: () => {
-          setLocale(locale.value === 'zh-CN' ? 'en' : 'zh-CN')
+          locale.value = locale.value === 'zh-CN' ? 'en' : 'zh-CN'
           closePalette()
         }
       }

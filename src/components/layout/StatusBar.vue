@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { useI18n } from '@/composables/useI18n'
+import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
 import type { VersionUpdateInfo, GodotVersionCheckResult } from '@/types'
 

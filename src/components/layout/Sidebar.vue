@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
-import { useI18n } from '@/composables/useI18n'
 import { useSidebar } from '@/composables/useSidebar'
 
 const router = useRouter()
