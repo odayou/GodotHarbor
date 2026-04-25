@@ -216,3 +216,92 @@ export interface ProjectApplyResult {
 export interface BatchApplyResult {
   results: ProjectApplyResult[]
 }
+
+export interface AssetLibrarySearchResult {
+  asset_id: string
+  title: string
+  author: string
+  author_id: string
+  category: string
+  category_id: string
+  godot_version: string
+  rating: string
+  cost: string
+  support_level: string
+  icon_url: string
+  version: string
+  version_string: string
+  modify_date: string
+}
+
+export interface AssetLibrarySearchResponse {
+  result: AssetLibrarySearchResult[]
+  page: number
+  pages: number
+  page_length: number
+  total_items: number
+}
+
+export interface AssetLibraryPreview {
+  preview_id: string
+  type: 'image' | 'video'
+  link: string
+  thumbnail: string
+}
+
+export interface AssetLibraryAsset {
+  asset_id: string
+  type: string
+  title: string
+  author: string
+  author_id: string
+  version: string
+  version_string: string
+  category: string
+  category_id: string
+  godot_version: string
+  rating: string
+  cost: string
+  description: string
+  support_level: string
+  download_provider: string
+  download_commit: string
+  download_hash: string
+  browse_url: string
+  issues_url: string
+  icon_url: string
+  searchable: string
+  modify_date: string
+  download_url: string
+  previews: AssetLibraryPreview[]
+}
+
+export interface AssetLibraryCategory {
+  id: string
+  name: string
+  type: string
+}
+
+export interface AssetLibraryConfigure {
+  categories: AssetLibraryCategory[]
+}
+
+export interface AssetLibrarySearchParams {
+  filter?: string
+  type?: 'any' | 'addon' | 'project'
+  category?: string
+  support?: string
+  cost?: string
+  godot_version?: string
+  max_results?: number
+  page?: number
+  sort?: 'rating' | 'cost' | 'name' | 'updated'
+  reverse?: boolean
+}
+
+export interface AssetImportProgress {
+  asset_id: string
+  stage: 'downloading' | 'extracting' | 'parsing' | 'complete' | 'error'
+  progress: number
+  message: string
+}

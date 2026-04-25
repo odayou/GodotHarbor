@@ -17,7 +17,11 @@ import type {
   GodotVersionCheckResult,
   BatchResult,
   BatchBindingRequest,
-  BatchApplyResult
+  BatchApplyResult,
+  AssetLibrarySearchParams,
+  AssetLibrarySearchResponse,
+  AssetLibraryConfigure,
+  AssetLibraryAsset
 } from '@/types'
 
 export const api = {
@@ -197,12 +201,24 @@ export const api = {
     return await invoke('resolve_plugin_dependencies', { pluginId })
   },
 
-  async searchAssetLibrary(query: string): Promise<Plugin[]> {
-    return await invoke('search_asset_library', { query })
+  async searchAssetLibrary(params: AssetLibrarySearchParams): Promise<AssetLibrarySearchResponse> {
+    return await invoke('search_asset_library', { params })
   },
 
   async importFromAssetLibrary(assetId: string): Promise<Plugin> {
     return await invoke('import_from_asset_library', { assetId })
+  },
+
+  async getAssetLibraryConfigure(): Promise<AssetLibraryConfigure> {
+    return await invoke('get_asset_library_configure')
+  },
+
+  async getAssetDetail(assetId: string): Promise<AssetLibraryAsset> {
+    return await invoke('get_asset_detail', { assetId })
+  },
+
+  async importFromAssetLibraryWithProgress(assetId: string): Promise<Plugin> {
+    return await invoke('import_from_asset_library_with_progress', { assetId })
   },
 
   async getDashboardStats(): Promise<DashboardStats> {
