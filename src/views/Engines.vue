@@ -150,8 +150,19 @@ const setDefault = async (engineId: string) => {
       </svg>
       <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">暂无已注册的引擎</h3>
       <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-        点击"注册新引擎"添加 Godot 引擎
+        注册 Godot 引擎以启动项目
       </p>
+      <div class="mt-4 flex justify-center">
+        <button
+          @click="showAddDialog = true"
+          class="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          注册引擎
+        </button>
+      </div>
     </div>
 
     <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

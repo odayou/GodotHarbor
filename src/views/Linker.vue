@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { api, withErrorLogging } from '@/api'
 import type { Project, Plugin, PluginVersion, PluginUnit, ProjectBinding, ApplyResult } from '@/types'
 import { useToast } from '@/composables/useToast'
 import { useDialogEscape } from '@/composables/useDialogEscape'
 
+const router = useRouter()
 const toast = useToast()
 const projects = ref<Project[]>([])
 const plugins = ref<Plugin[]>([])
@@ -296,6 +298,17 @@ const closeApplyDialog = () => {
       </svg>
       <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">暂无项目</h3>
       <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">请先在项目管理中添加项目</p>
+      <div class="mt-4 flex justify-center">
+        <button
+          @click="router.push('/projects')"
+          class="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+          </svg>
+          前往项目
+        </button>
+      </div>
     </div>
 
     <div v-else class="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">

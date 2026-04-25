@@ -552,6 +552,28 @@ const confirmRelocate = async () => {
       <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
         开始扫描或手动添加 Godot 项目
       </p>
+      <div class="mt-4 flex justify-center gap-3">
+        <button
+          @click="showScanDialog = true"
+          :disabled="isLoading"
+          class="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 text-sm"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          扫描项目
+        </button>
+        <button
+          @click="addProject"
+          :disabled="isLoading"
+          class="inline-flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 text-sm"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          添加项目
+        </button>
+      </div>
     </div>
 
     <div v-else class="space-y-6">
