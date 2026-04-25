@@ -249,14 +249,14 @@ const showPluginDetails = async (plugin: Plugin) => {
         <button
           @click="checkPluginUpdates"
           :disabled="isCheckingUpdates || isLoading"
-          class="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors disabled:opacity-50 text-sm"
+          class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 text-sm"
         >
           {{ isCheckingUpdates ? '检查中...' : '检查更新' }}
         </button>
         <button
           @click="importFromProjects"
           :disabled="isLoading"
-          class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 text-sm"
+          class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 text-sm"
         >
           从项目导入
         </button>
@@ -270,28 +270,28 @@ const showPluginDetails = async (plugin: Plugin) => {
         <button
           @click="importFromFile"
           :disabled="isLoading"
-          class="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors disabled:opacity-50 text-sm"
+          class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 text-sm"
         >
           从文件导入
         </button>
         <button
           @click="openAssetLibrary"
           :disabled="isLoading"
-          class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 text-sm"
+          class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 text-sm"
         >
           Asset Library
         </button>
         <button
           @click="showGitDialog = true"
           :disabled="isLoading"
-          class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 text-sm"
+          class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 text-sm"
         >
           从 Git 导入
         </button>
       </div>
     </div>
 
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5">
       <div class="flex flex-col lg:flex-row gap-4">
         <div class="flex-1">
           <input
@@ -325,7 +325,7 @@ const showPluginDetails = async (plugin: Plugin) => {
             :class="[
               'px-3 py-2 rounded-lg text-sm font-medium transition-colors',
               showFavoritesOnly
-                ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+                ? 'bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-400'
                 : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
             ]"
           >
@@ -380,7 +380,7 @@ const showPluginDetails = async (plugin: Plugin) => {
       <div
         v-for="plugin in filteredPlugins"
         :key="plugin.plugin_id"
-        class="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-shadow p-4"
+        class="bg-white dark:bg-gray-800 rounded-xl shadow hover:shadow-md transition-shadow p-5"
       >
         <div class="flex items-start justify-between min-w-0">
           <div class="min-w-0 flex-1 cursor-pointer" @click="showPluginDetails(plugin)">
@@ -426,15 +426,15 @@ const showPluginDetails = async (plugin: Plugin) => {
           <span
             :class="[
               'px-2 py-0.5 rounded text-xs font-medium',
-              plugin.compatibility === 'Godot4' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' :
-              plugin.compatibility === 'Godot3' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400' :
-              plugin.compatibility === 'Both' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
-              'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
+              plugin.compatibility === 'Godot4' ? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' :
+              plugin.compatibility === 'Godot3' ? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' :
+              plugin.compatibility === 'Both' ? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' :
+              'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
             ]"
           >
             {{ plugin.compatibility === 'Godot4' ? 'Godot 4' : plugin.compatibility === 'Godot3' ? 'Godot 3' : plugin.compatibility === 'Both' ? '通用' : '未知' }}
           </span>
-          <span class="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+          <span class="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
             {{ plugin.source.source_type === 'Local' ? '本地' : plugin.source.source_type === 'Git' ? 'Git' : 'AssetLibrary' }}
           </span>
         </div>

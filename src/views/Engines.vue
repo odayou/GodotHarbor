@@ -123,7 +123,7 @@ const setDefault = async (engineId: string) => {
       </button>
     </div>
 
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5">
       <div class="flex items-center gap-4">
         <div class="flex items-center gap-2">
           <svg class="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -170,7 +170,7 @@ const setDefault = async (engineId: string) => {
         v-for="engine in engines"
         :key="engine.engine_id"
         :class="[
-          'bg-white dark:bg-gray-800 rounded-lg shadow p-4 border-2 transition-colors',
+          'bg-white dark:bg-gray-800 rounded-xl shadow p-5 border-2 transition-colors',
           engine.is_default ? 'border-primary-500' : 'border-transparent hover:border-gray-200 dark:hover:border-gray-600'
         ]"
       >
@@ -222,12 +222,7 @@ const setDefault = async (engineId: string) => {
         <div class="mt-4 space-y-2">
           <div class="flex items-center gap-2 text-sm">
             <span class="text-gray-500 dark:text-gray-400">类型:</span>
-            <span :class="[
-              'px-2 py-0.5 rounded text-xs font-medium',
-              engine.engine_type === 'Godot4' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' :
-              engine.engine_type === 'Godot3' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400' :
-              'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
-            ]">
+            <span class="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
               {{ engine.engine_type === 'Godot4' ? 'Godot 4' : engine.engine_type === 'Godot3' ? 'Godot 3' : '未知' }}
             </span>
           </div>

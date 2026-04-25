@@ -230,9 +230,9 @@ const formatDate = (dateStr: string) => {
     <div class="flex justify-between items-center">
       <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ t('settings.title') }}</h1>
       <div class="flex gap-2">
-        <button @click="loadLogs" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm">查看日志</button>
-        <button @click="showBackupDialog = true" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">数据备份与恢复</button>
-        <button @click="showTeamConfigDialog = true" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm">团队配置</button>
+        <button @click="loadLogs" class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm">查看日志</button>
+        <button @click="showBackupDialog = true" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm">数据备份与恢复</button>
+        <button @click="showTeamConfigDialog = true" class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm">团队配置</button>
       </div>
     </div>
     <div v-if="isLoading" class="flex justify-center py-12"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div></div>
@@ -357,14 +357,14 @@ const formatDate = (dateStr: string) => {
           <button
             @click="performBackup"
             :disabled="isBackingUp || !backupPath"
-            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
           >
             {{ isBackingUp ? '备份中...' : '备份数据' }}
           </button>
           <button
             @click="performRestore"
             :disabled="isRestoring || !backupPath"
-            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+            class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
           >
             {{ isRestoring ? '恢复中...' : '恢复数据' }}
           </button>
@@ -406,7 +406,7 @@ const formatDate = (dateStr: string) => {
                   <button
                     @click="importTeamConfig(config.config_id)"
                     :disabled="isImporting || projects.length === 0"
-                    class="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm disabled:opacity-50"
+                    class="px-3 py-1 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors text-sm"
                   >
                     导入
                   </button>
