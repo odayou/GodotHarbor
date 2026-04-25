@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useDialog } from '@/composables/useDialog'
+import { computed, watch, onUnmounted } from 'vue'
 
 const props = withDefaults(defineProps<{
   title?: string
@@ -21,10 +21,41 @@ const emit = defineEmits<{
   'confirm': []
 }>()
 
-const { onOverlayClick } = useDialog()
+let escapeHandler: ((e: KeyboardEvent) => void) | null = null
+
+watch(() => props.modelValue, (isOpen) => {
+  if (isOpen) {
+    escapeHandler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        emit('update:modelValue', false)
+      }
+    }
+    document.addEventListener('keydown', escapeHandler)
+  } else {
+    if (escapeHandler) {
+      document.removeEventListener('keydown', escapeHandler)
+      escapeHandler = null
+    }
+  }
+}, { immediate: true })
+
+onUnmounted(() => {
+  if (escapeHandler) {
+    document.removeEventListener('keydown', escapeHandler)
+    escapeHandler = null
+  }
+})
 
 const close = () => {
   emit('update:modelValue', false)
+}
+
+const onOverlayClick = (e: MouseEvent) => {
+  if (e.target === e.currentTarget) {
+    close()
+  }
 }
 
 const onConfirm = () => {
@@ -42,10 +73,6 @@ const confirmColorClass = computed(() => {
   }
   return map[props.confirmColor] || map.red
 })
-</script>
-
-<script lang="ts">
-import { computed } from 'vue'
 </script>
 
 <template>

@@ -151,15 +151,15 @@ Godot Harbor 是一款独立桌面应用，用于为 Godot 开发者提供统一
 ### 阶段八：v0.3 信息实时性（P0-P1）
 
 #### 8.1 项目信息增量同步
-- [ ] 扫描时同步所有字段：name、godot_version、icon_path、status
-- [ ] 保留用户手动修改的字段（如 group、自定义名称）
-- [ ] 新增 `last_synced_at` 时间戳
+- [x] 扫描时同步所有字段：name、godot_version、icon_path、status
+- [x] 保留用户手动修改的字段（如 group、自定义名称）
+- [x] 新增 `last_synced_at` 时间戳
 
 #### 8.2 文件系统变更监听
-- [ ] 使用 `notify` crate 监听扫描目录的文件系统变更
-- [ ] 检测到 project.godot 变化时触发增量扫描
-- [ ] 通过 Tauri 事件通知前端刷新
-- [ ] 配置防抖间隔（默认 5 秒）
+- [x] 使用 `notify` crate 监听扫描目录的文件系统变更
+- [x] 检测到 project.godot 变化时触发增量扫描
+- [x] 通过 Tauri 事件通知前端刷新
+- [x] 配置防抖间隔（默认 5 秒）
 
 #### 8.3 引擎自动发现
 - [ ] 启动时自动扫描常见 Godot 引擎安装位置

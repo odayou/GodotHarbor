@@ -4,6 +4,7 @@ import { api } from '@/api'
 import type { Engine } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useToast } from '@/composables/useToast'
+import { useDialogEscape } from '@/composables/useDialogEscape'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const toast = useToast()
@@ -15,6 +16,8 @@ const newEngineName = ref('')
 const isRegistering = ref(false)
 const showDeleteConfirm = ref(false)
 const deleteTargetId = ref('')
+
+useDialogEscape(showAddDialog)
 
 onMounted(() => {
   loadEngines()
@@ -213,8 +216,8 @@ const setDefault = async (engineId: string) => {
       </div>
     </div>
 
-    <div v-if="showAddDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl">
+    <div v-if="showAddDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showAddDialog = false; newEnginePath = ''; newEngineName = ''">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">注册新引擎</h3>
         <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
           选择 Godot 引擎的安装目录（包含 godot.exe 或 godot 可执行文件的目录）

@@ -4,6 +4,7 @@ import { api } from '@/api'
 import type { Plugin, PluginUpdateInfo, PluginDependency } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useToast } from '@/composables/useToast'
+import { useDialogEscape } from '@/composables/useDialogEscape'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const toast = useToast()
@@ -128,6 +129,11 @@ const assetSearchQuery = ref('')
 const assetSearchResults = ref<any[]>([])
 const isSearchingAssets = ref(false)
 const isImportingAsset = ref<string | null>(null)
+
+useDialogEscape(showGitDialog)
+useDialogEscape(showPluginDetail)
+useDialogEscape(showAssetLibraryDialog)
+useDialogEscape(showUpdatesDialog)
 
 const openAssetLibrary = () => {
   showAssetLibraryDialog.value = true
@@ -413,8 +419,8 @@ const showPluginDetails = async (plugin: Plugin) => {
       </div>
     </div>
 
-    <div v-if="showGitDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl">
+    <div v-if="showGitDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showGitDialog = false; gitUrl = ''">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">从 Git 导入</h3>
         <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
           输入 Git 仓库 URL，将克隆并导入其中的 Godot 插件
@@ -443,8 +449,8 @@ const showPluginDetails = async (plugin: Plugin) => {
       </div>
     </div>
 
-    <div v-if="showPluginDetail && selectedPlugin" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl">
+    <div v-if="showPluginDetail && selectedPlugin" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showPluginDetail = false; selectedPlugin = null; pluginDependencies = []">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
           {{ selectedPlugin.name }}
         </h3>
@@ -491,8 +497,8 @@ const showPluginDetails = async (plugin: Plugin) => {
       </div>
     </div>
 
-    <div v-if="showAssetLibraryDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl">
+    <div v-if="showAssetLibraryDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showAssetLibraryDialog = false">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl" @click.stop>
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Asset Library</h3>
           <button @click="showAssetLibraryDialog = false" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
@@ -550,8 +556,8 @@ const showPluginDetails = async (plugin: Plugin) => {
       </div>
     </div>
 
-    <div v-if="showUpdatesDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl">
+    <div v-if="showUpdatesDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showUpdatesDialog = false">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl" @click.stop>
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">插件更新检查</h3>
           <button @click="showUpdatesDialog = false" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">

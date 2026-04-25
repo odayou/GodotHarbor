@@ -45,6 +45,7 @@ export interface Project {
   status: 'Ready' | 'Warning' | 'Error' | 'Conflict' | 'MissingSource'
   created_at: string
   updated_at: string
+  last_synced_at?: string | null
 }
 
 export interface ProjectBinding {

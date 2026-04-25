@@ -1,13 +1,14 @@
 use std::path::PathBuf;
 use std::fs;
 use serde::{Serialize, Deserialize};
-use tauri::{AppHandle, Manager, Emitter};
+use tauri::{AppHandle, Manager, Emitter, State};
 use crate::models::*;
 use crate::storage::Storage;
 use crate::scanner::ProjectScanner;
 use crate::plugin_manager::PluginManager;
 use crate::linker::Linker;
 use crate::operation_log::{OperationLogger, LogEntry};
+use crate::AppState;
 use uuid::Uuid;
 
 fn get_data_dir(app: &AppHandle) -> PathBuf {
@@ -399,6 +400,44 @@ pub fn apply_changes(app: AppHandle, project_id: String) -> Result<ApplyResult, 
             result.created.len(), result.removed.len(), result.errors.len()));
 
     Ok(result)
+}
+
+#[tauri::command]
+pub fn restart_fs_watcher(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    let storage = get_storage(&app);
+    let settings: Settings = storage.load_or_default("settings.json");
+
+    let dirs = if settings.scan_directories.is_empty() {
+        let mut default_dirs = Vec::new();
+        if cfg!(windows) {
+            if let Some(userprofile) = std::env::var("USERPROFILE").ok() {
+                default_dirs.push(format!("{}\\Documents", userprofile));
+                default_dirs.push(format!("{}\\Desktop", userprofile));
+            }
+            for drive in ['D', 'E', 'F'] {
+                let drive_path = format!("{}:\\", drive);
+                if std::path::Path::new(&drive_path).exists() {
+                    default_dirs.push(drive_path);
+                }
+            }
+        } else {
+            if let Some(home) = std::env::var("HOME").ok() {
+                default_dirs.push(format!("{}/Documents", home));
+                default_dirs.push(format!("{}/projects", home));
+            }
+        }
+        default_dirs
+    } else {
+        settings.scan_directories
+    };
+
+    {
+        let guard = state.fs_watcher.lock().map_err(|e| format!("获取监听状态锁失败: {}", e))?;
+        guard.start(app.clone(), dirs)?;
+    }
+
+    log_operation(&app, "restart_fs_watcher", "", "文件系统监听已重启");
+    Ok(())
 }
 
 #[tauri::command]
@@ -1484,6 +1523,51 @@ pub fn detect_moved_projects(app: AppHandle) -> Result<Vec<MovedProjectCandidate
 #[tauri::command]
 pub fn confirm_project_relocation(app: AppHandle, project_id: String, new_path: String) -> Result<Project, String> {
     relocate_project(app, project_id, new_path)
+}
+
+#[tauri::command]
+pub fn sync_projects(app: AppHandle) -> Result<Vec<Project>, String> {
+    let storage = get_storage(&app);
+    let mut projects: Vec<Project> = storage.load_or_default("projects.json");
+    let now = chrono::Utc::now();
+    let mut synced_count = 0;
+
+    for project in projects.iter_mut() {
+        let project_path = std::path::Path::new(&project.path);
+        let project_godot = project_path.join("project.godot");
+
+        if !project_path.exists() || !project_godot.exists() {
+            project.status = ProjectStatus::MissingSource;
+            project.last_synced_at = Some(now);
+            synced_count += 1;
+            continue;
+        }
+
+        match ProjectScanner::parse_project(&project_godot) {
+            Ok(scanned) => {
+                project.name = scanned.name;
+                project.godot_version = scanned.godot_version;
+                project.icon_path = scanned.icon_path;
+                project.status = scanned.status;
+                project.updated_at = now;
+                project.last_synced_at = Some(now);
+                synced_count += 1;
+            }
+            Err(_) => {
+                project.status = ProjectStatus::Warning;
+                project.last_synced_at = Some(now);
+                synced_count += 1;
+            }
+        }
+    }
+
+    storage.save("projects.json", &projects)
+        .map_err(|e| format!("保存项目列表失败: {}", e))?;
+
+    log_operation(&app, "sync_projects", "",
+        &format!("增量同步完成，共同步 {} 个项目", synced_count));
+
+    Ok(projects)
 }
 
 #[tauri::command]

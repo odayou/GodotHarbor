@@ -15,6 +15,7 @@ const stats = ref<DashboardStats>({
 })
 
 let unlisten: UnlistenFn | null = null
+let unlistenFs: UnlistenFn | null = null
 
 const loadStats = async () => {
   try {
@@ -29,11 +30,17 @@ onMounted(async () => {
   unlisten = await listen('scan-complete', () => {
     loadStats()
   })
+  unlistenFs = await listen('project-fs-changed', () => {
+    loadStats()
+  })
 })
 
 onUnmounted(() => {
   if (unlisten) {
     unlisten()
+  }
+  if (unlistenFs) {
+    unlistenFs()
   }
 })
 

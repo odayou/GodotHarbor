@@ -220,6 +220,14 @@ export const api = {
 
   async checkGodotUpdates(): Promise<GodotVersionCheckResult> {
     return await invoke('check_godot_updates')
+  },
+
+  async syncProjects(): Promise<Project[]> {
+    return await invoke('sync_projects')
+  },
+
+  async restartFsWatcher(): Promise<void> {
+    return await invoke('restart_fs_watcher')
   }
 }
 

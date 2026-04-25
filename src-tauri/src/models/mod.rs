@@ -101,6 +101,8 @@ pub struct Project {
     pub status: ProjectStatus,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    #[serde(default)]
+    pub last_synced_at: Option<DateTime<Utc>>,
 }
 
 impl Project {
@@ -116,6 +118,7 @@ impl Project {
             status: ProjectStatus::Ready,
             created_at: now,
             updated_at: now,
+            last_synced_at: None,
         }
     }
 }

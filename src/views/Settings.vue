@@ -6,6 +6,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { useToast } from '@/composables/useToast'
 import { useI18n } from '@/composables/useI18n'
 import { useTheme } from '@/composables/useTheme'
+import { useDialogEscape } from '@/composables/useDialogEscape'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const toast = useToast()
@@ -195,6 +196,11 @@ const importTeamConfig = async (configId: string) => {
 const showDeleteTeamConfigConfirm = ref(false)
 const deleteTeamConfigId = ref('')
 
+useDialogEscape(showLogs)
+useDialogEscape(showBackupDialog)
+useDialogEscape(showTeamConfigDialog)
+useDialogEscape(showExportDialog)
+
 const confirmDeleteTeamConfig = (configId: string) => {
   deleteTeamConfigId.value = configId
   showDeleteTeamConfigConfirm.value = true
@@ -277,8 +283,8 @@ const formatDate = (dateStr: string) => {
       </div>
     </div>
 
-    <div v-if="showLogs" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-3xl shadow-xl max-h-[80vh] flex flex-col">
+    <div v-if="showLogs" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showLogs = false">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-3xl shadow-xl max-h-[80vh] flex flex-col" @click.stop>
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">操作日志</h3>
           <button @click="showLogs = false" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
@@ -305,8 +311,8 @@ const formatDate = (dateStr: string) => {
       </div>
     </div>
 
-    <div v-if="showBackupDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl">
+    <div v-if="showBackupDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showBackupDialog = false; backupPath = ''">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">数据备份与恢复</h3>
         <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
           选择备份目录，将复制所有数据到该目录。恢复时会从该目录读取数据覆盖现有数据。
@@ -356,8 +362,8 @@ const formatDate = (dateStr: string) => {
       </div>
     </div>
 
-    <div v-if="showTeamConfigDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl shadow-xl max-h-[80vh] flex flex-col">
+    <div v-if="showTeamConfigDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showTeamConfigDialog = false">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl shadow-xl max-h-[80vh] flex flex-col" @click.stop>
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">团队配置管理</h3>
           <button @click="showTeamConfigDialog = false" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
@@ -419,8 +425,8 @@ const formatDate = (dateStr: string) => {
       </div>
     </div>
 
-    <div v-if="showExportDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl">
+    <div v-if="showExportDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showExportDialog = false">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">导出团队配置</h3>
         <div class="space-y-4">
           <div>

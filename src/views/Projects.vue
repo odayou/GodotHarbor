@@ -6,6 +6,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
+import { useDialogEscape } from '@/composables/useDialogEscape'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const toast = useToast()
@@ -37,6 +38,14 @@ onMounted(async () => {
   loadEngines()
   unlisten = await listen('scan-complete', () => {
     loadProjects()
+  })
+  listen('project-fs-changed', async () => {
+    try {
+      const synced = await api.syncProjects()
+      projects.value = synced
+    } catch (error) {
+      console.error('增量同步失败:', error)
+    }
   })
 })
 
@@ -409,6 +418,13 @@ const showRelocateDialog = ref(false)
 const relocateProjectId = ref('')
 const relocateNewPath = ref('')
 
+useDialogEscape(showScanDialog)
+useDialogEscape(showProjectDetail)
+useDialogEscape(showGroupDialog)
+useDialogEscape(showEngineDialog)
+useDialogEscape(showRelocateDialog)
+useDialogEscape(showMovedDialog)
+
 const openRelocateDialog = (project: Project) => {
   relocateProjectId.value = project.project_id
   relocateNewPath.value = ''
@@ -646,8 +662,8 @@ const confirmRelocate = async () => {
       </div>
     </div>
 
-    <div v-if="showProjectDetail && selectedProject" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl">
+    <div v-if="showProjectDetail && selectedProject" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showProjectDetail = false; selectedProject = null">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl" @click.stop>
         <div class="flex items-center gap-4 mb-4">
           <div class="flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
             <img
@@ -716,8 +732,8 @@ const confirmRelocate = async () => {
       </div>
     </div>
 
-    <div v-if="showScanDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl">
+    <div v-if="showScanDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showScanDialog = false">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">选择扫描目录</h3>
         <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
           选择一个目录，将递归扫描其中所有 Godot 项目（包含 project.godot 的目录）
@@ -754,8 +770,8 @@ const confirmRelocate = async () => {
       </div>
     </div>
 
-    <div v-if="showGroupDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl">
+    <div v-if="showGroupDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showGroupDialog = false; groupInput = ''; editingProjectId = null">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">设置项目分组</h3>
         <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
           输入分组名称，相同分组的项目会显示在一起
@@ -783,8 +799,8 @@ const confirmRelocate = async () => {
       </div>
     </div>
 
-    <div v-if="showEngineDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl">
+    <div v-if="showEngineDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showEngineDialog = false">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
           {{ selectedProject?.name }} - 引擎绑定
         </h3>
@@ -846,8 +862,8 @@ const confirmRelocate = async () => {
       @confirm="onConfirmDialogConfirm"
     />
 
-    <div v-if="showRelocateDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl">
+    <div v-if="showRelocateDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showRelocateDialog = false">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">重新定位项目</h3>
         <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
           项目路径已失效，请选择新的项目目录。
@@ -888,8 +904,8 @@ const confirmRelocate = async () => {
       </div>
     </div>
 
-    <div v-if="showMovedDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl">
+    <div v-if="showMovedDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showMovedDialog = false">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">检测到项目迁移</h3>
         <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
           以下项目的路径已失效，但发现了同名项目。是否更新路径？

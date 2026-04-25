@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { api, withErrorLogging } from '@/api'
 import type { Project, Plugin, PluginVersion, PluginUnit, ProjectBinding, ApplyResult } from '@/types'
 import { useToast } from '@/composables/useToast'
+import { useDialogEscape } from '@/composables/useDialogEscape'
 
 const toast = useToast()
 const projects = ref<Project[]>([])
@@ -128,6 +129,9 @@ const showVersionDialog = ref(false)
 const versionSelectPlugin = ref<Plugin | null>(null)
 const selectedVersionIdx = ref(0)
 const selectedUnitIdx = ref(0)
+
+useDialogEscape(showApplyDialog)
+useDialogEscape(showVersionDialog)
 
 const openVersionSelect = (plugin: Plugin) => {
   versionSelectPlugin.value = plugin
@@ -437,8 +441,8 @@ const closeApplyDialog = () => {
       </div>
     </div>
 
-    <div v-if="showApplyDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-4 lg:p-6 w-full max-w-lg shadow-xl">
+    <div v-if="showApplyDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" @click="closeApplyDialog">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-4 lg:p-6 w-full max-w-lg shadow-xl" @click.stop>
         <template v-if="!applyResult">
           <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">确认应用变更</h3>
           <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
@@ -508,8 +512,8 @@ const closeApplyDialog = () => {
       </div>
     </div>
 
-    <div v-if="showVersionDialog && versionSelectPlugin" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-4 lg:p-6 w-full max-w-md shadow-xl">
+    <div v-if="showVersionDialog && versionSelectPlugin" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" @click="showVersionDialog = false; versionSelectPlugin = null">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-4 lg:p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
           选择版本 - {{ versionSelectPlugin.name }}
         </h3>

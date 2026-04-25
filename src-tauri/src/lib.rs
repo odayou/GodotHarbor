@@ -8,14 +8,24 @@ pub mod operation_log;
 pub mod engine;
 pub mod godot_resolver;
 pub mod version_checker;
+pub mod watcher;
 
 use tauri::Manager;
+use std::sync::Mutex;
+
+pub struct AppState {
+    pub fs_watcher: Mutex<watcher::FsWatcher>,
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .manage(AppState {
+            fs_watcher: Mutex::new(watcher::FsWatcher::new(5)),
+        })
         .setup(|app| {
             let app_handle = app.handle();
             let data_dir = app_handle.path().app_data_dir()
@@ -32,6 +42,51 @@ pub fn run() {
             let handle = app_handle.clone();
             tauri::async_runtime::spawn(async move {
                 let _ = commands::auto_scan_projects(handle).await;
+            });
+
+            let watcher_handle = app_handle.clone();
+            let watcher_app = app_handle.clone();
+            tauri::async_runtime::spawn(async move {
+                let storage = {
+                    let data_dir = watcher_app.path().app_data_dir()
+                        .expect("Failed to get app data directory");
+                    storage::Storage::new(data_dir)
+                };
+                let settings: models::Settings = storage.load_or_default("settings.json");
+                let dirs = if settings.scan_directories.is_empty() {
+                    let mut default_dirs = Vec::new();
+                    if cfg!(windows) {
+                        if let Some(userprofile) = std::env::var("USERPROFILE").ok() {
+                            default_dirs.push(format!("{}\\Documents", userprofile));
+                            default_dirs.push(format!("{}\\Desktop", userprofile));
+                        }
+                        for drive in ['D', 'E', 'F'] {
+                            let drive_path = format!("{}:\\", drive);
+                            if std::path::Path::new(&drive_path).exists() {
+                                default_dirs.push(drive_path);
+                            }
+                        }
+                    } else {
+                        if let Some(home) = std::env::var("HOME").ok() {
+                            default_dirs.push(format!("{}/Documents", home));
+                            default_dirs.push(format!("{}/projects", home));
+                        }
+                    }
+                    default_dirs
+                } else {
+                    settings.scan_directories
+                };
+
+                let state = watcher_handle.state::<AppState>();
+                let result = {
+                    let guard = state.fs_watcher.lock();
+                    if let Ok(guard) = guard {
+                        guard.start(watcher_handle.clone(), dirs)
+                    } else {
+                        Err("获取监听状态锁失败".to_string())
+                    }
+                };
+                drop(result);
             });
 
             let show_handle = app_handle.clone();
@@ -89,6 +144,8 @@ pub fn run() {
             commands::relocate_project,
             commands::detect_moved_projects,
             commands::confirm_project_relocation,
+            commands::sync_projects,
+            commands::restart_fs_watcher,
             commands::check_godot_updates,
         ])
         .run(tauri::generate_context!())
