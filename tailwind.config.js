@@ -9,30 +9,30 @@ export default {
     extend: {
       colors: {
         primary: {
-          50: '#f0f9ff',
-          100: '#e0f2fe',
-          200: '#bae6fd',
-          300: '#7dd3fc',
-          400: '#38bdf8',
-          500: '#0ea5e9',
-          600: '#0284c7',
-          700: '#0369a1',
-          800: '#075985',
-          900: '#0c4a6e',
+          50: '#eff6ff',
+          100: '#dbeafe',
+          200: '#bfdbfe',
+          300: '#93c5fd',
+          400: '#60a5fa',
+          500: '#3b82f6',
+          600: '#2563eb',
+          700: '#1d4ed8',
+          800: '#1e40af',
+          900: '#1e3a8a',
         },
         surface: {
-          base: '#0B0F19',
-          layer: '#111827',
-          card: '#1F2937',
-          border: '#374151',
+          base: '#0F172A',
+          layer: '#1E293B',
+          card: '#334155',
+          border: '#475569',
         },
         content: {
-          primary: '#E5E7EB',
-          secondary: '#9CA3AF',
+          primary: '#F8FAFC',
+          secondary: '#CBD5E1',
         },
         brand: {
-          indigo: '#6366F1',
-          cyan: '#06B6D4',
+          primary: '#3B82F6',
+          secondary: '#10B981',
         },
         godot: {
           blue: '#478cbf',
@@ -40,7 +40,11 @@ export default {
         }
       },
       backgroundImage: {
-        'brand-gradient': 'linear-gradient(135deg, #6366F1 0%, #06B6D4 100%)',
+        'brand-gradient': 'linear-gradient(135deg, #3B82F6 0%, #10B981 100%)',
+      },
+      boxShadow: {
+        'card': '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+        'elevated': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
       }
     },
   },
