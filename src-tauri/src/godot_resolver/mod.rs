@@ -1,8 +1,22 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use anyhow::{Result, Context};
 use walkdir::WalkDir;
+
+const UID_CACHE_MAX_DEPTH: usize = 4;
+const SKIP_DIRS: &[&str] = &[
+    ".git", ".svn", ".hg",
+    "node_modules", "__pycache__",
+    "build", "dist", ".cache",
+];
+
+type SharedUidCache = Arc<Mutex<HashMap<String, HashMap<String, String>>>>;
+
+static UID_CACHE: once_cell::sync::Lazy<SharedUidCache> = once_cell::sync::Lazy::new(|| {
+    Arc::new(Mutex::new(HashMap::new()))
+});
 
 pub struct GodotResourceResolver {
     project_root: PathBuf,
@@ -11,31 +25,61 @@ pub struct GodotResourceResolver {
 
 impl GodotResourceResolver {
     pub fn new(project_root: PathBuf) -> Self {
+        let project_root_str = project_root.to_string_lossy().to_string();
+        let uid_cache = {
+            let global_cache = UID_CACHE.lock().unwrap();
+            global_cache.get(&project_root_str).cloned().unwrap_or_default()
+        };
+
         Self {
             project_root,
-            uid_cache: HashMap::new(),
+            uid_cache,
         }
     }
 
     pub fn build_uid_cache(&mut self) -> Result<()> {
-        let import_dir = self.project_root.join(".godot").join("imported");
-
-        if !import_dir.exists() {
-            return self.build_uid_cache_from_import_files();
+        let project_root_str = self.project_root.to_string_lossy().to_string();
+        {
+            let global_cache = UID_CACHE.lock().unwrap();
+            if global_cache.contains_key(&project_root_str) {
+                self.uid_cache = global_cache.get(&project_root_str).cloned().unwrap_or_default();
+                return Ok(());
+            }
         }
 
-        for entry in WalkDir::new(&import_dir)
-            .into_iter()
-            .filter_map(|e| e.ok())
-        {
-            let path = entry.path();
-            if !path.extension().map(|e| e == "import").unwrap_or(false) {
-                continue;
-            }
+        let import_dir = self.project_root.join(".godot").join("imported");
 
-            if let Ok(content) = fs::read_to_string(path) {
-                self.parse_import_file_for_uid(&content);
+        if import_dir.exists() {
+            for entry in WalkDir::new(&import_dir)
+                .follow_links(false)
+                .max_depth(UID_CACHE_MAX_DEPTH)
+                .into_iter()
+                .filter_entry(|e| {
+                    if e.file_type().is_dir() {
+                        let name = e.file_name().to_string_lossy();
+                        let lower = name.to_lowercase();
+                        return !SKIP_DIRS.iter().any(|skip| lower == *skip);
+                    }
+                    true
+                })
+                .filter_map(|e| e.ok())
+            {
+                let path = entry.path();
+                if !path.extension().map(|e| e == "import").unwrap_or(false) {
+                    continue;
+                }
+
+                if let Ok(content) = fs::read_to_string(path) {
+                    self.parse_import_file_for_uid(&content);
+                }
             }
+        } else {
+            self.build_uid_cache_from_import_files()?;
+        }
+
+        {
+            let mut global_cache = UID_CACHE.lock().unwrap();
+            global_cache.insert(project_root_str, self.uid_cache.clone());
         }
 
         Ok(())
@@ -43,7 +87,17 @@ impl GodotResourceResolver {
 
     fn build_uid_cache_from_import_files(&mut self) -> Result<()> {
         for entry in WalkDir::new(&self.project_root)
+            .follow_links(false)
+            .max_depth(UID_CACHE_MAX_DEPTH)
             .into_iter()
+            .filter_entry(|e| {
+                if e.file_type().is_dir() {
+                    let name = e.file_name().to_string_lossy();
+                    let lower = name.to_lowercase();
+                    return !SKIP_DIRS.iter().any(|skip| lower == *skip);
+                }
+                true
+            })
             .filter_map(|e| e.ok())
         {
             let path = entry.path();
@@ -121,6 +175,12 @@ impl GodotResourceResolver {
         } else {
             None
         }
+    }
+
+    pub fn invalidate_cache(project_root: &Path) {
+        let project_root_str = project_root.to_string_lossy().to_string();
+        let mut global_cache = UID_CACHE.lock().unwrap();
+        global_cache.remove(&project_root_str);
     }
 }
 

@@ -1,4 +1,5 @@
 use notify::{RecommendedWatcher, RecursiveMode, Watcher, Config, Event, EventKind};
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
@@ -8,6 +9,7 @@ use tauri::{AppHandle, Emitter};
 struct WatcherState {
     watcher: RecommendedWatcher,
     last_emit: Instant,
+    watched_paths: HashSet<PathBuf>,
 }
 
 pub struct FsWatcher {
@@ -41,6 +43,7 @@ impl FsWatcher {
             *state = Some(WatcherState {
                 watcher,
                 last_emit: Instant::now() - self.debounce_interval,
+                watched_paths: HashSet::new(),
             });
         }
 
@@ -113,6 +116,8 @@ impl FsWatcher {
                 if path.exists() {
                     if let Err(e) = s.watcher.watch(&path, RecursiveMode::Recursive) {
                         eprintln!("Failed to watch directory {}: {}", dir, e);
+                    } else {
+                        s.watched_paths.insert(path);
                     }
                 }
             }
@@ -130,12 +135,18 @@ impl FsWatcher {
     pub fn update_directories(&self, directories: Vec<String>) -> Result<(), String> {
         let mut state = self.state.lock().map_err(|e| format!("获取监听状态锁失败: {}", e))?;
         if let Some(ref mut s) = *state {
-            let _ = s.watcher.unwatch(PathBuf::from("/").as_path());
+            for path in &s.watched_paths {
+                let _ = s.watcher.unwatch(path);
+            }
+            s.watched_paths.clear();
+
             for dir in &directories {
                 let path = PathBuf::from(dir);
                 if path.exists() {
                     if let Err(e) = s.watcher.watch(&path, RecursiveMode::Recursive) {
                         eprintln!("Failed to watch directory {}: {}", dir, e);
+                    } else {
+                        s.watched_paths.insert(path);
                     }
                 }
             }

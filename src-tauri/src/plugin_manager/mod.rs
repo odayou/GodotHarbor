@@ -3,8 +3,18 @@ use std::path::{Path, PathBuf};
 use anyhow::{Result, Context};
 use uuid::Uuid;
 use walkdir::WalkDir;
+use rayon::prelude::*;
 use tauri::{AppHandle, Emitter};
 use crate::models::{Plugin, PluginSource, PluginVersion, PluginUnit, SourceType, Compatibility, Project};
+
+const PLUGIN_SCAN_MAX_DEPTH: usize = 5;
+const COMPAT_SCAN_MAX_DEPTH: usize = 5;
+const SKIP_DIRS: &[&str] = &[
+    ".git", ".svn", ".hg",
+    "node_modules", "__pycache__",
+    ".godot", ".import",
+    "build", "dist", ".cache",
+];
 
 pub struct PluginManager {
     plugins_dir: PathBuf,
@@ -15,32 +25,39 @@ impl PluginManager {
         fs::create_dir_all(&plugins_dir).ok();
         Self { plugins_dir }
     }
-    
-    /// 扫描所有项目中的插件目录，返回发现的插件路径列表
+
     pub fn scan_project_plugins(&self, projects: &[Project]) -> Result<Vec<PathBuf>> {
-        let mut plugin_paths = Vec::new();
-        
-        for project in projects {
-            let project_path = Path::new(&project.path);
-            let addons_dir = project_path.join("addons");
-            
-            if addons_dir.exists() && addons_dir.is_dir() {
-                for entry in WalkDir::new(&addons_dir)
+        let results: Vec<Vec<PathBuf>> = projects
+            .par_iter()
+            .filter_map(|project| {
+                let project_path = Path::new(&project.path);
+                let addons_dir = project_path.join("addons");
+
+                if !addons_dir.exists() || !addons_dir.is_dir() {
+                    return None;
+                }
+
+                let plugin_paths: Vec<PathBuf> = WalkDir::new(&addons_dir)
                     .max_depth(1)
+                    .follow_links(false)
                     .into_iter()
                     .filter_map(|e| e.ok())
-                {
-                    let path = entry.path();
-                    if path.is_dir() && path != addons_dir {
-                        if path.join("plugin.cfg").exists() {
-                            plugin_paths.push(path.to_path_buf());
-                        }
-                    }
+                    .filter(|e| {
+                        let path = e.path();
+                        path.is_dir() && path != addons_dir && path.join("plugin.cfg").exists()
+                    })
+                    .map(|e| e.into_path())
+                    .collect();
+
+                if plugin_paths.is_empty() {
+                    None
+                } else {
+                    Some(plugin_paths)
                 }
-            }
-        }
-        
-        Ok(plugin_paths)
+            })
+            .collect();
+
+        Ok(results.into_iter().flatten().collect())
     }
 
     pub fn import_from_local(&self, source_path: &str) -> Result<Plugin> {
@@ -131,7 +148,7 @@ impl PluginManager {
         };
 
         let mut plugin = Plugin::new(plugin_name.clone(), plugin_source);
-        
+
         let version_id = Uuid::new_v4().to_string();
         let version_dir = self.plugins_dir.join(&plugin.plugin_id).join(&version_id);
         let payload_dir = version_dir.join("payload");
@@ -189,8 +206,8 @@ impl PluginManager {
         let compatibility = self.detect_compatibility(&payload_dir);
 
         self.write_harbor_marker(&payload_dir);
-        
-        let (unit_version, unit_name, unit_description, unit_author) = 
+
+        let (unit_version, unit_name, unit_description, unit_author) =
             if let Some(first_unit) = units.first() {
                 (
                     if first_unit.version.is_empty() { "1.0.0".to_string() } else { first_unit.version.clone() },
@@ -201,7 +218,7 @@ impl PluginManager {
             } else {
                 ("1.0.0".to_string(), plugin_name.clone(), String::new(), String::new())
             };
-        
+
         let plugin_version = PluginVersion {
             version_id: version_id.clone(),
             version: unit_version,
@@ -209,49 +226,58 @@ impl PluginManager {
             created_at: chrono::Utc::now(),
             units,
         };
-        
+
         plugin.versions.push(plugin_version);
         plugin.compatibility = compatibility;
         plugin.name = unit_name;
         plugin.description = unit_description;
         plugin.author = unit_author;
-        
+
         Ok(plugin)
     }
 
     pub fn parse_plugin_units(&self, plugin_dir: &Path) -> Result<Vec<PluginUnit>> {
         let mut units = Vec::new();
-        
-        for entry in walkdir::WalkDir::new(plugin_dir)
-            .follow_links(true)
+
+        for entry in WalkDir::new(plugin_dir)
+            .follow_links(false)
+            .max_depth(PLUGIN_SCAN_MAX_DEPTH)
             .into_iter()
+            .filter_entry(|e| {
+                if e.file_type().is_dir() {
+                    let name = e.file_name().to_string_lossy();
+                    let lower = name.to_lowercase();
+                    return !SKIP_DIRS.iter().any(|skip| lower == *skip);
+                }
+                true
+            })
             .filter_map(|e| e.ok())
         {
             let path = entry.path();
-            
+
             if path.file_name().map(|f| f == "plugin.cfg").unwrap_or(false) {
                 if let Ok(unit) = self.parse_plugin_cfg(path, plugin_dir) {
                     units.push(unit);
                 }
             }
         }
-        
+
         if units.is_empty() {
             anyhow::bail!("No valid plugin.cfg found in plugin directory");
         }
-        
+
         Ok(units)
     }
 
     fn parse_plugin_cfg(&self, cfg_path: &Path, plugin_dir: &Path) -> Result<PluginUnit> {
         let content = fs::read_to_string(cfg_path)
             .context("Failed to read plugin.cfg")?;
-        
+
         let mut name = String::new();
         let mut description = String::new();
         let mut author = String::new();
         let mut version = String::new();
-        
+
         for line in content.lines() {
             let line = line.trim();
             if line.starts_with("name=") {
@@ -264,13 +290,13 @@ impl PluginManager {
                 version = line[8..].trim_matches('"').to_string();
             }
         }
-        
+
         let subdirectory = cfg_path.parent()
             .and_then(|p| p.strip_prefix(plugin_dir).ok())
             .and_then(|p| p.to_str())
             .unwrap_or("")
             .to_string();
-        
+
         Ok(PluginUnit {
             unit_id: Uuid::new_v4().to_string(),
             name,
@@ -283,38 +309,62 @@ impl PluginManager {
     }
 
     pub fn detect_compatibility(&self, plugin_dir: &Path) -> Compatibility {
-        let mut godot4_signals = 0;
-        let mut godot3_signals = 0;
-
-        for entry in walkdir::WalkDir::new(plugin_dir)
+        let files: Vec<PathBuf> = WalkDir::new(plugin_dir)
+            .follow_links(false)
+            .max_depth(COMPAT_SCAN_MAX_DEPTH)
             .into_iter()
+            .filter_entry(|e| {
+                if e.file_type().is_dir() {
+                    let name = e.file_name().to_string_lossy();
+                    let lower = name.to_lowercase();
+                    return !SKIP_DIRS.iter().any(|skip| lower == *skip);
+                }
+                true
+            })
             .filter_map(|e| e.ok())
-        {
-            let path = entry.path();
+            .filter(|e| {
+                if let Some(ext) = e.path().extension() {
+                    ext == "gd" || ext == "tscn" || ext == "tres"
+                } else {
+                    false
+                }
+            })
+            .map(|e| e.into_path())
+            .collect();
 
-            if let Some(ext) = path.extension() {
-                if ext == "gd" {
-                    if let Ok(content) = fs::read_to_string(path) {
-                        if content.contains("@export") { godot4_signals += 2; }
-                        if content.contains("class_name") { godot4_signals += 1; }
-                        if content.contains("await ") { godot4_signals += 1; }
-                        if content.contains("var ") && content.contains(": ") { godot4_signals += 1; }
-                        if content.contains("enum ") && content.contains(":") { godot4_signals += 1; }
+        let (godot4_signals, godot3_signals) = files
+            .par_iter()
+            .map(|path| {
+                let mut g4 = 0i32;
+                let mut g3 = 0i32;
 
-                        if content.contains("export(") { godot3_signals += 2; }
-                        if content.contains("export(PackedScene)") { godot3_signals += 1; }
-                        if content.contains(".set_deferred(") { godot3_signals += 1; }
+                if let Ok(content) = fs::read_to_string(path) {
+                    if let Some(ext) = path.extension() {
+                        if ext == "gd" {
+                            if content.contains("@export") { g4 += 2; }
+                            if content.contains("class_name") { g4 += 1; }
+                            if content.contains("await ") { g4 += 1; }
+                            if content.contains("var ") && content.contains(": ") { g4 += 1; }
+                            if content.contains("enum ") && content.contains(":") { g4 += 1; }
+
+                            if content.contains("export(") { g3 += 2; }
+                            if content.contains("export(PackedScene)") { g3 += 1; }
+                            if content.contains(".set_deferred(") { g3 += 1; }
+                        }
+                        if ext == "tscn" || ext == "tres" {
+                            if content.contains("[node]") && content.contains("script/signal") { g3 += 1; }
+                            if content.contains("metadata/_edit_lock_") { g4 += 1; }
+                            if content.contains("uid://") { g4 += 2; }
+                        }
                     }
                 }
-                if ext == "tscn" || ext == "tres" {
-                    if let Ok(content) = fs::read_to_string(path) {
-                        if content.contains("[node]") && content.contains("script/signal") { godot3_signals += 1; }
-                        if content.contains("metadata/_edit_lock_") { godot4_signals += 1; }
-                        if content.contains("uid://") { godot4_signals += 2; }
-                    }
-                }
-            }
-        }
+
+                (g4, g3)
+            })
+            .reduce(
+                || (0i32, 0i32),
+                |(g4a, g3a), (g4b, g3b)| (g4a + g4b, g3a + g3b),
+            );
 
         if godot4_signals > 0 && godot3_signals == 0 {
             Compatibility::Godot4

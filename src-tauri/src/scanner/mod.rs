@@ -1,41 +1,82 @@
 use std::fs;
 use std::path::Path;
+use std::collections::HashSet;
 use walkdir::WalkDir;
+use rayon::prelude::*;
 use anyhow::{Result, Context};
 use crate::models::{Project, ProjectStatus};
 use crate::godot_resolver::extract_icon_path_advanced;
+
+const MAX_SCAN_DEPTH: usize = 5;
+const SKIP_DIRS: &[&str] = &[
+    ".git", ".svn", ".hg",
+    "node_modules", "__pycache__",
+    ".godot", ".import",
+    "build", "dist", ".cache",
+    "Library", "Temp",
+];
 
 pub struct ProjectScanner;
 
 impl ProjectScanner {
     pub fn scan_directory(root_path: &str) -> Result<Vec<Project>> {
-        Self::scan_directory_with_depth(root_path, 5)
+        Self::scan_directory_with_depth(root_path, MAX_SCAN_DEPTH)
     }
 
     pub fn scan_directory_with_depth(root_path: &str, max_depth: usize) -> Result<Vec<Project>> {
-        let mut projects = Vec::new();
         let root = Path::new(root_path);
 
         if !root.exists() {
-            return Ok(projects);
+            return Ok(Vec::new());
         }
 
-        for entry in WalkDir::new(root)
-            .follow_links(true)
+        let project_godot_paths: Vec<std::path::PathBuf> = WalkDir::new(root)
+            .follow_links(false)
             .max_depth(max_depth)
             .into_iter()
+            .filter_entry(|e| {
+                if e.file_type().is_dir() {
+                    let name = e.file_name().to_string_lossy();
+                    let lower = name.to_lowercase();
+                    return !SKIP_DIRS.iter().any(|skip| lower == *skip);
+                }
+                true
+            })
             .filter_map(|e| e.ok())
-        {
-            let path = entry.path();
+            .filter(|e| {
+                e.file_name() == "project.godot"
+            })
+            .map(|e| e.into_path())
+            .collect();
 
-            if path.file_name().map(|f| f == "project.godot").unwrap_or(false) {
-                if let Ok(project) = Self::parse_project(path) {
-                    projects.push(project);
+        let projects: Vec<Project> = project_godot_paths
+            .par_iter()
+            .filter_map(|path| Self::parse_project(path).ok())
+            .collect();
+
+        Ok(projects)
+    }
+
+    pub fn scan_directories_parallel(root_paths: &[String]) -> Result<Vec<Project>> {
+        let results: Vec<Vec<Project>> = root_paths
+            .par_iter()
+            .filter_map(|root_path| {
+                Self::scan_directory(root_path).ok()
+            })
+            .collect();
+
+        let mut all_projects = Vec::new();
+        let mut seen_paths = HashSet::new();
+
+        for projects in results {
+            for project in projects {
+                if seen_paths.insert(project.path.clone()) {
+                    all_projects.push(project);
                 }
             }
         }
 
-        Ok(projects)
+        Ok(all_projects)
     }
 
     pub fn parse_project(project_godot_path: &Path) -> Result<Project> {

@@ -68,19 +68,17 @@ pub fn scan_projects(app: AppHandle, root_dirs: Vec<String>) -> Result<Vec<Proje
         return Err("请至少指定一个扫描目录".to_string());
     }
 
-    let mut all_projects = Vec::new();
-    let mut scan_errors = Vec::new();
+    let valid_dirs: Vec<String> = root_dirs.iter()
+        .filter(|d| std::path::Path::new(d).exists())
+        .cloned()
+        .collect();
 
-    for root_dir in &root_dirs {
-        if !std::path::Path::new(root_dir).exists() {
-            scan_errors.push(format!("目录不存在: {}", root_dir));
-            continue;
-        }
-        match ProjectScanner::scan_directory(root_dir) {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => scan_errors.push(format!("扫描目录 {} 失败: {}", root_dir, e)),
-        }
+    if valid_dirs.is_empty() {
+        return Err("所有指定的目录均不存在".to_string());
     }
+
+    let all_projects = ProjectScanner::scan_directories_parallel(&valid_dirs)
+        .map_err(|e| format!("扫描失败: {}", e))?;
 
     let storage = get_storage(&app);
     let mut existing_projects: Vec<Project> = storage.load_or_default("projects.json");
@@ -99,15 +97,8 @@ pub fn scan_projects(app: AppHandle, root_dirs: Vec<String>) -> Result<Vec<Proje
     storage.save("projects.json", &existing_projects)
         .map_err(|e| format!("保存项目列表失败: {}", e))?;
 
-    log_operation(&app, "scan_projects", &root_dirs.join(", "),
-        &format!("扫描完成，发现 {} 个项目{}", all_projects.len(),
-            if scan_errors.is_empty() { String::new() } else { format!("，{} 个错误", scan_errors.len()) }));
-
-    if !scan_errors.is_empty() && all_projects.is_empty() {
-        let err_msg = format!("扫描失败:\n{}", scan_errors.join("\n"));
-        log_error(&app, "scan_projects", &root_dirs.join(", "), &err_msg);
-        return Err(err_msg);
-    }
+    log_operation(&app, "scan_projects", &valid_dirs.join(", "),
+        &format!("扫描完成，发现 {} 个项目", all_projects.len()));
 
     Ok(all_projects)
 }
