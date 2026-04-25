@@ -39,13 +39,13 @@ const loadSettings = async () => {
     const result = await api.getSettings()
     settings.value = { scan_directories: result.scan_directories || [], mount_strategy: result.mount_strategy || 'Symlink', language: result.language || 'zh-CN', theme: result.theme || 'system', auto_scan_on_startup: result.auto_scan_on_startup ?? true, auto_discover_engines: result.auto_discover_engines ?? true }
     locale.value = settings.value.language
-    if (['light', 'dark', 'system'].includes(settings.value.theme)) setTheme(settings.value.theme as 'light' | 'dark' | 'system')
+    if (['light', 'dark', 'system', 'volcano'].includes(settings.value.theme)) setTheme(settings.value.theme as 'light' | 'dark' | 'system' | 'volcano')
   } catch (error) { toast.error(`加载设置失败: ${error}`) }
   finally { isLoading.value = false }
 }
 
 watch(() => settings.value.language, (lang) => { locale.value = lang })
-watch(() => settings.value.theme, (theme) => { if (['light', 'dark', 'system'].includes(theme)) setTheme(theme as 'light' | 'dark' | 'system') })
+watch(() => settings.value.theme, (theme) => { if (['light', 'dark', 'system', 'volcano'].includes(theme)) setTheme(theme as 'light' | 'dark' | 'system' | 'volcano') })
 
 const addScanDirectory = async () => {
   try {
@@ -298,6 +298,7 @@ const resetOnboarding = async () => {
               <option value="light">{{ t('settings.themeLight') }}</option>
               <option value="dark">{{ t('settings.themeDark') }}</option>
               <option value="system">{{ t('settings.themeSystem') }}</option>
+              <option value="volcano">火山引擎</option>
             </select>
           </div>
         </div>

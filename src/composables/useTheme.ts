@@ -1,18 +1,26 @@
 import { ref, watch } from 'vue'
 
-export type Theme = 'light' | 'dark' | 'system'
+export type Theme = 'light' | 'dark' | 'system' | 'volcano'
 
 const currentTheme = ref<Theme>('system')
 
 function applyTheme(theme: Theme) {
   const root = document.documentElement
+  
+  // 重置所有主题类
+  root.classList.remove('dark', 'theme-volcano')
+  
+  // 应用深色模式
   const isDark = theme === 'dark' || 
     (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
 
   if (isDark) {
     root.classList.add('dark')
-  } else {
-    root.classList.remove('dark')
+  }
+  
+  // 应用火山引擎主题
+  if (theme === 'volcano') {
+    root.classList.add('theme-volcano')
   }
 }
 
