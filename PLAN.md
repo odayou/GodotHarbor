@@ -1,141 +1,404 @@
-# Godot Harbor v0.2 迭代实现计划
+# Godot Harbor 项目实施计划
 
-## 范围
+## 项目概述
 
-实现 ITERATION_PLAN_v0.2.md 中 v0.2 迭代的 7 项功能：
+Godot Harbor 是一款独立桌面应用，用于为 Godot 开发者提供统一的插件仓库、项目绑定关系管理和环境信息管理能力。
 
-| 编号 | 功能 | 优先级 |
-|------|------|--------|
-| A1 | 启动时自动扫描项目 | P0 |
-| A2 | 侧边栏添加首页入口 | P0 |
-| A3 | 首屏加载优化（消除白屏闪烁） | P0 |
-| B1 | 项目路径有效性实时校验 | P0 |
-| B2 | 项目改名/迁移智能检测 | P0 |
-| C1 | 弹窗 Escape + 遮罩层关闭 | P0 |
-| C2 | 统一删除确认对话框 | P0 |
+**技术栈：**
+- 桌面框架：Tauri 2.x
+- 后端：Rust
+- 前端：Vue 3 + TypeScript + TailwindCSS
+- 数据持久化：本地 JSON 文件
 
----
+## 实施阶段
 
-## 实现步骤
+### 阶段一：项目初始化与基础架构搭建（P0 原型验证）
 
-### 步骤 1: A1 — 启动时自动扫描项目
+#### 1.1 项目初始化
+- [x] 创建 Tauri 项目结构
+- [x] 配置 Rust 后端环境
+- [x] 配置 Vue 3 + TypeScript 前端环境
+- [x] 配置 TailwindCSS
+- [x] 设置项目目录结构
 
-**后端变更:**
-1. `models/mod.rs` — Settings 结构体新增 `auto_scan_on_startup: bool` 字段（默认 true）
-2. `commands/mod.rs` — 新增 `auto_scan_projects` 命令：
-   - 读取 settings 中的 scan_directories
-   - 首次无扫描目录时，扫描平台常见位置（Windows: D:\, Documents, 桌面; macOS/Linux: ~/Documents, ~/projects 等）
-   - 后台异步执行扫描，结果与已有项目合并（增量更新）
-   - 扫描完成后通过 Tauri 事件 `scan-complete` 通知前端
-3. `lib.rs` — setup 钩子中调用自动扫描命令
+#### 1.2 核心数据结构设计
+- [x] 设计插件数据模型（Plugin Source, Plugin Package→Plugin+PluginVersion, Plugin Unit）
+- [x] 设计项目数据模型
+- [x] 设计配置数据模型
+- [x] 实现本地 JSON 存储模块（基础读写完成，包含原子写入和损坏恢复）
 
-**前端变更:**
-4. `Home.vue` — 监听 `scan-complete` 事件自动刷新统计数据
-5. `Projects.vue` — 监听 `scan-complete` 事件自动刷新项目列表
+#### 1.3 基础文件系统操作
+- [x] 实现文件/目录操作工具函数
+- [x] 实现符号链接创建/删除功能
+- [x] 实现跨平台路径处理（基础路径处理完成，junction 检测逻辑已修复）
+- [x] 实现权限检测功能（项目扫描有写权限检测，symlink 权限不足时自动回退 junction）
 
-### 步骤 2: A2 — 侧边栏添加首页入口
+#### 1.4 项目扫描功能（原型）
+- [x] 实现递归扫描 project.godot 文件
+- [x] 解析 project.godot 文件内容
+- [x] 展示项目列表（基础 UI）
 
-**前端变更:**
-1. `Sidebar.vue` — menuItems 顶部添加 Home 入口 `{ path: '/', icon: 'home', labelKey: 'nav.home' }`
-2. `Sidebar.vue` — 添加 home 图标 SVG
-3. `useI18n.ts` — 添加 `'nav.home': '首页'` / `'nav.home': 'Home'` 翻译
+### 阶段二：插件管理核心功能（P1 MVP 核心）
 
-### 步骤 3: A3 — 首屏加载优化
+#### 2.1 插件导入功能
+- [x] 实现从本地目录导入插件
+- [x] 实现从 Git URL 导入插件
+- [x] 解析 plugin.cfg 文件
+- [x] 提取插件元信息（名称、版本、描述等）
+- [x] 处理包含多个 plugin.cfg 的情况
 
-**变更:**
-1. `tauri.conf.json` — 窗口添加 `"visible": false`
-2. `App.vue` — onMounted 中调用 `getCurrentWindow().show()`
-3. `index.html` — 添加内联 CSS loading 动画作为占位
-4. `commands/mod.rs` — 新增 `get_dashboard_stats` 聚合接口，一次返回项目数/插件数/绑定数/最近打开/常用插件
-5. `api/index.ts` — 添加 `getDashboardStats` API
-6. `Home.vue` — 使用聚合接口替代 N+1 请求
+#### 2.2 插件仓库（Vault）
+- [x] 设计插件存储目录结构
+- [x] 实现插件版本管理（重复导入创建新版本而非独立条目，Git 导入后保留 .git）
+- [x] 实现插件列表展示 UI
+- [x] 实现插件详情查看
+- [x] 实现插件删除功能
 
-### 步骤 4: B1 — 项目路径有效性实时校验
+#### 2.3 项目绑定功能（Linker）
+- [x] 设计项目-插件绑定数据结构
+- [x] 实现项目选择界面
+- [x] 实现插件选择与版本指定（用户可选择特定版本）
+- [x] 实现绑定关系可视化（SVG 图形化连线）
+- [x] 实现绑定关系持久化
 
-**后端变更:**
-1. `models/mod.rs` — ProjectStatus 枚举新增 `MissingSource` 变体
-2. `commands/mod.rs` — `get_projects` 命令中增加实时校验：
-   - 检查项目路径是否存在
-   - 检查 project.godot 是否可解析
-   - 路径失效的标记为 `MissingSource`
-3. `commands/mod.rs` — 新增 `relocate_project` 命令：用户选择新路径，验证后更新
+#### 2.4 应用变更功能（Apply Changes）
+- [x] 实现差异计算（新增、删除、升级）
+- [x] 实现预检查机制
+  - [x] 项目路径检查
+  - [x] 权限检查
+  - [x] 目标路径冲突检测（check_conflicts 已集成到 apply 流程）
+  - [x] 插件源存在性检查
+- [x] 实现挂载策略（symlink/junction/copy）
+- [x] 实现变更执行与回滚
+- [x] 实现操作日志记录
 
-**前端变更:**
-4. `types/index.ts` — ProjectStatus 添加 `MissingSource`
-5. `Projects.vue` — MissingSource 状态显示灰色虚线边框 + "重新定位"按钮
-6. `Projects.vue` — 重新定位对话框：选择新路径 → 验证 → 更新
+### 阶段三：项目管理功能（P1 MVP 支撑）
 
-### 步骤 5: B2 — 项目改名/迁移智能检测
+#### 3.1 项目发现与管理
+- [x] 实现项目扫描根目录设置
+- [x] 实现手动添加项目
+- [x] 实现拖拽导入项目
+- [x] 展示项目卡片（名称、路径、Godot 版本、插件数量）
+- [x] 实现项目删除功能
 
-**后端变更:**
-1. `commands/mod.rs` — 扫描时检测"旧路径失效 + 出现同名新项目"的情况
-2. `commands/mod.rs` — 新增 `detect_moved_projects` 命令：返回检测到的迁移候选列表
-3. `commands/mod.rs` — 新增 `confirm_project_relocation` 命令：确认迁移，将旧 project_id 的关联信息迁移到新路径
+#### 3.2 项目状态展示
+- [x] 显示项目健康状态
+- [x] 显示已绑定插件列表
+- [x] 显示异常状态提示
+- [x] 实现项目详情页面
 
-**前端变更:**
-4. `Projects.vue` — 扫描完成后，检测到迁移候选时弹出提示对话框
-5. 用户确认后调用 `confirm_project_relocation` 完成迁移
+### 阶段四：冲突检测与异常处理（P1 MVP 必需）
 
-### 步骤 6: C1 — 弹窗 Escape + 遮罩层关闭
+#### 4.1 冲突检测
+- [x] 实现插件挂载路径冲突检测（check_conflicts 方法已集成到 apply 流程） 
+- [x] 实现 Harbor 管理标记识别（.harbor-managed 文件）      
+- [x] 实现兼容性检查（Godot 3/4）
+- [x] 实现冲突提示 UI（ConflictInfo 类型已在前端使用）
 
-**前端变更:**
-1. 新建 `composables/useDialog.ts` — 通用弹窗管理 composable：
-   - `openDialog()` — 打开弹窗，注册 Escape 键监听
-   - `closeDialog()` — 关闭弹窗，注销监听
-   - `onOverlayClick()` — 遮罩层点击关闭
-2. `Projects.vue` — 所有弹窗迁移到 useDialog
-3. `Plugins.vue` — 所有弹窗迁移到 useDialog
-4. `Engines.vue` — 所有弹窗迁移到 useDialog
-5. `Settings.vue` — 所有弹窗迁移到 useDialog
+#### 4.2 异常处理
+- [x] Git 操作异常处理（基础错误捕获存在，包含进度回调）
+- [x] 文件系统权限异常处理（基础错误捕获存在，包含权限引导）
+- [x] 插件解析异常处理（基础错误捕获存在，导入失败自动清理已复制文件）
+- [x] 项目状态异常处理
+- [x] 实现友好的错误提示（Toast 通知，包含上下文信息）
 
-### 步骤 7: C2 — 统一删除确认对话框
+### 阶段五：UI/UX 完善（P2 体验增强）
 
-**前端变更:**
-1. 新建 `components/ConfirmDialog.vue` — 通用确认对话框组件：
-   - Props: title, description, confirmText, confirmColor, cancelText
-   - 集成 useDialog（Escape + 遮罩层关闭）
-   - 确认/取消按钮
-2. `Projects.vue` — 删除确认替换为 ConfirmDialog
-3. `Plugins.vue` — 删除确认替换为 ConfirmDialog
-4. `Engines.vue` — 删除确认替换为 ConfirmDialog
-5. `Settings.vue` — 删除确认替换为 ConfirmDialog
+#### 5.1 主界面布局
+- [x] 实现三栏布局（项目列表 | 插件选择 | 变更预览）（Linker 页面已实现）       
+- [x] 实现全局总览面板（Home.vue 统计数据已实现）
+- [x] 实现状态标签系统（Ready/In Use/Conflict/Warning/Missing Source）（全部状态标签已实现）
+- [x] 实现未应用变更提示
 
----
+#### 5.2 交互优化
+- [x] 实现二次确认对话框（删除操作均已添加确认）
+- [x] 实现操作引导（Home.vue 交互式引导已实现）
+- [x] 实现多语言支持（中文/英文）（i18n 覆盖率 90%+）
+- [x] 实现主题切换（亮色/暗色/跟随系统）（状态已同步）
 
-## 文件变更清单
+#### 5.3 设置页面
+- [x] 实现扫描目录配置
+- [x] 实现挂载策略配置
+- [x] 实现界面偏好设置
+- [x] 实现数据备份与恢复（包含 engines.json/engine_bindings.json/team_configs.json）
 
-### 新增文件
-- `src/composables/useDialog.ts`
-- `src/components/ConfirmDialog.vue`
+### 阶段六：引擎管理功能（P3 环境扩展）
 
-### 修改文件（后端）
-- `src-tauri/src/models/mod.rs` — Settings + ProjectStatus 扩展
-- `src-tauri/src/commands/mod.rs` — 新增命令 + 逻辑变更
-- `src-tauri/src/lib.rs` — setup 钩子 + 命令注册
-- `src-tauri/tauri.conf.json` — 窗口 visible 设置
+#### 6.1 引擎管理基础
+- [x] 实现引擎路径登记
+- [x] 实现引擎版本识别
+- [x] 实现引擎列表管理
+- [x] 实现项目-引擎绑定
 
-### 修改文件（前端）
-- `src/App.vue` — 延迟显示窗口
-- `index.html` — loading 占位
-- `src/views/Home.vue` — 聚合接口 + 事件监听
-- `src/views/Projects.vue` — MissingSource + 迁移检测 + useDialog + ConfirmDialog
-- `src/views/Plugins.vue` — useDialog + ConfirmDialog
-- `src/views/Engines.vue` — useDialog + ConfirmDialog
-- `src/views/Settings.vue` — useDialog + ConfirmDialog
-- `src/components/layout/Sidebar.vue` — 首页入口
-- `src/composables/useI18n.ts` — 新翻译键
-- `src/types/index.ts` — 类型扩展
-- `src/api/index.ts` — 新 API
+#### 6.2 项目启动功能
+- [x] 实现用指定引擎启动项目
+- [x] 实现启动参数配置
+- [x] 实现启动日志记录
 
----
+### 阶段七：v0.2 迭代功能（P0）
 
-## 实现顺序
+| 编号 | 功能 | 状态 |
+|------|------|------|
+| A1 | 启动时自动扫描项目 | ✅ 已实现 |
+| A2 | 侧边栏添加首页入口 | ✅ 已实现 |
+| A3 | 首屏加载优化（消除白屏闪烁） | ✅ 已实现 |
+| B1 | 项目路径有效性实时校验 | ✅ 已实现 |
+| B2 | 项目改名/迁移智能检测 | ✅ 已实现 |
+| C1 | 弹窗 Escape + 遮罩层关闭 | ✅ 已实现 |
+| C2 | 统一删除确认对话框 | ✅ 已实现 |
+| C6 | 侧边栏折叠功能 | ✅ 已实现 |
 
-按依赖关系排序：
-1. **A2** 侧边栏首页入口（最简单，无依赖）
-2. **A3** 首屏加载优化（含聚合接口，后续 Home.vue 依赖）
-3. **A1** 启动自动扫描（依赖聚合接口已就绪）
-4. **B1** 项目路径校验 + MissingSource（模型扩展）
-5. **B2** 项目迁移检测（依赖 B1 的 MissingSource）
-6. **C1** useDialog composable（C2 依赖）
-7. **C2** ConfirmDialog + 全局替换（依赖 C1）
+### 阶段八：v0.3 信息实时性（P0-P1）
+
+#### 8.1 项目信息增量同步
+- [ ] 扫描时同步所有字段：name、godot_version、icon_path、status
+- [ ] 保留用户手动修改的字段（如 group、自定义名称）
+- [ ] 新增 `last_synced_at` 时间戳
+
+#### 8.2 文件系统变更监听
+- [ ] 使用 `notify` crate 监听扫描目录的文件系统变更
+- [ ] 检测到 project.godot 变化时触发增量扫描
+- [ ] 通过 Tauri 事件通知前端刷新
+- [ ] 配置防抖间隔（默认 5 秒）
+
+#### 8.3 引擎自动发现
+- [ ] 启动时自动扫描常见 Godot 引擎安装位置
+- [ ] 扫描 PATH 环境变量中的 `godot` 可执行文件
+- [ ] 发现的引擎自动注册
+- [ ] 设置中提供自动发现开关
+
+#### 8.4 全局快捷键扩展
+- [ ] `Ctrl+1` 跳转首页
+- [ ] `Ctrl+2` 跳转项目
+- [ ] `Ctrl+3` 跳转插件
+- [ ] `Ctrl+4` 跳转绑定
+- [ ] `Ctrl+5` 跳转引擎
+- [ ] `Ctrl+,` 打开设置
+- [ ] `Ctrl+R` 刷新当前页面数据
+
+#### 8.5 空状态操作引导按钮
+- [ ] 项目空状态 → 添加"扫描项目"和"添加项目"按钮
+- [ ] 插件空状态 → 添加"从目录导入"和"从 Git 导入"按钮
+- [ ] 引擎空状态 → 添加"注册引擎"按钮
+- [ ] 绑定空状态 → 添加"前往项目"按钮
+
+#### 8.6 OnboardingGuide 持久化
+- [ ] 跳过/完成后在 settings.json 中写入 `"onboarding_completed": true`
+- [ ] 检查时先读取此标志，已完成则不再显示
+- [ ] 设置页提供"重新显示引导"选项
+
+#### 8.7 项目自定义名称
+- [ ] Project 模型新增 `display_name` 字段（可选）
+- [ ] 项目卡片优先显示 display_name，无则显示 name
+- [ ] 项目详情弹窗中添加"自定义名称"输入框
+- [ ] 扫描同步时不覆盖 display_name
+
+#### 8.8 项目最近打开时间
+- [ ] Project 模型新增 `last_opened_at` 字段
+- [ ] 通过引擎启动项目时更新此字段
+- [ ] 项目列表默认按 `last_opened_at` 降序排列
+- [ ] 首页展示"最近打开的项目"
+
+### 阶段九：v0.4 功能完备性（P1-P2）
+
+#### 9.1 全局搜索/命令面板
+- [ ] `Ctrl+K` 打开全局搜索面板（类似 VS Code 命令面板）
+- [ ] 可搜索：项目名称、插件名称、引擎、设置项、操作命令
+- [ ] 搜索结果分类展示，点击直接跳转或执行
+- [ ] 支持模糊匹配和拼音搜索
+
+#### 9.2 插件使用统计
+- [ ] 首页展示"最常用插件"排行
+- [ ] 插件卡片显示"被 N 个项目使用"
+- [ ] 插件列表支持按使用数量排序
+- [ ] 未被任何项目使用的插件标记"闲置"标签
+
+#### 9.3 批量操作
+- [ ] 项目列表支持多选（Ctrl+点击 / Shift+点击）
+- [ ] 批量绑定：选择多个项目 → 选择插件 → 一键绑定
+- [ ] 批量删除：选择多个项目/插件 → 确认后批量删除
+- [ ] 批量应用变更：选择多个项目 → 一键应用所有待变更
+
+#### 9.4 插件更新一键应用
+- [ ] 插件详情中显示"更新可用"标识
+- [ ] 一键更新：拉取新版本 → 自动创建新版本 → 已绑定的项目自动升级绑定
+- [ ] Git 插件：使用 git_store_dir 中的 .git 执行 `git pull`
+- [ ] Asset Library 插件：重新下载最新版本
+
+#### 9.5 项目模板/预设
+- [ ] 允许将一个项目的插件绑定关系保存为"模板"
+- [ ] 新项目可基于模板一键绑定所有插件
+- [ ] 模板可导出/导入（JSON 格式），方便团队共享
+- [ ] 与现有"团队配置"功能整合
+
+### 阶段十：v0.5 性能与架构优化（P2）
+
+#### 10.1 Pinia Store 集成
+- [ ] 所有页面通过 Store 获取和修改数据，不再直接调用 api
+- [ ] Store 作为单一数据源，组件从 Store 读取
+- [ ] 数据变更通过 Store action 统一处理，自动通知所有订阅组件
+- [ ] 添加缓存策略：Store 数据 30 秒内不重复请求
+
+#### 10.2 骨架屏替代 Spinner
+- [ ] 创建通用 Skeleton 组件（卡片骨架、列表骨架、表格骨架）
+- [ ] 各页面用 Skeleton 替代 spinner
+- [ ] Skeleton 尺寸与实际内容一致，避免布局跳变
+
+#### 10.3 路由守卫与页面标题
+- [ ] `router.beforeEach` 中更新窗口标题为 "Godot Harbor - {页面名}"
+- [ ] 配置 `scrollBehavior` 恢复滚动位置
+- [ ] 路由 meta 中配置页面标题和所需数据预加载
+
+## 技术实现要点
+
+### 1. 文件系统策略
+- 优先使用 symlink（符号链接）
+- Windows 权限不足时回退到 junction（目录联接）
+- 仅在用户明确允许时使用 copy
+
+### 2. 数据存储结构
+```
+~/.godot-harbor/
+├── settings.json          # 全局设置
+├── projects.json          # 项目列表
+├── plugins.json           # 插件仓库索引
+├── operations.log         # 操作日志
+├── plugins/               # 插件物理存储
+│   └── <plugin_id>/
+│       └── <version_id>/
+│           └── payload/
+└── engines/               # 引擎存储（P3）
+```
+
+### 3. 核心数据模型
+
+#### Plugin Source
+```rust
+struct PluginSource {
+    source_type: SourceType,  // Git, Local, AssetLibrary
+    url: String,
+    imported_at: DateTime,
+}
+```
+
+#### Plugin Package
+```rust
+struct PluginPackage {
+    plugin_id: String,
+    name: String,
+    version: String,
+    source: PluginSource,
+    units: Vec<PluginUnit>,
+    compatibility: Compatibility,
+}
+```
+
+#### Plugin Unit
+```rust
+struct PluginUnit {
+    unit_id: String,
+    name: String,
+    subdirectory: String,  // 相对于插件根目录
+    plugin_cfg_path: String,
+}
+```
+
+#### Project Binding
+```rust
+struct ProjectBinding {
+    project_id: String,
+    plugin_id: String,
+    version: String,
+    unit_id: String,
+    mount_path: String,  // addons/xxx
+}
+```
+
+### 4. 关键 API 设计
+
+#### Tauri Commands (Rust -> Frontend)
+```rust
+// 项目管理
+#[tauri::command]
+fn scan_projects(root_dirs: Vec<String>) -> Result<Vec<Project>, String>;        
+
+#[tauri::command]
+fn add_project(path: String) -> Result<Project, String>;
+
+// 插件管理
+#[tauri::command]
+fn import_plugin_from_local(path: String) -> Result<PluginPackage, String>;      
+
+#[tauri::command]
+fn import_plugin_from_git(url: String) -> Result<PluginPackage, String>;        
+
+// 绑定管理
+#[tauri::command]
+fn bind_plugin(project_id: String, plugin_id: String, version: String) -> Result<(), String>;
+
+#[tauri::command]
+fn apply_changes(project_id: String) -> Result<ApplyResult, String>;
+```
+
+## 开发优先级
+
+### P0（必须完成 - MVP 核心）
+1. 项目初始化与基础架构
+2. 插件导入功能
+3. 项目扫描功能
+4. 插件绑定功能
+5. 应用变更功能
+
+### P1（应该完成 - MVP 完整）
+1. 冲突检测
+2. 异常处理
+3. 基础 UI 完善
+4. 数据持久化
+
+### P2（可以完成 - 体验增强）
+1. 设置页面
+2. 多语言支持
+3. 主题切换
+4. 操作日志
+
+### P3（后续扩展）
+1. 引擎管理
+2. 项目快速启动
+3. 自动更新检测
+
+## 验收标准
+
+### MVP 验收标准
+- [x] 用户可导入一个标准 Godot 插件
+- [x] 用户可发现并展示至少一个本地项目
+- [x] 用户可为项目勾选插件并指定版本
+- [x] 系统可正确创建和移除链接
+- [x] 重启应用后，插件与项目绑定关系不丢失
+- [x] 发生冲突或权限不足时，系统给出明确提示
+- [ ] Windows、macOS、Linux 至少各验证一个基础成功样例
+
+## 风险与应对
+
+### 技术风险
+1. **跨平台符号链接权限问题**
+   - 应对：实现 junction 回退机制，提供权限引导
+
+2. **Git 操作稳定性**
+   - 应对：完善的错误处理，支持断点续传
+
+3. **插件结构多样性**
+   - 应对：首版聚焦标准 plugin.cfg，逐步扩展兼容性
+
+### 项目风险
+1. **功能范围蔓延**
+   - 应对：严格遵循 MVP 范围，后续功能放入 P2/P3
+
+2. **跨平台测试覆盖**
+   - 应对：优先保证 Windows 平台稳定，逐步扩展其他平台
+
+## 下一步行动
+
+1. 创建 Tauri 项目基础结构
+2. 实现 Rust 后端核心模块
+3. 实现 Vue 前端基础框架
+4. 开始 P0 原型验证阶段开发

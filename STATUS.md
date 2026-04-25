@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-Godot Harbor 是一款独立桌面应用，用于管理 Godot 插件、项目和引擎。所有功能已实现，前后端编译通过。
+Godot Harbor 是一款独立桌面应用，用于管理 Godot 插件、项目和引擎。所有核心功能已实现，前后端编译通过，达到 MVP 标准。
 
 **最后更新**: 2026-04-25
 
@@ -18,69 +18,221 @@ Godot Harbor 是一款独立桌面应用，用于管理 Godot 插件、项目和
 | 阶段四：冲突检测与异常处理 | P1 | **95%** | ✅ 完成 |
 | 阶段五：UI/UX 完善 | P2 | **98%** | ✅ 完成 |
 | 阶段六：引擎管理功能 | P3 | **95%** | ✅ 完成 |
+| 阶段七：v0.2 迭代功能 | P0 | **100%** | ✅ 完成 |
 
 ---
 
-## 全部已实现功能清单
+## 详细功能状态
 
-### 后端（Rust）
+### 阶段一：项目初始化与基础架构（P0）— 98%
 
-| 模块 | 功能 | 状态 |
+#### 1.1 项目初始化 ✅
+- ✅ Tauri 2.x 项目结构
+- ✅ Rust 后端环境
+- ✅ Vue 3 + TypeScript + TailwindCSS 前端环境
+- ✅ 路由系统（vue-router）、状态管理（Pinia）
+
+#### 1.2 核心数据结构设计 ✅
+- ✅ Plugin + PluginVersion + PluginUnit 模型（两级版本结构）     
+- ✅ Project、ProjectBinding、Settings 模型
+- ✅ Engine、ProjectEngineBinding、TeamSharedConfig 等扩展模型
+- ✅ 存储模块原子写入（.tmp + rename）和损坏恢复（`load_or_default` 日志告警）
+
+#### 1.3 基础文件系统操作 ✅
+- ✅ 文件/目录操作工具函数
+- ✅ symlink/junction/copy 挂载策略实现
+- ✅ `is_junction` 正确检测（使用 `FILE_ATTRIBUTE_REPARSE_POINT`）
+- ✅ symlink→junction 自动回退（Windows 权限不足时）
+- ✅ `safe_remove_link`（先检测链接类型再删除）
+
+#### 1.4 项目扫描功能 ✅
+- ✅ 递归扫描 project.godot 文件（深度限制 max_depth=5）
+- ✅ 解析项目基本信息、Godot 版本、项目图标
+- ✅ 健康状态检查（目录存在性、写权限）
+- ✅ 扫描取消机制（通过 `CancellationToken`）
+
+---
+
+### 阶段二：插件管理核心功能（P0-P1）— 98%
+
+#### 2.1 插件导入功能 ✅
+- ✅ 本地目录导入（失败自动清理）
+- ✅ Git URL 导入（git2 clone，保留 .git 目录）
+- ✅ Git 导入进度回调（`git-clone-progress` 事件）
+- ✅ plugin.cfg 解析（name/description/author/version）
+- ✅ 多 plugin.cfg 处理（递归搜索）
+- ✅ 兼容性检测（Godot 3/4 特征扫描，信号加权算法减少误判）
+- ✅ AssetLibrary 导入（搜索 + 下载 + zip 解压 + 导入）
+
+#### 2.2 插件仓库（Vault）✅
+- ✅ 存储目录结构 `plugins/<plugin_id>/<version_id>/payload/`
+- ✅ 插件列表展示 UI（搜索、过滤、收藏）
+- ✅ 插件详情查看和删除
+- ✅ 版本管理（重复导入创建新版本而非独立条目）
+- ✅ Git 导入后保留 .git 目录（支持后续 `git pull` 更新）
+
+#### 2.3 项目绑定功能（Linker）✅
+- ✅ 绑定数据结构和持久化
+- ✅ 项目选择界面（三栏布局）
+- ✅ 版本选择对话框（用户可选择特定版本和单元）
+- ✅ 绑定/解绑操作
+- ✅ 绑定可视化（SVG 图形化连线视图）
+
+#### 2.4 应用变更功能（Apply Changes）✅
+- ✅ 差异计算（新增、删除、升级）
+- ✅ 预检查机制（项目路径检查、权限检查、冲突检测、插件源存在性检查）
+- ✅ 挂载策略（symlink/junction/copy）
+- ✅ 变更执行与回滚（记录已执行操作，失败时逆序回滚）
+- ✅ 操作日志记录（JSONL 格式，按日期存储）
+
+---
+
+### 阶段三：项目管理功能（P1）— 98%
+
+#### 3.1 项目发现与管理 ✅
+- ✅ 扫描根目录设置
+- ✅ 手动添加项目（文件对话框）
+- ✅ 拖拽导入项目
+- ✅ 项目卡片展示（图标、名称、路径、Godot 版本、状态）
+- ✅ 项目删除、搜索、分组管理、状态过滤
+- ✅ 删除操作二次确认
+
+#### 3.2 项目状态展示 ✅
+- ✅ 项目健康状态（Ready/Warning/Error/Conflict/MissingSource）
+- ✅ 已绑定插件列表
+- ✅ 异常状态提示
+- ✅ 项目详情弹窗（含引擎绑定状态）
+
+---
+
+### 阶段四：冲突检测与异常处理（P1）— 95%
+
+#### 4.1 冲突检测 ✅
+- ✅ `check_conflicts` 方法集成到 `apply` 流程
+- ✅ Harbor 管理标记（`.harbor-managed` 文件）
+- ✅ 兼容性检查（Godot 3/4）
+- ✅ 冲突提示 UI（`ConflictInfo` 类型在前端使用）
+
+#### 4.2 异常处理 ✅
+- ✅ Git 操作：完善的错误捕获，包含进度回调
+- ✅ 文件系统权限：完善的错误捕获，包含权限引导
+- ✅ 插件解析：导入失败自动清理已复制文件
+- ✅ 项目状态异常处理
+- ✅ 友好的错误提示（Toast 通知，包含上下文信息）
+
+---
+
+### 阶段五：UI/UX 完善（P2）— 98%
+
+#### 5.1 主界面布局 ✅
+- ✅ Linker 页面三栏布局
+- ✅ Home.vue 全局总览面板（统计数据加载）
+- ✅ 状态标签系统（Ready/Warning/Error/Conflict/MissingSource）
+- ✅ 未应用变更提示
+
+#### 5.2 交互优化 ✅
+- ✅ 二次确认对话框（删除项目/插件/引擎/团队配置）
+- ✅ 操作引导（Home.vue 交互式引导）
+- ✅ 多语言支持（中文/英文，i18n 覆盖率 90%+）
+- ✅ 主题切换（亮色/暗色/跟随系统，状态同步）
+
+#### 5.3 设置页面 ✅
+- ✅ 扫描目录配置
+- ✅ 挂载策略配置
+- ✅ 语言/主题切换
+- ✅ 操作日志查看
+- ✅ 数据备份与恢复（包含 engines.json/engine_bindings.json/team_configs.json）
+
+---
+
+### 阶段六：引擎管理功能（P3）— 95%
+
+#### 6.1 引擎管理基础 ✅
+- ✅ 引擎路径登记（验证 godot 可执行文件存在）
+- ✅ 引擎版本识别（`godot --version` + 类型判断）
+- ✅ 引擎列表管理（注册、删除、设为默认）
+- ✅ 项目-引擎绑定（含自定义启动参数）
+
+#### 6.2 项目启动功能 ✅
+- ✅ 用指定引擎启动项目
+- ✅ 启动参数配置
+- ✅ 启动日志记录
+
+---
+
+### 阶段七：v0.2 迭代功能（P0）— 100%
+
+| 编号 | 功能 | 状态 |
 |------|------|------|
-| **models** | Plugin + PluginVersion + PluginUnit 两级版本模型 | ✅ |
-| **models** | Engine/ProjectEngineBinding/TeamSharedConfig 扩展模型 | ✅ |
-| **models** | SourceType 支持 Git/Local/AssetLibrary（含 PartialEq） | ✅ |
-| **storage** | JSON 读写 + 原子写入（.tmp + rename） | ✅ |
-| **storage** | load_or_default 解析失败日志告警 | ✅ |
-| **scanner** | 递归扫描 project.godot + 深度限制（max_depth=5） | ✅ |
-| **scanner** | 解析项目信息 + Godot 版本 + 图标 + 健康状态 | ✅ |
-| **plugin_manager** | 本地目录导入 + 失败自动清理 | ✅ |
-| **plugin_manager** | Git URL 导入 + 进度回调（git-clone-progress 事件） | ✅ |
-| **plugin_manager** | Git 保留 .git 到 git_store_dir | ✅ |
-| **plugin_manager** | AssetLibrary 搜索 + 下载 + zip 解压 + 导入 | ✅ |
-| **plugin_manager** | plugin.cfg 解析 + 多 plugin.cfg 处理 | ✅ |
-| **plugin_manager** | 兼容性检测（信号加权算法，减少误判） | ✅ |
-| **plugin_manager** | .harbor-managed 标记文件 | ✅ |
-| **linker** | symlink/junction/copy 挂载策略 | ✅ |
-| **linker** | symlink→junction 自动回退（Windows） | ✅ |
-| **linker** | is_junction 正确检测（FILE_ATTRIBUTE_REPARSE_POINT） | ✅ |
-| **linker** | safe_remove_link（先检测链接类型再删除） | ✅ |
-| **linker** | 差异计算（compute_diff: to_add/to_remove/to_keep） | ✅ |
-| **linker** | 预检查（项目路径/权限/冲突/源存在性） | ✅ |
-| **linker** | 冲突检测集成到 apply 流程 | ✅ |
-| **linker** | 回滚机制（AppliedOp + rollback_ops） | ✅ |
-| **commands** | 39 个 Tauri 命令（含 search_asset_library + import_from_asset_library） | ✅ |
-| **commands** | 重复导入合并为新版本 | ✅ |
-| **commands** | check_plugin_updates 重写（GitHub Releases API） | ✅ |
-| **commands** | resolve_plugin_dependencies 重写（解析 depends= + .dependencies） | ✅ |
-| **commands** | 备份完善（含 engines/engine_bindings/team_configs） | ✅ |
-| **commands** | unbind_plugin 安全删除 | ✅ |
-| **commands** | AppState 死代码清理 | ✅ |
-| **engine** | 引擎路径登记 + 版本识别 + 列表管理 + 项目绑定 + 启动 | ✅ |
-| **跨平台** | Windows junction + 非 Windows symlink 条件编译 | ✅ |
+| A1 | 启动时自动扫描项目 | ✅ |
+| A2 | 侧边栏添加首页入口 | ✅ |
+| A3 | 首屏加载优化（消除白屏闪烁） | ✅ |
+| B1 | 项目路径有效性实时校验 | ✅ |
+| B2 | 项目改名/迁移智能检测 | ✅ |
+| C1 | 弹窗 Escape + 遮罩层关闭 | ✅ |
+| C2 | 统一删除确认对话框 | ✅ |
 
-### 前端（Vue/TypeScript）
+---
 
-| 模块 | 功能 | 状态 |
-|------|------|------|
-| **Home.vue** | 统计数据加载 + 快速开始交互跳转 | ✅ |
-| **Projects.vue** | 项目列表/扫描/添加/拖拽导入/搜索/分组/过滤 | ✅ |
-| **Projects.vue** | 删除二次确认 + 引擎绑定 + 启动 + 详情弹窗 | ✅ |
-| **Projects.vue** | 状态标签（Ready/Warning/Error/Conflict/MissingSource） | ✅ |
-| **Plugins.vue** | 插件列表/多种导入/搜索/过滤/收藏/详情 | ✅ |
-| **Plugins.vue** | Asset Library 搜索对话框 + 一键导入 | ✅ |
-| **Plugins.vue** | 删除二次确认 | ✅ |
-| **Linker.vue** | 三栏布局 + 绑定/解绑/应用变更确认 | ✅ |
-| **Linker.vue** | 版本选择对话框（多版本/多单元） | ✅ |
-| **Linker.vue** | SVG 图形化连线视图 | ✅ |
-| **Settings.vue** | 扫描目录/挂载策略/语言/主题/日志/备份恢复/团队配置 | ✅ |
-| **Engines.vue** | 引擎注册/删除确认/设为默认/项目绑定/启动 | ✅ |
-| **Header.vue** | 主题切换（与 useTheme 同步） | ✅ |
-| **Sidebar.vue** | 5 项导航 + i18n | ✅ |
-| **OnboardingGuide.vue** | 首次使用引导流程（4 步） | ✅ |
-| **i18n** | 150+ 键值对中英文翻译 | ✅ |
-| **useTheme** | 亮色/暗色/跟随系统 + 键盘快捷键 | ✅ |
-| **useKeyboardShortcuts** | Ctrl+T/Ctrl+D 快捷键 | ✅ |
+## 代码质量问题（历史记录）
+
+### 已修复的严重问题
+
+| # | 问题 | 位置 | 影响 | 状态 |
+|---|------|------|------|------|
+| 1 | **is_junction 检测逻辑错误** | linker/mod.rs:141-151 | Windows 下 junction 识别可能失效 | ✅ 已修复 |
+| 2 | **remove_dir_all 对 symlink 危险** | linker/mod.rs:153-159 | 可能删除 symlink 目标目录的内容 | ✅ 已修复 |
+| 3 | **apply_bindings 无回滚** | linker/mod.rs | 部分应用失败后系统状态不一致 | ✅ 已修复 |
+| 4 | **check_conflicts 未集成** | linker/mod.rs + commands/mod.rs | 冲突检测方法存在但不被调用 | ✅ 已修复 |
+| 5 | **AppState 未注册** | commands/mod.rs + lib.rs | `AppState` 是死代码 | ✅ 已清理 |
+
+### 已修复的伪实现
+
+| # | 功能 | 位置 | 问题 | 状态 |
+|---|------|------|------|------|
+| 1 | **check_plugin_updates** | commands/mod.rs:822-852 | 永远无更新提示 | ✅ 已重写（GitHub Releases API） |
+| 2 | **resolve_plugin_dependencies** | commands/mod.rs:969-996 | 仅检查 description 字符串 | ✅ 已重写（解析 plugin.cfg 依赖） |
+
+### 已修复的架构问题
+
+| # | 问题 | 说明 | 状态 |
+|---|------|------|------|
+| 1 | **Store 层未集成** | 4 个 Pinia store 已定义但未使用 | ✅ 保留作为未来扩展 |
+| 2 | **Header 主题状态不同步** | Header.vue 自行管理 `isDarkMode` | ✅ 已同步到 useTheme |
+| 3 | **Storage 非原子写入** | 写入过程中断电可能导致 JSON 文件损坏 | ✅ 已实现原子写入 |
+| 4 | **load_or_default 静默吞错** | JSON 解析失败时数据悄悄重置为默认值 | ✅ 已添加日志告警 |
+| 5 | **Git 导入删除 .git** | 使版本更新不可能 | ✅ 已保留 .git 目录 |
+| 6 | **冗余依赖** | `tokio`(full features) 和 `tracing` 未使用 | ✅ 已优化（tokio minimal features） |
+| 7 | **CSP 安全隐患** | `tauri.conf.json` 中 `"csp": null` | ✅ 已配置合理 CSP |
+
+---
+
+## 技术栈
+
+### 前端
+- **框架**: Vue 3.4.21
+- **语言**: TypeScript 5.4.2
+- **构建工具**: Vite 5.1.6
+- **样式**: TailwindCSS 3.4.1（暗色模式: `darkMode: 'class'`）
+- **路由**: Vue Router 4.3.0
+- **状态管理**: Pinia 2.1.7（已定义但未集成到页面）
+- **i18n**: 自实现轻量方案（useI18n composable，非 vue-i18n）
+
+### 后端
+- **框架**: Tauri 2.0
+- **语言**: Rust 1.83.0
+- **序列化**: serde, serde_json
+- **异步运行时**: tokio（minimal features）
+- **Git 操作**: git2
+- **HTTP 客户端**: reqwest
+- **压缩解压**: zip
+- **其他**: uuid, chrono, dirs, walkdir, anyhow, thiserror
+
+### 桌面集成
+- **文件系统**: tauri-plugin-fs
+- **对话框**: tauri-plugin-dialog
+- **Shell**: tauri-plugin-shell
+- **自动更新**: tauri-plugin-updater（已引入但未配置端点）
 
 ---
 
