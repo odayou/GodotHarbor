@@ -135,3 +135,8 @@ Structure the analysis as:
 4. **Prioritized**: Not all issues are equal; focus on what matters most
 5. **Holistic**: Consider the full lifecycle, not just individual features
 6. **Comparative**: Reference similar tools (e.g., for Godot Harbor: gd-plug, GodotEnv, godam) when evaluating completeness
+
+##  create optimization plan and execute it
+
+    do it step by step , and check the result after each step 
+to ensure the optimization is effective and efficient

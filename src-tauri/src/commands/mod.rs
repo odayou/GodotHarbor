@@ -810,6 +810,177 @@ pub fn get_plugin_bindings(app: AppHandle, plugin_id: String) -> Result<Vec<Proj
     Ok(bindings.into_iter().filter(|b| b.plugin_id == plugin_id).collect())
 }
 
+#[tauri::command]
+pub fn check_binding_health(app: AppHandle, project_id: String) -> Result<Vec<ProjectBinding>, String> {
+    let storage = get_storage(&app);
+    let bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
+    let project_bindings: Vec<ProjectBinding> = bindings.into_iter()
+        .filter(|b| b.project_id == project_id)
+        .collect();
+
+    let projects: Vec<Project> = storage.load_or_default("projects.json");
+    let project = projects.iter().find(|p| p.project_id == project_id);
+    if project.is_none() {
+        return Err("未找到指定项目".to_string());
+    }
+    let project = project.unwrap();
+
+    let settings: Settings = storage.load_or_default("settings.json");
+    let plugin_base_path = if settings.plugin_storage_path.is_empty() {
+        get_data_dir(&app).join("plugins")
+    } else {
+        PathBuf::from(&settings.plugin_storage_path)
+    };
+
+    let mut results = Vec::new();
+    for mut binding in project_bindings {
+        let addons_path = Path::new(&project.path).join("addons").join(&binding.mount_path);
+        let is_healthy = if addons_path.exists() {
+            let metadata = fs::symlink_metadata(&addons_path);
+            match metadata {
+                Ok(meta) => {
+                    if meta.file_type().is_symlink() {
+                        let link_target = fs::read_link(&addons_path);
+                        match link_target {
+                            Ok(target) => target.exists(),
+                            Err(_) => false,
+                        }
+                    } else if is_junction_path(&addons_path) {
+                        let source_path = plugin_base_path
+                            .join(&binding.plugin_id)
+                            .join(&binding.version_id)
+                            .join("payload");
+                        source_path.exists()
+                    } else {
+                        true
+                    }
+                }
+                Err(_) => false,
+            }
+        } else {
+            false
+        };
+        binding.is_healthy = Some(is_healthy);
+        results.push(binding);
+    }
+
+    Ok(results)
+}
+
+#[tauri::command]
+pub fn repair_binding(app: AppHandle, project_id: String, plugin_id: String) -> Result<(), String> {
+    let storage = get_storage(&app);
+    let bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
+    let binding = bindings.iter()
+        .find(|b| b.project_id == project_id && b.plugin_id == plugin_id)
+        .cloned();
+    if binding.is_none() {
+        return Err("未找到指定的绑定关系".to_string());
+    }
+    let binding = binding.unwrap();
+
+    let projects: Vec<Project> = storage.load_or_default("projects.json");
+    let project = projects.iter().find(|p| p.project_id == project_id);
+    if project.is_none() {
+        return Err("未找到指定项目".to_string());
+    }
+    let project = project.unwrap();
+
+    let settings: Settings = storage.load_or_default("settings.json");
+    let linker = Linker::new(settings.mount_strategy.clone());
+    let plugin_base_path = if settings.plugin_storage_path.is_empty() {
+        get_data_dir(&app).join("plugins")
+    } else {
+        PathBuf::from(&settings.plugin_storage_path)
+    };
+
+    let current_bindings: Vec<ProjectBinding> = Vec::new();
+    let desired_bindings = vec![binding.clone()];
+
+    let result = linker.apply_bindings(
+        &project.path,
+        &current_bindings,
+        &desired_bindings,
+        &plugin_base_path.to_string_lossy()
+    ).map_err(|e| format!("修复绑定失败: {}", e))?;
+
+    if !result.success {
+        return Err(format!("修复绑定失败: {}", result.errors.join(", ")));
+    }
+
+    log_operation(&app, "repair_binding", &project_id,
+        &format!("已修复插件 {} 的符号链接", plugin_id));
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn migrate_plugin_storage(app: AppHandle, old_path: String, new_path: String) -> Result<(), String> {
+    let old = Path::new(&old_path);
+    let new = Path::new(&new_path);
+
+    if !old.exists() {
+        return Err("原路径不存在".to_string());
+    }
+
+    if !new.exists() {
+        fs::create_dir_all(new)
+            .map_err(|e| format!("创建新路径失败: {}", e))?;
+    }
+
+    let entries = fs::read_dir(old)
+        .map_err(|e| format!("读取原路径失败: {}", e))?;
+
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("读取目录条目失败: {}", e))?;
+        let src = entry.path();
+        let file_name = entry.file_name();
+        let dst = new.join(&file_name);
+
+        if src.is_dir() {
+            copy_dir_recursive(&src, &dst)
+                .map_err(|e| format!("复制目录失败: {}", e))?;
+        } else {
+            fs::copy(&src, &dst)
+                .map_err(|e| format!("复制文件失败: {}", e))?;
+        }
+    }
+
+    let old_backup_path = format!("{}.migration_backup", old_path);
+    let old_backup = Path::new(&old_backup_path);
+    fs::rename(old, old_backup)
+        .map_err(|e| format!("重命名原目录失败: {}", e))?;
+
+    match fs::remove_dir_all(old_backup) {
+        Ok(_) => {}
+        Err(_) => {
+            eprintln!("Warning: failed to remove migration backup at {}.migration_backup", old_path);
+        }
+    }
+
+    log_operation(&app, "migrate_plugin_storage", "",
+        &format!("已将插件存储从 {} 迁移到 {}", old_path, new_path));
+
+    Ok(())
+}
+
+fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
+    if !dst.exists() {
+        fs::create_dir_all(dst)?;
+    }
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let src_path = entry.path();
+        let dst_path = dst.join(entry.file_name());
+        if src_path.is_dir() {
+            copy_dir_recursive(&src_path, &dst_path)?;
+        } else {
+            fs::copy(&src_path, &dst_path)?;
+        }
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DuplicateCheckResult {
     pub is_duplicate: bool,

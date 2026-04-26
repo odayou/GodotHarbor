@@ -195,6 +195,8 @@ pub struct ProjectBinding {
     pub unit_id: String,
     pub mount_path: String,
     pub created_at: DateTime<Utc>,
+    #[serde(default)]
+    pub is_healthy: Option<bool>,
 }
 
 impl ProjectBinding {
@@ -212,6 +214,7 @@ impl ProjectBinding {
             unit_id,
             mount_path,
             created_at: Utc::now(),
+            is_healthy: None,
         }
     }
 }
