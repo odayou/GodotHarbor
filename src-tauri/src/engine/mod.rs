@@ -85,6 +85,9 @@ impl EngineManager {
                 || stem == "godot3"
                 || stem == "godot4"
                 || stem.starts_with("godot_v")
+                || stem.starts_with("godot4.")
+                || stem.starts_with("godot3.")
+                || (stem.starts_with("godot") && stem.contains("_"))
         }
 
         #[cfg(not(windows))]
@@ -93,7 +96,9 @@ impl EngineManager {
                 || lower == "godot3"
                 || lower == "godot4"
                 || lower.starts_with("godot_v")
-                || lower.starts_with("godot_v") && lower.contains("_linux")
+                || lower.starts_with("godot4.")
+                || lower.starts_with("godot3.")
+                || (lower.starts_with("godot") && lower.contains("_"))
         }
     }
 

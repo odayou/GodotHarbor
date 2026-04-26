@@ -3143,7 +3143,7 @@ pub fn batch_apply_changes(app: AppHandle, project_ids: Vec<String>) -> Result<B
 }
 
 #[tauri::command]
-pub fn auto_discover_engines(app: AppHandle) -> Result<Vec<Engine>, String> {
+pub async fn auto_discover_engines(app: AppHandle) -> Result<Vec<Engine>, String> {
     let settings: Settings = {
         let storage = get_storage(&app);
         storage.load_or_default("settings.json")
@@ -3172,17 +3172,22 @@ pub fn auto_discover_engines(app: AppHandle) -> Result<Vec<Engine>, String> {
     }
 
     let existing_paths: Vec<String> = engines.iter().map(|e| e.path.clone()).collect();
+    let scan_dirs = settings.scan_directories.clone();
 
     log_operation(&app, "auto_discover_engines", "", "开始自动发现引擎");
 
-    let discovered = if settings.scan_directories.is_empty() {
-        crate::engine::EngineManager::discover_engines(&existing_paths)
-    } else {
-        crate::engine::EngineManager::discover_engines_with_custom_paths(
-            &existing_paths,
-            &settings.scan_directories,
-        )
-    };
+    let discovered = tokio::task::spawn_blocking(move || {
+        if scan_dirs.is_empty() {
+            crate::engine::EngineManager::discover_engines(&existing_paths)
+        } else {
+            crate::engine::EngineManager::discover_engines_with_custom_paths(
+                &existing_paths,
+                &scan_dirs,
+            )
+        }
+    })
+    .await
+    .map_err(|e| format!("发现引擎任务失败: {}", e))?;
 
     if discovered.is_empty() {
         log_operation(&app, "auto_discover_engines", "", "未发现新引擎");
@@ -3201,6 +3206,7 @@ pub fn auto_discover_engines(app: AppHandle) -> Result<Vec<Engine>, String> {
         }
     }
 
+    let storage = get_storage(&app);
     storage.save("engines.json", &engines)
         .map_err(|e| format!("保存引擎列表失败: {}", e))?;
 

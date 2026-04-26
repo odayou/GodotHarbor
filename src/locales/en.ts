@@ -98,6 +98,7 @@ export default {
     title: 'Plugin Ecosystem',
     tabRepository: 'Repository',
     tabBindings: 'Project Bindings',
+    goToBindings: 'Go to Bindings',
     fromProjects: 'Import from Projects',
     fromDir: 'Import from Directory',
     fromFile: 'Import from File',

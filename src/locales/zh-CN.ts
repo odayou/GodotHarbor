@@ -98,6 +98,7 @@ export default {
     title: '插件生态',
     tabRepository: '插件仓库',
     tabBindings: '项目绑定',
+    goToBindings: '前往绑定',
     fromProjects: '从项目导入',
     fromDir: '从目录导入',
     fromFile: '从文件导入',

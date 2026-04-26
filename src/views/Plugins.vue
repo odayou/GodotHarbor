@@ -566,6 +566,7 @@ const openPreviewLink = (url: string) => {
 
 const deletePluginBindings = ref<ProjectBinding[]>([])
 const deletePluginName = ref('')
+const deletePluginProjects = ref<Map<string, string>>(new Map())
 
 const confirmRemovePlugin = async (pluginId: string) => {
   deletePluginId.value = pluginId
@@ -575,6 +576,16 @@ const confirmRemovePlugin = async (pluginId: string) => {
     deletePluginBindings.value = await api.getPluginBindings(pluginId)
   } catch {
     deletePluginBindings.value = []
+  }
+  try {
+    const projects = await api.getProjects()
+    const map = new Map<string, string>()
+    for (const p of projects) {
+      map.set(p.project_id, p.name)
+    }
+    deletePluginProjects.value = map
+  } catch {
+    deletePluginProjects.value = new Map()
   }
   showDeletePluginConfirm.value = true
 }
@@ -740,6 +751,8 @@ const loadPluginDependencies = async (pluginId: string) => {
   }
 }
 
+const bindingProjects = ref<Map<string, string>>(new Map())
+
 const showPluginDetails = async (plugin: Plugin) => {
   selectedPlugin.value = plugin
   showPluginDetail.value = true
@@ -755,6 +768,16 @@ const showPluginDetails = async (plugin: Plugin) => {
   } catch (e) {
     console.error('Failed to load plugin bindings:', e)
     pluginBindings.value = []
+  }
+  try {
+    const projects = await api.getProjects()
+    const map = new Map<string, string>()
+    for (const p of projects) {
+      map.set(p.project_id, p.name)
+    }
+    bindingProjects.value = map
+  } catch {
+    bindingProjects.value = new Map()
   }
 }
 
@@ -842,6 +865,12 @@ const installMissingDeps = async () => {
   if (selectedPlugin.value) {
     pluginDependencies.value = await api.resolvePluginDependencies(selectedPlugin.value.plugin_id)
   }
+}
+
+const goToBindings = async (plugin: Plugin) => {
+  activeTab.value = 'bindings'
+  await loadLinkerData()
+  selectedLinkPluginIds.value = new Set([plugin.plugin_id])
 }
 
 const loadLinkerData = async () => {
@@ -1162,7 +1191,7 @@ useDialogEscape(showLinkerBatchApplyResult)
           >{{ t('plugins.tabBindings') }}</button>
         </div>
       </div>
-      <div class="flex flex-wrap gap-2">
+      <div v-if="activeTab === 'repository'" class="flex flex-wrap gap-2">
         <button
           @click="checkPluginUpdates"
           :disabled="isCheckingUpdates || isLoading"
@@ -1478,14 +1507,13 @@ useDialogEscape(showLinkerBatchApplyResult)
           </div>
           <div class="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
             <button
-              @click.stop="openBindDialog(plugin)"
-              :disabled="isLoading"
-              class="w-full px-3 py-1.5 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+              @click.stop="goToBindings(plugin)"
+              class="w-full px-3 py-1.5 border border-primary-600 text-primary-600 dark:text-primary-400 dark:border-primary-400 text-xs rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors flex items-center justify-center gap-1.5"
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
               </svg>
-              {{ t('plugins.bindToProject') }}
+              {{ t('plugins.goToBindings') }}
             </button>
           </div>
         </div>
@@ -1586,24 +1614,25 @@ useDialogEscape(showLinkerBatchApplyResult)
             <div class="space-y-1 bg-gray-50 dark:bg-surface-layer rounded-lg p-3">
               <div v-for="binding in pluginBindings" :key="binding.project_id + binding.mount_path"
                 class="flex items-center justify-between py-1">
-                <div class="flex items-center gap-2">
-                  <span v-if="binding.is_healthy === false" class="inline-flex items-center gap-1 text-xs text-red-500">
+                <div class="flex items-center gap-2 min-w-0">
+                  <span v-if="binding.is_healthy === false" class="inline-flex items-center gap-1 text-xs text-red-500 flex-shrink-0">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                     </svg>
                     {{ t('plugins.bindDialog.broken') }}
                   </span>
-                  <span v-else-if="binding.is_healthy === true" class="inline-flex items-center gap-1 text-xs text-green-500">
+                  <span v-else-if="binding.is_healthy === true" class="inline-flex items-center gap-1 text-xs text-green-500 flex-shrink-0">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                     </svg>
                   </span>
-                  <span class="font-mono text-xs text-gray-600 dark:text-content-secondary">{{ binding.mount_path }}</span>
+                  <span class="text-xs text-gray-900 dark:text-content-primary font-medium truncate">{{ bindingProjects.get(binding.project_id) || binding.project_id }}</span>
+                  <span class="font-mono text-xs text-gray-500 dark:text-content-secondary flex-shrink-0">{{ binding.mount_path }}</span>
                 </div>
                 <button
                   v-if="binding.is_healthy === false"
                   @click="repairBinding(binding.project_id, binding.plugin_id)"
-                  class="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+                  class="text-xs text-primary-600 dark:text-primary-400 hover:underline flex-shrink-0 ml-2"
                 >
                   {{ t('plugins.bindDialog.repair') }}
                 </button>
@@ -2217,12 +2246,10 @@ useDialogEscape(showLinkerBatchApplyResult)
         </p>
         <div v-if="deletePluginBindings.length > 0" class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
           <p class="text-sm font-medium text-red-700 dark:text-red-400 mb-2">
-            {{ t('plugins.deleteConfirm.bindingWarning', { count: deletePluginBindings.length, name: deletePluginName }) }}
+            {{ t('plugins.deleteConfirm.bindingWarning', { count: new Set(deletePluginBindings.map(b => b.project_id)).size, name: deletePluginName }) }}
           </p>
-          <div class="space-y-1 max-h-32 overflow-y-auto">
-            <div v-for="binding in deletePluginBindings" :key="binding.project_id + binding.mount_path" class="text-xs text-red-600 dark:text-red-400">
-              �?{{ binding.mount_path }}
-            </div>
+          <div class="space-y-2 max-h-40 overflow-y-auto">
+            <div v-for="projectId in [...new Set(deletePluginBindings.map(b => b.project_id))]" :key="projectId" class="text-xs"><div class="font-medium text-red-700 dark:text-red-400">{{ deletePluginProjects.get(projectId) || projectId }}</div><div v-for="binding in deletePluginBindings.filter(b => b.project_id === projectId)" :key="binding.mount_path" class="text-red-600 dark:text-red-400 pl-3">{{ binding.mount_path }}</div></div>
           </div>
           <p class="text-xs text-red-500 dark:text-red-400 mt-2">
             {{ t('plugins.deleteConfirm.bindingWarningDesc') }}

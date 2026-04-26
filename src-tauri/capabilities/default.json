@@ -66,6 +66,17 @@
     "fs:write-all",
     "fs:scope-home-recursive",
     "shell:allow-open",
+    {
+      "identifier": "shell:allow-open",
+      "allow": [
+        { "path": "$HOME/**" },
+        { "path": "$APPDATA/**" },
+        { "path": "$LOCALAPPDATA/**" },
+        { "path": "/" },
+        { "url": "http://**" },
+        { "url": "https://**" }
+      ]
+    },
     "shell:default",
     "core:default",
     "core:event:default",
