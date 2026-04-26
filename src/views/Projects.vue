@@ -17,6 +17,7 @@ const toast = useToast()
 const { t } = useI18n()
 const projects = ref<Project[]>([])
 const engines = ref<Engine[]>([])
+const projectBindingMap = ref<Map<string, ProjectBinding[]>>(new Map())
 const isLoading = ref(false)
 const showScanDialog = ref(false)
 const scanDirInput = ref('')
@@ -276,11 +277,25 @@ const loadProjects = async () => {
     projects.value = result
     await loadGroups()
     await checkMovedProjects()
+    await loadAllProjectBindings()
   } catch (error) {
     toast.error(t('common.loadFailed', { error }))
   } finally {
     isLoading.value = false
   }
+}
+
+const loadAllProjectBindings = async () => {
+  const map = new Map<string, ProjectBinding[]>()
+  for (const project of projects.value) {
+    try {
+      const bindings = await api.getProjectBindings(project.project_id)
+      map.set(project.project_id, bindings)
+    } catch {
+      map.set(project.project_id, [])
+    }
+  }
+  projectBindingMap.value = map
 }
 
 const showMovedDialog = ref(false)
@@ -644,6 +659,35 @@ const confirmRelocate = async () => {
     toast.error(t('common.relocateFailed', { error }))
   }
 }
+
+const goToPluginBindings = (project: Project) => {
+  showProjectDetail.value = false
+  router.push({ path: '/plugins', query: { tab: 'bindings', project: project.project_id } })
+}
+
+const unbindProjectBinding = async (binding: ProjectBinding) => {
+  try {
+    await api.unbindPlugin(binding.project_id, binding.plugin_id)
+    toast.success(t('linker.pluginUnbound'))
+    if (selectedProject.value) {
+      projectBindings.value = await api.getProjectBindings(selectedProject.value.project_id)
+    }
+  } catch (error) {
+    toast.error(t('common.loadFailed', { error }))
+  }
+}
+
+const repairProjectBinding = async (binding: ProjectBinding) => {
+  try {
+    await api.repairBinding(binding.project_id, binding.plugin_id)
+    toast.success(t('linker.repairSuccess'))
+    if (selectedProject.value) {
+      projectBindings.value = await api.getProjectBindings(selectedProject.value.project_id)
+    }
+  } catch (error) {
+    toast.error(t('common.loadFailed', { error }))
+  }
+}
 </script>
 
 <template>
@@ -915,6 +959,20 @@ const confirmRelocate = async () => {
                 </span>
               </div>
               <div class="flex items-center gap-2">
+                <span
+                  v-if="projectBindingMap.get(project.project_id)?.length"
+                  class="text-xs text-gray-500 dark:text-content-secondary flex items-center gap-1"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                  {{ projectBindingMap.get(project.project_id)!.length }}
+                  <span
+                    v-if="projectBindingMap.get(project.project_id)?.some(b => b.is_healthy === false)"
+                    class="w-2 h-2 rounded-full bg-red-500"
+                    :title="t('projects.unhealthyBindings')"
+                  ></span>
+                </span>
                 <button
                   v-if="project.status === 'MissingSource'"
                   @click.stop="openRelocateDialog(project)"
@@ -1005,10 +1063,58 @@ const confirmRelocate = async () => {
           </span>
         </div>
         <div class="mb-4">
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('projects.pluginBindings') }}</h4>
-          <span class="text-sm text-gray-600 dark:text-gray-400">
-            {{ projectBindings.length > 0 ? t('projects.bindingCount', { count: projectBindings.length }) : t('projects.noBindings') }}
-          </span>
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('projects.pluginBindings') }}</h4>
+            <button
+              @click="goToPluginBindings(selectedProject!)"
+              class="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+            >
+              {{ t('linker.goToPluginEcosystem') }}
+            </button>
+          </div>
+          <div v-if="projectBindings.length === 0" class="text-sm text-gray-500 dark:text-gray-400">
+            {{ t('projects.noBindings') }}
+          </div>
+          <div v-else class="space-y-2 max-h-48 overflow-y-auto">
+            <div
+              v-for="binding in projectBindings"
+              :key="binding.plugin_id + binding.mount_path"
+              class="flex items-center justify-between p-2 rounded-lg"
+              :class="binding.is_healthy === false ? 'bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800' : 'bg-gray-50 dark:bg-gray-700'"
+            >
+              <div class="flex items-center gap-2 min-w-0 flex-1">
+                <span v-if="binding.is_healthy === false" class="flex-shrink-0">
+                  <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                </span>
+                <span v-else class="flex-shrink-0">
+                  <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                </span>
+                <div class="min-w-0 flex-1">
+                  <span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ binding.plugin_id }}</span>
+                  <span class="text-xs text-gray-500 dark:text-gray-400 ml-2 font-mono">{{ binding.mount_path }}</span>
+                </div>
+              </div>
+              <div class="flex items-center gap-1 ml-2 flex-shrink-0">
+                <button
+                  v-if="binding.is_healthy === false"
+                  @click="repairProjectBinding(binding)"
+                  class="px-2 py-1 text-xs text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded"
+                >
+                  {{ t('plugins.bindDialog.repair') }}
+                </button>
+                <button
+                  @click="unbindProjectBinding(binding)"
+                  class="px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                >
+                  {{ t('linker.unbind') }}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="mb-4">
           <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('projects.engineBinding') }}</h4>

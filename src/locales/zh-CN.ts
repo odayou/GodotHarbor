@@ -88,6 +88,7 @@ export default {
     pluginBindings: '插件绑定',
     bindingCount: '{count} 个绑定',
     noBindings: '暂无绑定',
+    unhealthyBindings: '存在损坏的绑定',
     registerEngine: '注册引擎',
     noEngineHint: '请先注册引擎才能启动项目',
     dragDropResult: '已添加 {added} 个项目，跳过 {skipped} 个',
@@ -99,6 +100,7 @@ export default {
     tabRepository: '插件仓库',
     tabBindings: '项目绑定',
     goToBindings: '前往绑定',
+    bindToProject: '绑定到项目',
     fromProjects: '从项目导入',
     fromDir: '从目录导入',
     fromFile: '从文件导入',
@@ -143,7 +145,6 @@ export default {
     sourceType: '来源',
     checkUpdates: '检查更新',
     checkingUpdates: '检查中...',
-    bindToProject: '绑定到项目',
     addPlugin: '添加插件',
     addMenu: {
       fromDirDesc: '从本地目录导入插件',
@@ -399,7 +400,16 @@ export default {
     batchBindTitle: '确认批量绑定',
     batchBindDesc: '将选中的插件绑定到 {projectCount} 个项目',
     batchUnbindTitle: '确认批量解绑',
-    batchUnbindDesc: '从项目 "{projectName}" 中解绑 {count} 个插件'
+    batchUnbindDesc: '从项目 "{projectName}" 中解绑 {count} 个插件',
+    pendingChanges: '有未应用的变更，请点击应用以生效',
+    applyNow: '立即应用',
+    searchPlugins: '搜索插件...',
+    noSearchResults: '未找到匹配的插件',
+    allPluginsBound: '所有插件已绑定',
+    unbindConfirm: '确认解绑',
+    unbindConfirmDesc: '确定要从项目中解绑插件 "{name}" 吗？',
+    repairSuccess: '绑定修复成功',
+    goToPluginEcosystem: '在插件生态中管理'
   },
   engines: {
     title: '引擎管理',

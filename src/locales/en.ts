@@ -88,6 +88,7 @@ export default {
     pluginBindings: 'Plugin Bindings',
     bindingCount: '{count} bindings',
     noBindings: 'No bindings',
+    unhealthyBindings: 'Has unhealthy bindings',
     registerEngine: 'Register Engine',
     noEngineHint: 'Register an engine first to launch projects',
     dragDropResult: 'Added {added} projects, skipped {skipped}',
@@ -99,6 +100,7 @@ export default {
     tabRepository: 'Repository',
     tabBindings: 'Project Bindings',
     goToBindings: 'Go to Bindings',
+    bindToProject: 'Bind to Project',
     fromProjects: 'Import from Projects',
     fromDir: 'Import from Directory',
     fromFile: 'Import from File',
@@ -143,7 +145,6 @@ export default {
     sourceType: 'Source',
     checkUpdates: 'Check Updates',
     checkingUpdates: 'Checking...',
-    bindToProject: 'Bind to Project',
     addPlugin: 'Add Plugin',
     addMenu: {
       fromDirDesc: 'Import plugin from local directory',
@@ -399,7 +400,16 @@ export default {
     batchBindTitle: 'Confirm Batch Bind',
     batchBindDesc: 'Bind selected plugins to {projectCount} project(s)',
     batchUnbindTitle: 'Confirm Batch Unbind',
-    batchUnbindDesc: 'Unbind {count} plugin(s) from project "{projectName}"'
+    batchUnbindDesc: 'Unbind {count} plugin(s) from project "{projectName}"',
+    pendingChanges: 'Pending changes not applied. Click apply to take effect',
+    applyNow: 'Apply Now',
+    searchPlugins: 'Search plugins...',
+    noSearchResults: 'No matching plugins found',
+    allPluginsBound: 'All plugins bound',
+    unbindConfirm: 'Confirm Unbind',
+    unbindConfirmDesc: 'Are you sure you want to unbind plugin "{name}" from the project?',
+    repairSuccess: 'Binding repaired successfully',
+    goToPluginEcosystem: 'Manage in Plugin Ecosystem'
   },
   engines: {
     title: 'Engine Management',

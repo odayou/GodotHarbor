@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { api } from '@/api'
 import type { Plugin, Project, PluginUpdateInfo, PluginDependency, AssetLibrarySearchResult, AssetLibrarySearchResponse, AssetLibraryCategory, AssetLibraryAsset, PluginStorageStats, ProjectBinding, TotalStorageStats, DuplicateCheckResult, ScannedPlugin } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
@@ -11,6 +12,7 @@ import { usePluginStore } from '@/stores'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const pluginStore = usePluginStore()
+const route = useRoute()
 
 const toast = useToast()
 const { t } = useI18n()
@@ -73,6 +75,8 @@ const showLinkerApplyResult = ref(false)
 const showLinkerBatchApplyResult = ref(false)
 const batchApplyResults = ref<any[]>([])
 const showGraphView = ref(false)
+const linkerHasPendingChanges = ref(false)
+const linkerSearchQuery = ref('')
 
 const searchQuery = ref('')
 const filterCompatibility = ref<string>('all')
@@ -313,6 +317,16 @@ onMounted(async () => {
   loadPlugins()
   loadTotalStorageStats()
   document.addEventListener('click', handleClickOutside)
+
+  if (route.query.tab === 'bindings') {
+    activeTab.value = 'bindings'
+    await loadLinkerData()
+    if (route.query.project && typeof route.query.project === 'string') {
+      selectedLinkId.value = route.query.project
+      selectedLinkProjectIds.value = new Set([route.query.project])
+      await loadLinkerBindings(route.query.project)
+    }
+  }
 })
 
 onUnmounted(() => {
@@ -875,7 +889,7 @@ const goToBindings = async (plugin: Plugin) => {
 
 const loadLinkerData = async () => {
   try {
-    const [projs, plgs] = await Promise.all([
+    const [projs] = await Promise.all([
       api.getProjects(),
       api.getPlugins()
     ])
@@ -952,6 +966,7 @@ const doBindPlugin = async (plugin: Plugin, version: any, unit: any) => {
       await api.bindPlugin(projectId, plugin.plugin_id, version.version_id, unit.unit_id, `addons/${unit.name}`)
     }
     toast.success(t('linker.pluginBound', { name: plugin.name, version: version.version }))
+    linkerHasPendingChanges.value = true
     if (selectedLinkId.value) {
       await loadLinkerBindings(selectedLinkId.value)
     }
@@ -974,6 +989,7 @@ const unbindPluginFromProject = async (binding: ProjectBinding) => {
   try {
     await api.unbindPlugin(binding.project_id, binding.plugin_id)
     toast.success(t('linker.pluginUnbound'))
+    linkerHasPendingChanges.value = true
     if (selectedLinkId.value) {
       await loadLinkerBindings(selectedLinkId.value)
     }
@@ -988,6 +1004,7 @@ const confirmLinkerApply = async () => {
   try {
     linkerApplyResult.value = await api.applyChanges(selectedLinkId.value)
     showLinkerApplyResult.value = true
+    linkerHasPendingChanges.value = false
     if (selectedLinkId.value) {
       await loadLinkerBindings(selectedLinkId.value)
     }
@@ -1033,6 +1050,7 @@ const confirmBatchBind = async () => {
       toast.success(t('plugins.bindDialog.bindAndApplySuccess', { count: result.success_count, name: '' }))
     }
     selectedLinkPluginIds.value = new Set()
+    linkerHasPendingChanges.value = true
     if (selectedLinkId.value) {
       await loadLinkerBindings(selectedLinkId.value)
     }
@@ -1071,6 +1089,7 @@ const confirmBatchUnbind = async () => {
       toast.success(t('linker.pluginUnbound'))
     }
     selectedLinkPluginIds.value = new Set()
+    linkerHasPendingChanges.value = true
     await loadLinkerBindings(selectedLinkId.value)
   } catch (error) {
     toast.error(t('common.loadFailed', { error }))
@@ -1096,7 +1115,7 @@ const confirmBatchApply = async () => {
     try {
       const result = await api.applyChanges(projectId)
       const project = linkerProjects.value.find(p => p.project_id === projectId)
-      batchApplyResults.value.push({ project_id: projectId, project_name: project?.name || projectId, success: result.errors.length === 0, ...result })
+      batchApplyResults.value.push({ project_id: projectId, project_name: project?.name || projectId, ...result })
     } catch (error) {
       const project = linkerProjects.value.find(p => p.project_id === projectId)
       batchApplyResults.value.push({ project_id: projectId, project_name: project?.name || projectId, success: false, errors: [String(error)], created: [], removed: [] })
@@ -1105,6 +1124,7 @@ const confirmBatchApply = async () => {
   isLinkerBatchApplying.value = false
   showLinkerBatchApplyDialog.value = false
   showLinkerBatchApplyResult.value = true
+  linkerHasPendingChanges.value = false
   if (selectedLinkId.value) {
     await loadLinkerBindings(selectedLinkId.value)
   }
@@ -1123,6 +1143,16 @@ const boundPluginNames = computed(() => {
 const unboundPlugins = computed(() => {
   const boundIds = new Set(linkerBindings.value.map(b => b.plugin_id))
   return plugins.value.filter(p => !boundIds.has(p.plugin_id))
+})
+
+const filteredUnboundPlugins = computed(() => {
+  const query = linkerSearchQuery.value.toLowerCase().trim()
+  if (!query) return unboundPlugins.value
+  return unboundPlugins.value.filter(p =>
+    p.name.toLowerCase().includes(query) ||
+    p.description.toLowerCase().includes(query) ||
+    p.author.toLowerCase().includes(query)
+  )
 })
 
 const toggleLinkPluginSelection = (pluginId: string, event: MouseEvent) => {
@@ -1505,15 +1535,24 @@ useDialogEscape(showLinkerBatchApplyResult)
               {{ plugin.source.source_type === 'Local' ? t('plugins.source.local') : plugin.source.source_type === 'Git' ? t('plugins.source.git') : t('plugins.source.assetlibrary') }}
             </span>
           </div>
-          <div class="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+          <div class="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex gap-2">
             <button
-              @click.stop="goToBindings(plugin)"
-              class="w-full px-3 py-1.5 border border-primary-600 text-primary-600 dark:text-primary-400 dark:border-primary-400 text-xs rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors flex items-center justify-center gap-1.5"
+              @click.stop="openBindDialog(plugin)"
+              class="flex-1 px-3 py-1.5 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700 transition-colors flex items-center justify-center gap-1.5"
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
               </svg>
-              {{ t('plugins.goToBindings') }}
+              {{ t('plugins.bindToProject') }}
+            </button>
+            <button
+              @click.stop="goToBindings(plugin)"
+              class="px-2 py-1.5 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-content-secondary text-xs rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              :title="t('plugins.goToBindings')"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
             </button>
           </div>
         </div>
@@ -2115,9 +2154,28 @@ useDialogEscape(showLinkerBatchApplyResult)
           v-if="selectedLinkId"
           @click="confirmLinkerApply"
           :disabled="isLinkerApplying"
-          class="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 disabled:opacity-50"
+          class="relative px-3 py-1.5 text-sm rounded-lg hover:bg-primary-700 disabled:opacity-50"
+          :class="linkerHasPendingChanges ? 'bg-orange-500 text-white animate-pulse' : 'bg-primary-600 text-white'"
         >
           {{ isLinkerApplying ? t('linker.applying') : t('linker.apply') }}
+          <span v-if="linkerHasPendingChanges" class="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white dark:border-gray-900"></span>
+        </button>
+      </div>
+
+      <div v-if="linkerHasPendingChanges" class="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-2.5 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          </svg>
+          <span class="text-sm text-orange-700 dark:text-orange-300">{{ t('linker.pendingChanges') }}</span>
+        </div>
+        <button
+          v-if="selectedLinkId"
+          @click="confirmLinkerApply"
+          :disabled="isLinkerApplying"
+          class="px-3 py-1 bg-orange-500 text-white text-xs rounded-lg hover:bg-orange-600 disabled:opacity-50"
+        >
+          {{ isLinkerApplying ? t('linker.applying') : t('linker.applyNow') }}
         </button>
       </div>
 
@@ -2144,25 +2202,33 @@ useDialogEscape(showLinkerBatchApplyResult)
         </div>
 
         <div class="col-span-5 card p-0">
-          <div class="p-3 border-b border-gray-200 dark:border-surface-border flex items-center justify-between">
-            <h3 class="text-sm font-semibold text-gray-900 dark:text-content-primary">{{ t('linker.availablePlugins') }}</h3>
-            <button
-              v-if="selectedLinkProjectCount > 0 && selectedLinkPluginCount > 0"
-              @click="batchBindPlugins"
-              class="px-2 py-1 bg-primary-600 text-white text-xs rounded hover:bg-primary-700"
-            >
-              {{ t('linker.batchBind') }}
-            </button>
+          <div class="p-3 border-b border-gray-200 dark:border-surface-border">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-sm font-semibold text-gray-900 dark:text-content-primary">{{ t('linker.availablePlugins') }}</h3>
+              <button
+                v-if="selectedLinkProjectCount > 0 && selectedLinkPluginCount > 0"
+                @click="batchBindPlugins"
+                class="px-2 py-1 bg-primary-600 text-white text-xs rounded hover:bg-primary-700"
+              >
+                {{ t('linker.batchBind') }}
+              </button>
+            </div>
+            <input
+              v-model="linkerSearchQuery"
+              type="text"
+              :placeholder="t('linker.searchPlugins')"
+              class="w-full px-2.5 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-xs"
+            />
           </div>
           <div class="max-h-[calc(100vh-280px)] overflow-y-auto">
             <div v-if="selectedLinkProjectCount === 0" class="p-4 text-center text-sm text-gray-500 dark:text-content-secondary">
               {{ t('linker.selectProject') }}
             </div>
-            <div v-else-if="unboundPlugins.length === 0" class="p-4 text-center text-sm text-gray-500 dark:text-content-secondary">
-              {{ t('linker.allPluginsBound') }}
+            <div v-else-if="filteredUnboundPlugins.length === 0" class="p-4 text-center text-sm text-gray-500 dark:text-content-secondary">
+              {{ linkerSearchQuery ? t('linker.noSearchResults') : t('linker.allPluginsBound') }}
             </div>
             <div
-              v-for="plugin in unboundPlugins"
+              v-for="plugin in filteredUnboundPlugins"
               :key="plugin.plugin_id"
               @click="toggleLinkPluginSelection(plugin.plugin_id, $event)"
               :class="['px-3 py-2.5 cursor-pointer border-b border-gray-100 dark:border-surface-border last:border-0 transition-colors', selectedLinkPluginIds.has(plugin.plugin_id) ? 'bg-primary-50 dark:bg-primary-900/20' : 'hover:bg-gray-50 dark:hover:bg-surface-layer']"
@@ -2225,11 +2291,11 @@ useDialogEscape(showLinkerBatchApplyResult)
         <svg width="100%" height="400" viewBox="0 0 640 400" class="border border-gray-200 dark:border-surface-border rounded-lg">
           <text x="80" y="20" text-anchor="middle" class="fill-gray-500 dark:fill-gray-400" font-size="11">{{ t('linker.projects') }}</text>
           <text x="560" y="20" text-anchor="middle" class="fill-gray-500 dark:fill-gray-400" font-size="11">{{ t('linker.plugins') }}</text>
-          <g v-for="(node, i) in graphNodes.filter(n => n.type === 'project')" :key="'p-' + node.id">
+          <g v-for="node in graphNodes.filter(n => n.type === 'project')" :key="'p-' + node.id">
             <rect :x="10" :y="node.y - 12" width="140" height="24" rx="4" class="fill-blue-100 dark:fill-blue-900/30 stroke-blue-300 dark:stroke-blue-700" stroke-width="1"/>
             <text :x="80" :y="node.y + 4" text-anchor="middle" class="fill-gray-700 dark:fill-gray-300" font-size="10">{{ node.name.substring(0, 12) }}</text>
           </g>
-          <g v-for="(node, i) in graphNodes.filter(n => n.type === 'plugin')" :key="'pl-' + node.id">
+          <g v-for="node in graphNodes.filter(n => n.type === 'plugin')" :key="'pl-' + node.id">
             <rect :x="490" :y="node.y - 12" width="140" height="24" rx="4" class="fill-green-100 dark:fill-green-900/30 stroke-green-300 dark:stroke-green-700" stroke-width="1"/>
             <text :x="560" :y="node.y + 4" text-anchor="middle" class="fill-gray-700 dark:fill-gray-300" font-size="10">{{ node.name.substring(0, 12) }}</text>
           </g>
@@ -2367,7 +2433,7 @@ useDialogEscape(showLinkerBatchApplyResult)
           <button
             @click="confirmBind(false)"
             :disabled="isBinding || bindSelectedProjectIds.size === 0"
-            class="btn-secondary disabled:opacity-50"
+            class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm disabled:opacity-50"
           >
             {{ t('plugins.bindDialog.confirmBind', { count: bindSelectedProjectIds.size }) }}
           </button>
