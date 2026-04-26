@@ -62,7 +62,7 @@ impl VersionChecker {
         Self { cache_dir }
     }
 
-    pub fn check_for_updates(
+    pub async fn check_for_updates(
         &self,
         local_engines: Vec<LocalEngineVersion>,
     ) -> Result<GodotVersionCheckResult, String> {
@@ -75,7 +75,7 @@ impl VersionChecker {
             if now - cached.cached_at < CACHE_DURATION_SECS {
                 cached.releases
             } else {
-                match self.fetch_releases() {
+                match self.fetch_releases().await {
                     Ok(releases) => {
                         self.save_cache(&releases);
                         releases
@@ -84,7 +84,7 @@ impl VersionChecker {
                 }
             }
         } else {
-            match self.fetch_releases() {
+            match self.fetch_releases().await {
                 Ok(releases) => {
                     self.save_cache(&releases);
                     releases
@@ -144,8 +144,8 @@ impl VersionChecker {
         })
     }
 
-    fn fetch_releases(&self) -> Result<Vec<GodotReleaseInfo>, String> {
-        let client = reqwest::blocking::ClientBuilder::new()
+    async fn fetch_releases(&self) -> Result<Vec<GodotReleaseInfo>, String> {
+        let client = reqwest::Client::builder()
             .user_agent("GodotHarbor")
             .timeout(std::time::Duration::from_secs(15))
             .build()
@@ -154,10 +154,10 @@ impl VersionChecker {
         let mut all_releases = Vec::new();
 
         for url in &[GODOT4_API_URL, GODOT3_API_URL] {
-            match client.get(*url).send() {
+            match client.get(*url).send().await {
                 Ok(resp) => {
                     if resp.status().is_success() {
-                        if let Ok(json) = resp.json::<serde_json::Value>() {
+                        if let Ok(json) = resp.json::<serde_json::Value>().await {
                             if let Some(arr) = json.as_array() {
                                 for release in arr {
                                     if let Some(info) = Self::parse_release(release) {

@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
 import { useUpdateStore } from '@/stores/update'
 import type { VersionUpdateInfo, GodotVersionCheckResult } from '@/types'
 
 const { t } = useI18n()
-const router = useRouter()
 const updateStore = useUpdateStore()
 
 const latestGodot4 = ref<string>('')
@@ -55,11 +53,6 @@ const openDownloadPage = async (url: string) => {
   }
 }
 
-const goToUpdates = () => {
-  showUpdatePanel.value = false
-  router.push('/updates')
-}
-
 const formatTime = (isoStr: string) => {
   if (!isoStr) return ''
   try {
@@ -84,6 +77,51 @@ const sendSystemNotification = async (title: string, body: string) => {
     }
   } catch (e) {
     console.error('Failed to send notification:', e)
+  }
+}
+
+const toggleUpdatePanel = () => {
+  showUpdatePanel.value = !showUpdatePanel.value
+}
+
+const closeUpdatePanel = () => {
+  showUpdatePanel.value = false
+}
+
+const handleAppUpdate = () => {
+  updateStore.installAppUpdate()
+}
+
+const handleSkipVersion = () => {
+  updateStore.skipAppVersion()
+}
+
+const handlePluginUpdate = (pluginId: string) => {
+  updateStore.updateSinglePlugin(pluginId)
+}
+
+const handleBatchPluginUpdate = () => {
+  updateStore.batchUpdateAllPlugins()
+}
+
+const handleHotUpdate = () => {
+  updateStore.installHotUpdate()
+}
+
+const handleRollbackHotUpdate = () => {
+  updateStore.rollbackHotUpdate()
+}
+
+const handleCheckAll = () => {
+  checkEngineUpdates()
+  updateStore.checkAll()
+}
+
+const handleClickOutside = (e: MouseEvent) => {
+  const panel = document.querySelector('.update-panel')
+  const trigger = document.querySelector('.update-trigger')
+  if (panel && !panel.contains(e.target as Node) && trigger && !trigger.contains(e.target as Node)) {
+    closeUpdatePanel()
   }
 }
 
@@ -118,6 +156,8 @@ onMounted(async () => {
   updateInterval = setInterval(() => {
     checkEngineUpdates()
   }, 30 * 60 * 1000)
+
+  document.addEventListener('click', handleClickOutside)
 })
 
 onUnmounted(() => {
@@ -130,6 +170,7 @@ onUnmounted(() => {
     updateInterval = null
   }
   updateStore.cleanupListeners()
+  document.removeEventListener('click', handleClickOutside)
 })
 </script>
 
@@ -153,8 +194,8 @@ onUnmounted(() => {
     <div class="flex items-center gap-2">
       <button
         v-if="hasAnyUpdate"
-        @click="goToUpdates"
-        class="flex items-center gap-1 px-2 py-0.5 rounded text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors font-medium"
+        @click.stop="toggleUpdatePanel"
+        class="update-trigger flex items-center gap-1 px-2 py-0.5 rounded text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors font-medium"
       >
         <svg class="w-3.5 h-3.5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
@@ -163,18 +204,7 @@ onUnmounted(() => {
       </button>
 
       <button
-        v-else-if="engineUpdatesAvailable.length > 0"
-        @click="showUpdatePanel = !showUpdatePanel"
-        class="flex items-center gap-1 px-2 py-0.5 rounded text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors font-medium"
-      >
-        <svg class="w-3.5 h-3.5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
-        </svg>
-        {{ t('statusbar.newVersionAvailable') }} ({{ engineUpdatesAvailable.length }})
-      </button>
-
-      <button
-        @click="checkEngineUpdates(); updateStore.checkAll()"
+        @click="handleCheckAll"
         :disabled="isChecking || updateStore.isChecking"
         class="flex items-center gap-1 px-1.5 py-0.5 rounded text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
         :title="t('statusbar.checkUpdates')"
@@ -192,21 +222,98 @@ onUnmounted(() => {
     <Teleport to="body">
       <div
         v-if="showUpdatePanel"
-        class="fixed bottom-8 right-4 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden"
+        class="update-panel fixed bottom-8 right-4 w-96 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden"
       >
         <div class="px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800">
           <div class="flex items-center justify-between">
             <h3 class="text-sm font-semibold text-amber-800 dark:text-amber-300">
-              {{ t('statusbar.updateAvailable') }}
+              {{ t('statusbar.updateAvailable') }} ({{ totalUpdateCount }})
             </h3>
-            <button @click="showUpdatePanel = false" class="text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-200">
+            <button @click="closeUpdatePanel" class="text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-200">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
         </div>
-        <div class="max-h-64 overflow-y-auto">
+
+        <div class="max-h-80 overflow-y-auto">
+          <div
+            v-if="updateStore.appUpdate"
+            class="px-4 py-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+          >
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-sm font-medium text-gray-900 dark:text-gray-100">Godot Harbor</span>
+              <span class="text-xs px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded">应用更新</span>
+            </div>
+            <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-2">
+              <span>{{ updateStore.appUpdate.current_version }}</span>
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+              <span class="font-medium text-amber-600 dark:text-amber-400">{{ updateStore.appUpdate.latest_version }}</span>
+            </div>
+            <div v-if="updateStore.isInstallingApp" class="mb-2">
+              <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                <div class="bg-primary-600 h-1.5 rounded-full transition-all" :style="{ width: updateStore.installProgress + '%' }"></div>
+              </div>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ updateStore.installMessage }}</p>
+            </div>
+            <div v-if="updateStore.appUpdate.release_notes" class="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded p-2 mb-2 max-h-20 overflow-y-auto whitespace-pre-wrap">
+              {{ updateStore.appUpdate.release_notes }}
+            </div>
+            <div class="flex items-center gap-2">
+              <button
+                @click="handleAppUpdate"
+                :disabled="updateStore.isInstallingApp"
+                class="text-xs px-2.5 py-1 bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50"
+              >
+                {{ updateStore.isInstallingApp ? '安装中...' : '更新' }}
+              </button>
+              <button
+                @click="handleSkipVersion"
+                class="text-xs px-2.5 py-1 border border-gray-300 dark:border-gray-600 rounded text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                跳过
+              </button>
+            </div>
+          </div>
+
+          <div
+            v-if="updateStore.hotUpdate && !updateStore.appUpdate"
+            class="px-4 py-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+          >
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-sm font-medium text-gray-900 dark:text-gray-100">热更新</span>
+              <span class="text-xs px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded">热更新</span>
+            </div>
+            <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-2">
+              <span class="font-medium text-amber-600 dark:text-amber-400">{{ updateStore.hotUpdate.version }}</span>
+            </div>
+            <div v-if="updateStore.isInstallingHotUpdate" class="mb-2">
+              <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                <div class="bg-primary-600 h-1.5 rounded-full transition-all" :style="{ width: updateStore.hotUpdateProgress + '%' }"></div>
+              </div>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ updateStore.hotUpdateMessage }}</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button
+                @click="handleHotUpdate"
+                :disabled="updateStore.isInstallingHotUpdate"
+                class="text-xs px-2.5 py-1 bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50"
+              >
+                {{ updateStore.isInstallingHotUpdate ? '安装中...' : '安装热更新' }}
+              </button>
+            </div>
+          </div>
+
+          <div
+            v-if="updateStore.appUpdate && updateStore.hotUpdate"
+            class="px-4 py-2 border-b border-gray-100 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/10"
+          >
+            <p class="text-xs text-blue-600 dark:text-blue-400">💡 同时有全量更新和热更新，建议优先安装全量更新</p>
+          </div>
+
           <div
             v-for="update in engineUpdatesAvailable"
             :key="update.engine_id"
@@ -240,46 +347,67 @@ onUnmounted(() => {
           </div>
 
           <div
-            v-if="updateStore.appUpdate"
-            class="px-4 py-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer"
-            @click="goToUpdates"
-          >
-            <div class="flex items-center justify-between mb-1">
-              <span class="text-sm font-medium text-gray-900 dark:text-gray-100">Godot Harbor</span>
-              <span class="text-xs px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded">应用更新</span>
-            </div>
-            <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-              <span>{{ updateStore.appUpdate.current_version }}</span>
-              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-              </svg>
-              <span class="font-medium text-amber-600 dark:text-amber-400">{{ updateStore.appUpdate.latest_version }}</span>
-            </div>
-          </div>
-
-          <div
             v-if="updateStore.pluginUpdates.length > 0"
-            class="px-4 py-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer"
-            @click="goToUpdates"
+            class="border-b border-gray-100 dark:border-gray-700"
           >
-            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">插件更新</span>
-            <span class="text-xs text-amber-600 dark:text-amber-400 ml-2">{{ updateStore.pluginUpdates.length }} 个</span>
+            <div class="px-4 py-2 flex items-center justify-between bg-gray-50 dark:bg-gray-700/30">
+              <span class="text-xs font-medium text-gray-700 dark:text-gray-300">
+                插件更新 ({{ updateStore.pluginUpdates.length }})
+              </span>
+              <button
+                @click="handleBatchPluginUpdate"
+                :disabled="updateStore.isUpdatingPlugins"
+                class="text-xs px-2 py-0.5 bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50"
+              >
+                {{ updateStore.isUpdatingPlugins ? '更新中...' : '全部更新' }}
+              </button>
+            </div>
+            <div
+              v-for="pUpdate in updateStore.pluginUpdates"
+              :key="pUpdate.plugin_id"
+              class="px-4 py-2.5 border-b border-gray-50 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+            >
+              <div class="flex items-center justify-between">
+                <div>
+                  <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ pUpdate.plugin_name }}</span>
+                  <div class="text-xs text-gray-500 dark:text-gray-400">
+                    {{ pUpdate.current_version }} → <span class="text-amber-600 dark:text-amber-400 font-medium">{{ pUpdate.latest_version }}</span>
+                  </div>
+                </div>
+                <button
+                  @click="handlePluginUpdate(pUpdate.plugin_id)"
+                  class="text-xs px-2 py-1 bg-primary-600 text-white rounded hover:bg-primary-700"
+                >
+                  更新
+                </button>
+              </div>
+            </div>
           </div>
 
           <div
-            v-if="updateStore.hotUpdate"
-            class="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer"
-            @click="goToUpdates"
+            v-if="updateStore.currentHotUpdateVersion"
+            class="px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
           >
-            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">热更新</span>
-            <span class="text-xs text-amber-600 dark:text-amber-400 ml-2">{{ updateStore.hotUpdate.version }}</span>
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-gray-500 dark:text-gray-400">当前热更新版本: {{ updateStore.currentHotUpdateVersion }}</span>
+              <button
+                @click="handleRollbackHotUpdate"
+                class="text-xs px-2 py-0.5 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
+              >
+                回滚
+              </button>
+            </div>
           </div>
-        </div>
 
-        <div class="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-600">
-          <button @click="goToUpdates" class="w-full text-center text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300">
-            前往更新中心 →
-          </button>
+          <div
+            v-if="!updateStore.isChecking && !updateStore.appUpdate && updateStore.pluginUpdates.length === 0 && engineUpdatesAvailable.length === 0 && !updateStore.hotUpdate"
+            class="px-4 py-6 text-center"
+          >
+            <svg class="mx-auto h-8 w-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">一切已是最新</p>
+          </div>
         </div>
       </div>
     </Teleport>

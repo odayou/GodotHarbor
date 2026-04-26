@@ -1,6 +1,5 @@
 use std::path::{PathBuf, Path};
 use std::fs;
-use std::io::{Read, Write};
 use serde::{Serialize, Deserialize};
 use tauri::{AppHandle, Manager, Emitter, State};
 use crate::models::*;
@@ -962,89 +961,89 @@ pub fn update_git_plugin(app: AppHandle, plugin_id: String) -> Result<Plugin, St
     Ok(result)
 }
 
-#[tauri::command]
-pub async fn check_app_update(app: AppHandle) -> Result<Option<AppUpdateInfo>, String> {
-    use tauri_plugin_updater::UpdaterExt;
-    let _current_version = app.config().version.clone().unwrap_or_default();
-    
-    match app.updater() {
-        Ok(updater) => {
-            match updater.check().await {
-                Ok(Some(update)) => {
-                    Ok(Some(AppUpdateInfo {
-                        current_version: current_version.clone(),
-                        latest_version: update.version.clone(),
-                        release_notes: update.body.clone().unwrap_or_default(),
-                        pub_date: update.date.map(|d| d.to_string()).unwrap_or_default(),
-                        download_size: None,
-                        is_hot_update: false,
-                    }))
-                }
-                Ok(None) => Ok(None),
-                Err(e) => Err(format!("检查应用更新失败: {}", e)),
-            }
-        }
-        Err(e) => Err(format!("初始化更新器失败: {}", e)),
-    }
-}
-
-#[tauri::command]
-pub async fn install_app_update(app: AppHandle) -> Result<(), String> {
-    use tauri_plugin_updater::UpdaterExt;
-    
-    let updater = app.updater()
-        .map_err(|e| format!("初始化更新器失败: {}", e))?;
-    
-    let update = updater.check().await
-        .map_err(|e| format!("检查更新失败: {}", e))?
-        .ok_or("没有可用的更新".to_string())?;
-
-    let mut downloaded = 0u64;
-    let total: u64 = 0;
-    
-    update.download_and_install(
-        |chunk_length, content_len| {
-            downloaded += chunk_length as u64;
-            let progress = if total > 0 {
-                ((downloaded as f64 / total as f64) * 100.0) as u32
-            } else if content_len.is_some() {
-                ((downloaded as f64 / content_len.unwrap() as f64) * 100.0) as u32
-            } else {
-                0
-            };
-            let _ = app.emit("app-update-progress", serde_json::json!({
-                "stage": "downloading",
-                "progress": progress.min(100),
-                "message": format!("下载中... {}%", progress.min(100))
-            }));
-        },
-        || {
-            let _ = app.emit("app-update-progress", serde_json::json!({
-                "stage": "installing",
-                "progress": 100,
-                "message": "安装中..."
-            }));
-        }
-    ).await.map_err(|e| format!("安装更新失败: {}", e))?;
-
-    let data_dir = get_data_dir(&app);
-    let hot_update_dir = data_dir.join("hot_updates");
-    if hot_update_dir.exists() {
-        let _ = fs::remove_dir_all(&hot_update_dir);
-    }
-    let overlay_dir = data_dir.join("hotupdate_overlay");
-    if overlay_dir.exists() {
-        let _ = fs::remove_dir_all(&overlay_dir);
-    }
-
-    let _ = app.emit("app-update-progress", serde_json::json!({
-        "stage": "complete",
-        "progress": 100,
-        "message": "更新安装完成，热更新已清除，即将重启..."
-    }));
-
-    Ok(())
-}
+// #[tauri::command]
+// pub async fn check_app_update(app: AppHandle) -> Result<Option<AppUpdateInfo>, String> {
+//     use tauri_plugin_updater::UpdaterExt;
+//     let _current_version = app.config().version.clone().unwrap_or_default();
+//     
+//     match app.updater() {
+//         Ok(updater) => {
+//             match updater.check().await {
+//                 Ok(Some(update)) => {
+//                     Ok(Some(AppUpdateInfo {
+//                         current_version: current_version.clone(),
+//                         latest_version: update.version.clone(),
+//                         release_notes: update.body.clone().unwrap_or_default(),
+//                         pub_date: update.date.map(|d| d.to_string()).unwrap_or_default(),
+//                         download_size: None,
+//                         is_hot_update: false,
+//                     }))
+//                 }
+//                 Ok(None) => Ok(None),
+//                 Err(e) => Err(format!("检查应用更新失败: {}", e)),
+//             }
+//         }
+//         Err(e) => Err(format!("初始化更新器失败: {}", e)),
+//     }
+// }
+//
+// #[tauri::command]
+// pub async fn install_app_update(app: AppHandle) -> Result<(), String> {
+//     use tauri_plugin_updater::UpdaterExt;
+//     
+//     let updater = app.updater()
+//         .map_err(|e| format!("初始化更新器失败: {}", e))?;
+//     
+//     let update = updater.check().await
+//         .map_err(|e| format!("检查更新失败: {}", e))?
+//         .ok_or("没有可用的更新".to_string())?;
+//
+//     let mut downloaded = 0u64;
+//     let total: u64 = 0;
+//     
+//     update.download_and_install(
+//         |chunk_length, content_len| {
+//             downloaded += chunk_length as u64;
+//             let progress = if total > 0 {
+//                 ((downloaded as f64 / total as f64) * 100.0) as u32
+//             } else if content_len.is_some() {
+//                 ((downloaded as f64 / content_len.unwrap() as f64) * 100.0) as u32
+//             } else {
+//                 0
+//             };
+//             let _ = app.emit("app-update-progress", serde_json::json!({
+//                 "stage": "downloading",
+//                 "progress": progress.min(100),
+//                 "message": format!("下载中... {}%", progress.min(100))
+//             }));
+//         },
+//         || {
+//             let _ = app.emit("app-update-progress", serde_json::json!({
+//                 "stage": "installing",
+//                 "progress": 100,
+//                 "message": "安装中..."
+//             }));
+//         }
+//     ).await.map_err(|e| format!("安装更新失败: {}", e))?;
+//
+//     let data_dir = get_data_dir(&app);
+//     let hot_update_dir = data_dir.join("hot_updates");
+//     if hot_update_dir.exists() {
+//         let _ = fs::remove_dir_all(&hot_update_dir);
+//     }
+//     let overlay_dir = data_dir.join("hotupdate_overlay");
+//     if overlay_dir.exists() {
+//         let _ = fs::remove_dir_all(&overlay_dir);
+//     }
+//
+//     let _ = app.emit("app-update-progress", serde_json::json!({
+//         "stage": "complete",
+//         "progress": 100,
+//         "message": "更新安装完成，热更新已清除，即将重启..."
+//     }));
+//
+//     Ok(())
+// }
 
 #[tauri::command]
 pub fn batch_update_plugins(app: AppHandle, plugin_ids: Vec<String>) -> Result<BatchResult, String> {
@@ -1123,36 +1122,37 @@ pub fn skip_app_version(app: AppHandle, version: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn check_all_updates(app: AppHandle) -> Result<UpdateCheckResult, String> {
-    let current_version = app.config().version.clone().unwrap_or_default();
-    
+pub async fn check_all_updates(app: AppHandle) -> Result<UpdateCheckResult, String> {
+    let _current_version = app.config().version.clone().unwrap_or_default();
+
     let storage = get_storage(&app);
     let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
-    let git_plugins: Vec<&Plugin> = plugins.iter()
+    let git_plugins: Vec<Plugin> = plugins.into_iter()
         .filter(|p| p.source.source_type == SourceType::Git)
         .collect();
 
-    let mut plugin_updates = Vec::new();
-    for plugin in git_plugins {
-        let url = &plugin.source.url;
-        if let Some(repo_parts) = parse_github_url(url) {
-            let (owner, repo) = repo_parts;
-            let api_url = format!("https://api.github.com/repos/{}/{}/releases/latest", owner, repo);
-            let client = reqwest::blocking::ClientBuilder::new()
-                .user_agent("GodotHarbor")
-                .timeout(std::time::Duration::from_secs(10))
-                .build();
-            if let Ok(client) = client {
-                if let Ok(resp) = client.get(&api_url).send() {
+    let client = reqwest::Client::builder()
+        .user_agent("GodotHarbor")
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+
+    let futures = git_plugins.iter().map(|plugin| {
+        let client = client.clone();
+        let url = plugin.source.url.clone();
+        async move {
+            if let Some((owner, repo)) = parse_github_url(&url) {
+                let api_url = format!("https://api.github.com/repos/{}/{}/releases/latest", owner, repo);
+                if let Ok(resp) = client.get(&api_url).send().await {
                     if resp.status().is_success() {
-                        if let Ok(json) = resp.json::<serde_json::Value>() {
+                        if let Ok(json) = resp.json::<serde_json::Value>().await {
                             if let Some(tag) = json.get("tag_name").and_then(|t| t.as_str()) {
                                 let latest = tag.trim_start_matches('v');
                                 let current = plugin.versions.first()
                                     .map(|v| v.version.as_str())
                                     .unwrap_or("0.0.0");
                                 if latest != current {
-                                    plugin_updates.push(PluginUpdateInfo {
+                                    return Some(PluginUpdateInfo {
                                         plugin_id: plugin.plugin_id.clone(),
                                         plugin_name: plugin.name.clone(),
                                         current_version: current.to_string(),
@@ -1167,8 +1167,12 @@ pub fn check_all_updates(app: AppHandle) -> Result<UpdateCheckResult, String> {
                     }
                 }
             }
+            None
         }
-    }
+    });
+
+    let results: Vec<Option<PluginUpdateInfo>> = futures::future::join_all(futures).await;
+    let plugin_updates: Vec<PluginUpdateInfo> = results.into_iter().filter_map(|r| r).collect();
 
     let engines: Vec<Engine> = storage.load_or_default("engines.json");
     let local_engines: Vec<crate::version_checker::LocalEngineVersion> = engines.iter().map(|e| {
@@ -1182,7 +1186,7 @@ pub fn check_all_updates(app: AppHandle) -> Result<UpdateCheckResult, String> {
 
     let data_dir = get_data_dir(&app);
     let checker = crate::version_checker::VersionChecker::new(data_dir);
-    let engine_result = checker.check_for_updates(local_engines).ok();
+    let engine_result = checker.check_for_updates(local_engines).await.ok();
     let engine_updates = engine_result.map(|r| r.updates_available).unwrap_or_default();
 
     Ok(UpdateCheckResult {
@@ -1211,7 +1215,7 @@ pub fn get_app_version(app: AppHandle) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub fn check_hot_update(app: AppHandle, manifest_url: Option<String>) -> Result<Option<HotUpdateInfo>, String> {
+pub async fn check_hot_update(app: AppHandle, manifest_url: Option<String>) -> Result<Option<HotUpdateInfo>, String> {
     let data_dir = get_data_dir(&app);
     let storage = get_storage(&app);
     let settings: Settings = storage.load_or_default("settings.json");
@@ -1229,15 +1233,15 @@ pub fn check_hot_update(app: AppHandle, manifest_url: Option<String>) -> Result<
 
     let url = manifest_url.unwrap_or_else(|| "https://godotharbor.odayou.workers.dev/hot-update/manifest.json".to_string());
     let manager = crate::hot_update::HotUpdateManager::new(data_dir);
-    manager.check_for_hot_update(&url, &current_version)
+    manager.check_for_hot_update(&url, &current_version).await
 }
 
 #[tauri::command]
-pub fn install_hot_update(app: AppHandle, manifest_url: Option<String>) -> Result<(), String> {
+pub async fn install_hot_update(app: AppHandle, manifest_url: Option<String>) -> Result<(), String> {
     let url = manifest_url.unwrap_or_else(|| "https://godotharbor.odayou.workers.dev/hot-update/manifest.json".to_string());
     let data_dir = get_data_dir(&app);
     let manager = crate::hot_update::HotUpdateManager::new(data_dir);
-    manager.download_and_apply(&app, &url)
+    manager.download_and_apply(&app, &url).await
 }
 
 #[tauri::command]
@@ -1663,62 +1667,68 @@ pub fn launch_project_with_engine(
 }
 
 #[tauri::command]
-pub fn check_plugin_updates(app: AppHandle) -> Result<Vec<PluginUpdateInfo>, String> {
+pub async fn check_plugin_updates(app: AppHandle) -> Result<Vec<PluginUpdateInfo>, String> {
     let storage = get_storage(&app);
     let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
 
-    let mut update_infos = Vec::new();
+    let client = reqwest::Client::builder()
+        .user_agent("GodotHarbor")
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
 
-    for plugin in &plugins {
+    let futures = plugins.iter().map(|plugin| {
+        let client = client.clone();
+        let plugin_id = plugin.plugin_id.clone();
+        let plugin_name = plugin.name.clone();
         let current_version = plugin.versions.last()
             .map(|v| v.version.clone())
             .unwrap_or_else(|| "0.0.0".to_string());
+        let source_type = plugin.source.source_type.clone();
+        let url = plugin.source.url.clone();
 
-        let mut latest_version = current_version.clone();
-        let mut release_notes = String::new();
+        async move {
+            let mut latest_version = current_version.clone();
+            let mut release_notes = String::new();
 
-        if plugin.source.source_type == SourceType::Git && !plugin.source.url.is_empty() {
-            let url = &plugin.source.url;
-            if url.contains("github.com") {
+            if source_type == SourceType::Git && !url.is_empty() && url.contains("github.com") {
                 let api_url = url.trim_end_matches(".git")
                     .replace("git@github.com:", "https://api.github.com/repos/")
                     .replace("https://github.com/", "https://api.github.com/repos/");
                 let releases_url = format!("{}/releases/latest", api_url);
 
-                if let Ok(client) = reqwest::blocking::ClientBuilder::new()
-                    .user_agent("GodotHarbor")
-                    .build() {
-                    if let Ok(resp) = client.get(&releases_url).send() {
-                        if resp.status().is_success() {
-                            if let Ok(json) = resp.json::<serde_json::Value>() {
-                                if let Some(tag) = json.get("tag_name").and_then(|t| t.as_str()) {
-                                    let tag = tag.trim_start_matches('v');
-                                    if compare_versions(&current_version, tag) < 0 {
-                                        latest_version = tag.to_string();
-                                    }
+                if let Ok(resp) = client.get(&releases_url).send().await {
+                    if resp.status().is_success() {
+                        if let Ok(json) = resp.json::<serde_json::Value>().await {
+                            if let Some(tag) = json.get("tag_name").and_then(|t| t.as_str()) {
+                                let tag = tag.trim_start_matches('v');
+                                if compare_versions(&current_version, tag) < 0 {
+                                    latest_version = tag.to_string();
                                 }
-                                if let Some(notes) = json.get("body").and_then(|b| b.as_str()) {
-                                    release_notes = notes.chars().take(500).collect();
-                                }
+                            }
+                            if let Some(notes) = json.get("body").and_then(|b| b.as_str()) {
+                                release_notes = notes.chars().take(500).collect();
                             }
                         }
                     }
                 }
             }
+
+            let update_available = compare_versions(&current_version, &latest_version) < 0;
+
+            PluginUpdateInfo {
+                plugin_id,
+                plugin_name,
+                current_version,
+                latest_version,
+                update_available,
+                release_notes,
+                source_url: url,
+            }
         }
+    });
 
-        let update_available = compare_versions(&current_version, &latest_version) < 0;
-
-        update_infos.push(PluginUpdateInfo {
-            plugin_id: plugin.plugin_id.clone(),
-            plugin_name: plugin.name.clone(),
-            current_version,
-            latest_version,
-            update_available,
-            release_notes,
-            source_url: plugin.source.url.clone(),
-        });
-    }
+    let update_infos: Vec<PluginUpdateInfo> = futures::future::join_all(futures).await;
 
     log_operation(&app, "check_plugin_updates", "", &format!("检查了 {} 个插件的更新", update_infos.len()));
     Ok(update_infos)
@@ -1930,7 +1940,7 @@ pub struct AssetLibrarySearchParams {
 }
 
 #[tauri::command]
-pub fn search_asset_library(app: AppHandle, params: AssetLibrarySearchParams) -> Result<serde_json::Value, String> {
+pub async fn search_asset_library(app: AppHandle, params: AssetLibrarySearchParams) -> Result<serde_json::Value, String> {
     let mut url_params = vec![];
 
     if let Some(f) = &params.filter {
@@ -1966,19 +1976,19 @@ pub fn search_asset_library(app: AppHandle, params: AssetLibrarySearchParams) ->
 
     let url = format!("https://godotengine.org/asset-library/api/asset?{}", url_params.join("&"));
 
-    let client = reqwest::blocking::ClientBuilder::new()
+    let client = reqwest::Client::builder()
         .user_agent("GodotHarbor")
         .build()
         .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
 
-    let resp = client.get(&url).send()
+    let resp = client.get(&url).send().await
         .map_err(|e| format!("请求 Asset Library 失败: {}", e))?;
 
     if !resp.status().is_success() {
         return Err(format!("Asset Library 返回错误状态: {}", resp.status()));
     }
 
-    let text = resp.text()
+    let text = resp.text().await
         .map_err(|e| format!("读取 Asset Library 响应失败: {}", e))?;
 
     let json: serde_json::Value = serde_json::from_str(&text)
@@ -1990,22 +2000,22 @@ pub fn search_asset_library(app: AppHandle, params: AssetLibrarySearchParams) ->
 }
 
 #[tauri::command]
-pub fn get_asset_library_configure(app: AppHandle) -> Result<serde_json::Value, String> {
+pub async fn get_asset_library_configure(app: AppHandle) -> Result<serde_json::Value, String> {
     let url = "https://godotengine.org/asset-library/api/configure?type=any";
 
-    let client = reqwest::blocking::ClientBuilder::new()
+    let client = reqwest::Client::builder()
         .user_agent("GodotHarbor")
         .build()
         .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
 
-    let resp = client.get(url).send()
+    let resp = client.get(url).send().await
         .map_err(|e| format!("请求 Asset Library 配置失败: {}", e))?;
 
     if !resp.status().is_success() {
         return Err(format!("Asset Library 返回错误状态: {}", resp.status()));
     }
 
-    let json: serde_json::Value = resp.json()
+    let json: serde_json::Value = resp.json().await
         .map_err(|e| format!("解析 Asset Library 配置失败: {}", e))?;
 
     log_operation(&app, "get_asset_library_configure", "", "获取 Asset Library 配置");
@@ -2013,25 +2023,25 @@ pub fn get_asset_library_configure(app: AppHandle) -> Result<serde_json::Value, 
 }
 
 #[tauri::command]
-pub fn get_asset_detail(app: AppHandle, asset_id: String) -> Result<serde_json::Value, String> {
+pub async fn get_asset_detail(app: AppHandle, asset_id: String) -> Result<serde_json::Value, String> {
     let url = format!(
         "https://godotengine.org/asset-library/api/asset/{}",
         asset_id
     );
 
-    let client = reqwest::blocking::ClientBuilder::new()
+    let client = reqwest::Client::builder()
         .user_agent("GodotHarbor")
         .build()
         .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
 
-    let resp = client.get(&url).send()
+    let resp = client.get(&url).send().await
         .map_err(|e| format!("请求 Asset Library 失败: {}", e))?;
 
     if !resp.status().is_success() {
         return Err(format!("Asset Library 返回错误状态: {}", resp.status()));
     }
 
-    let json: serde_json::Value = resp.json()
+    let json: serde_json::Value = resp.json().await
         .map_err(|e| format!("解析 Asset Library 响应失败: {}", e))?;
 
     log_operation(&app, "get_asset_detail", &asset_id, &format!("获取资产详情: {}", asset_id));
@@ -2039,21 +2049,21 @@ pub fn get_asset_detail(app: AppHandle, asset_id: String) -> Result<serde_json::
 }
 
 #[tauri::command]
-pub fn import_from_asset_library(app: AppHandle, asset_id: String) -> Result<Plugin, String> {
+pub async fn import_from_asset_library(app: AppHandle, asset_id: String) -> Result<Plugin, String> {
     let url = format!(
         "https://godotengine.org/asset-library/api/asset/{}",
         asset_id
     );
 
-    let client = reqwest::blocking::ClientBuilder::new()
+    let client = reqwest::Client::builder()
         .user_agent("GodotHarbor")
         .build()
         .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
 
-    let resp = client.get(&url).send()
+    let resp = client.get(&url).send().await
         .map_err(|e| format!("请求 Asset Library 失败: {}", e))?;
 
-    let asset: serde_json::Value = resp.json()
+    let asset: serde_json::Value = resp.json().await
         .map_err(|e| format!("解析 Asset Library 响应失败: {}", e))?;
 
     let download_url = asset.get("download_url")
@@ -2093,13 +2103,13 @@ pub fn import_from_asset_library(app: AppHandle, asset_id: String) -> Result<Plu
         .map_err(|e| format!("创建目录失败: {}", e))?;
 
     let temp_zip = version_dir.join("download.zip");
-    let mut resp = client.get(download_url).send()
+    let resp = client.get(download_url).send().await
         .map_err(|e| format!("下载资源失败: {}", e))?;
 
-    let mut file = std::fs::File::create(&temp_zip)
-        .map_err(|e| format!("创建临时文件失败: {}", e))?;
+    let bytes = resp.bytes().await
+        .map_err(|e| format!("读取下载数据失败: {}", e))?;
 
-    resp.copy_to(&mut file)
+    fs::write(&temp_zip, &bytes)
         .map_err(|e| format!("写入文件失败: {}", e))?;
 
     let file = std::fs::File::open(&temp_zip)
@@ -2194,7 +2204,7 @@ pub struct AssetImportProgressPayload {
 }
 
 #[tauri::command]
-pub fn import_from_asset_library_with_progress(app: AppHandle, asset_id: String) -> Result<Plugin, String> {
+pub async fn import_from_asset_library_with_progress(app: AppHandle, asset_id: String) -> Result<Plugin, String> {
     let _ = app.emit("asset-import-progress", AssetImportProgressPayload {
         asset_id: asset_id.clone(),
         stage: "downloading".to_string(),
@@ -2207,15 +2217,15 @@ pub fn import_from_asset_library_with_progress(app: AppHandle, asset_id: String)
         asset_id
     );
 
-    let client = reqwest::blocking::ClientBuilder::new()
+    let client = reqwest::Client::builder()
         .user_agent("GodotHarbor")
         .build()
         .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
 
-    let resp = client.get(&url).send()
+    let resp = client.get(&url).send().await
         .map_err(|e| format!("请求 Asset Library 失败: {}", e))?;
 
-    let asset: serde_json::Value = resp.json()
+    let asset: serde_json::Value = resp.json().await
         .map_err(|e| format!("解析 Asset Library 响应失败: {}", e))?;
 
     let download_url = asset.get("download_url")
@@ -2262,32 +2272,25 @@ pub fn import_from_asset_library_with_progress(app: AppHandle, asset_id: String)
     });
 
     let temp_zip = version_dir.join("download.zip");
-    let mut resp = client.get(download_url).send()
+    let resp = client.get(download_url).send().await
         .map_err(|e| format!("下载资源失败: {}", e))?;
 
     let total_size = resp.content_length().unwrap_or(0);
-    let mut file = std::fs::File::create(&temp_zip)
-        .map_err(|e| format!("创建临时文件失败: {}", e))?;
+    let bytes = resp.bytes().await
+        .map_err(|e| format!("读取下载数据失败: {}", e))?;
 
-    let mut downloaded: u64 = 0;
-    let mut buffer = [0u8; 8192];
-    loop {
-        let bytes_read = resp.read(&mut buffer)
-            .map_err(|e| format!("读取下载数据失败: {}", e))?;
-        if bytes_read == 0 { break; }
-        file.write_all(&buffer[..bytes_read])
-            .map_err(|e| format!("写入文件失败: {}", e))?;
-        downloaded += bytes_read as u64;
-        if total_size > 0 {
-            let progress = 0.1 + 0.6 * (downloaded as f64 / total_size as f64);
-            let _ = app.emit("asset-import-progress", AssetImportProgressPayload {
-                asset_id: asset_id.clone(),
-                stage: "downloading".to_string(),
-                progress,
-                message: format!("正在下载 {} ({:.0}%)...", asset_name, progress * 100.0),
-            });
-        }
+    if total_size > 0 {
+        let progress = 0.7f64;
+        let _ = app.emit("asset-import-progress", AssetImportProgressPayload {
+            asset_id: asset_id.clone(),
+            stage: "downloading".to_string(),
+            progress,
+            message: format!("正在下载 {} ({:.0}%)...", asset_name, progress * 100.0),
+        });
     }
+
+    fs::write(&temp_zip, &bytes)
+        .map_err(|e| format!("写入文件失败: {}", e))?;
 
     let _ = app.emit("asset-import-progress", AssetImportProgressPayload {
         asset_id: asset_id.clone(),
@@ -2670,7 +2673,7 @@ pub fn sync_projects(app: AppHandle) -> Result<Vec<Project>, String> {
 }
 
 #[tauri::command]
-pub fn check_godot_updates(app: AppHandle) -> Result<crate::version_checker::GodotVersionCheckResult, String> {
+pub async fn check_godot_updates(app: AppHandle) -> Result<crate::version_checker::GodotVersionCheckResult, String> {
     let storage = get_storage(&app);
     let engines: Vec<Engine> = storage.load_or_default("engines.json");
 
@@ -2687,7 +2690,7 @@ pub fn check_godot_updates(app: AppHandle) -> Result<crate::version_checker::God
     let cache_dir = data_dir.join("cache");
     let checker = crate::version_checker::VersionChecker::new(cache_dir);
 
-    let result = checker.check_for_updates(local_engines)?;
+    let result = checker.check_for_updates(local_engines).await?;
 
     if !result.updates_available.is_empty() {
         let _ = app.emit("godot-update-available", &result.updates_available);

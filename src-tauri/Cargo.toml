@@ -37,6 +37,7 @@ notify = "7"
 once_cell = "1"
 semver = "1"
 percent-encoding = "2"
+futures = "0.3"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52"

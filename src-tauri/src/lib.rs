@@ -26,7 +26,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        // .plugin(tauri_plugin_updater::Builder::new().build())
         .register_uri_scheme_protocol("hotupdate", move |ctx, request| {
             let uri = request.uri().to_string();
             let path = uri.trim_start_matches("hotupdate://localhost/");
@@ -172,7 +172,7 @@ pub fn run() {
                 .item(&quit_item)
                 .build()?;
 
-            let app_handle = app.handle().clone();
+            let _app_handle = app.handle().clone();
             let _tray = TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
@@ -268,8 +268,6 @@ pub fn run() {
             commands::get_total_storage_stats,
             commands::cleanup_orphaned_plugin_dirs,
             commands::update_git_plugin,
-            commands::check_app_update,
-            commands::install_app_update,
             commands::batch_update_plugins,
             commands::skip_app_version,
             commands::check_all_updates,

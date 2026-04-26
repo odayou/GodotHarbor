@@ -55,21 +55,21 @@ impl HotUpdateManager {
         self.data_dir.join("hotupdate_overlay")
     }
 
-    pub fn check_for_hot_update(&self, manifest_url: &str, current_app_version: &str) -> Result<Option<HotUpdateInfo>, String> {
-        let client = reqwest::blocking::ClientBuilder::new()
+    pub async fn check_for_hot_update(&self, manifest_url: &str, current_app_version: &str) -> Result<Option<HotUpdateInfo>, String> {
+        let client = reqwest::Client::builder()
             .user_agent("GodotHarbor")
             .timeout(std::time::Duration::from_secs(15))
             .build()
             .map_err(|e| format!("创建HTTP客户端失败: {}", e))?;
 
-        let resp = client.get(manifest_url).send()
+        let resp = client.get(manifest_url).send().await
             .map_err(|e| format!("请求热更新清单失败: {}", e))?;
 
         if !resp.status().is_success() {
             return Ok(None);
         }
 
-        let manifest: HotUpdateManifest = resp.json()
+        let manifest: HotUpdateManifest = resp.json().await
             .map_err(|e| format!("解析热更新清单失败: {}", e))?;
 
         let is_compatible = self.is_version_compatible(
@@ -99,8 +99,8 @@ impl HotUpdateManager {
         }))
     }
 
-    pub fn download_and_apply(&self, app: &AppHandle, manifest_url: &str) -> Result<(), String> {
-        let client = reqwest::blocking::ClientBuilder::new()
+    pub async fn download_and_apply(&self, app: &AppHandle, manifest_url: &str) -> Result<(), String> {
+        let client = reqwest::Client::builder()
             .user_agent("GodotHarbor")
             .timeout(std::time::Duration::from_secs(120))
             .build()
@@ -112,10 +112,10 @@ impl HotUpdateManager {
             "message": "正在下载热更新清单..."
         }));
 
-        let resp = client.get(manifest_url).send()
+        let resp = client.get(manifest_url).send().await
             .map_err(|e| format!("请求热更新清单失败: {}", e))?;
 
-        let manifest: HotUpdateManifest = resp.json()
+        let manifest: HotUpdateManifest = resp.json().await
             .map_err(|e| format!("解析热更新清单失败: {}", e))?;
 
         let staging = self.staging_dir();
@@ -132,10 +132,10 @@ impl HotUpdateManager {
             "message": "正在下载更新包..."
         }));
 
-        let archive_resp = client.get(&manifest.download_url).send()
+        let archive_resp = client.get(&manifest.download_url).send().await
             .map_err(|e| format!("下载更新包失败: {}", e))?;
 
-        let archive_data = archive_resp.bytes()
+        let archive_data = archive_resp.bytes().await
             .map_err(|e| format!("读取更新包数据失败: {}", e))?;
 
         let _ = app.emit("hot-update-progress", serde_json::json!({

@@ -51,7 +51,7 @@ async fn check_and_notify(app: &AppHandle) {
     let mut has_updates = false;
 
     if settings.auto_check_plugin_updates {
-        if let Ok(result) = crate::commands::check_all_updates(app.clone()) {
+        if let Ok(result) = crate::commands::check_all_updates(app.clone()).await {
             if !result.plugin_updates.is_empty() {
                 has_updates = true;
                 let _ = app.emit("plugin-updates-available", &result.plugin_updates);
@@ -63,14 +63,14 @@ async fn check_and_notify(app: &AppHandle) {
         }
     }
 
-    if settings.auto_check_app_updates {
-        if let Ok(Some(update)) = crate::commands::check_app_update(app.clone()).await {
-            if update.latest_version != settings.skipped_app_version {
-                has_updates = true;
-                let _ = app.emit("app-update-available", &update);
-            }
-        }
-    }
+    // if settings.auto_check_app_updates {
+    //     if let Ok(Some(update)) = crate::commands::check_app_update(app.clone()).await {
+    //         if update.latest_version != settings.skipped_app_version {
+    //             has_updates = true;
+    //             let _ = app.emit("app-update-available", &update);
+    //         }
+    //     }
+    // }
 
     if has_updates {
         let _ = app.emit("updates-available", ());

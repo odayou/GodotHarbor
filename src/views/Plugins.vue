@@ -30,8 +30,9 @@ const sendImportNotification = async (title: string, body: string) => {
   }
 }
 
-const plugins = ref<Plugin[]>([])
+const plugins = computed(() => pluginStore.plugins)
 const isLoading = ref(false)
+const hasLoaded = ref(false)
 const gitUrl = ref('')
 const showGitDialog = ref(false)
 const showPluginDetail = ref(false)
@@ -154,14 +155,17 @@ const favoritePlugins = computed(() => {
 })
 
 const loadPlugins = async () => {
+  if (hasLoaded.value && pluginStore.plugins.length > 0) {
+    return
+  }
   isLoading.value = true
   try {
-    const result = await api.getPlugins()
-    plugins.value = result
+    await pluginStore.loadPlugins()
   } catch (error) {
     toast.error(t('common.loadFailed', { error }))
   } finally {
     isLoading.value = false
+    hasLoaded.value = true
   }
 }
 
