@@ -487,37 +487,50 @@ pub struct UpdateCheckResult {
 
 ## 十、实施阶段
 
-### Phase 1：应用全量更新（优先级最高）
-1. 配置 `tauri-plugin-updater`（注册插件、配置端点、添加权限）
-2. 实现更新服务端（GitHub Releases + Cloudflare Worker）
-3. 后端新增 `check_app_update` / `install_app_update` 命令
-4. 前端 About 页面新增"更新"标签页
-5. 状态栏更新提示
-6. 签名密钥生成与 CI 集成
-7. 统一版本号（tauri.conf.json 与 About.vue 同步）
+### Phase 1：应用全量更新（优先级最高）✅ 已完成
+1. ✅ 配置 `tauri-plugin-updater`（注册插件、配置端点、添加权限）
+2. ✅ 实现更新服务端（GitHub Releases + Cloudflare Worker）— `workers/update-endpoint/`
+3. ✅ 后端新增 `check_app_update` / `install_app_update` 命令
+4. ✅ 前端 Updates 页面（更新中心）— `src/views/Updates.vue`
+5. ✅ 状态栏更新提示 — `src/components/layout/StatusBar.vue` 集成所有更新类型
+6. ✅ 签名密钥生成与 CI 集成 — `scripts/sign-update.js`
+7. ✅ 统一版本号（About.vue 动态获取 `getAppVersion()`）
 
-### Phase 2：插件更新增强
-1. 实现定时检查调度器
-2. 新增 `batch_update_plugins` 命令
-3. 插件更新进度事件推送
-4. 更新中心 UI — 插件更新列表
-5. 完善 `auto_check_plugin_updates` 开关逻辑
+### Phase 2：插件更新增强 ✅ 已完成
+1. ✅ 实现定时检查调度器 — `src-tauri/src/update_scheduler/mod.rs`
+2. ✅ 新增 `batch_update_plugins` 命令
+3. ✅ 插件更新进度事件推送
+4. ✅ 更新中心 UI — 插件更新列表
+5. ✅ 完善 `auto_check_plugin_updates` 开关逻辑
 
-### Phase 3：热更新
-1. 实现 `hot_update/mod.rs` 核心模块
-2. 自定义 URI 协议实现资源覆盖层
-3. 热更新清单服务端
-4. 后端新增 `check_hot_update` / `install_hot_update` / `rollback_hot_update` 命令
-5. 前端热更新 UI（下载进度、重启提示、回滚）
-6. 热更新与全量更新协调逻辑
+### Phase 3：热更新 ✅ 已完成
+1. ✅ 实现 `hot_update/mod.rs` 核心模块
+2. ✅ 自定义 URI 协议实现资源覆盖层 — `register_uri_scheme_protocol("hotupdate", ...)`
+3. ✅ 热更新清单服务端 — Cloudflare Worker `/hot-update/manifest.json`
+4. ✅ 后端新增 `check_hot_update` / `install_hot_update` / `rollback_hot_update` 命令
+5. ✅ 前端热更新 UI（下载进度、重启提示、回滚）
+6. ✅ 热更新与全量更新协调逻辑 — 全量更新优先，安装后清除 overlay
 
-### Phase 4：统一更新中心
-1. 合并三类更新到统一 UI
-2. `check_all_updates` 统一检查命令
-3. 更新历史记录
-4. 设置页面更新相关配置项
-5. 系统通知集成
-6. i18n 更新相关文案
+### Phase 4：统一更新中心 ✅ 已完成
+1. ✅ 合并三类更新到统一 UI — `src/views/Updates.vue`
+2. ✅ `check_all_updates` 统一检查命令
+3. ✅ 更新历史记录
+4. ✅ 设置页面更新相关配置项
+5. ✅ 系统通知集成 — `@tauri-apps/plugin-notification`
+6. ✅ i18n 更新相关文案
+
+### 补充实现
+- ✅ `src/stores/update.ts` — 更新状态 Pinia Store（集中管理更新状态）
+- ✅ `src/composables/useUpdate.ts` — 更新相关组合式函数（启动检查、系统通知）
+- ✅ `src/stores/index.ts` — 注册 update store
+- ✅ `scripts/generate-update-manifest.js` — 生成更新清单脚本
+- ✅ `scripts/sign-update.js` — 签名密钥生成与文件签名脚本
+- ✅ `workers/update-endpoint/` — Cloudflare Worker 更新端点
+- ✅ `src/views/About.vue` — 版本号动态获取 + 更新入口按钮
+- ✅ `src/components/layout/StatusBar.vue` — 统一更新提示（应用/插件/引擎/热更新）
+- ✅ `src-tauri/src/hot_update/mod.rs` — overlay 目录支持
+- ✅ `src-tauri/src/lib.rs` — `hotupdate://` URI 协议注册
+- ✅ `src-tauri/src/commands/mod.rs` — 全量更新后清除热更新 overlay
 
 ---
 

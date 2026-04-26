@@ -327,9 +327,13 @@ export default {
     newVersionAvailable: '有新版本可用',
     checkUpdates: '检查更新',
     lastChecked: '上次检查',
-    updateAvailable: 'Godot 引擎更新可用',
+    updateAvailable: '更新可用',
     majorUpdate: '大版本更新',
-    downloadPage: '查看下载页面'
+    downloadPage: '查看下载页面',
+    appUpdateAvailable: '应用更新可用',
+    pluginUpdateAvailable: '插件更新可用',
+    hotUpdateAvailable: '热更新可用',
+    goToUpdateCenter: '前往更新中心'
   },
   commandPalette: {
     placeholder: '搜索项目、插件、引擎或输入命令...',

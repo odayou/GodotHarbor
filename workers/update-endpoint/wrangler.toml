@@ -1,0 +1,8 @@
+name = "godotharbor-update-endpoint"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[env.production]
+routes = [
+  { pattern = "godotharbor.odayou.workers.dev/*", zone_name = "odayou.workers.dev" }
+]

@@ -332,3 +332,5 @@ export const useSettingsStore = defineStore('settings', () => {
     saveSettings
   }
 })
+
+export { useUpdateStore } from './update'

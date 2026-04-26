@@ -27,6 +27,40 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .register_uri_scheme_protocol("hotupdate", move |ctx, request| {
+            let uri = request.uri().to_string();
+            let path = uri.trim_start_matches("hotupdate://localhost/");
+            let path = percent_encoding::percent_decode_str(path).decode_utf8_lossy().to_string();
+
+            let app_handle = ctx.app_handle();
+            let data_dir = app_handle.path().app_data_dir()
+                .expect("Failed to get app data directory");
+            let overlay_path = data_dir.join("hotupdate_overlay").join(&path);
+
+            if overlay_path.exists() && overlay_path.is_file() {
+                let data = std::fs::read(&overlay_path).unwrap_or_default();
+                let mime = if path.ends_with(".html") { "text/html" }
+                    else if path.ends_with(".js") { "application/javascript" }
+                    else if path.ends_with(".css") { "text/css" }
+                    else if path.ends_with(".json") { "application/json" }
+                    else if path.ends_with(".png") { "image/png" }
+                    else if path.ends_with(".svg") { "image/svg+xml" }
+                    else if path.ends_with(".ico") { "image/x-icon" }
+                    else if path.ends_with(".woff") { "font/woff" }
+                    else if path.ends_with(".woff2") { "font/woff2" }
+                    else { "application/octet-stream" };
+                tauri::http::Response::builder()
+                    .status(200)
+                    .header("Content-Type", mime)
+                    .body(data)
+                    .unwrap()
+            } else {
+                tauri::http::Response::builder()
+                    .status(404)
+                    .body(Vec::new())
+                    .unwrap()
+            }
+        })
         .manage(AppState {
             fs_watcher: Mutex::new(watcher::FsWatcher::new(5)),
         })

@@ -1,7 +1,21 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { useUpdateStore } from '@/stores/update'
+import { api } from '@/api'
 
-const appVersion = '0.2.0'
+const router = useRouter()
+const updateStore = useUpdateStore()
+const appVersion = ref('')
+const activeTab = ref<'about' | 'credits' | 'sponsor'>('about')
+
+onMounted(async () => {
+  try {
+    appVersion.value = await api.getAppVersion()
+  } catch {
+    appVersion.value = '0.1.0'
+  }
+})
 
 const rustDeps = [
   { name: 'Tauri', version: '2.x', license: 'Apache-2.0 / MIT', url: 'https://tauri.app' },
@@ -24,8 +38,6 @@ const jsDeps = [
   { name: 'TypeScript', version: '5.x', license: 'Apache-2.0', url: 'https://www.typescriptlang.org' },
   { name: 'Tailwind CSS', version: '3.x', license: 'MIT', url: 'https://tailwindcss.com' },
 ]
-
-const activeTab = ref<'about' | 'credits' | 'sponsor'>('about')
 </script>
 
 <template>
@@ -60,6 +72,14 @@ const activeTab = ref<'about' | 'credits' | 'sponsor'>('about')
         </div>
         <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Godot Harbor</h1>
         <p class="text-gray-500 dark:text-gray-400 mt-2">v{{ appVersion }}</p>
+        <div v-if="updateStore.hasAnyUpdate" class="mt-3">
+          <button @click="router.push('/updates')" class="inline-flex items-center gap-1.5 px-4 py-1.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 text-sm transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            有 {{ updateStore.totalUpdateCount }} 个更新可用
+          </button>
+        </div>
         <p class="text-gray-600 dark:text-gray-400 mt-4 max-w-xl mx-auto">
           Godot Harbor 是一款独立的桌面应用，用于管理 Godot 引擎的插件、项目和引擎版本。
           让插件只需导入一次，即可被多个项目复用，通过符号链接实现零复制安装。

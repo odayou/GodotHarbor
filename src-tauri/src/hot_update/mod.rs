@@ -51,6 +51,10 @@ impl HotUpdateManager {
         self.hot_update_dir().join("backup")
     }
 
+    pub fn overlay_dir(&self) -> PathBuf {
+        self.data_dir.join("hotupdate_overlay")
+    }
+
     pub fn check_for_hot_update(&self, manifest_url: &str, current_app_version: &str) -> Result<Option<HotUpdateInfo>, String> {
         let client = reqwest::blocking::ClientBuilder::new()
             .user_agent("GodotHarbor")
@@ -251,6 +255,8 @@ impl HotUpdateManager {
         let resource_dir = app.path().resource_dir()
             .map_err(|e| format!("获取资源目录失败: {}", e))?;
 
+        let overlay = self.overlay_dir();
+
         for entry in walkdir::WalkDir::new(source_dir)
             .max_depth(2)
             .follow_links(false)
@@ -260,14 +266,20 @@ impl HotUpdateManager {
             if entry.file_type().is_file() {
                 let relative = entry.path().strip_prefix(source_dir)
                     .map_err(|e| format!("路径处理失败: {}", e))?;
-                let target = resource_dir.join(relative);
 
+                let target = resource_dir.join(relative);
                 if let Some(parent) = target.parent() {
                     fs::create_dir_all(parent).ok();
                 }
-
                 fs::copy(entry.path(), &target)
                     .map_err(|e| format!("复制文件失败: {}", e))?;
+
+                let overlay_target = overlay.join(relative);
+                if let Some(parent) = overlay_target.parent() {
+                    fs::create_dir_all(parent).ok();
+                }
+                fs::copy(entry.path(), &overlay_target)
+                    .map_err(|e| format!("复制到overlay失败: {}", e))?;
             }
         }
 

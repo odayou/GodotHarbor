@@ -327,9 +327,13 @@ export default {
     newVersionAvailable: 'New version available',
     checkUpdates: 'Check for updates',
     lastChecked: 'Last checked',
-    updateAvailable: 'Godot engine update available',
+    updateAvailable: 'Update available',
     majorUpdate: 'Major version update',
-    downloadPage: 'View download page'
+    downloadPage: 'View download page',
+    appUpdateAvailable: 'App update available',
+    pluginUpdateAvailable: 'Plugin update available',
+    hotUpdateAvailable: 'Hot update available',
+    goToUpdateCenter: 'Go to Update Center'
   },
   commandPalette: {
     placeholder: 'Search projects, plugins, engines or enter commands...',

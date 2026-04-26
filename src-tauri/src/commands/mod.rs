@@ -965,7 +965,7 @@ pub fn update_git_plugin(app: AppHandle, plugin_id: String) -> Result<Plugin, St
 #[tauri::command]
 pub async fn check_app_update(app: AppHandle) -> Result<Option<AppUpdateInfo>, String> {
     use tauri_plugin_updater::UpdaterExt;
-    let current_version = app.config().version.clone().unwrap_or_default();
+    let _current_version = app.config().version.clone().unwrap_or_default();
     
     match app.updater() {
         Ok(updater) => {
@@ -1026,6 +1026,22 @@ pub async fn install_app_update(app: AppHandle) -> Result<(), String> {
             }));
         }
     ).await.map_err(|e| format!("安装更新失败: {}", e))?;
+
+    let data_dir = get_data_dir(&app);
+    let hot_update_dir = data_dir.join("hot_updates");
+    if hot_update_dir.exists() {
+        let _ = fs::remove_dir_all(&hot_update_dir);
+    }
+    let overlay_dir = data_dir.join("hotupdate_overlay");
+    if overlay_dir.exists() {
+        let _ = fs::remove_dir_all(&overlay_dir);
+    }
+
+    let _ = app.emit("app-update-progress", serde_json::json!({
+        "stage": "complete",
+        "progress": 100,
+        "message": "更新安装完成，热更新已清除，即将重启..."
+    }));
 
     Ok(())
 }
@@ -1196,10 +1212,23 @@ pub fn get_app_version(app: AppHandle) -> Result<String, String> {
 
 #[tauri::command]
 pub fn check_hot_update(app: AppHandle, manifest_url: Option<String>) -> Result<Option<HotUpdateInfo>, String> {
-    let url = manifest_url.unwrap_or_else(|| "https://godotharbor.odayou.workers.dev/hot-update/manifest.json".to_string());
     let data_dir = get_data_dir(&app);
-    let manager = crate::hot_update::HotUpdateManager::new(data_dir);
+    let storage = get_storage(&app);
+    let settings: Settings = storage.load_or_default("settings.json");
     let current_version = app.config().version.clone().unwrap_or_default();
+
+    if !settings.skipped_app_version.is_empty() {
+        let skipped_semver = semver::Version::parse(settings.skipped_app_version.trim_start_matches('v')).ok();
+        let current_semver = semver::Version::parse(current_version.trim_start_matches('v')).ok();
+        if let (Some(skipped), Some(current)) = (skipped_semver, current_semver) {
+            if skipped > current {
+                return Ok(None);
+            }
+        }
+    }
+
+    let url = manifest_url.unwrap_or_else(|| "https://godotharbor.odayou.workers.dev/hot-update/manifest.json".to_string());
+    let manager = crate::hot_update::HotUpdateManager::new(data_dir);
     manager.check_for_hot_update(&url, &current_version)
 }
 
