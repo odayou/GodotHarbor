@@ -180,34 +180,34 @@ export function useCommandPalette() {
       },
       {
         id: 'nav-plugins',
-        label: t('nav.plugins'),
+        label: t('nav.pluginsNav'),
         category: 'command',
         icon: 'puzzle',
-        keywords: `${t('nav.plugins')} plugins`,
+        keywords: `${t('nav.pluginsNav')} plugins`,
         action: () => router.push('/plugins')
       },
       {
         id: 'nav-linker',
-        label: t('nav.linker'),
+        label: t('nav.linkerNav'),
         category: 'command',
         icon: 'link',
-        keywords: `${t('nav.linker')} linker`,
+        keywords: `${t('nav.linkerNav')} linker`,
         action: () => router.push('/linker')
       },
       {
         id: 'nav-engines',
-        label: t('nav.engines'),
+        label: t('nav.enginesNav'),
         category: 'command',
         icon: 'engine',
-        keywords: `${t('nav.engines')} engines`,
+        keywords: `${t('nav.enginesNav')} engines`,
         action: () => router.push('/engines')
       },
       {
         id: 'nav-settings',
-        label: t('nav.settings'),
+        label: t('nav.settingsNav'),
         category: 'setting',
         icon: 'settings',
-        keywords: `${t('nav.settings')} settings`,
+        keywords: `${t('nav.settingsNav')} settings`,
         action: () => router.push('/settings')
       },
       {

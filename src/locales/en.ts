@@ -3,12 +3,12 @@ export default {
   nav: {
     home: 'Home',
     projects: 'Projects',
-    plugins: 'Plugins',
-    linker: 'Plugin Binding',
-    engines: 'Engines',
+    pluginsNav: 'Plugins',
+    linkerNav: 'Plugin Binding',
+    enginesNav: 'Engines',
     updates: 'Updates',
     about: 'About',
-    settings: 'Settings'
+    settingsNav: 'Settings'
   },
   projects: {
     title: 'Project Management',
@@ -40,7 +40,7 @@ export default {
     groupDesc: 'Enter group name, projects with the same group will be displayed together',
     groupPlaceholder: 'Enter group name (leave empty to remove group)',
     delete: 'Delete Project',
-    deleteConfirm: 'Are you sure to delete this project? This operation only removes it from the list, not delete project files.',
+    deleteConfirm: '{count, plural, one {Are you sure to delete project "{name}"?} other {Are you sure to delete the selected {count} projects?}} This operation only removes it from the list, not delete project files.',
     dragTitle: 'Drag and drop Godot project directory here',
     dragDesc: 'Will automatically identify directories containing project.godot',
     engineBind: 'Engine Binding',
@@ -98,7 +98,6 @@ export default {
     details: 'Plugin Details',
     version: 'Version',
     sourceType: 'Source',
-    deleteConfirm: 'Are you sure to delete this plugin? This operation will remove the plugin from the vault but won\'t affect copies already mounted to projects.',
     checkUpdates: 'Check Updates',
     checkingUpdates: 'Checking...',
     selectPluginDir: 'Select Godot plugin directory',
@@ -106,7 +105,91 @@ export default {
     enterGitUrl: 'Please enter Git URL',
     addedToFavorites: 'Added to favorites',
     removedFromFavorites: 'Removed from favorites',
-    noNewPluginsFound: 'No new plugins found to import'
+    noNewPluginsFound: 'No new plugins found to import',
+    importMode: {
+      copy: 'Copy',
+      move: 'Move',
+      reference: 'Reference'
+    },
+    importSuccess: 'Imported {count} plugins in {mode} mode',
+    updateSuccess: 'Plugin {name} updated',
+    cleanupOrphaned: {
+      success: 'Cleaned up {count} orphaned directories',
+      noOrphaned: 'No orphaned directories to clean up'
+    },
+    importModes: {
+      copy: {
+        label: 'Copy to repository (recommended)',
+        desc: 'Copy plugins to repository management, original files in projects remain unchanged'
+      },
+      move: {
+        label: 'Move to repository',
+        desc: 'Move plugins to repository, original location becomes symlink to repository, saves space'
+      },
+      reference: {
+        label: 'Only record index',
+        desc: 'No copy or move, only record plugin location and metadata in repository'
+      }
+    },
+    gitImport: {
+      title: 'Import from Git',
+      desc: 'Enter Git repository URL, will clone and import Godot plugins from it',
+      placeholder: 'https://github.com/user/plugin-repo.git'
+    },
+    pluginDetail: {
+      versionList: 'Version list ({count})',
+      unitCount: '{count} units',
+      bindings: 'Mounted to ({count} projects)',
+      dependencies: 'Dependencies',
+      optional: '(optional)',
+      source: 'Source',
+      sourceTypes: {
+        Local: 'Local directory',
+        Git: 'Git repository',
+        AssetLibrary: 'AssetLibrary'
+      },
+      sections: {
+        version: 'Version',
+        mount: 'Mount',
+        storage: 'Storage'
+      }
+    },
+    updateCheck: {
+      title: 'Plugin Update Check',
+      noPlugins: 'No plugins available for update check',
+      versionInfo: 'Current version: {current} → Latest version: {latest}',
+      update: 'Update',
+      hasUpdate: 'Update available',
+      upToDate: 'Up to date'
+    },
+    storageStats: {
+      plugins: '{count} plugins',
+      versions: '{count} versions',
+      bindings: '{count} bindings',
+      size: 'Occupying {size}',
+      orphaned: 'Cleanable {size}',
+      duplicates: '{count} groups of duplicate content',
+      cleanup: 'Clean up orphaned files'
+    },
+    deleteConfirm: {
+      single: 'Confirm Delete Plugin',
+      singleDesc: 'This operation will remove the plugin from the repository, but will not affect copies already mounted in projects.',
+      singleConfirm: 'Confirm Delete',
+      batch: 'Batch Delete Plugins',
+      batchDesc: 'Are you sure you want to delete the selected {count} plugins? This operation will remove the plugins from the repository, but will not affect copies already mounted in projects.',
+      batchConfirm: 'Confirm Batch Delete'
+    },
+    batchActions: {
+      selectAll: 'Select All',
+      deselectAll: 'Deselect All',
+      batchDelete: 'Batch Delete ({count})'
+    },
+    importFromProject: {
+      title: 'Import Plugins from Projects',
+      modeSelect: 'Select import mode:',
+      cancel: 'Cancel',
+      startImport: 'Start Import'
+    }
   },
   assetLibrary: {
     title: 'Asset Library',
@@ -196,7 +279,14 @@ export default {
     pluginBound: 'Plugin bound: {name} v{version}',
     pluginUnbound: 'Unbound successfully',
     bindingApplySuccess: 'Changes applied successfully',
-    bindingApplyFailed: 'Error applying changes: {errors}'
+    bindingApplyFailed: 'Error applying changes: {errors}',
+    batchApplyTitle: 'Confirm Batch Apply',
+    batchApplyDesc: 'Apply all plugin bindings for the following projects',
+    batchApplyResultTitle: 'Batch Apply Results',
+    bindingCountUnit: '{count} bindings',
+    createdItem: 'Created {count} items',
+    removedItem: 'Removed {count} items',
+    errorList: 'Errors: {errors}'
   },
   engines: {
     title: 'Engine Management',
@@ -236,17 +326,17 @@ export default {
     junction: 'Junction (Windows Recommended)',
     copy: 'Copy',
     appearance: 'Appearance',
-    language: 'Language',
+    languageLabel: 'Language',
     theme: 'Theme',
     themeLight: 'Light',
     themeDark: 'Dark',
     themeSystem: 'System',
     save: 'Save Settings',
     data: 'Data Management',
-    backup: 'Backup Data',
+    backupLabel: 'Backup Data',
     restore: 'Restore Data',
-    backupWarning: 'Restore operation will overwrite current data, please proceed with caution!',
-    teamConfig: 'Team Configuration',
+    backupWarning: 'Restore operation will overwrite current data, please operate with caution!',
+    teamConfigLabel: 'Team Configuration',
     exportConfig: 'Export Configuration',
     importConfig: 'Import Configuration',
     viewLogs: 'View Logs',
@@ -254,7 +344,95 @@ export default {
     autoDiscoverEngines: 'Auto discover Godot engines on startup',
     other: 'Other',
     showOnboarding: 'Show Onboarding Again',
-    showOnboardingDesc: 'Click to show onboarding immediately'
+    showOnboardingDesc: 'Click to show onboarding immediately',
+    buttons: {
+      viewLogs: 'View logs',
+      backup: 'Data Backup & Restore',
+      teamConfig: 'Team Configuration'
+    },
+    pluginRepo: {
+      title: 'Plugin Repository',
+      storagePath: 'Repository storage path',
+      storageHint: 'Set the storage location for plugin files. Leave blank to use the default path under the application data directory. Newly imported plugins will be stored in the new location after modification.',
+      browse: 'Browse',
+      placeholder: 'Leave blank to use default path',
+      autoCheckPluginUpdates: 'Auto check plugin updates',
+      autoCheckAppUpdates: 'Auto check app updates',
+      autoCheckEngineUpdates: 'Auto check engine updates',
+      checkInterval: 'Check interval (hours)'
+    },
+    language: {
+      zhCN: 'Simplified Chinese',
+      en: 'English'
+    },
+    cloudProvider: {
+      volcano: 'Volcano Engine'
+    },
+    logs: {
+      title: 'Operation Logs',
+      empty: 'No log records',
+      error: 'Error',
+      success: 'Success',
+      copy: 'Copy',
+      target: 'Target: {target}'
+    },
+    backup: {
+      title: 'Data Backup & Restore',
+      desc: 'Select a backup directory, all data will be copied to this directory. During restoration, data will be read from this directory to overwrite existing data.',
+      selectDir: 'Please select backup directory',
+      browse: 'Browse',
+      warning: 'Note: The restore function will overwrite existing data, please confirm the correctness of the backup file before restoration.',
+      cancel: 'Cancel',
+      backup: 'Backup data',
+      restoring: 'Restoring...',
+      restore: 'Restore data'
+    },
+    teamConfig: {
+      title: 'Team Configuration Management',
+      export: 'Export new configuration',
+      empty: 'No team configurations',
+      description: 'No description',
+      created: 'Created: {date}',
+      import: 'Import',
+      delete: 'Delete',
+      stats: 'Contains {bindings} plugin bindings, {engineBindings} engine bindings',
+      close: 'Close',
+      exportTitle: 'Export Team Configuration',
+      name: 'Configuration name',
+      namePlaceholder: 'e.g., Project A standard configuration',
+      descriptionLabel: 'Description (optional)',
+      descriptionPlaceholder: 'Configuration description',
+      selectProjects: 'Select projects',
+      cancel: 'Cancel',
+      exporting: 'Exporting...',
+      exportAction: 'Export'
+    },
+    messages: {
+      loadFailed: 'Failed to load settings: {error}',
+      addDir: 'Added directory: {dir}',
+      dirExists: 'This directory already exists',
+      addDirFailed: 'Failed to add directory: {error}',
+      removeDir: 'Removed directory: {dir}',
+      saveSuccess: 'Settings saved successfully',
+      saveFailed: 'Failed to save settings: {error}',
+      loadLogsFailed: 'Failed to load logs: {error}',
+      copied: 'Copied to clipboard',
+      copyFailed: 'Copy failed',
+      selectDirFailed: 'Failed to select directory: {error}',
+      selectDirFirst: 'Please select backup directory first',
+      backupFailed: 'Backup failed: {error}',
+      restoreFailed: 'Restore failed: {error}',
+      enterConfigName: 'Please enter configuration name',
+      selectAtLeastOneProject: 'Please select at least one project',
+      exportSuccess: 'Team configuration exported successfully',
+      exportFailed: 'Export failed: {error}',
+      selectAtLeastOneTarget: 'Please select at least one target project',
+      importSuccess: 'Team configuration imported successfully',
+      importFailed: 'Import failed: {error}',
+      deleteSuccess: 'Team configuration deleted',
+      deleteFailed: 'Delete failed: {error}',
+      resetGuideFailed: 'Failed to reset guide: {error}'
+    }
   },
   common: {
     cancel: 'Cancel',

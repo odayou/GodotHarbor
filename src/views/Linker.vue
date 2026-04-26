@@ -597,7 +597,7 @@ const closeApplyDialog = () => {
           :disabled="isLoading"
           class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 text-sm"
         >
-          批量应用变更
+          {{ t('linker.batchApplyTitle') }}
         </button>
         <button
           @click="confirmApply"
@@ -627,7 +627,7 @@ const closeApplyDialog = () => {
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
           </svg>
-          前往项目
+          {{ t('linker.goToProjects') }}
         </button>
       </div>
     </div>
@@ -635,11 +635,11 @@ const closeApplyDialog = () => {
     <div v-else class="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
       <div class="lg:col-span-3 bg-white dark:bg-gray-800 rounded-lg shadow p-4">
         <div class="flex items-center justify-between mb-3">
-          <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">项目列表</h3>
+          <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ t('linker.projectList') }}</h3>
           <div v-if="selectedProjectCount > 0" class="flex items-center gap-2">
-            <span class="text-xs text-primary-600 dark:text-primary-400">已选 {{ selectedProjectCount }}</span>
-            <button @click="selectAllProjects" class="text-xs text-primary-600 dark:text-primary-400 hover:underline">全选</button>
-            <button @click="clearProjectSelection" class="text-xs text-gray-500 dark:text-gray-400 hover:underline">清除</button>
+            <span class="text-xs text-primary-600 dark:text-primary-400">{{ t('common.selectedCount', { count: selectedProjectCount }) }}</span>
+            <button @click="selectAllProjects" class="text-xs text-primary-600 dark:text-primary-400 hover:underline">{{ t('common.selectAll') }}</button>
+            <button @click="clearProjectSelection" class="text-xs text-gray-500 dark:text-gray-400 hover:underline">{{ t('common.clear') }}</button>
           </div>
         </div>
         <div class="space-y-1 max-h-64 lg:max-h-none overflow-y-auto">
@@ -672,12 +672,12 @@ const closeApplyDialog = () => {
 
       <div class="lg:col-span-5 bg-white dark:bg-gray-800 rounded-lg shadow p-4">
         <div class="flex items-center justify-between mb-3">
-          <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">可用插件</h3>
+          <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ t('linker.availablePlugins') }}</h3>
           <div class="flex items-center gap-2">
             <div v-if="selectedAvailablePluginCount > 0">
-              <span class="text-xs text-primary-600 dark:text-primary-400">已选 {{ selectedAvailablePluginCount }}</span>
-              <button @click="selectAllAvailablePlugins" class="text-xs text-primary-600 dark:text-primary-400 hover:underline ml-1">全选</button>
-              <button @click="clearAvailablePluginSelection" class="text-xs text-gray-500 dark:text-gray-400 hover:underline ml-1">清除</button>
+              <span class="text-xs text-primary-600 dark:text-primary-400">{{ t('common.selectedCount', { count: selectedAvailablePluginCount }) }}</span>
+              <button @click="selectAllAvailablePlugins" class="text-xs text-primary-600 dark:text-primary-400 hover:underline ml-1">{{ t('common.selectAll') }}</button>
+              <button @click="clearAvailablePluginSelection" class="text-xs text-gray-500 dark:text-gray-400 hover:underline ml-1">{{ t('common.clear') }}</button>
             </div>
             <button
               v-if="selectedProjectCount > 0 && selectedAvailablePluginCount > 0"
@@ -685,15 +685,15 @@ const closeApplyDialog = () => {
               :disabled="isLoading"
               class="px-3 py-1 bg-primary-600 text-white text-xs rounded hover:bg-primary-700 disabled:opacity-50 whitespace-nowrap"
             >
-              批量绑定 ({{ selectedProjectCount }}项目 × {{ selectedAvailablePluginCount }}插件)
+              {{ t('linker.batchBind') }}
             </button>
           </div>
         </div>
         <div v-if="!selectedProjectId && selectedProjectCount === 0" class="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
-          请先选择一个项目
+          {{ t('linker.selectProject') }}
         </div>
         <div v-else-if="availablePlugins.length === 0" class="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
-          所有插件已绑定或暂无插件
+          {{ t('linker.allPluginsBound') }}
         </div>
         <div v-else class="space-y-2 max-h-64 lg:max-h-96 overflow-y-auto">
           <div
@@ -717,7 +717,7 @@ const closeApplyDialog = () => {
               <div class="min-w-0 flex-1">
                 <h4 class="font-medium text-gray-900 dark:text-gray-100 text-sm truncate">{{ plugin.name }}</h4>
                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  v{{ plugin.versions[0]?.version || '1.0.0' }} · {{ plugin.author || '未知' }}
+                  v{{ plugin.versions[0]?.version || '1.0.0' }} · {{ plugin.author || t('linker.unknown') }}
                 </p>
               </div>
             </div>
@@ -726,7 +726,7 @@ const closeApplyDialog = () => {
               :disabled="isLoading || (!selectedProjectId && selectedProjectCount === 0)"
               class="ml-2 px-3 py-1 bg-primary-600 text-white text-xs rounded hover:bg-primary-700 disabled:opacity-50 whitespace-nowrap"
             >
-              绑定
+              {{ t('linker.bind') }}
             </button>
           </div>
         </div>
@@ -735,16 +735,16 @@ const closeApplyDialog = () => {
       <div class="lg:col-span-4 bg-white dark:bg-gray-800 rounded-lg shadow p-4">
         <div class="flex items-center justify-between mb-3">
           <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">
-            已绑定插件
+            {{ t('linker.boundPlugins') }}
             <span v-if="projectBindings.length > 0" class="text-xs font-normal text-gray-500 dark:text-gray-400 ml-1">
               ({{ projectBindings.length }})
             </span>
           </h3>
           <div class="flex items-center gap-2">
             <div v-if="selectedBoundPluginCount > 0">
-              <span class="text-xs text-red-600 dark:text-red-400">已选 {{ selectedBoundPluginCount }}</span>
-              <button @click="selectAllBoundPlugins" class="text-xs text-primary-600 dark:text-primary-400 hover:underline ml-1">全选</button>
-              <button @click="clearBoundPluginSelection" class="text-xs text-gray-500 dark:text-gray-400 hover:underline ml-1">清除</button>
+              <span class="text-xs text-red-600 dark:text-red-400">{{ t('common.selectedCount', { count: selectedBoundPluginCount }) }}</span>
+              <button @click="selectAllBoundPlugins" class="text-xs text-primary-600 dark:text-primary-400 hover:underline ml-1">{{ t('common.selectAll') }}</button>
+              <button @click="clearBoundPluginSelection" class="text-xs text-gray-500 dark:text-gray-400 hover:underline ml-1">{{ t('common.clear') }}</button>
             </div>
             <button
               v-if="selectedBoundPluginCount > 0 && selectedProjectId"
@@ -752,15 +752,15 @@ const closeApplyDialog = () => {
               :disabled="isLoading"
               class="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 disabled:opacity-50 whitespace-nowrap"
             >
-              批量解绑 ({{ selectedBoundPluginCount }})
+              {{ t('linker.batchUnbind') }}
             </button>
           </div>
         </div>
         <div v-if="!selectedProjectId" class="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
-          请先选择一个项目
+          {{ t('linker.selectProject') }}
         </div>
         <div v-else-if="boundPlugins.length === 0" class="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
-          尚未绑定任何插件
+          {{ t('linker.noBindings') }}
         </div>
         <div v-else class="space-y-2 max-h-64 lg:max-h-96 overflow-y-auto">
           <div
@@ -783,7 +783,7 @@ const closeApplyDialog = () => {
               />
               <div class="min-w-0 flex-1">
                 <h4 class="font-medium text-gray-900 dark:text-gray-100 text-sm truncate">
-                  {{ item.plugin?.name || '未知插件' }}
+                  {{ item.plugin?.name || t('linker.unknownPlugin') }}
                 </h4>
                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                   → {{ item.binding.mount_path }}
@@ -795,7 +795,7 @@ const closeApplyDialog = () => {
               :disabled="isLoading"
               class="ml-2 text-red-600 hover:text-red-800 text-xs whitespace-nowrap"
             >
-              解绑
+              {{ t('linker.unbind') }}
             </button>
           </div>
         </div>
@@ -803,7 +803,7 @@ const closeApplyDialog = () => {
     </div>
 
     <div v-if="showGraphView" class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mt-4">
-      <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">绑定关系图</h3>
+      <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">{{ t('linker.bindingGraph') }}</h3>
       <div class="overflow-auto">
         <svg :width="640" :height="Math.max(400, graphNodes.length * 30 + 80)" class="mx-auto">
           <defs>
@@ -848,8 +848,8 @@ const closeApplyDialog = () => {
               {{ node.label.length > 10 ? node.label.substring(0, 10) + '…' : node.label }}
             </text>
           </g>
-          <text x="80" y="20" text-anchor="middle" class="fill-gray-500 dark:fill-gray-400" font-size="11">项目</text>
-          <text x="560" y="20" text-anchor="middle" class="fill-gray-500 dark:fill-gray-400" font-size="11">插件</text>
+          <text x="80" y="20" text-anchor="middle" class="fill-gray-500 dark:fill-gray-400" font-size="11">{{ t('linker.projects') }}</text>
+          <text x="560" y="20" text-anchor="middle" class="fill-gray-500 dark:fill-gray-400" font-size="11">{{ t('linker.plugins') }}</text>
         </svg>
       </div>
     </div>
@@ -857,9 +857,9 @@ const closeApplyDialog = () => {
     <div v-if="showApplyDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" @click="closeApplyDialog">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-4 lg:p-6 w-full max-w-lg shadow-xl" @click.stop>
         <template v-if="!applyResult">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">确认应用变更</h3>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('linker.confirmApplyChanges') }}</h3>
           <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            将为项目 <strong class="text-gray-900 dark:text-gray-100">{{ selectedProject?.name }}</strong> 应用以下插件绑定：
+            {{ t('linker.confirmApplyDesc', { name: selectedProject?.name }) }}
           </p>
           <div class="space-y-2 mb-6 max-h-48 overflow-y-auto">
             <div
@@ -880,35 +880,35 @@ const closeApplyDialog = () => {
               @click="closeApplyDialog"
               class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
             >
-              取消
+              {{ t('common.cancel') }}
             </button>
             <button
               @click="applyChanges"
               :disabled="isApplying"
               class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
             >
-              {{ isApplying ? '应用中...' : '确认应用' }}
+              {{ isApplying ? t('linker.applying') : t('common.confirm') }}
             </button>
           </div>
         </template>
         <template v-else>
           <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-            {{ applyResult.success ? '应用成功' : '应用完成（有错误）' }}
+            {{ applyResult.success ? t('linker.applySuccess') : t('linker.applyWithErrors') }}
           </h3>
           <div v-if="applyResult.created.length > 0" class="mb-3">
-            <p class="text-sm font-medium text-green-600 dark:text-green-400 mb-1">已创建：</p>
+            <p class="text-sm font-medium text-green-600 dark:text-green-400 mb-1">{{ t('linker.created') }}：</p>
             <div v-for="path in applyResult.created" :key="path" class="text-xs text-gray-600 dark:text-gray-400 ml-3 break-all">
               {{ path }}
             </div>
           </div>
           <div v-if="applyResult.removed.length > 0" class="mb-3">
-            <p class="text-sm font-medium text-yellow-600 dark:text-yellow-400 mb-1">已移除：</p>
+            <p class="text-sm font-medium text-yellow-600 dark:text-yellow-400 mb-1">{{ t('linker.removed') }}：</p>
             <div v-for="path in applyResult.removed" :key="path" class="text-xs text-gray-600 dark:text-gray-400 ml-3 break-all">
               {{ path }}
             </div>
           </div>
           <div v-if="applyResult.errors.length > 0" class="mb-3">
-            <p class="text-sm font-medium text-red-600 dark:text-red-400 mb-1">错误：</p>
+            <p class="text-sm font-medium text-red-600 dark:text-red-400 mb-1">{{ t('linker.errors') }}：</p>
             <div v-for="err in applyResult.errors" :key="err" class="text-xs text-red-600 dark:text-red-400 ml-3">
               {{ err }}
             </div>
@@ -918,7 +918,7 @@ const closeApplyDialog = () => {
               @click="closeApplyDialog"
               class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
             >
-              关闭
+              {{ t('linker.close') }}
             </button>
           </div>
         </template>
@@ -926,85 +926,83 @@ const closeApplyDialog = () => {
     </div>
 
     <div v-if="showBatchBindDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" @click="showBatchBindDialog = false">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-4 lg:p-6 w-full max-w-lg shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">确认批量绑定</h3>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          将为 <strong class="text-gray-900 dark:text-gray-100">{{ selectedProjectCount }} 个项目</strong> 绑定
-          <strong class="text-gray-900 dark:text-gray-100">{{ selectedAvailablePluginCount }} 个插件</strong>：
-        </p>
-        <div class="space-y-3 mb-6 max-h-60 overflow-y-auto">
-          <div>
-            <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">目标项目：</p>
-            <div class="flex flex-wrap gap-1">
-              <span
-                v-for="id in selectedProjectIds"
-                :key="id"
-                class="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs rounded"
-              >
-                {{ projects.find(p => p.project_id === id)?.name || id }}
-              </span>
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 lg:p-6 w-full max-w-lg shadow-xl" @click.stop>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('linker.batchBindTitle') }}</h3>
+          <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            {{ t('linker.batchBindDesc', { projectCount: selectedProjectCount, pluginCount: selectedAvailablePluginCount }) }}
+          </p>
+          <div class="space-y-3 mb-6 max-h-60 overflow-y-auto">
+            <div>
+              <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ t('linker.targetProjects') }}：</p>
+              <div class="flex flex-wrap gap-1">
+                <span
+                  v-for="id in selectedProjectIds"
+                  :key="id"
+                  class="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs rounded"
+                >
+                  {{ projects.find(p => p.project_id === id)?.name || id }}
+                </span>
+              </div>
+            </div>
+            <div>
+              <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ t('linker.bindPlugins') }}：</p>
+              <div class="flex flex-wrap gap-1">
+                <span
+                  v-for="id in selectedAvailablePluginIds"
+                  :key="id"
+                  class="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 text-xs rounded"
+                >
+                  {{ plugins.find(p => p.plugin_id === id)?.name || id }}
+                </span>
+              </div>
             </div>
           </div>
-          <div>
-            <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">绑定插件：</p>
-            <div class="flex flex-wrap gap-1">
-              <span
-                v-for="id in selectedAvailablePluginIds"
-                :key="id"
-                class="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 text-xs rounded"
-              >
-                {{ plugins.find(p => p.plugin_id === id)?.name || id }}
-              </span>
-            </div>
+          <div class="flex justify-end space-x-3">
+            <button
+              @click="showBatchBindDialog = false"
+              class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+            >
+              {{ t('common.cancel') }}
+            </button>
+            <button
+              @click="confirmBatchBind"
+              :disabled="isBatchBinding"
+              class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+            >
+              {{ isBatchBinding ? t('linker.batchBinding') : t('common.confirm') }}
+            </button>
           </div>
-        </div>
-        <div class="flex justify-end space-x-3">
-          <button
-            @click="showBatchBindDialog = false"
-            class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
-          >
-            取消
-          </button>
-          <button
-            @click="confirmBatchBind"
-            :disabled="isBatchBinding"
-            class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
-          >
-            {{ isBatchBinding ? '绑定中...' : '确认绑定' }}
-          </button>
-        </div>
       </div>
     </div>
 
     <div v-if="showBatchUnbindDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" @click="showBatchUnbindDialog = false">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-4 lg:p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">确认批量解绑</h3>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('linker.batchUnbindTitle') }}</h3>
         <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          将从项目 <strong class="text-gray-900 dark:text-gray-100">{{ selectedProject?.name }}</strong> 解绑
-          <strong class="text-red-600 dark:text-red-400">{{ selectedBoundPluginCount }} 个插件</strong>：
+          {{ t('linker.batchUnbindDesc', { projectName: selectedProject?.name, count: selectedBoundPluginCount }) }}
         </p>
-        <div class="flex flex-wrap gap-1 mb-6">
-          <span
+        <div class="mb-6 space-y-2 max-h-40 overflow-y-auto">
+          <div
             v-for="id in selectedBoundPluginIds"
             :key="id"
-            class="px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 text-xs rounded"
+            class="p-2 bg-gray-50 dark:bg-gray-700 rounded text-sm text-gray-700 dark:text-gray-300"
           >
-            {{ plugins.find(p => p.plugin_id === id)?.name || id }}
-          </span>
+            {{ plugins.find(p => p.plugin_id === id)?.name || t('linker.unknownPlugin') }}
+          </div>
         </div>
         <div class="flex justify-end space-x-3">
           <button
             @click="showBatchUnbindDialog = false"
             class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
           >
-            取消
+            {{ t('linker.cancel') }}
           </button>
           <button
             @click="confirmBatchUnbind"
             :disabled="isBatchUnbinding"
             class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
           >
-            {{ isBatchUnbinding ? '解绑中...' : '确认解绑' }}
+            {{ isBatchUnbinding ? t('linker.batchUnbinding') : t('common.confirm') }}
           </button>
         </div>
       </div>
@@ -1013,9 +1011,9 @@ const closeApplyDialog = () => {
     <div v-if="showBatchApplyDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" @click="closeBatchApplyDialog">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-4 lg:p-6 w-full max-w-lg shadow-xl" @click.stop>
         <template v-if="!batchApplyResult">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">确认批量应用变更</h3>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('linker.batchApplyTitle') }}</h3>
           <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            将为以下项目应用所有插件绑定变更：
+            {{ t('linker.batchApplyDesc') }}
           </p>
           <div class="space-y-1 mb-6 max-h-48 overflow-y-auto">
             <div
@@ -1028,7 +1026,7 @@ const closeApplyDialog = () => {
               </svg>
               <span class="text-gray-900 dark:text-gray-100">{{ projects.find(p => p.project_id === id)?.name || id }}</span>
               <span class="text-gray-500 dark:text-gray-400 text-xs ml-auto">
-                {{ bindings.filter(b => b.project_id === id).length }} 个绑定
+                {{ t('linker.bindingCountUnit', { count: bindings.filter(b => b.project_id === id).length }) }}
               </span>
             </div>
           </div>
@@ -1037,19 +1035,19 @@ const closeApplyDialog = () => {
               @click="closeBatchApplyDialog"
               class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
             >
-              取消
+              {{ t('common.cancel') }}
             </button>
             <button
               @click="confirmBatchApply"
               :disabled="isBatchApplying"
               class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
             >
-              {{ isBatchApplying ? '应用中...' : '确认应用' }}
+              {{ isBatchApplying ? t('linker.batchApplying') : t('common.confirm') }}
             </button>
           </div>
         </template>
         <template v-else>
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">批量应用结果</h3>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('linker.batchApplyResultTitle') }}</h3>
           <div class="space-y-3 max-h-80 overflow-y-auto">
             <div
               v-for="result in batchApplyResult.results"
@@ -1062,17 +1060,17 @@ const closeApplyDialog = () => {
               <div class="flex items-center justify-between">
                 <span class="font-medium text-sm text-gray-900 dark:text-gray-100">{{ result.project_name }}</span>
                 <span :class="['text-xs px-2 py-0.5 rounded', result.success ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300']">
-                  {{ result.success ? '成功' : '失败' }}
+                  {{ result.success ? t('linker.success') : t('linker.failed') }}
                 </span>
               </div>
               <div v-if="result.created.length > 0" class="mt-1 text-xs text-green-600 dark:text-green-400">
-                创建 {{ result.created.length }} 项
+                {{ t('linker.createdItem', { count: result.created.length }) }}
               </div>
               <div v-if="result.removed.length > 0" class="mt-0.5 text-xs text-yellow-600 dark:text-yellow-400">
-                移除 {{ result.removed.length }} 项
+                {{ t('linker.removedItem', { count: result.removed.length }) }}
               </div>
               <div v-if="result.errors.length > 0" class="mt-0.5 text-xs text-red-600 dark:text-red-400">
-                错误: {{ result.errors.join(', ') }}
+                {{ t('linker.errorList', { errors: result.errors.join(', ') }) }}
               </div>
             </div>
           </div>
@@ -1081,7 +1079,7 @@ const closeApplyDialog = () => {
               @click="closeBatchApplyDialog"
               class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
             >
-              关闭
+              {{ t('common.close') }}
             </button>
           </div>
         </template>
@@ -1091,11 +1089,11 @@ const closeApplyDialog = () => {
     <div v-if="showVersionDialog && versionSelectPlugin" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" @click="showVersionDialog = false; versionSelectPlugin = null">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-4 lg:p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-          选择版本 - {{ versionSelectPlugin.name }}
+          {{ t('linker.versionSelectTitle', { name: versionSelectPlugin.name }) }}
         </h3>
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">选择版本</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('linker.selectVersion') }}</label>
             <select
               v-model="selectedVersionIdx"
               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
@@ -1106,7 +1104,7 @@ const closeApplyDialog = () => {
             </select>
           </div>
           <div v-if="versionSelectPlugin.versions[selectedVersionIdx]?.units.length > 1">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">选择单元</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('linker.selectUnit') }}</label>
             <select
               v-model="selectedUnitIdx"
               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
@@ -1117,7 +1115,7 @@ const closeApplyDialog = () => {
             </select>
           </div>
           <div class="text-xs text-gray-500 dark:text-gray-400">
-            挂载路径: addons/{{ versionSelectPlugin.versions[selectedVersionIdx]?.units[selectedUnitIdx]?.name || '?' }}
+            {{ t('linker.mountPath') }}: addons/{{ versionSelectPlugin.versions[selectedVersionIdx]?.units[selectedUnitIdx]?.name || '?' }}
           </div>
         </div>
         <div class="flex justify-end space-x-3 mt-6">
@@ -1125,13 +1123,13 @@ const closeApplyDialog = () => {
             @click="showVersionDialog = false; versionSelectPlugin = null"
             class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
           >
-            取消
+            {{ t('linker.cancel') }}
           </button>
           <button
             @click="confirmVersionSelect"
             class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
           >
-            确认绑定
+            {{ t('linker.confirmBind') }}
           </button>
         </div>
       </div>

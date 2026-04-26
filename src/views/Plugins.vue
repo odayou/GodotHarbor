@@ -464,8 +464,9 @@ const doImportFromProjects = async () => {
   try {
     const importedPlugins = await api.importPluginsFromProjects(importMode.value)
     if (importedPlugins.length > 0) {
-      const modeLabel = importMode.value === 'copy' ? '复制' : importMode.value === 'move' ? '纳入' : '引用'
-      toast.success(`以${modeLabel}模式导入了 ${importedPlugins.length} 个插件`)
+      const mode = importMode.value
+      const modeLabel = t(`plugins.importMode.${mode}`)
+      toast.success(t('plugins.importSuccess', { mode: modeLabel, count: importedPlugins.length }))
     } else {
       toast.info(t('plugins.noNewPluginsFound'))
     }
@@ -492,7 +493,7 @@ const checkPluginUpdates = async () => {
 const updateGitPlugin = async (pluginId: string) => {
   try {
     const result = await api.updateGitPlugin(pluginId)
-    toast.success(`插件 ${result.name} 已更新`)
+    toast.success(t('plugins.updateSuccess', { name: result.name }))
     await loadPlugins()
   } catch (error) {
     toast.error(t('common.loadFailed', { error }))
@@ -511,10 +512,10 @@ const cleanupOrphaned = async () => {
   try {
     const count = await api.cleanupOrphanedPluginDirs()
     if (count > 0) {
-      toast.success(`已清理 ${count} 个孤立目录`)
+      toast.success(t('plugins.cleanupOrphaned.success', { count }))
       await loadTotalStorageStats()
     } else {
-      toast.info('没有需要清理的孤立目录')
+      toast.info(t('plugins.cleanupOrphaned.noOrphaned'))
     }
   } catch (error) {
     toast.error(t('common.loadFailed', { error }))
@@ -595,28 +596,28 @@ const closePluginDetail = () => {
           :disabled="isLoading"
           class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 text-sm"
         >
-          从目录导入
+          {{ t('plugins.importFromDir') }}
         </button>
         <button
           @click="importFromFile"
           :disabled="isLoading"
           class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 text-sm"
         >
-          从文件导入
+          {{ t('plugins.importFromFile') }}
         </button>
         <button
           @click="openAssetLibrary"
           :disabled="isLoading"
           class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 text-sm"
         >
-          Asset Library
+          {{ t('plugins.assetLibrary') }}
         </button>
         <button
           @click="showGitDialog = true"
           :disabled="isLoading"
           class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 text-sm"
         >
-          从 Git 导入
+          {{ t('plugins.importFromGit') }}
         </button>
       </div>
     </div>
@@ -627,7 +628,7 @@ const closePluginDetail = () => {
           <input
             v-model="searchQuery"
             type="text"
-            placeholder="搜索插件名称、描述或作者..."
+            :placeholder="t('plugins.search')"
             class="w-full px-4 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-sm"
           />
         </div>
@@ -636,7 +637,7 @@ const closePluginDetail = () => {
             v-model="filterCompatibility"
             class="px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-sm"
           >
-            <option value="all">全部版本</option>
+            <option value="all">{{ t('plugins.allVersions') }}</option>
             <option value="Godot4">Godot 4</option>
             <option value="Godot3">Godot 3</option>
             <option value="Both">通用</option>
@@ -645,8 +646,8 @@ const closePluginDetail = () => {
             v-model="filterSource"
             class="px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-sm"
           >
-            <option value="all">全部来源</option>
-            <option value="Local">本地</option>
+            <option value="all">{{ t('plugins.allSources') }}</option>
+            <option value="Local">{{ t('plugins.localSource') }}</option>
             <option value="Git">Git</option>
             <option value="AssetLibrary">AssetLibrary</option>
           </select>
@@ -678,7 +679,7 @@ const closePluginDetail = () => {
       <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
       </svg>
-      <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">暂无插件</h3>
+      <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('plugins.empty') }}</h3>
       <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
         从本地目录、文件或 Git 仓库导入插件
       </p>
@@ -709,7 +710,7 @@ const closePluginDetail = () => {
     <div v-else class="space-y-4">
       <div v-if="isBatchMode && selectedPluginCount > 0" class="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-3 flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <span class="text-sm font-medium text-primary-700 dark:text-primary-300">已选择 {{ selectedPluginCount }} 个插件</span>
+          <span class="text-sm font-medium text-primary-700 dark:text-primary-300">{{ t('plugins.selectedCount', { count: selectedPluginCount }) }}</span>
           <button
             @click="selectAllPlugins"
             class="text-xs text-primary-600 dark:text-primary-400 hover:underline"
@@ -771,9 +772,9 @@ const closePluginDetail = () => {
                 </div>
                 <p 
                   class="text-sm text-gray-500 dark:text-content-secondary mt-1 line-clamp-2"
-                  :title="plugin.description || '无描述'"
+                  :title="plugin.description || t('plugins.noDescription')"
                 >
-                  {{ plugin.description || '无描述' }}
+                  {{ plugin.description || t('plugins.noDescription') }}
                 </p>
               </div>
             </div>
@@ -788,14 +789,14 @@ const closePluginDetail = () => {
           </div>
           <div class="mt-3 flex items-center justify-between text-sm text-gray-600 dark:text-content-secondary">
             <span>v{{ plugin.versions[0]?.version || '1.0.0' }}</span>
-            <span>{{ plugin.author || '未知作者' }}</span>
+            <span>{{ plugin.author || t('plugins.unknownAuthor') }}</span>
           </div>
           <div class="mt-2 flex items-center gap-2 flex-wrap">
             <span class="badge badge-neutral">
-              {{ plugin.compatibility === 'Godot4' ? 'Godot 4' : plugin.compatibility === 'Godot3' ? 'Godot 3' : plugin.compatibility === 'Both' ? '通用' : '未知' }}
+              {{ plugin.compatibility === 'Godot4' ? 'Godot 4' : plugin.compatibility === 'Godot3' ? 'Godot 3' : plugin.compatibility === 'Both' ? t('plugins.generic') : t('plugins.unknown') }}
             </span>
             <span class="badge badge-neutral">
-              {{ plugin.source.source_type === 'Local' ? '本地' : plugin.source.source_type === 'Git' ? 'Git' : 'AssetLibrary' }}
+              {{ plugin.source.source_type === 'Local' ? t('plugins.localSource') : plugin.source.source_type === 'Git' ? 'Git' : 'AssetLibrary' }}
             </span>
           </div>
         </div>
@@ -804,7 +805,7 @@ const closePluginDetail = () => {
 
     <div v-if="showGitDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showGitDialog = false; gitUrl = ''">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">从 Git 导入</h3>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('plugins.importFromGit') }}</h3>
         <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">
           输入 Git 仓库 URL，将克隆并导入其中的 Godot 插件
         </p>
@@ -845,20 +846,20 @@ const closePluginDetail = () => {
           </button>
         </div>
         <div class="mb-4 flex items-center gap-3 flex-wrap text-sm text-gray-500 dark:text-content-secondary">
-          <span>作者: {{ selectedPlugin.author || '未知' }}</span>
+          <span>{{ t('plugins.author') }}: {{ selectedPlugin.author || t('plugins.unknownAuthor') }}</span>
           <span class="text-gray-300 dark:text-content-secondary">|</span>
-          <span>{{ selectedPlugin.compatibility === 'Godot4' ? 'Godot 4' : selectedPlugin.compatibility === 'Godot3' ? 'Godot 3' : selectedPlugin.compatibility === 'Both' ? '通用' : '未知' }}</span>
+          <span>{{ selectedPlugin.compatibility === 'Godot4' ? 'Godot 4' : selectedPlugin.compatibility === 'Godot3' ? 'Godot 3' : selectedPlugin.compatibility === 'Both' ? t('plugins.generic') : t('plugins.unknown') }}</span>
           <span class="text-gray-300 dark:text-content-secondary">|</span>
-          <span>{{ selectedPlugin.source.source_type === 'Local' ? '本地' : selectedPlugin.source.source_type === 'Git' ? 'Git' : 'AssetLibrary' }}</span>
+          <span>{{ selectedPlugin.source.source_type === 'Local' ? t('plugins.localSource') : selectedPlugin.source.source_type === 'Git' ? 'Git' : 'AssetLibrary' }}</span>
           <span v-if="pluginStorageStats" class="text-gray-300 dark:text-content-secondary">|</span>
           <span v-if="pluginStorageStats">{{ pluginStorageStats.total_size_display }}</span>
         </div>
 
         <div class="flex-1 overflow-y-auto space-y-4">
           <div>
-            <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">描述</h4>
+            <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">{{ t('plugins.description') }}</h4>
             <p class="text-sm text-gray-600 dark:text-content-secondary whitespace-pre-wrap bg-gray-50 dark:bg-surface-layer rounded-lg p-3">
-              {{ selectedPlugin.description || '无描述' }}
+              {{ selectedPlugin.description || t('plugins.noDescription') }}
             </p>
           </div>
 
@@ -1239,37 +1240,37 @@ const closePluginDetail = () => {
 
     <div v-if="showImportModeDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showImportModeDialog = false">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">从项目导入插件</h3>
-        <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">选择导入模式：</p>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('plugins.importFromProject.title') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">{{ t('plugins.importFromProject.modeSelect') }}</p>
         <div class="space-y-3 mb-6">
           <label class="flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors"
             :class="importMode === 'copy' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-surface-layer'">
             <input type="radio" v-model="importMode" value="copy" class="mt-1" />
             <div>
-              <div class="font-medium text-gray-900 dark:text-content-primary text-sm">复制到仓库（推荐）</div>
-              <div class="text-xs text-gray-500 dark:text-content-secondary mt-0.5">将插件复制到仓库管理，项目中的原文件保持不变</div>
+              <div class="font-medium text-gray-900 dark:text-content-primary text-sm">{{ t('plugins.importModes.copy.label') }}</div>
+              <div class="text-xs text-gray-500 dark:text-content-secondary mt-0.5">{{ t('plugins.importModes.copy.desc') }}</div>
             </div>
           </label>
           <label class="flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors"
             :class="importMode === 'move' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-surface-layer'">
             <input type="radio" v-model="importMode" value="move" class="mt-1" />
             <div>
-              <div class="font-medium text-gray-900 dark:text-content-primary text-sm">纳入管理</div>
-              <div class="text-xs text-gray-500 dark:text-content-secondary mt-0.5">将插件移动到仓库，原位置变为符号链接指向仓库，节省空间</div>
+              <div class="font-medium text-gray-900 dark:text-content-primary text-sm">{{ t('plugins.importModes.move.label') }}</div>
+              <div class="text-xs text-gray-500 dark:text-content-secondary mt-0.5">{{ t('plugins.importModes.move.desc') }}</div>
             </div>
           </label>
           <label class="flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors"
             :class="importMode === 'reference' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-surface-layer'">
             <input type="radio" v-model="importMode" value="reference" class="mt-1" />
             <div>
-              <div class="font-medium text-gray-900 dark:text-content-primary text-sm">仅记录索引</div>
-              <div class="text-xs text-gray-500 dark:text-content-secondary mt-0.5">不复制不移动，仅在仓库中记录插件位置和元数据</div>
+              <div class="font-medium text-gray-900 dark:text-content-primary text-sm">{{ t('plugins.importModes.reference.label') }}</div>
+              <div class="text-xs text-gray-500 dark:text-content-secondary mt-0.5">{{ t('plugins.importModes.reference.desc') }}</div>
             </div>
           </label>
         </div>
         <div class="flex justify-end gap-3">
-          <button @click="showImportModeDialog = false" class="btn-secondary">取消</button>
-          <button @click="doImportFromProjects" class="btn-primary">开始导入</button>
+          <button @click="showImportModeDialog = false" class="btn-secondary">{{ t('plugins.importFromProject.cancel') }}</button>
+          <button @click="doImportFromProjects" class="btn-primary">{{ t('plugins.importFromProject.startImport') }}</button>
         </div>
       </div>
     </div>

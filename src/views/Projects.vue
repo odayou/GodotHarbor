@@ -92,7 +92,7 @@ const selectedCount = computed(() => selectedProjectIds.value.size)
 const batchRemoveProjects = async () => {
   const ids = Array.from(selectedProjectIds.value)
   if (ids.length === 0) return
-  confirm('批量删除项目', `确定要删除选中的 ${ids.length} 个项目吗？此操作仅从列表中移除，不会删除项目文件。`, async () => {
+  confirm(t('common.confirmDelete'), t('projects.deleteConfirm', { count: ids.length }), async () => {
     try {
       const result = await api.batchRemoveProjects(ids)
       if (result.failed_count > 0) {
@@ -385,7 +385,7 @@ const onDrop = async (e: DragEvent) => {
 const removeProject = async (projectId: string) => {
   const project = projects.value.find(p => p.project_id === projectId)
   const name = project?.name || projectId
-  confirm('删除项目', `确定要删除项目 "${name}" 吗？此操作仅从列表中移除，不会删除项目文件。`, async () => {
+  confirm(t('common.confirmDelete'), t('projects.deleteConfirm', { count: 1, name }), async () => {
     try {
       await api.removeProject(projectId)
       toast.success(t('common.projectDeleted'))
@@ -774,7 +774,7 @@ const confirmRelocate = async () => {
                     'badge-error'
                   ]"
                 >
-                  {{ project.status === 'Ready' ? '就绪' : project.status === 'Warning' ? '警告' : project.status === 'Conflict' ? '冲突' : project.status === 'MissingSource' ? '源缺失' : '错误' }}
+                  {{ t(`projects.status.${project.status.toLowerCase()}`) || '错误' }}
                 </span>
               </div>
             </div>

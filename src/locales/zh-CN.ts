@@ -3,12 +3,12 @@ export default {
   nav: {
     home: '首页',
     projects: '项目管理',
-    plugins: '插件仓库',
-    linker: '插件绑定',
-    engines: '引擎管理',
+    pluginsNav: '插件仓库',
+    linkerNav: '插件绑定',
+    enginesNav: '引擎管理',
     updates: '更新中心',
     about: '关于',
-    settings: '设置'
+    settingsNav: '设置'
   },
   projects: {
     title: '项目管理',
@@ -40,7 +40,7 @@ export default {
     groupDesc: '输入分组名称，相同分组的项目会显示在一起',
     groupPlaceholder: '输入分组名称（留空移除分组）',
     delete: '删除项目',
-    deleteConfirm: '确定要删除项目吗？此操作仅从列表中移除，不会删除项目文件。',
+    deleteConfirm: '{count, plural, one {确定要删除项目 "{name}" 吗？} other {确定要删除选中的 {count} 个项目吗？}} 此操作仅从列表中移除，不会删除项目文件。',
     dragTitle: '拖放 Godot 项目目录到此处',
     dragDesc: '将自动识别包含 project.godot 的目录',
     engineBind: '引擎绑定',
@@ -98,7 +98,6 @@ export default {
     details: '插件详情',
     version: '版本',
     sourceType: '来源',
-    deleteConfirm: '确定要删除此插件吗？此操作将从仓库中移除插件，但不会影响已挂载到项目中的副本。',
     checkUpdates: '检查更新',
     checkingUpdates: '检查中...',
     selectPluginDir: '选择 Godot 插件目录',
@@ -106,7 +105,91 @@ export default {
     enterGitUrl: '请输入 Git URL',
     addedToFavorites: '已添加到收藏',
     removedFromFavorites: '已取消收藏',
-    noNewPluginsFound: '没有发现新的插件可以导入'
+    noNewPluginsFound: '没有发现新的插件可以导入',
+    importMode: {
+      copy: '复制',
+      move: '纳入',
+      reference: '引用'
+    },
+    importSuccess: '以{mode}模式导入了 {count} 个插件',
+    updateSuccess: '插件 {name} 已更新',
+    cleanupOrphaned: {
+      success: '已清理 {count} 个孤立目录',
+      noOrphaned: '没有需要清理的孤立目录'
+    },
+    importModes: {
+      copy: {
+        label: '复制到仓库（推荐）',
+        desc: '将插件复制到仓库管理，项目中的原文件保持不变'
+      },
+      move: {
+        label: '纳入管理',
+        desc: '将插件移动到仓库，原位置变为符号链接指向仓库，节省空间'
+      },
+      reference: {
+        label: '仅记录索引',
+        desc: '不复制不移动，仅在仓库中记录插件位置和元数据'
+      }
+    },
+    gitImport: {
+      title: '从 Git 导入',
+      desc: '输入 Git 仓库 URL，将克隆并导入其中的 Godot 插件',
+      placeholder: 'https://github.com/user/plugin-repo.git'
+    },
+    pluginDetail: {
+      versionList: '版本列表 ({count})',
+      unitCount: '{count} 个单元',
+      bindings: '挂载到 ({count} 个项目)',
+      dependencies: '依赖关系',
+      optional: '(可选)',
+      source: '来源',
+      sourceTypes: {
+        Local: '本地目录',
+        Git: 'Git 仓库',
+        AssetLibrary: 'AssetLibrary'
+      },
+      sections: {
+        version: '版本',
+        mount: '挂载',
+        storage: '存储'
+      }
+    },
+    updateCheck: {
+      title: '插件更新检查',
+      noPlugins: '没有可检查更新的插件',
+      versionInfo: '当前版本: {current} → 最新版本: {latest}',
+      update: '更新',
+      hasUpdate: '有更新',
+      upToDate: '已是最新'
+    },
+    storageStats: {
+      plugins: '{count} 个插件',
+      versions: '{count} 个版本',
+      bindings: '{count} 个挂载',
+      size: '占用 {size}',
+      orphaned: '可清理 {size}',
+      duplicates: '{count} 组内容重复',
+      cleanup: '清理孤立文件'
+    },
+    deleteConfirm: {
+      single: '确认删除插件',
+      singleDesc: '此操作将从仓库中移除插件，但不会影响已挂载到项目中的副本。',
+      singleConfirm: '确认删除',
+      batch: '批量删除插件',
+      batchDesc: '确定要删除选中的 {count} 个插件吗？此操作将从仓库中移除插件，但不会影响已挂载到项目中的副本。',
+      batchConfirm: '确认批量删除'
+    },
+    batchActions: {
+      selectAll: '全选',
+      deselectAll: '取消选择',
+      batchDelete: '批量删除 ({count})'
+    },
+    importFromProject: {
+      title: '从项目导入插件',
+      modeSelect: '选择导入模式：',
+      cancel: '取消',
+      startImport: '开始导入'
+    }
   },
   assetLibrary: {
     title: 'Asset Library',
@@ -196,7 +279,14 @@ export default {
     pluginBound: '已绑定插件: {name} v{version}',
     pluginUnbound: '已取消绑定',
     bindingApplySuccess: '变更已成功应用',
-    bindingApplyFailed: '应用变更时出现错误: {errors}'
+    bindingApplyFailed: '应用变更时出现错误: {errors}',
+    batchApplyTitle: '确认批量应用变更',
+    batchApplyDesc: '将为以下项目应用所有插件绑定变更',
+    batchApplyResultTitle: '批量应用结果',
+    bindingCountUnit: '{count} 个绑定',
+    createdItem: '创建 {count} 项',
+    removedItem: '移除 {count} 项',
+    errorList: '错误: {errors}'
   },
   engines: {
     title: '引擎管理',
@@ -236,17 +326,17 @@ export default {
     junction: 'Junction（Windows 推荐）',
     copy: '复制',
     appearance: '外观',
-    language: '语言',
+    languageLabel: '语言',
     theme: '主题',
     themeLight: '浅色',
     themeDark: '深色',
     themeSystem: '跟随系统',
     save: '保存设置',
     data: '数据管理',
-    backup: '备份数据',
+    backupLabel: '备份数据',
     restore: '恢复数据',
     backupWarning: '恢复操作将覆盖当前数据，请谨慎操作！',
-    teamConfig: '团队配置',
+    teamConfigLabel: '团队配置',
     exportConfig: '导出配置',
     importConfig: '导入配置',
     viewLogs: '查看日志',
@@ -254,7 +344,95 @@ export default {
     autoDiscoverEngines: '启动时自动发现 Godot 引擎',
     other: '其他',
     showOnboarding: '重新显示引导',
-    showOnboardingDesc: '点击后立即显示新手引导'
+    showOnboardingDesc: '点击后立即显示新手引导',
+    buttons: {
+      viewLogs: '查看日志',
+      backup: '数据备份与恢复',
+      teamConfig: '团队配置'
+    },
+    pluginRepo: {
+      title: '插件仓库',
+      storagePath: '仓库存储路径',
+      storageHint: '设置插件文件的存储位置。留空则使用应用数据目录下的默认路径。修改后新导入的插件将存储到新位置。',
+      browse: '浏览',
+      placeholder: '留空使用默认路径',
+      autoCheckPluginUpdates: '自动检查插件更新',
+      autoCheckAppUpdates: '自动检查应用更新',
+      autoCheckEngineUpdates: '自动检查引擎更新',
+      checkInterval: '检查间隔（小时）'
+    },
+    language: {
+      zhCN: '简体中文',
+      en: 'English'
+    },
+    cloudProvider: {
+      volcano: '火山引擎'
+    },
+    logs: {
+      title: '操作日志',
+      empty: '暂无日志记录',
+      error: '错误',
+      success: '成功',
+      copy: '复制',
+      target: '目标: {target}'
+    },
+    backup: {
+      title: '数据备份与恢复',
+      desc: '选择备份目录，将复制所有数据到该目录。恢复时会从该目录读取数据覆盖现有数据。',
+      selectDir: '请选择备份目录',
+      browse: '浏览',
+      warning: '注意：恢复功能会覆盖现有数据，请在恢复前确认备份文件的正确性。',
+      cancel: '取消',
+      backup: '备份数据',
+      restoring: '恢复中...',
+      restore: '恢复数据'
+    },
+    teamConfig: {
+      title: '团队配置管理',
+      export: '导出新配置',
+      empty: '暂无团队配置',
+      description: '无描述',
+      created: '创建时间: {date}',
+      import: '导入',
+      delete: '删除',
+      stats: '包含 {bindings} 个插件绑定, {engineBindings} 个引擎绑定',
+      close: '关闭',
+      exportTitle: '导出团队配置',
+      name: '配置名称',
+      namePlaceholder: '例如: 项目A标准配置',
+      descriptionLabel: '描述（可选）',
+      descriptionPlaceholder: '配置描述',
+      selectProjects: '选择项目',
+      cancel: '取消',
+      exporting: '导出中...',
+      exportAction: '导出'
+    },
+    messages: {
+      loadFailed: '加载设置失败: {error}',
+      addDir: '已添加目录: {dir}',
+      dirExists: '该目录已存在',
+      addDirFailed: '添加目录失败: {error}',
+      removeDir: '已移除目录: {dir}',
+      saveSuccess: '设置保存成功',
+      saveFailed: '保存设置失败: {error}',
+      loadLogsFailed: '加载日志失败: {error}',
+      copied: '已复制到剪贴板',
+      copyFailed: '复制失败',
+      selectDirFailed: '选择目录失败: {error}',
+      selectDirFirst: '请先选择备份目录',
+      backupFailed: '备份失败: {error}',
+      restoreFailed: '恢复失败: {error}',
+      enterConfigName: '请输入配置名称',
+      selectAtLeastOneProject: '请选择至少一个项目',
+      exportSuccess: '团队配置导出成功',
+      exportFailed: '导出失败: {error}',
+      selectAtLeastOneTarget: '请选择至少一个目标项目',
+      importSuccess: '团队配置导入成功',
+      importFailed: '导入失败: {error}',
+      deleteSuccess: '团队配置已删除',
+      deleteFailed: '删除失败: {error}',
+      resetGuideFailed: '重置引导失败: {error}'
+    }
   },
   common: {
     cancel: '取消',

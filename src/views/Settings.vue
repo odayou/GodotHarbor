@@ -40,7 +40,7 @@ const loadSettings = async () => {
     settings.value = { scan_directories: result.scan_directories || [], mount_strategy: result.mount_strategy || 'Symlink', language: result.language || 'zh-CN', theme: result.theme || 'system', auto_scan_on_startup: result.auto_scan_on_startup ?? true, auto_discover_engines: result.auto_discover_engines ?? true, plugin_storage_path: result.plugin_storage_path || '', auto_check_plugin_updates: result.auto_check_plugin_updates ?? false, auto_check_app_updates: result.auto_check_app_updates ?? true, auto_check_engine_updates: result.auto_check_engine_updates ?? true, update_check_interval_hours: result.update_check_interval_hours ?? 4, skipped_app_version: result.skipped_app_version || '' }
     locale.value = settings.value.language
     if (['light', 'dark', 'system', 'volcano'].includes(settings.value.theme)) setTheme(settings.value.theme as 'light' | 'dark' | 'system' | 'volcano')
-  } catch (error) { toast.error(`加载设置失败: ${error}`) }
+  } catch (error) { toast.error(t('settings.messages.loadFailed', { error })) }
   finally { isLoading.value = false }
 }
 
@@ -52,18 +52,18 @@ const addScanDirectory = async () => {
     const selected = await open({ directory: true, multiple: false, title: t('settings.scanDirs') })
     if (selected && typeof selected === 'string') {
       if (!settings.value.scan_directories) settings.value.scan_directories = []
-      if (!settings.value.scan_directories.includes(selected)) { settings.value.scan_directories.push(selected); toast.info(`已添加目录: ${selected}`) }
-      else toast.warning('该目录已存在')
+      if (!settings.value.scan_directories.includes(selected)) { settings.value.scan_directories.push(selected); toast.info(t('settings.messages.addDir', { dir: selected })) }
+      else toast.warning(t('settings.messages.dirExists'))
     }
-  } catch (error) { toast.error(`添加目录失败: ${error}`) }
+  } catch (error) { toast.error(t('settings.messages.addDirFailed', { error })) }
 }
 
-const removeScanDirectory = (index: number) => { const dir = settings.value.scan_directories[index]; settings.value.scan_directories.splice(index, 1); toast.info(`已移除目录: ${dir}`) }
+const removeScanDirectory = (index: number) => { const dir = settings.value.scan_directories[index]; settings.value.scan_directories.splice(index, 1); toast.info(t('settings.messages.removeDir', { dir })) }
 
 const saveSettings = async () => {
   isLoading.value = true
-  try { await api.saveSettings(settings.value); toast.success('设置保存成功') }
-  catch (error) { toast.error(`保存设置失败: ${error}`) }
+  try { await api.saveSettings(settings.value); toast.success(t('settings.messages.saveSuccess')) }
+  catch (error) { toast.error(t('settings.messages.saveFailed', { error })) }
   finally { isLoading.value = false }
 }
 
@@ -71,14 +71,14 @@ const loadLogs = async () => {
   try {
     logs.value = await api.getOperationLogs(50)
     showLogs.value = true
-  } catch (error) { toast.error(`加载日志失败: ${error}`) }
+  } catch (error) { toast.error(t('settings.messages.loadLogsFailed', { error })) }
 }
 
 const copyError = async (log: LogEntry) => {
   try {
     await navigator.clipboard.writeText(log.detail)
-    toast.success('已复制到剪贴板')
-  } catch { toast.error('复制失败') }
+    toast.success(t('settings.messages.copied'))
+  } catch { toast.error(t('settings.messages.copyFailed')) }
 }
 
 const formatTime = (timestamp: string) => {
@@ -253,9 +253,9 @@ const resetOnboarding = async () => {
     <div class="flex justify-between items-center">
       <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ t('settings.title') }}</h1>
       <div class="flex gap-2">
-        <button @click="loadLogs" class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm">查看日志</button>
-        <button @click="showBackupDialog = true" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm">数据备份与恢复</button>
-        <button @click="showTeamConfigDialog = true" class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm">团队配置</button>
+        <button @click="loadLogs" class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm">{{ t('settings.buttons.viewLogs') }}</button>
+        <button @click="showBackupDialog = true" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm">{{ t('settings.buttons.backup') }}</button>
+        <button @click="showTeamConfigDialog = true" class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm">{{ t('settings.buttons.teamConfig') }}</button>
       </div>
     </div>
     <div v-if="isLoading" class="flex justify-center py-12"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div></div>
@@ -292,40 +292,40 @@ const resetOnboarding = async () => {
         </select>
       </div>
       <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">插件仓库</h2>
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.pluginRepo.title') }}</h2>
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">仓库存储路径</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.pluginRepo.storagePath') }}</label>
             <div class="flex gap-2">
               <input
                 type="text"
                 v-model="settings.plugin_storage_path"
-                placeholder="留空使用默认路径"
+                :placeholder="t('settings.pluginRepo.placeholder')"
                 class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
               />
               <button
                 @click="selectPluginStoragePath"
                 class="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
               >
-                浏览
+                {{ t('settings.pluginRepo.browse') }}
               </button>
             </div>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">设置插件文件的存储位置。留空则使用应用数据目录下的默认路径。修改后新导入的插件将存储到新位置。</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ t('settings.pluginRepo.storageHint') }}</p>
           </div>
           <label class="flex items-center gap-3 cursor-pointer">
             <input type="checkbox" v-model="settings.auto_check_plugin_updates" class="w-4 h-4 text-primary-600 rounded" />
-            <span class="text-sm text-gray-700 dark:text-gray-300">自动检查插件更新</span>
+            <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.pluginRepo.autoCheckPluginUpdates') }}</span>
           </label>
           <label class="flex items-center gap-3 cursor-pointer">
             <input type="checkbox" v-model="settings.auto_check_app_updates" class="w-4 h-4 text-primary-600 rounded" />
-            <span class="text-sm text-gray-700 dark:text-gray-300">自动检查应用更新</span>
+            <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.pluginRepo.autoCheckAppUpdates') }}</span>
           </label>
           <label class="flex items-center gap-3 cursor-pointer">
             <input type="checkbox" v-model="settings.auto_check_engine_updates" class="w-4 h-4 text-primary-600 rounded" />
-            <span class="text-sm text-gray-700 dark:text-gray-300">自动检查引擎更新</span>
+            <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.pluginRepo.autoCheckEngineUpdates') }}</span>
           </label>
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">检查间隔（小时）</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.pluginRepo.checkInterval') }}</label>
             <input type="number" v-model.number="settings.update_check_interval_hours" min="1" max="168"
               class="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm" />
           </div>
@@ -335,7 +335,7 @@ const resetOnboarding = async () => {
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.appearance') }}</h2>
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.language') }}</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.languageLabel') }}</label>
             <select v-model="settings.language" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
               <option value="zh-CN">简体中文</option>
               <option value="en">English</option>
