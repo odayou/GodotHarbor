@@ -227,15 +227,15 @@ pub fn run() {
                         TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } => {
                             let app = tray.app_handle();
                             if let Some(window) = app.get_webview_window("main") {
-                                let _ = window.show();
                                 let _ = window.set_focus();
+                                let _ = window.show();
                             }
                         }
                         TrayIconEvent::DoubleClick { button: MouseButton::Left, .. } => {
                             let app = tray.app_handle();
                             if let Some(window) = app.get_webview_window("main") {
-                                let _ = window.show();
                                 let _ = window.set_focus();
+                                let _ = window.show();
                             }
                         }
                         _ => {}
