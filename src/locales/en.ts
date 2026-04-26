@@ -65,7 +65,8 @@ export default {
     migrationDesc: 'The path of the following project is invalid, but a project with the same name was found. Update path?',
     oldPath: 'Old Path',
     update: 'Update',
-    ignore: 'Ignore'
+    ignore: 'Ignore',
+    projectCount: 'projects'
   },
   plugins: {
     title: 'Plugin Vault',
@@ -74,7 +75,19 @@ export default {
     fromFile: 'Import from File',
     fromGit: 'Import from Git',
     empty: 'No Plugins',
-    emptyDesc: 'Import plugins from local directory, file or Git repository',
+    emptyDesc: 'Try adjusting your search or import new plugins',
+    onboarding: {
+      title: 'Add Your First Plugin',
+      desc: 'Import plugins using any of the methods below to start managing your Godot plugin repository',
+      fromDir: 'Import from Local Directory',
+      fromDirDesc: 'Select a local directory containing plugin.cfg',
+      fromGit: 'Import from Git Repository',
+      fromGitDesc: 'Enter a Git repository URL to clone',
+      fromAssetLib: 'Search Asset Library',
+      fromAssetLibDesc: 'Browse the official Godot Asset Library',
+      fromProjects: 'Scan from Existing Projects',
+      fromProjectsDesc: 'Automatically scan plugins in your projects'
+    },
     gitTitle: 'Import from Git',
     gitDesc: 'Enter Git repository URL to clone and import Godot plugins',
     gitPlaceholder: 'https://github.com/user/plugin-repo.git',
@@ -88,6 +101,7 @@ export default {
     },
     search: 'Search plugin name, description or author...',
     allCompat: 'All Compatibility',
+    allVersions: 'All Versions',
     allSource: 'All Sources',
     source: {
       local: 'Local',
@@ -100,12 +114,22 @@ export default {
     sourceType: 'Source',
     checkUpdates: 'Check Updates',
     checkingUpdates: 'Checking...',
+    bindToProject: 'Bind to Project',
+    addPlugin: 'Add Plugin',
+    addMenu: {
+      fromDirDesc: 'Import plugin from local directory',
+      fromFileDesc: 'Import from plugin.cfg file',
+      fromGitDesc: 'Clone from Git repository',
+      fromProjectsDesc: 'Scan plugins from existing projects',
+      fromAssetLibDesc: 'Search and download from Godot Asset Library'
+    },
     selectPluginDir: 'Select Godot plugin directory',
     selectPluginFile: 'Select plugin config file (plugin.cfg)',
     enterGitUrl: 'Please enter Git URL',
     addedToFavorites: 'Added to favorites',
     removedFromFavorites: 'Removed from favorites',
     noNewPluginsFound: 'No new plugins found to import',
+    versionDeleted: 'Version deleted',
     importMode: {
       copy: 'Copy',
       move: 'Move',
@@ -160,7 +184,13 @@ export default {
       versionInfo: 'Current version: {current} → Latest version: {latest}',
       update: 'Update',
       hasUpdate: 'Update available',
-      upToDate: 'Up to date'
+      upToDate: 'Up to date',
+      showNotes: 'Show release notes',
+      hideNotes: 'Hide release notes',
+      updateAll: 'Update All ({count})',
+      updating: 'Updating...',
+      batchSuccess: 'Successfully updated {count} plugins',
+      batchPartial: 'Update completed: {success} succeeded, {failed} failed'
     },
     storageStats: {
       plugins: '{count} plugins',
@@ -177,18 +207,46 @@ export default {
       singleConfirm: 'Confirm Delete',
       batch: 'Batch Delete Plugins',
       batchDesc: 'Are you sure you want to delete the selected {count} plugins? This operation will remove the plugins from the repository, but will not affect copies already mounted in projects.',
-      batchConfirm: 'Confirm Batch Delete'
+      batchConfirm: 'Confirm Batch Delete',
+      bindingWarning: '⚠️ {name} is used by {count} project(s)',
+      bindingWarningDesc: 'After deletion, the symlinks in the following projects will break and the plugin will not load properly.'
     },
     batchActions: {
       selectAll: 'Select All',
       deselectAll: 'Deselect All',
       batchDelete: 'Batch Delete ({count})'
     },
+    selectedCount: '{count} plugins selected',
     importFromProject: {
       title: 'Import Plugins from Projects',
       modeSelect: 'Select import mode:',
       cancel: 'Cancel',
       startImport: 'Start Import'
+    },
+    bindDialog: {
+      title: 'Bind Plugin: {name}',
+      selectProjects: 'Select Target Projects',
+      noProjects: 'No projects available. Please add a project first.',
+      selectVersion: 'Select Version',
+      selectUnit: 'Select Unit',
+      mountPath: 'Mount Path',
+      confirmBind: 'Bind to {count} project(s)',
+      binding: 'Binding...',
+      noUnits: 'No available units in this plugin version',
+      success: 'Bound {name} to {count} project(s)',
+      bindAndApply: 'Bind & Apply ({count})',
+      bindAndApplySuccess: 'Bound {name} to {count} project(s) and applied changes',
+      partialSuccess: 'Binding completed: {success} succeeded, {failed} failed',
+      broken: 'Broken',
+      repair: 'Repair',
+      repairSuccess: 'Symlink repaired successfully'
+    },
+    depDialog: {
+      missing: 'Missing',
+      installMissing: 'Install {count} missing dependencies',
+      installing: 'Installing...',
+      success: 'Successfully installed {count} dependencies',
+      partialSuccess: 'Dependency installation completed: {success} succeeded, {failed} failed'
     }
   },
   assetLibrary: {
@@ -277,6 +335,7 @@ export default {
     noPluginUnits: 'This plugin version has no available units',
     noPluginVersions: 'This plugin has no available versions',
     pluginBound: 'Plugin bound: {name} v{version}',
+    mountConflict: 'Mount path conflict: {path} is already used by plugin {plugin}. Please unbind first or change the mount path.',
     pluginUnbound: 'Unbound successfully',
     bindingApplySuccess: 'Changes applied successfully',
     bindingApplyFailed: 'Error applying changes: {errors}',
@@ -286,7 +345,15 @@ export default {
     bindingCountUnit: '{count} bindings',
     createdItem: 'Created {count} items',
     removedItem: 'Removed {count} items',
-    errorList: 'Errors: {errors}'
+    errorList: 'Errors: {errors}',
+    batchBind: 'Batch Bind ({count})',
+    batchUnbind: 'Batch Unbind ({count})',
+    batchBinding: 'Binding...',
+    batchUnbinding: 'Unbinding...',
+    batchBindTitle: 'Confirm Batch Bind',
+    batchBindDesc: 'Bind selected plugins to {projectCount} project(s)',
+    batchUnbindTitle: 'Confirm Batch Unbind',
+    batchUnbindDesc: 'Unbind {count} plugin(s) from project "{projectName}"'
   },
   engines: {
     title: 'Engine Management',
@@ -359,7 +426,16 @@ export default {
       autoCheckPluginUpdates: 'Auto check plugin updates',
       autoCheckAppUpdates: 'Auto check app updates',
       autoCheckEngineUpdates: 'Auto check engine updates',
-      checkInterval: 'Check interval (hours)'
+      checkInterval: 'Check interval (hours)',
+      migrateTitle: 'Plugin Storage Path Changed',
+      migrateDesc: 'The plugin storage path has been changed. Would you like to migrate existing plugin files to the new path?',
+      migrateFrom: 'From',
+      migrateTo: 'To',
+      skipMigration: 'Skip Migration',
+      startMigration: 'Start Migration',
+      migrating: 'Migrating...',
+      migrateSuccess: 'Plugin files migrated successfully',
+      migrateFailed: 'Migration failed: {error}'
     },
     language: {
       zhCN: 'Simplified Chinese',
@@ -405,7 +481,9 @@ export default {
       selectProjects: 'Select projects',
       cancel: 'Cancel',
       exporting: 'Exporting...',
-      exportAction: 'Export'
+      exportAction: 'Export',
+      deleteConfirmTitle: 'Confirm Delete Team Configuration',
+      deleteConfirmDesc: 'Are you sure you want to delete this team configuration? This action cannot be undone.'
     },
     messages: {
       loadFailed: 'Failed to load settings: {error}',
@@ -472,7 +550,9 @@ export default {
     projectLaunchFailed: 'Launch project failed: {error}',
     selectNewPath: 'Please select new path',
     projectPathUpdated: 'Project path updated',
-    relocateFailed: 'Relocate failed: {error}'
+    relocateFailed: 'Relocate failed: {error}',
+    selectedCount: '{count} selected',
+    clear: 'Clear'
   },
   home: {
     welcome: 'Welcome to Godot Harbor',
@@ -637,5 +717,24 @@ export default {
     contributeDesc: 'Code contributions, bug reports, feature suggestions, documentation improvements — every contribution is equally valuable.',
     contributionGuide: 'Contribution Guide',
     sponsorThanks: 'Thank you to every supporter! Your support is the driving force behind Godot Harbor\'s continuous development.'
+  },
+  updates: {
+    updatingApp: 'Updating application',
+    currentVersion: 'Current version:',
+    latestVersion: 'Latest version:',
+    skipVersion: 'Skip this version',
+    bothUpdatesTip: 'Both full update and hot update are available. It is recommended to install the full update first (includes all hot update content).',
+    download: 'Download',
+    currentHotUpdateVersion: 'Current hot update version:',
+    rollbackHotUpdate: 'Rollback hot update',
+    allUpToDateDesc: 'All apps, plugins and engines are up to date',
+    updateHistory: 'Update History',
+    clearHistory: 'Clear History',
+    failed: 'Failed',
+    preparingDownload: 'Preparing to download...',
+    installCompleteRestarting: 'Update installation complete, restarting...',
+    installFailed: 'Update failed: {error}',
+    preparingHotUpdate: 'Preparing to download hot update...',
+    hotUpdateFailed: 'Hot update failed: {error}'
   }
 }

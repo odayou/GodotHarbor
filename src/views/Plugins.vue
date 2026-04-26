@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
-import type { Plugin, PluginUpdateInfo, PluginDependency, AssetLibrarySearchResult, AssetLibrarySearchResponse, AssetLibraryCategory, AssetLibraryAsset, PluginStorageStats, ProjectBinding, TotalStorageStats } from '@/types'
+import type { Plugin, Project, PluginUpdateInfo, PluginDependency, AssetLibrarySearchResult, AssetLibrarySearchResponse, AssetLibraryCategory, AssetLibraryAsset, PluginStorageStats, ProjectBinding, TotalStorageStats } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { useToast } from '@/composables/useToast'
@@ -46,6 +46,8 @@ const importMode = ref<'copy' | 'move' | 'reference'>('copy')
 const totalStorageStats = ref<TotalStorageStats | null>(null)
 const pluginUpdates = ref<PluginUpdateInfo[]>([])
 const isCheckingUpdates = ref(false)
+
+const showAddMenu = ref(false)
 
 const searchQuery = ref('')
 const filterCompatibility = ref<string>('all')
@@ -269,6 +271,71 @@ useDialogEscape(showAssetDetailDialog)
 useDialogEscape(showUpdatesDialog)
 useDialogEscape(showImportModeDialog)
 
+const showBindDialog = ref(false)
+const bindTargetPlugin = ref<Plugin | null>(null)
+const bindProjects = ref<Project[]>([])
+const bindSelectedProjectIds = ref<Set<string>>(new Set())
+const bindSelectedVersionIdx = ref(0)
+const bindSelectedUnitIdx = ref(0)
+const isBinding = ref(false)
+
+useDialogEscape(showBindDialog)
+
+const openBindDialog = async (plugin: Plugin) => {
+  bindTargetPlugin.value = plugin
+  bindSelectedVersionIdx.value = 0
+  bindSelectedUnitIdx.value = 0
+  bindSelectedProjectIds.value = new Set()
+  try {
+    bindProjects.value = await api.getProjects()
+  } catch (e) {
+    bindProjects.value = []
+  }
+  showBindDialog.value = true
+}
+
+const confirmBind = async (applyNow = false) => {
+  if (!bindTargetPlugin.value || bindSelectedProjectIds.value.size === 0) return
+  const plugin = bindTargetPlugin.value
+  const version = plugin.versions[bindSelectedVersionIdx.value]
+  const unit = version?.units[bindSelectedUnitIdx.value]
+  if (!version || !unit) {
+    toast.warning(t('plugins.bindDialog.noUnits'))
+    return
+  }
+  isBinding.value = true
+  const projectIds = Array.from(bindSelectedProjectIds.value)
+  let successCount = 0
+  let failCount = 0
+  for (const projectId of projectIds) {
+    try {
+      await api.bindPlugin(projectId, plugin.plugin_id, version.version_id, unit.unit_id, `addons/${unit.name}`)
+      successCount++
+    } catch {
+      failCount++
+    }
+  }
+  if (applyNow && successCount > 0) {
+    for (const projectId of projectIds) {
+      try {
+        await api.applyChanges(projectId)
+      } catch {
+        // ignore apply errors for individual projects
+      }
+    }
+  }
+  isBinding.value = false
+  showBindDialog.value = false
+  if (failCount > 0) {
+    toast.warning(t('plugins.bindDialog.partialSuccess', { success: successCount, failed: failCount }))
+  } else if (applyNow) {
+    toast.success(t('plugins.bindDialog.bindAndApplySuccess', { count: successCount, name: plugin.name }))
+  } else {
+    toast.success(t('plugins.bindDialog.success', { count: successCount, name: plugin.name }))
+  }
+  bindTargetPlugin.value = null
+}
+
 const openAssetLibrary = async () => {
   showAssetLibraryDialog.value = true
   assetSearchQuery.value = ''
@@ -429,8 +496,18 @@ const openPreviewLink = (url: string) => {
   window.open(url, '_blank')
 }
 
-const confirmRemovePlugin = (pluginId: string) => {
+const deletePluginBindings = ref<ProjectBinding[]>([])
+const deletePluginName = ref('')
+
+const confirmRemovePlugin = async (pluginId: string) => {
   deletePluginId.value = pluginId
+  const plugin = plugins.value.find(p => p.plugin_id === pluginId)
+  deletePluginName.value = plugin?.name || ''
+  try {
+    deletePluginBindings.value = await api.getPluginBindings(pluginId)
+  } catch {
+    deletePluginBindings.value = []
+  }
   showDeletePluginConfirm.value = true
 }
 
@@ -500,6 +577,36 @@ const updateGitPlugin = async (pluginId: string) => {
   }
 }
 
+const expandedReleaseNotes = ref<Set<string>>(new Set())
+
+const updatablePluginIds = computed(() =>
+  pluginUpdates.value.filter(u => u.update_available).map(u => u.plugin_id)
+)
+
+const isBatchUpdating = ref(false)
+
+const batchUpdatePlugins = async () => {
+  isBatchUpdating.value = true
+  let successCount = 0
+  let failCount = 0
+  for (const pluginId of updatablePluginIds.value) {
+    try {
+      await api.updateGitPlugin(pluginId)
+      successCount++
+    } catch {
+      failCount++
+    }
+  }
+  isBatchUpdating.value = false
+  if (failCount > 0) {
+    toast.warning(t('plugins.updateCheck.batchPartial', { success: successCount, failed: failCount }))
+  } else {
+    toast.success(t('plugins.updateCheck.batchSuccess', { count: successCount }))
+  }
+  await loadPlugins()
+  pluginUpdates.value = await api.checkPluginUpdates()
+}
+
 const loadTotalStorageStats = async () => {
   try {
     totalStorageStats.value = await api.getTotalStorageStats()
@@ -552,7 +659,7 @@ const showPluginDetails = async (plugin: Plugin) => {
 const removePluginVersion = async (pluginId: string, versionId: string) => {
   try {
     await api.removePluginVersion(pluginId, versionId)
-    toast.success('版本已删除')
+    toast.success(t('plugins.versionDeleted'))
     if (selectedPlugin.value) {
       await showPluginDetails(selectedPlugin.value)
     }
@@ -570,6 +677,56 @@ const closePluginDetail = () => {
   pluginBindings.value = []
 }
 
+const repairBinding = async (projectId: string, pluginId: string) => {
+  try {
+    await api.repairBinding(projectId, pluginId)
+    toast.success(t('plugins.bindDialog.repairSuccess'))
+    if (selectedPlugin.value) {
+      pluginBindings.value = await api.getPluginBindings(selectedPlugin.value.plugin_id)
+    }
+  } catch (error) {
+    toast.error(t('common.loadFailed', { error }))
+  }
+}
+
+const installedPluginIds = computed(() => new Set(plugins.value.map(p => p.plugin_id)))
+
+const missingDepPluginIds = computed(() => {
+  return pluginDependencies.value
+    .filter(d => !d.is_optional && !installedPluginIds.value.has(d.plugin_id))
+    .map(d => d.plugin_id)
+})
+
+const isInstallingDeps = ref(false)
+
+const installMissingDeps = async () => {
+  if (missingDepPluginIds.value.length === 0) return
+  isInstallingDeps.value = true
+  let successCount = 0
+  let failCount = 0
+  for (const depId of missingDepPluginIds.value) {
+    try {
+      const dep = pluginDependencies.value.find(d => d.plugin_id === depId)
+      if (dep?.version_constraint) {
+        await api.importPluginFromGit(dep.version_constraint)
+      }
+      successCount++
+    } catch {
+      failCount++
+    }
+  }
+  isInstallingDeps.value = false
+  if (failCount > 0) {
+    toast.warning(t('plugins.depDialog.partialSuccess', { success: successCount, failed: failCount }))
+  } else {
+    toast.success(t('plugins.depDialog.success', { count: successCount }))
+  }
+  await loadPlugins()
+  if (selectedPlugin.value) {
+    pluginDependencies.value = await api.resolvePluginDependencies(selectedPlugin.value.plugin_id)
+  }
+}
+
 </script>
 
 <template>
@@ -580,45 +737,88 @@ const closePluginDetail = () => {
         <button
           @click="checkPluginUpdates"
           :disabled="isCheckingUpdates || isLoading"
-          class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 text-sm"
+          class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 text-sm"
         >
           {{ isCheckingUpdates ? t('plugins.checkingUpdates') : t('plugins.checkUpdates') }}
         </button>
-        <button
-          @click="importFromProjects"
-          :disabled="isLoading"
-          class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 text-sm"
-        >
-          {{ t('plugins.fromProjects') }}
-        </button>
-        <button
-          @click="importFromLocal"
-          :disabled="isLoading"
-          class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 text-sm"
-        >
-          {{ t('plugins.fromDir') }}
-        </button>
-        <button
-          @click="importFromFile"
-          :disabled="isLoading"
-          class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 text-sm"
-        >
-          {{ t('plugins.fromFile') }}
-        </button>
-        <button
-          @click="openAssetLibrary"
-          :disabled="isLoading"
-          class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 text-sm"
-        >
-          {{ t('assetLibrary.title') }}
-        </button>
-        <button
-          @click="showGitDialog = true"
-          :disabled="isLoading"
-          class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 text-sm"
-        >
-          {{ t('plugins.fromGit') }}
-        </button>
+        <div class="relative">
+          <button
+            @click="showAddMenu = !showAddMenu"
+            :disabled="isLoading"
+            class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 text-sm flex items-center gap-1.5"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            {{ t('plugins.addPlugin') }}
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          <div v-if="showAddMenu" class="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 py-1">
+            <button
+              @click="importFromLocal(); showAddMenu = false"
+              class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2.5"
+            >
+              <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              </svg>
+              <div>
+                <div class="font-medium">{{ t('plugins.fromDir') }}</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('plugins.addMenu.fromDirDesc') }}</div>
+              </div>
+            </button>
+            <button
+              @click="importFromFile(); showAddMenu = false"
+              class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2.5"
+            >
+              <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <div>
+                <div class="font-medium">{{ t('plugins.fromFile') }}</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('plugins.addMenu.fromFileDesc') }}</div>
+              </div>
+            </button>
+            <button
+              @click="showGitDialog = true; showAddMenu = false"
+              class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2.5"
+            >
+              <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+              <div>
+                <div class="font-medium">{{ t('plugins.fromGit') }}</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('plugins.addMenu.fromGitDesc') }}</div>
+              </div>
+            </button>
+            <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+            <button
+              @click="importFromProjects(); showAddMenu = false"
+              class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2.5"
+            >
+              <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+              <div>
+                <div class="font-medium">{{ t('plugins.fromProjects') }}</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('plugins.addMenu.fromProjectsDesc') }}</div>
+              </div>
+            </button>
+            <button
+              @click="openAssetLibrary(); showAddMenu = false"
+              class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2.5"
+            >
+              <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <div>
+                <div class="font-medium">{{ t('assetLibrary.title') }}</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('plugins.addMenu.fromAssetLibDesc') }}</div>
+              </div>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -640,16 +840,16 @@ const closePluginDetail = () => {
             <option value="all">{{ t('plugins.allVersions') }}</option>
             <option value="Godot4">Godot 4</option>
             <option value="Godot3">Godot 3</option>
-            <option value="Both">通用</option>
+            <option value="Both">{{ t('plugins.compat.both') }}</option>
           </select>
           <select
             v-model="filterSource"
             class="px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-sm"
           >
-            <option value="all">{{ t('plugins.allSources') }}</option>
-            <option value="Local">{{ t('plugins.localSource') }}</option>
-            <option value="Git">Git</option>
-            <option value="AssetLibrary">AssetLibrary</option>
+            <option value="all">{{ t('plugins.allSource') }}</option>
+            <option value="Local">{{ t('plugins.source.local') }}</option>
+            <option value="Git">{{ t('plugins.source.git') }}</option>
+            <option value="AssetLibrary">{{ t('plugins.source.assetlibrary') }}</option>
           </select>
           <button
             @click="showFavoritesOnly = !showFavoritesOnly"
@@ -664,7 +864,7 @@ const closePluginDetail = () => {
               <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
               </svg>
-              {{ favoritePlugins }} 收藏
+              {{ favoritePlugins }} {{ t('plugins.favorites') }}
             </span>
           </button>
         </div>
@@ -675,36 +875,84 @@ const closePluginDetail = () => {
       <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
     </div>
 
-    <div v-else-if="filteredPlugins.length === 0" class="text-center py-12">
-      <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
-      </svg>
-      <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('plugins.empty') }}</h3>
-      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-        从本地目录、文件或 Git 仓库导入插件
-      </p>
-      <div class="mt-4 flex justify-center gap-3">
+    <div v-else-if="filteredPlugins.length === 0 && plugins.length === 0" class="text-center py-12 max-w-md mx-auto">
+      <div class="w-16 h-16 mx-auto mb-4 bg-primary-100 dark:bg-primary-900/30 rounded-2xl flex items-center justify-center">
+        <svg class="w-10 h-10 text-primary-600 dark:text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+        </svg>
+      </div>
+      <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ t('plugins.onboarding.title') }}</h3>
+      <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">{{ t('plugins.onboarding.desc') }}</p>
+      <div class="mt-6 space-y-3">
         <button
           @click="importFromLocal"
           :disabled="isLoading"
-          class="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 text-sm"
+          class="w-full flex items-center gap-3 p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-left"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-          </svg>
-          从目录导入
+          <div class="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            </svg>
+          </div>
+          <div>
+            <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('plugins.onboarding.fromDir') }}</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('plugins.onboarding.fromDirDesc') }}</div>
+          </div>
         </button>
         <button
           @click="showGitDialog = true"
           :disabled="isLoading"
-          class="inline-flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 text-sm"
+          class="w-full flex items-center gap-3 p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-left"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-          </svg>
-          从 Git 导入
+          <div class="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+            </svg>
+          </div>
+          <div>
+            <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('plugins.onboarding.fromGit') }}</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('plugins.onboarding.fromGitDesc') }}</div>
+          </div>
+        </button>
+        <button
+          @click="openAssetLibrary"
+          :disabled="isLoading"
+          class="w-full flex items-center gap-3 p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-left"
+        >
+          <div class="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+          <div>
+            <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('plugins.onboarding.fromAssetLib') }}</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('plugins.onboarding.fromAssetLibDesc') }}</div>
+          </div>
+        </button>
+        <button
+          @click="importFromProjects"
+          :disabled="isLoading"
+          class="w-full flex items-center gap-3 p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-left"
+        >
+          <div class="w-10 h-10 bg-amber-100 dark:bg-amber-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+          </div>
+          <div>
+            <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('plugins.onboarding.fromProjects') }}</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('plugins.onboarding.fromProjectsDesc') }}</div>
+          </div>
         </button>
       </div>
+    </div>
+
+    <div v-else-if="filteredPlugins.length === 0" class="text-center py-12">
+      <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      </svg>
+      <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('plugins.empty') }}</h3>
+      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('plugins.emptyDesc') }}</p>
     </div>
 
     <div v-else class="space-y-4">
@@ -715,13 +963,13 @@ const closePluginDetail = () => {
             @click="selectAllPlugins"
             class="text-xs text-primary-600 dark:text-primary-400 hover:underline"
           >
-            全选
+            {{ t('plugins.batchActions.selectAll') }}
           </button>
           <button
             @click="clearPluginSelection"
             class="text-xs text-gray-500 dark:text-gray-400 hover:underline"
           >
-            取消选择
+            {{ t('plugins.batchActions.deselectAll') }}
           </button>
         </div>
         <div class="flex gap-2">
@@ -729,7 +977,7 @@ const closePluginDetail = () => {
             @click="batchRemovePlugins"
             class="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
           >
-            批量删除 ({{ selectedPluginCount }})
+            {{ t('plugins.batchActions.batchDelete', { count: selectedPluginCount }) }}
           </button>
         </div>
       </div>
@@ -793,11 +1041,23 @@ const closePluginDetail = () => {
           </div>
           <div class="mt-2 flex items-center gap-2 flex-wrap">
             <span class="badge badge-neutral">
-              {{ plugin.compatibility === 'Godot4' ? 'Godot 4' : plugin.compatibility === 'Godot3' ? 'Godot 3' : plugin.compatibility === 'Both' ? t('plugins.generic') : t('plugins.unknown') }}
+              {{ plugin.compatibility === 'Godot4' ? 'Godot 4' : plugin.compatibility === 'Godot3' ? 'Godot 3' : plugin.compatibility === 'Both' ? t('plugins.compat.both') : t('plugins.compat.unknown') }}
             </span>
             <span class="badge badge-neutral">
-              {{ plugin.source.source_type === 'Local' ? t('plugins.localSource') : plugin.source.source_type === 'Git' ? 'Git' : 'AssetLibrary' }}
+              {{ plugin.source.source_type === 'Local' ? t('plugins.source.local') : plugin.source.source_type === 'Git' ? t('plugins.source.git') : t('plugins.source.assetlibrary') }}
             </span>
+          </div>
+          <div class="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+            <button
+              @click.stop="openBindDialog(plugin)"
+              :disabled="isLoading"
+              class="w-full px-3 py-1.5 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+              {{ t('plugins.bindToProject') }}
+            </button>
           </div>
         </div>
       </div>
@@ -807,7 +1067,7 @@ const closePluginDetail = () => {
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('plugins.importFromGit') }}</h3>
         <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">
-          输入 Git 仓库 URL，将克隆并导入其中的 Godot 插件
+          {{ t('plugins.gitImport.desc') }}
         </p>
         <input
           v-model="gitUrl"
@@ -820,14 +1080,14 @@ const closePluginDetail = () => {
             @click="showGitDialog = false; gitUrl = ''"
             class="btn-secondary"
           >
-            取消
+            {{ t('common.cancel') }}
           </button>
           <button
             @click="importFromGit"
             :disabled="isLoading || !gitUrl"
             class="btn-primary disabled:opacity-50"
           >
-            导入
+            {{ t('plugins.importFromProject.startImport') }}
           </button>
         </div>
       </div>
@@ -848,9 +1108,9 @@ const closePluginDetail = () => {
         <div class="mb-4 flex items-center gap-3 flex-wrap text-sm text-gray-500 dark:text-content-secondary">
           <span>{{ t('plugins.author') }}: {{ selectedPlugin.author || t('plugins.unknownAuthor') }}</span>
           <span class="text-gray-300 dark:text-content-secondary">|</span>
-          <span>{{ selectedPlugin.compatibility === 'Godot4' ? 'Godot 4' : selectedPlugin.compatibility === 'Godot3' ? 'Godot 3' : selectedPlugin.compatibility === 'Both' ? t('plugins.generic') : t('plugins.unknown') }}</span>
+          <span>{{ selectedPlugin.compatibility === 'Godot4' ? 'Godot 4' : selectedPlugin.compatibility === 'Godot3' ? 'Godot 3' : selectedPlugin.compatibility === 'Both' ? t('plugins.compat.both') : t('plugins.compat.unknown') }}</span>
           <span class="text-gray-300 dark:text-content-secondary">|</span>
-          <span>{{ selectedPlugin.source.source_type === 'Local' ? t('plugins.localSource') : selectedPlugin.source.source_type === 'Git' ? 'Git' : 'AssetLibrary' }}</span>
+          <span>{{ selectedPlugin.source.source_type === 'Local' ? t('plugins.source.local') : selectedPlugin.source.source_type === 'Git' ? t('plugins.source.git') : t('plugins.source.assetlibrary') }}</span>
           <span v-if="pluginStorageStats" class="text-gray-300 dark:text-content-secondary">|</span>
           <span v-if="pluginStorageStats">{{ pluginStorageStats.total_size_display }}</span>
         </div>
@@ -865,7 +1125,7 @@ const closePluginDetail = () => {
 
           <div>
             <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">
-              版本列表 ({{ selectedPlugin.versions.length }})
+              {{ t('plugins.pluginDetail.versionList', { count: selectedPlugin.versions.length }) }}
             </h4>
             <div class="space-y-2 bg-gray-50 dark:bg-surface-layer rounded-lg p-3">
               <div v-for="version in selectedPlugin.versions" :key="version.version_id"
@@ -876,7 +1136,7 @@ const closePluginDetail = () => {
                     {{ new Date(version.created_at).toLocaleDateString() }}
                   </span>
                   <span class="text-xs text-gray-400 dark:text-content-secondary ml-2">
-                    {{ version.units.length }} 个单元
+                    {{ t('plugins.pluginDetail.unitCount', { count: version.units.length }) }}
                   </span>
                 </div>
                 <button
@@ -884,7 +1144,7 @@ const closePluginDetail = () => {
                   @click="removePluginVersion(selectedPlugin.plugin_id, version.version_id)"
                   class="text-xs text-red-500 hover:text-red-700"
                 >
-                  删除
+                  {{ t('common.delete') }}
                 </button>
               </div>
             </div>
@@ -892,31 +1152,65 @@ const closePluginDetail = () => {
 
           <div v-if="pluginBindings.length > 0">
             <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">
-              挂载到 ({{ pluginBindings.length }} 个项目)
+              {{ t('plugins.pluginDetail.bindings', { count: pluginBindings.length }) }}
             </h4>
             <div class="space-y-1 bg-gray-50 dark:bg-surface-layer rounded-lg p-3">
               <div v-for="binding in pluginBindings" :key="binding.project_id + binding.mount_path"
-                class="text-sm text-gray-600 dark:text-content-secondary py-1">
-                <span class="font-mono text-xs">{{ binding.mount_path }}</span>
+                class="flex items-center justify-between py-1">
+                <div class="flex items-center gap-2">
+                  <span v-if="binding.is_healthy === false" class="inline-flex items-center gap-1 text-xs text-red-500">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                    {{ t('plugins.bindDialog.broken') }}
+                  </span>
+                  <span v-else-if="binding.is_healthy === true" class="inline-flex items-center gap-1 text-xs text-green-500">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </span>
+                  <span class="font-mono text-xs text-gray-600 dark:text-content-secondary">{{ binding.mount_path }}</span>
+                </div>
+                <button
+                  v-if="binding.is_healthy === false"
+                  @click="repairBinding(binding.project_id, binding.plugin_id)"
+                  class="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+                >
+                  {{ t('plugins.bindDialog.repair') }}
+                </button>
               </div>
             </div>
           </div>
 
           <div v-if="pluginDependencies.length > 0">
-            <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">依赖关系</h4>
+            <div class="flex items-center justify-between mb-2">
+              <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary">{{ t('plugins.pluginDetail.dependencies') }}</h4>
+              <button
+                v-if="missingDepPluginIds.length > 0"
+                @click="installMissingDeps"
+                :disabled="isInstallingDeps"
+                class="text-xs text-primary-600 dark:text-primary-400 hover:underline disabled:opacity-50"
+              >
+                {{ isInstallingDeps ? t('plugins.depDialog.installing') : t('plugins.depDialog.installMissing', { count: missingDepPluginIds.length }) }}
+              </button>
+            </div>
             <div class="space-y-2 bg-gray-50 dark:bg-surface-layer rounded-lg p-3">
-              <div v-for="dep in pluginDependencies" :key="dep.plugin_id" class="text-sm text-gray-600 dark:text-content-secondary">
-                <span class="font-medium">{{ dep.plugin_id }}</span>
-                <span v-if="dep.version_constraint"> ({{ dep.version_constraint }})</span>
-                <span v-if="dep.is_optional" class="ml-2 text-xs text-gray-500 dark:text-content-secondary">(可选)</span>
+              <div v-for="dep in pluginDependencies" :key="dep.plugin_id" class="flex items-center justify-between text-sm">
+                <div class="text-gray-600 dark:text-content-secondary">
+                  <span class="font-medium">{{ dep.plugin_id }}</span>
+                  <span v-if="dep.version_constraint"> ({{ dep.version_constraint }})</span>
+                  <span v-if="dep.is_optional" class="ml-2 text-xs text-gray-500 dark:text-content-secondary">({{ t('plugins.pluginDetail.optional') }})</span>
+                </div>
+                <span v-if="!dep.is_optional && !installedPluginIds.has(dep.plugin_id)" class="text-xs text-red-500">{{ t('plugins.depDialog.missing') }}</span>
+                <span v-else-if="installedPluginIds.has(dep.plugin_id)" class="text-xs text-green-500">✓</span>
               </div>
             </div>
           </div>
 
           <div>
-            <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">来源</h4>
+            <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">{{ t('plugins.pluginDetail.source') }}</h4>
             <p class="text-sm text-gray-600 dark:text-content-secondary bg-gray-50 dark:bg-surface-layer rounded-lg p-3">
-              {{ selectedPlugin.source.source_type === 'Local' ? '本地目录' : selectedPlugin.source.source_type === 'Git' ? 'Git 仓库' : 'AssetLibrary' }}
+              {{ t(`plugins.pluginDetail.sourceTypes.${selectedPlugin.source.source_type}`) }}
               <span v-if="selectedPlugin.source.url" class="block text-xs mt-1 break-all font-mono">{{ selectedPlugin.source.url }}</span>
             </p>
           </div>
@@ -924,15 +1218,15 @@ const closePluginDetail = () => {
           <div v-if="pluginStorageStats" class="grid grid-cols-3 gap-3">
             <div class="bg-gray-50 dark:bg-surface-layer rounded-lg p-3 text-center">
               <div class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ pluginStorageStats.version_count }}</div>
-              <div class="text-xs text-gray-500 dark:text-content-secondary">版本</div>
+              <div class="text-xs text-gray-500 dark:text-content-secondary">{{ t('plugins.pluginDetail.sections.version') }}</div>
             </div>
             <div class="bg-gray-50 dark:bg-surface-layer rounded-lg p-3 text-center">
               <div class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ pluginStorageStats.binding_count }}</div>
-              <div class="text-xs text-gray-500 dark:text-content-secondary">挂载</div>
+              <div class="text-xs text-gray-500 dark:text-content-secondary">{{ t('plugins.pluginDetail.sections.mount') }}</div>
             </div>
             <div class="bg-gray-50 dark:bg-surface-layer rounded-lg p-3 text-center">
               <div class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ pluginStorageStats.total_size_display }}</div>
-              <div class="text-xs text-gray-500 dark:text-content-secondary">存储</div>
+              <div class="text-xs text-gray-500 dark:text-content-secondary">{{ t('plugins.pluginDetail.sections.storage') }}</div>
             </div>
           </div>
         </div>
@@ -942,7 +1236,7 @@ const closePluginDetail = () => {
             @click="closePluginDetail"
             class="btn-secondary"
           >
-            关闭
+            {{ t('common.close') }}
           </button>
         </div>
       </div>
@@ -1190,7 +1484,7 @@ const closePluginDetail = () => {
     <div v-if="showUpdatesDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showUpdatesDialog = false">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl" @click.stop>
         <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">插件更新检查</h3>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ t('plugins.updateCheck.title') }}</h3>
           <button @click="showUpdatesDialog = false" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
             <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -1199,40 +1493,61 @@ const closePluginDetail = () => {
         </div>
         <div class="space-y-3 max-h-80 overflow-y-auto">
           <div v-if="pluginUpdates.length === 0" class="text-center py-8 text-gray-500 dark:text-gray-400">
-            没有可检查更新的插件
+            {{ t('plugins.updateCheck.noPlugins') }}
           </div>
           <div v-for="update in pluginUpdates" :key="update.plugin_id" class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
             <div class="flex items-center justify-between">
               <div>
                 <span class="font-medium text-gray-900 dark:text-gray-100">{{ update.plugin_id }}</span>
                 <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  当前版本: {{ update.current_version }} → 最新版本: {{ update.latest_version }}
+                  {{ t('plugins.updateCheck.versionInfo', { current: update.current_version, latest: update.latest_version }) }}
                 </div>
               </div>
               <div class="flex items-center gap-2">
                 <button
                   v-if="update.update_available"
                   @click="updateGitPlugin(update.plugin_id)"
-                  class="px-3 py-1 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700"
+                  :disabled="isBatchUpdating"
+                  class="px-3 py-1 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700 disabled:opacity-50"
                 >
-                  更新
+                  {{ t('plugins.updateCheck.update') }}
                 </button>
                 <span v-if="update.update_available" class="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                  有更新
+                  {{ t('plugins.updateCheck.hasUpdate') }}
                 </span>
                 <span v-else class="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-600 dark:text-gray-400">
-                  已是最新
+                  {{ t('plugins.updateCheck.upToDate') }}
                 </span>
+              </div>
+            </div>
+            <div v-if="update.release_notes" class="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+              <button
+                @click="expandedReleaseNotes.has(update.plugin_id) ? expandedReleaseNotes.delete(update.plugin_id) : expandedReleaseNotes.add(update.plugin_id)"
+                class="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+              >
+                {{ expandedReleaseNotes.has(update.plugin_id) ? t('plugins.updateCheck.hideNotes') : t('plugins.updateCheck.showNotes') }}
+              </button>
+              <div v-if="expandedReleaseNotes.has(update.plugin_id)" class="mt-2 text-xs text-gray-600 dark:text-gray-300 whitespace-pre-wrap max-h-32 overflow-y-auto bg-white dark:bg-gray-800 rounded p-2">
+                {{ update.release_notes }}
               </div>
             </div>
           </div>
         </div>
-        <div class="flex justify-end mt-4">
+        <div class="flex justify-between mt-4">
+          <button
+            v-if="updatablePluginIds.length > 0"
+            @click="batchUpdatePlugins"
+            :disabled="isBatchUpdating"
+            class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm"
+          >
+            {{ isBatchUpdating ? t('plugins.updateCheck.updating') : t('plugins.updateCheck.updateAll', { count: updatablePluginIds.length }) }}
+          </button>
+          <div v-else></div>
           <button
             @click="showUpdatesDialog = false"
             class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
           >
-            关闭
+            {{ t('common.close') }}
           </button>
         </div>
       </div>
@@ -1278,18 +1593,18 @@ const closePluginDetail = () => {
     <div v-if="totalStorageStats" class="card">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-4 text-sm text-gray-600 dark:text-content-secondary">
-          <span>{{ totalStorageStats.total_plugins }} 个插件</span>
+          <span>{{ t('plugins.storageStats.plugins', { count: totalStorageStats.total_plugins }) }}</span>
           <span class="text-gray-300 dark:text-content-secondary">|</span>
-          <span>{{ totalStorageStats.total_versions }} 个版本</span>
+          <span>{{ t('plugins.storageStats.versions', { count: totalStorageStats.total_versions }) }}</span>
           <span class="text-gray-300 dark:text-content-secondary">|</span>
-          <span>{{ totalStorageStats.total_bindings }} 个挂载</span>
+          <span>{{ t('plugins.storageStats.bindings', { count: totalStorageStats.total_bindings }) }}</span>
           <span class="text-gray-300 dark:text-content-secondary">|</span>
-          <span>占用 {{ totalStorageStats.total_size_display }}</span>
+          <span>{{ t('plugins.storageStats.size', { size: totalStorageStats.total_size_display }) }}</span>
           <span v-if="totalStorageStats.orphaned_size_bytes > 0" class="text-orange-500">
-            | {{ totalStorageStats.orphaned_size_display }} 可清理
+            | {{ t('plugins.storageStats.orphaned', { size: totalStorageStats.orphaned_size_display }) }}
           </span>
           <span v-if="totalStorageStats.duplicate_hash_count > 0" class="text-yellow-500">
-            | {{ totalStorageStats.duplicate_hash_count }} 组内容重复
+            | {{ t('plugins.storageStats.duplicates', { count: totalStorageStats.duplicate_hash_count }) }}
           </span>
         </div>
         <button
@@ -1297,25 +1612,137 @@ const closePluginDetail = () => {
           @click="cleanupOrphaned"
           class="px-3 py-1 text-xs border border-orange-300 dark:border-orange-700 text-orange-600 dark:text-orange-400 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20"
         >
-          清理孤立文件
+          {{ t('plugins.storageStats.cleanup') }}
         </button>
       </div>
     </div>
 
-    <ConfirmDialog
-      v-model="showDeletePluginConfirm"
-      title="确认删除插件"
-      description="此操作将从仓库中移除插件，但不会影响已挂载到项目中的副本。"
-      confirm-text="确认删除"
-      @confirm="onRemovePluginConfirm"
-    />
+    <div v-if="showDeletePluginConfirm" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showDeletePluginConfirm = false">
+      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('plugins.deleteConfirm.single') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-secondary mb-3">
+          {{ t('plugins.deleteConfirm.singleDesc') }}
+        </p>
+        <div v-if="deletePluginBindings.length > 0" class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+          <p class="text-sm font-medium text-red-700 dark:text-red-400 mb-2">
+            {{ t('plugins.deleteConfirm.bindingWarning', { count: deletePluginBindings.length, name: deletePluginName }) }}
+          </p>
+          <div class="space-y-1 max-h-32 overflow-y-auto">
+            <div v-for="binding in deletePluginBindings" :key="binding.project_id + binding.mount_path" class="text-xs text-red-600 dark:text-red-400">
+              → {{ binding.mount_path }}
+            </div>
+          </div>
+          <p class="text-xs text-red-500 dark:text-red-400 mt-2">
+            {{ t('plugins.deleteConfirm.bindingWarningDesc') }}
+          </p>
+        </div>
+        <div class="flex justify-end gap-3">
+          <button @click="showDeletePluginConfirm = false" class="btn-secondary">{{ t('common.cancel') }}</button>
+          <button @click="onRemovePluginConfirm(); showDeletePluginConfirm = false" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm">{{ t('plugins.deleteConfirm.singleConfirm') }}</button>
+        </div>
+      </div>
+    </div>
 
     <ConfirmDialog
       v-model="showBatchDeleteConfirm"
-      title="批量删除插件"
-      :description="`确定要删除选中的 ${selectedPluginCount} 个插件吗？此操作将从仓库中移除插件，但不会影响已挂载到项目中的副本。`"
-      confirm-text="确认批量删除"
+      :title="t('plugins.deleteConfirm.batch')"
+      :description="t('plugins.deleteConfirm.batchDesc', { count: selectedPluginCount })"
+      :confirm-text="t('plugins.deleteConfirm.batchConfirm')"
       @confirm="onBatchDeleteConfirm"
     />
+
+    <div v-if="showBindDialog && bindTargetPlugin" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showBindDialog = false; bindTargetPlugin = null">
+      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[85vh] flex flex-col" @click.stop>
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">
+            {{ t('plugins.bindDialog.title', { name: bindTargetPlugin.name }) }}
+          </h3>
+          <button @click="showBindDialog = false; bindTargetPlugin = null" class="text-gray-500 dark:text-content-secondary hover:text-gray-700 dark:hover:text-content-primary">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto space-y-4">
+          <div>
+            <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">{{ t('plugins.bindDialog.selectProjects') }}</h4>
+            <div v-if="bindProjects.length === 0" class="text-sm text-gray-500 dark:text-content-secondary py-4 text-center">
+              {{ t('plugins.bindDialog.noProjects') }}
+            </div>
+            <div v-else class="space-y-1 max-h-48 overflow-y-auto">
+              <label
+                v-for="project in bindProjects"
+                :key="project.project_id"
+                class="flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors"
+                :class="bindSelectedProjectIds.has(project.project_id) ? 'bg-primary-50 dark:bg-primary-900/20' : 'hover:bg-gray-50 dark:hover:bg-surface-layer'"
+              >
+                <input
+                  type="checkbox"
+                  :checked="bindSelectedProjectIds.has(project.project_id)"
+                  @change="(() => { const s = new Set(bindSelectedProjectIds); s.has(project.project_id) ? s.delete(project.project_id) : s.add(project.project_id); bindSelectedProjectIds = s; })"
+                  class="w-4 h-4 text-primary-600 rounded flex-shrink-0 cursor-pointer"
+                />
+                <div class="min-w-0 flex-1">
+                  <span class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ project.name }}</span>
+                  <span class="text-xs text-gray-500 dark:text-content-secondary ml-2">Godot {{ project.godot_version }}</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div v-if="bindTargetPlugin.versions.length > 1">
+            <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">{{ t('plugins.bindDialog.selectVersion') }}</h4>
+            <select
+              v-model="bindSelectedVersionIdx"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
+            >
+              <option v-for="(ver, idx) in bindTargetPlugin.versions" :key="ver.version_id" :value="idx">
+                v{{ ver.version }} ({{ new Date(ver.created_at).toLocaleDateString() }})
+              </option>
+            </select>
+          </div>
+
+          <div v-if="bindTargetPlugin.versions[bindSelectedVersionIdx]?.units.length > 1">
+            <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">{{ t('plugins.bindDialog.selectUnit') }}</h4>
+            <select
+              v-model="bindSelectedUnitIdx"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
+            >
+              <option v-for="(unit, idx) in bindTargetPlugin.versions[bindSelectedVersionIdx]?.units" :key="unit.unit_id" :value="idx">
+                {{ unit.name }}{{ unit.subdirectory ? ` (${unit.subdirectory})` : '' }}
+              </option>
+            </select>
+          </div>
+
+          <div class="text-xs text-gray-500 dark:text-content-secondary">
+            {{ t('plugins.bindDialog.mountPath') }}: addons/{{ bindTargetPlugin.versions[bindSelectedVersionIdx]?.units[bindSelectedUnitIdx]?.name || '?' }}
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-3 mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+          <button
+            @click="showBindDialog = false; bindTargetPlugin = null"
+            class="btn-secondary"
+          >
+            {{ t('common.cancel') }}
+          </button>
+          <button
+            @click="confirmBind(false)"
+            :disabled="isBinding || bindSelectedProjectIds.size === 0"
+            class="btn-secondary disabled:opacity-50"
+          >
+            {{ t('plugins.bindDialog.confirmBind', { count: bindSelectedProjectIds.size }) }}
+          </button>
+          <button
+            @click="confirmBind(true)"
+            :disabled="isBinding || bindSelectedProjectIds.size === 0"
+            class="btn-primary disabled:opacity-50"
+          >
+            {{ isBinding ? t('plugins.bindDialog.binding') : t('plugins.bindDialog.bindAndApply', { count: bindSelectedProjectIds.size }) }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>

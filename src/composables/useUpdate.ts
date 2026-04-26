@@ -2,10 +2,12 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useUpdateStore } from '@/stores/update'
 import { useSettingsStore } from '@/stores'
 import { api } from '@/api'
+import { useI18n } from 'vue-i18n'
 
 export function useUpdate() {
   const store = useUpdateStore()
   const settingsStore = useSettingsStore()
+  const { t } = useI18n()
   const appVersion = ref('')
 
   async function loadAppVersion() {
@@ -38,20 +40,20 @@ export function useUpdate() {
     if (store.hasAnyUpdate) {
       const parts: string[] = []
       if (store.appUpdate) {
-        parts.push(`应用: v${store.appUpdate.latest_version}`)
+        parts.push(`${t('statusbar.appUpdate')}: v${store.appUpdate.latest_version}`)
       }
       if (store.pluginUpdates.length > 0) {
-        parts.push(`${store.pluginUpdates.length} 个插件`)
+        parts.push(`${store.pluginUpdates.length} ${t('statusbar.plugins')}`)
       }
       if (store.engineUpdates.length > 0) {
-        parts.push(`${store.engineUpdates.length} 个引擎`)
+        parts.push(`${store.engineUpdates.length} ${t('statusbar.engine')}`)
       }
       if (store.hotUpdate) {
-        parts.push(`热更新: ${store.hotUpdate.version}`)
+        parts.push(`${t('statusbar.hotUpdate')}: ${store.hotUpdate.version}`)
       }
       await sendSystemNotification(
-        'Godot Harbor 有可用更新',
-        `发现更新: ${parts.join(', ')}`
+        t('statusbar.updateAvailable'),
+        `${t('statusbar.updateAvailable')}: ${parts.join(', ')}`
       )
     }
   }

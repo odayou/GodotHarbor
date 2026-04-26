@@ -65,7 +65,8 @@ export default {
     migrationDesc: '以下项目的路径已失效，但发现了同名项目。是否更新路径？',
     oldPath: '旧路径',
     update: '更新',
-    ignore: '忽略'
+    ignore: '忽略',
+    projectCount: '个项目'
   },
   plugins: {
     title: '插件仓库',
@@ -74,7 +75,19 @@ export default {
     fromFile: '从文件导入',
     fromGit: '从 Git 导入',
     empty: '暂无插件',
-    emptyDesc: '从本地目录、文件或 Git 仓库导入插件',
+    emptyDesc: '尝试调整搜索条件或导入新插件',
+    onboarding: {
+      title: '添加你的第一个插件',
+      desc: '通过以下任一方式导入插件，开始管理你的 Godot 插件仓库',
+      fromDir: '从本地目录导入',
+      fromDirDesc: '选择包含 plugin.cfg 的本地目录',
+      fromGit: '从 Git 仓库导入',
+      fromGitDesc: '输入 Git 仓库 URL 克隆导入',
+      fromAssetLib: '从资产库搜索',
+      fromAssetLibDesc: '浏览 Godot 官方资产库',
+      fromProjects: '从已有项目扫描',
+      fromProjectsDesc: '自动扫描项目中的插件'
+    },
     gitTitle: '从 Git 导入',
     gitDesc: '输入 Git 仓库 URL，将克隆并导入其中的 Godot 插件',
     gitPlaceholder: 'https://github.com/user/plugin-repo.git',
@@ -88,6 +101,7 @@ export default {
     },
     search: '搜索插件名称、描述或作者...',
     allCompat: '全部兼容性',
+    allVersions: '全部版本',
     allSource: '全部来源',
     source: {
       local: '本地',
@@ -100,12 +114,22 @@ export default {
     sourceType: '来源',
     checkUpdates: '检查更新',
     checkingUpdates: '检查中...',
+    bindToProject: '绑定到项目',
+    addPlugin: '添加插件',
+    addMenu: {
+      fromDirDesc: '从本地目录导入插件',
+      fromFileDesc: '从 plugin.cfg 文件导入',
+      fromGitDesc: '从 Git 仓库克隆导入',
+      fromProjectsDesc: '扫描已有项目中的插件',
+      fromAssetLibDesc: '从 Godot 资产库搜索下载'
+    },
     selectPluginDir: '选择 Godot 插件目录',
     selectPluginFile: '选择插件配置文件 (plugin.cfg)',
     enterGitUrl: '请输入 Git URL',
     addedToFavorites: '已添加到收藏',
     removedFromFavorites: '已取消收藏',
     noNewPluginsFound: '没有发现新的插件可以导入',
+    versionDeleted: '版本已删除',
     importMode: {
       copy: '复制',
       move: '纳入',
@@ -160,7 +184,13 @@ export default {
       versionInfo: '当前版本: {current} → 最新版本: {latest}',
       update: '更新',
       hasUpdate: '有更新',
-      upToDate: '已是最新'
+      upToDate: '已是最新',
+      showNotes: '查看更新说明',
+      hideNotes: '收起更新说明',
+      updateAll: '全部更新 ({count})',
+      updating: '更新中...',
+      batchSuccess: '已成功更新 {count} 个插件',
+      batchPartial: '更新完成: 成功 {success} 个, 失败 {failed} 个'
     },
     storageStats: {
       plugins: '{count} 个插件',
@@ -177,18 +207,46 @@ export default {
       singleConfirm: '确认删除',
       batch: '批量删除插件',
       batchDesc: '确定要删除选中的 {count} 个插件吗？此操作将从仓库中移除插件，但不会影响已挂载到项目中的副本。',
-      batchConfirm: '确认批量删除'
+      batchConfirm: '确认批量删除',
+      bindingWarning: '⚠️ {name} 正被 {count} 个项目使用',
+      bindingWarningDesc: '删除后，以下项目的符号链接将断裂，插件将无法正常加载。'
     },
     batchActions: {
       selectAll: '全选',
       deselectAll: '取消选择',
       batchDelete: '批量删除 ({count})'
     },
+    selectedCount: '已选择 {count} 个插件',
     importFromProject: {
       title: '从项目导入插件',
       modeSelect: '选择导入模式：',
       cancel: '取消',
       startImport: '开始导入'
+    },
+    bindDialog: {
+      title: '绑定插件: {name}',
+      selectProjects: '选择目标项目',
+      noProjects: '暂无项目，请先在项目管理中添加项目',
+      selectVersion: '选择版本',
+      selectUnit: '选择单元',
+      mountPath: '挂载路径',
+      confirmBind: '绑定到 {count} 个项目',
+      binding: '绑定中...',
+      noUnits: '该插件版本没有可用的单元',
+      success: '已将 {name} 绑定到 {count} 个项目',
+      bindAndApply: '绑定并应用 ({count})',
+      bindAndApplySuccess: '已将 {name} 绑定到 {count} 个项目并应用变更',
+      partialSuccess: '绑定完成: 成功 {success} 个, 失败 {failed} 个',
+      broken: '链接断裂',
+      repair: '修复',
+      repairSuccess: '符号链接已修复'
+    },
+    depDialog: {
+      missing: '缺失',
+      installMissing: '安装 {count} 个缺失依赖',
+      installing: '安装中...',
+      success: '已成功安装 {count} 个依赖',
+      partialSuccess: '依赖安装完成: 成功 {success} 个, 失败 {failed} 个'
     }
   },
   assetLibrary: {
@@ -277,6 +335,7 @@ export default {
     noPluginUnits: '该插件版本没有可用的单元',
     noPluginVersions: '该插件没有可用版本',
     pluginBound: '已绑定插件: {name} v{version}',
+    mountConflict: '挂载路径冲突: {path} 已被插件 {plugin} 占用，请先解绑或更换挂载路径',
     pluginUnbound: '已取消绑定',
     bindingApplySuccess: '变更已成功应用',
     bindingApplyFailed: '应用变更时出现错误: {errors}',
@@ -284,9 +343,17 @@ export default {
     batchApplyDesc: '将为以下项目应用所有插件绑定变更',
     batchApplyResultTitle: '批量应用结果',
     bindingCountUnit: '{count} 个绑定',
-    createdItem: '创建 {count} 项',
-    removedItem: '移除 {count} 项',
-    errorList: '错误: {errors}'
+    createdItem: '已创建 {count} 个项目',
+    removedItem: '已移除 {count} 个项目',
+    errorList: '错误: {errors}',
+    batchBind: '批量绑定 ({count})',
+    batchUnbind: '批量解绑 ({count})',
+    batchBinding: '绑定中...',
+    batchUnbinding: '解绑中...',
+    batchBindTitle: '确认批量绑定',
+    batchBindDesc: '将选中的插件绑定到 {projectCount} 个项目',
+    batchUnbindTitle: '确认批量解绑',
+    batchUnbindDesc: '从项目 "{projectName}" 中解绑 {count} 个插件'
   },
   engines: {
     title: '引擎管理',
@@ -359,7 +426,16 @@ export default {
       autoCheckPluginUpdates: '自动检查插件更新',
       autoCheckAppUpdates: '自动检查应用更新',
       autoCheckEngineUpdates: '自动检查引擎更新',
-      checkInterval: '检查间隔（小时）'
+      checkInterval: '检查间隔（小时）',
+      migrateTitle: '插件仓库路径变更',
+      migrateDesc: '检测到仓库存储路径已变更，是否将已有插件文件迁移到新路径？',
+      migrateFrom: '原路径',
+      migrateTo: '新路径',
+      skipMigration: '跳过迁移',
+      startMigration: '开始迁移',
+      migrating: '迁移中...',
+      migrateSuccess: '插件文件迁移成功',
+      migrateFailed: '迁移失败: {error}'
     },
     language: {
       zhCN: '简体中文',
@@ -405,7 +481,9 @@ export default {
       selectProjects: '选择项目',
       cancel: '取消',
       exporting: '导出中...',
-      exportAction: '导出'
+      exportAction: '导出',
+      deleteConfirmTitle: '确认删除团队配置',
+      deleteConfirmDesc: '确定要删除此团队配置吗？此操作不可撤销。'
     },
     messages: {
       loadFailed: '加载设置失败: {error}',
@@ -472,7 +550,9 @@ export default {
     projectLaunchFailed: '启动项目失败: {error}',
     selectNewPath: '请选择新路径',
     projectPathUpdated: '项目路径已更新',
-    relocateFailed: '重新定位失败: {error}'
+    relocateFailed: '重定位失败: {error}',
+    selectedCount: '已选择 {count} 个',
+    clear: '清空'
   },
   home: {
     welcome: '欢迎使用 Godot Harbor',
@@ -636,5 +716,24 @@ export default {
     contributeDesc: '代码贡献、Bug 反馈、功能建议、文档完善，每一种贡献都同样宝贵。',
     contributionGuide: '贡献指南',
     sponsorThanks: '感谢每一位支持者！您的支持是 Godot Harbor 持续发展的动力。'
+  },
+  updates: {
+    updatingApp: '正在更新应用',
+    currentVersion: '当前版本:',
+    latestVersion: '最新版本:',
+    skipVersion: '跳过此版本',
+    bothUpdatesTip: '💡 同时有全量更新和热更新可用，建议优先安装全量更新（包含所有热更新内容）。',
+    download: '下载',
+    currentHotUpdateVersion: '当前热更新版本:',
+    rollbackHotUpdate: '回滚热更新',
+    allUpToDateDesc: '所有应用、插件和引擎均为最新版本',
+    updateHistory: '更新历史',
+    clearHistory: '清空历史',
+    failed: '失败',
+    preparingDownload: '准备下载...',
+    installCompleteRestarting: '更新安装完成，即将重启...',
+    installFailed: '更新失败: {error}',
+    preparingHotUpdate: '准备下载热更新...',
+    hotUpdateFailed: '热更新失败: {error}'
   }
 }

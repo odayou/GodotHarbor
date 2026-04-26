@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed, watch, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const props = withDefaults(defineProps<{
   title?: string
@@ -9,12 +12,16 @@ const props = withDefaults(defineProps<{
   cancelText?: string
   modelValue: boolean
 }>(), {
-  title: '确认操作',
+  title: '',
   description: '',
-  confirmText: '确认',
+  confirmText: '',
   confirmColor: 'red',
-  cancelText: '取消'
+  cancelText: ''
 })
+
+const resolvedTitle = computed(() => props.title || t('common.confirm'))
+const resolvedConfirmText = computed(() => props.confirmText || t('common.confirm'))
+const resolvedCancelText = computed(() => props.cancelText || t('common.cancel'))
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
@@ -83,7 +90,7 @@ const confirmColorClass = computed(() => {
   >
     <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
       <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-        {{ title }}
+        {{ resolvedTitle }}
       </h3>
       <p v-if="description" class="text-sm text-gray-600 dark:text-gray-400 mb-6">
         {{ description }}
@@ -93,13 +100,13 @@ const confirmColorClass = computed(() => {
           @click="close"
           class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
         >
-          {{ cancelText }}
+          {{ resolvedCancelText }}
         </button>
         <button
           @click="onConfirm"
           :class="['px-4 py-2 text-white rounded-lg', confirmColorClass]"
         >
-          {{ confirmText }}
+          {{ resolvedConfirmText }}
         </button>
       </div>
     </div>

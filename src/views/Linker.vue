@@ -464,6 +464,12 @@ const confirmVersionSelect = async () => {
     return
   }
   const mountPath = `addons/${unit.name}`
+  const existingBinding = bindings.value.find(b => b.project_id === selectedProjectId.value && b.mount_path === mountPath)
+  if (existingBinding) {
+    const conflictPlugin = plugins.value.find(p => p.plugin_id === existingBinding.plugin_id)
+    toast.warning(t('linker.mountConflict', { path: mountPath, plugin: conflictPlugin?.name || existingBinding.plugin_id }))
+    return
+  }
   isLoading.value = true
   showVersionDialog.value = false
   try {
@@ -509,6 +515,12 @@ const bindPluginToProject = (plugin_id: string) => {
 const doBindPlugin = async (plugin: Plugin, version: PluginVersion, unit: PluginUnit) => {
   if (!selectedProjectId.value) return
   const mountPath = `addons/${unit.name}`
+  const existingBinding = bindings.value.find(b => b.project_id === selectedProjectId.value && b.mount_path === mountPath)
+  if (existingBinding) {
+    const conflictPlugin = plugins.value.find(p => p.plugin_id === existingBinding.plugin_id)
+    toast.warning(t('linker.mountConflict', { path: mountPath, plugin: conflictPlugin?.name || existingBinding.plugin_id }))
+    return
+  }
   isLoading.value = true
   try {
     await withErrorLogging('Linker.bindPlugin', () =>

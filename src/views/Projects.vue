@@ -151,7 +151,7 @@ const groupedProjects = computed(() => {
   })
 
   filtered.forEach(project => {
-    const groupKey = project.group || '未分组'
+    const groupKey = project.group || t('projects.ungrouped')
     if (!groups[groupKey]) {
       groups[groupKey] = []
     }
@@ -246,7 +246,7 @@ const selectScanDir = async () => {
     const selected = await open({
       directory: true,
       multiple: false,
-      title: '选择扫描目录'
+      title: t('projects.scanTitle')
     })
     if (selected && typeof selected === 'string') {
       scanDirInput.value = selected
@@ -302,7 +302,7 @@ const addProject = async () => {
     const selected = await open({
       directory: true,
       multiple: false,
-      title: '选择 Godot 项目目录'
+      title: t('projects.scanTitle')
     })
     if (selected && typeof selected === 'string') {
       isLoading.value = true
@@ -372,7 +372,7 @@ const onDrop = async (e: DragEvent) => {
       const result = await api.addProject(path)
       toast.success(t('common.addProjectSuccess', { name: result.name }))
     } catch (error: any) {
-      if (!String(error).includes('已存在')) {
+      if (!String(error).includes('已存在') && !String(error).includes('already exists')) {
         console.log('Skipped non-project path:', path)
       }
     } finally {
@@ -512,7 +512,7 @@ const selectRelocatePath = async () => {
     const selected = await open({
       directory: true,
       multiple: false,
-      title: '选择项目新路径'
+      title: t('projects.relocateTitle')
     })
     if (selected && typeof selected === 'string') {
       relocateNewPath.value = selected
@@ -609,8 +609,8 @@ const confirmRelocate = async () => {
             <option value="Ready">{{ t('projects.status.ready') }}</option>
             <option value="Warning">{{ t('projects.status.warning') }}</option>
             <option value="Error">{{ t('projects.status.error') }}</option>
-            <option value="Conflict">{{ t('projects.status.conflict') || '冲突' }}</option>
-            <option value="MissingSource">{{ t('projects.status.missingSource') || '源缺失' }}</option>
+            <option value="Conflict">{{ t('projects.status.conflict') }}</option>
+            <option value="MissingSource">{{ t('projects.status.missingSource') }}</option>
           </select>
         </div>
       </div>
@@ -650,9 +650,9 @@ const confirmRelocate = async () => {
       <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-content-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
       </svg>
-      <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-content-primary">暂无项目</h3>
+      <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-content-primary">{{ t('projects.empty') }}</h3>
       <p class="mt-1 text-sm text-gray-500 dark:text-content-secondary">
-        开始扫描或手动添加 Godot 项目
+        {{ t('projects.emptyDesc') }}
       </p>
       <div class="mt-4 flex justify-center gap-3">
         <button
@@ -663,7 +663,7 @@ const confirmRelocate = async () => {
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
-          扫描项目
+          {{ t('projects.scan') }}
         </button>
         <button
           @click="addProject"
@@ -673,7 +673,7 @@ const confirmRelocate = async () => {
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
           </svg>
-          添加项目
+          {{ t('projects.add') }}
         </button>
       </div>
     </div>
@@ -682,9 +682,9 @@ const confirmRelocate = async () => {
       <div v-for="(groupProjects, groupName) in (filterGroup === 'all' ? groupedProjects : { all: filteredProjects })" :key="groupName" class="space-y-3">
         <div v-if="filterGroup === 'all' && Object.keys(groupedProjects).length > 1" class="flex items-center gap-2">
           <h2 class="text-lg font-semibold text-gray-700 dark:text-content-primary">
-            {{ groupName === '未分组' ? '未分组' : groupName }}
+            {{ groupName === t('projects.ungrouped') ? t('projects.ungrouped') : groupName }}
           </h2>
-          <span class="text-sm text-gray-500 dark:text-content-secondary">({{ groupProjects.length }} 个项目)</span>
+          <span class="text-sm text-gray-500 dark:text-content-secondary">({{ groupProjects.length }} {{ t('projects.projectCount') }})</span>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           <div
@@ -774,7 +774,7 @@ const confirmRelocate = async () => {
                     'badge-error'
                   ]"
                 >
-                  {{ t(`projects.status.${project.status.toLowerCase()}`) || '错误' }}
+                  {{ t(`projects.status.${project.status.toLowerCase()}`) }}
                 </span>
               </div>
             </div>
@@ -808,13 +808,13 @@ const confirmRelocate = async () => {
           </div>
         </div>
         <div class="mb-4">
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">项目路径</h4>
+          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('projects.projectPath') }}</h4>
           <p class="text-sm text-gray-600 dark:text-gray-400 break-all bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
             {{ selectedProject.path }}
           </p>
         </div>
         <div class="mb-4">
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">状态</h4>
+          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('projects.statusLabel') }}</h4>
           <span
             :class="[
               'px-3 py-1 rounded text-sm font-medium',
@@ -825,20 +825,20 @@ const confirmRelocate = async () => {
               'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
             ]"
           >
-            {{ t(`projects.status.${selectedProject.status.toLowerCase()}`) || '错误' }}
+            {{ t(`projects.status.${selectedProject.status.toLowerCase()}`) }}
           </span>
         </div>
         <div class="mb-4">
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">引擎绑定</h4>
+          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('projects.engineBinding') }}</h4>
           <div class="flex items-center gap-2">
             <button
               @click="openEngineDialog(selectedProject)"
               class="px-3 py-1 rounded text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 transition-colors"
             >
-              {{ projectEngineBinding ? '更换引擎' : '绑定引擎' }}
+              {{ projectEngineBinding ? t('projects.changeEngine') : t('projects.bind') }}
             </button>
             <span v-if="projectEngineBinding" class="text-sm text-gray-600 dark:text-gray-400">
-              已绑定
+              {{ t('projects.bound') }}
             </span>
           </div>
         </div>
@@ -847,7 +847,7 @@ const confirmRelocate = async () => {
             @click="showProjectDetail = false; selectedProject = null"
             class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
           >
-            关闭
+            {{ t('common.close') }}
           </button>
         </div>
       </div>
@@ -855,22 +855,22 @@ const confirmRelocate = async () => {
 
     <div v-if="showScanDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showScanDialog = false">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">选择扫描目录</h3>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('projects.scanTitle') }}</h3>
         <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          选择一个目录，将递归扫描其中所有 Godot 项目（包含 project.godot 的目录）
+          {{ t('projects.scanDesc') }}
         </p>
         <div class="flex gap-2 mb-6">
           <input
             v-model="scanDirInput"
             type="text"
-            placeholder="请选择或输入目录路径"
+            :placeholder="t('projects.scanPlaceholder')"
             class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
           />
           <button
             @click="selectScanDir"
             class="px-4 py-2 bg-gray-100 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 text-sm whitespace-nowrap"
           >
-            浏览
+            {{ t('projects.browse') }}
           </button>
         </div>
         <div class="flex justify-end space-x-3">
@@ -878,14 +878,14 @@ const confirmRelocate = async () => {
             @click="showScanDialog = false"
             class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
           >
-            取消
+            {{ t('common.cancel') }}
           </button>
           <button
             @click="startScan"
             :disabled="!scanDirInput"
             class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
           >
-            开始扫描
+            {{ t('projects.startScan') }}
           </button>
         </div>
       </div>
@@ -923,27 +923,27 @@ const confirmRelocate = async () => {
     <div v-if="showEngineDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showEngineDialog = false">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-          {{ selectedProject?.name }} - 引擎绑定
+          {{ selectedProject?.name }} - {{ t('projects.engineBind') }}
         </h3>
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">选择引擎</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('projects.selectEngine') }}</label>
             <select
               v-model="selectedEngineId"
               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
             >
-              <option value="">请选择引擎</option>
+              <option value="">{{ t('projects.selectEnginePlaceholder') }}</option>
               <option v-for="engine in engines" :key="engine.engine_id" :value="engine.engine_id">
-                {{ engine.name }} (v{{ engine.version }}) {{ engine.is_default ? '- 默认' : '' }}
+                {{ engine.name }} (v{{ engine.version }}) {{ engine.is_default ? `- ${t('engines.default')}` : '' }}
               </option>
             </select>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">启动参数（可选）</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('projects.launchArgs') }}</label>
             <input
               v-model="customArgs"
               type="text"
-              placeholder="例如: --editor --quit"
+              :placeholder="t('projects.launchArgsPlaceholder')"
               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
             />
           </div>
@@ -954,21 +954,21 @@ const confirmRelocate = async () => {
             @click="unbindEngine"
             class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
           >
-            解除绑定
+            {{ t('projects.unbind') }}
           </button>
           <div class="flex gap-2 ml-auto">
             <button
               @click="showEngineDialog = false"
               class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
             >
-              取消
+              {{ t('common.cancel') }}
             </button>
             <button
               @click="bindEngine"
               :disabled="!selectedEngineId"
               class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
             >
-              绑定
+              {{ t('projects.bind') }}
             </button>
           </div>
         </div>

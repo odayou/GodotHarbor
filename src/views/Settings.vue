@@ -38,6 +38,7 @@ const loadSettings = async () => {
   try {
     const result = await api.getSettings()
     settings.value = { scan_directories: result.scan_directories || [], mount_strategy: result.mount_strategy || 'Symlink', language: result.language || 'zh-CN', theme: result.theme || 'system', auto_scan_on_startup: result.auto_scan_on_startup ?? true, auto_discover_engines: result.auto_discover_engines ?? true, plugin_storage_path: result.plugin_storage_path || '', auto_check_plugin_updates: result.auto_check_plugin_updates ?? false, auto_check_app_updates: result.auto_check_app_updates ?? true, auto_check_engine_updates: result.auto_check_engine_updates ?? true, update_check_interval_hours: result.update_check_interval_hours ?? 4, skipped_app_version: result.skipped_app_version || '' }
+    oldPluginStoragePath.value = settings.value.plugin_storage_path || ''
     locale.value = settings.value.language
     if (['light', 'dark', 'system', 'volcano'].includes(settings.value.theme)) setTheme(settings.value.theme as 'light' | 'dark' | 'system' | 'volcano')
   } catch (error) { toast.error(t('settings.messages.loadFailed', { error })) }
@@ -66,9 +67,40 @@ const removeScanDirectory = (index: number) => { const dir = settings.value.scan
 
 const saveSettings = async () => {
   isLoading.value = true
-  try { await api.saveSettings(settings.value); toast.success(t('settings.messages.saveSuccess')) }
+  try {
+    await api.saveSettings(settings.value)
+    toast.success(t('settings.messages.saveSuccess'))
+  }
   catch (error) { toast.error(t('settings.messages.saveFailed', { error })) }
   finally { isLoading.value = false }
+}
+
+const saveSettingsWithMigrationCheck = async () => {
+  if (settings.value.plugin_storage_path && oldPluginStoragePath.value &&
+      settings.value.plugin_storage_path !== oldPluginStoragePath.value) {
+    showMigrateDialog.value = true
+    return
+  }
+  await saveSettings()
+}
+
+const migratePlugins = async () => {
+  isMigrating.value = true
+  try {
+    await api.migratePluginStorage(oldPluginStoragePath.value, settings.value.plugin_storage_path || '')
+    await saveSettings()
+    toast.success(t('settings.pluginRepo.migrateSuccess'))
+  } catch (error) {
+    toast.error(t('settings.pluginRepo.migrateFailed', { error }))
+  } finally {
+    isMigrating.value = false
+    showMigrateDialog.value = false
+  }
+}
+
+const skipMigration = async () => {
+  showMigrateDialog.value = false
+  await saveSettings()
 }
 
 const loadLogs = async () => {
@@ -94,25 +126,31 @@ const formatTime = (timestamp: string) => {
 
 const selectBackupPath = async () => {
   try {
-    const selected = await open({ directory: true, multiple: false, title: '选择备份目录' })
+    const selected = await open({ directory: true, multiple: false, title: t('settings.backup.selectDir') })
     if (selected && typeof selected === 'string') {
       backupPath.value = selected
     }
-  } catch (error) { toast.error(`选择目录失败: ${error}`) }
+  } catch (error) { toast.error(t('settings.messages.selectDirFailed', { error })) }
 }
 
 const selectPluginStoragePath = async () => {
   try {
-    const selected = await open({ directory: true, multiple: false, title: '选择插件仓库存储路径' })
+    const selected = await open({ directory: true, multiple: false, title: t('settings.pluginRepo.storagePath') })
     if (selected && typeof selected === 'string') {
       settings.value.plugin_storage_path = selected
     }
-  } catch (error) { toast.error(`选择目录失败: ${error}`) }
+  } catch (error) { toast.error(t('settings.messages.selectDirFailed', { error })) }
 }
 
-const performBackup = async () => {
+const oldPluginStoragePath = ref('')
+const showMigrateDialog = ref(false)
+const isMigrating = ref(false)
+
+useDialogEscape(showMigrateDialog)
+
+const backupData = async () => {
   if (!backupPath.value) {
-    toast.warning('请先选择备份目录')
+    toast.warning(t('settings.messages.selectDirFirst'))
     return
   }
   isBackingUp.value = true
@@ -121,7 +159,7 @@ const performBackup = async () => {
     toast.success(result)
     showBackupDialog.value = false
   } catch (error) {
-    toast.error(`备份失败: ${error}`)
+    toast.error(t('settings.messages.backupFailed', { error }))
   } finally {
     isBackingUp.value = false
   }
@@ -129,7 +167,7 @@ const performBackup = async () => {
 
 const performRestore = async () => {
   if (!backupPath.value) {
-    toast.warning('请先选择备份目录')
+    toast.warning(t('settings.messages.selectDirFirst'))
     return
   }
   isRestoring.value = true
@@ -139,7 +177,7 @@ const performRestore = async () => {
     await loadSettings()
     showBackupDialog.value = false
   } catch (error) {
-    toast.error(`恢复失败: ${error}`)
+    toast.error(t('settings.messages.restoreFailed', { error }))
   } finally {
     isRestoring.value = false
   }
@@ -170,21 +208,21 @@ const openExportDialog = () => {
 
 const exportTeamConfig = async () => {
   if (!exportConfigName.value) {
-    toast.warning('请输入配置名称')
+    toast.warning(t('settings.messages.enterConfigName'))
     return
   }
   if (selectedProjectIds.value.length === 0) {
-    toast.warning('请选择至少一个项目')
+    toast.warning(t('settings.messages.selectAtLeastOneProject'))
     return
   }
   isExporting.value = true
   try {
     await api.exportTeamConfig(exportConfigName.value, exportConfigDescription.value, selectedProjectIds.value)
-    toast.success('团队配置导出成功')
+    toast.success(t('settings.messages.exportSuccess'))
     showExportDialog.value = false
     await loadTeamConfigs()
   } catch (error) {
-    toast.error(`导出失败: ${error}`)
+    toast.error(t('settings.messages.exportFailed', { error }))
   } finally {
     isExporting.value = false
   }
@@ -192,16 +230,17 @@ const exportTeamConfig = async () => {
 
 const importTeamConfig = async (configId: string) => {
   if (selectedProjectIds.value.length === 0) {
-    toast.warning('请选择至少一个目标项目')
+    toast.warning(t('settings.messages.selectAtLeastOneTarget'))
     return
   }
   isImporting.value = true
   try {
     await api.importTeamConfig(configId, selectedProjectIds.value)
-    toast.success('团队配置导入成功')
-    showTeamConfigDialog.value = false
+    toast.success(t('settings.messages.importSuccess'))
+    showImportDialog.value = false
+    await loadTeamConfigs()
   } catch (error) {
-    toast.error(`导入失败: ${error}`)
+    toast.error(t('settings.messages.importFailed', { error }))
   } finally {
     isImporting.value = false
   }
@@ -223,10 +262,10 @@ const confirmDeleteTeamConfig = (configId: string) => {
 const onDeleteTeamConfigConfirm = async () => {
   try {
     await api.deleteTeamConfig(deleteTeamConfigId.value)
-    toast.success('团队配置已删除')
+    toast.success(t('settings.messages.deleteSuccess'))
     await loadTeamConfigs()
   } catch (error) {
-    toast.error(`删除失败: ${error}`)
+    toast.error(t('settings.messages.deleteFailed', { error }))
   }
 }
 
@@ -247,7 +286,7 @@ const resetOnboarding = async () => {
     await api.saveSettings(currentSettings)
     showOnboarding()
   } catch (error) {
-    toast.error(`重置引导失败: ${error}`)
+    toast.error(t('settings.messages.resetGuideFailed', { error }))
   }
 }
 </script>
@@ -341,7 +380,7 @@ const resetOnboarding = async () => {
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.languageLabel') }}</label>
             <select v-model="settings.language" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
-              <option value="zh-CN">简体中文</option>
+              <option value="zh-CN">{{ t('settings.language.zhCN') }}</option>
               <option value="en">English</option>
             </select>
           </div>
@@ -351,7 +390,7 @@ const resetOnboarding = async () => {
               <option value="light">{{ t('settings.themeLight') }}</option>
               <option value="dark">{{ t('settings.themeDark') }}</option>
               <option value="system">{{ t('settings.themeSystem') }}</option>
-              <option value="volcano">火山引擎</option>
+              <option value="volcano">{{ t('settings.cloudProvider.volcano') }}</option>
             </select>
           </div>
         </div>
@@ -372,32 +411,32 @@ const resetOnboarding = async () => {
         </div>
       </div>
       <div class="flex justify-end">
-        <button @click="saveSettings" :disabled="isLoading" class="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50">{{ t('settings.save') }}</button>
+        <button @click="saveSettingsWithMigrationCheck" :disabled="isLoading" class="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50">{{ t('settings.save') }}</button>
       </div>
     </div>
 
     <div v-if="showLogs" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showLogs = false">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-3xl shadow-xl max-h-[80vh] flex flex-col" @click.stop>
         <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">操作日志</h3>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ t('settings.logs.title') }}</h3>
           <button @click="showLogs = false" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
             <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
         <div class="flex-1 overflow-y-auto space-y-2">
-          <div v-if="logs.length === 0" class="text-center py-8 text-gray-500 dark:text-gray-400">暂无日志记录</div>
+          <div v-if="logs.length === 0" class="text-center py-8 text-gray-500 dark:text-gray-400">{{ t('settings.logs.empty') }}</div>
           <div v-for="(log, index) in logs" :key="index" :class="['p-3 rounded-lg border', log.level === 'error' ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600']">
             <div class="flex justify-between items-start">
               <div class="flex items-center gap-2">
-                <span :class="['px-2 py-0.5 rounded text-xs font-medium', log.level === 'error' ? 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300' : 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300']">{{ log.level === 'error' ? '错误' : '成功' }}</span>
+                <span :class="['px-2 py-0.5 rounded text-xs font-medium', log.level === 'error' ? 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300' : 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300']">{{ log.level === 'error' ? t('settings.logs.error') : t('settings.logs.success') }}</span>
                 <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ log.action }}</span>
               </div>
               <div class="flex items-center gap-2">
                 <span class="text-xs text-gray-500 dark:text-gray-400">{{ formatTime(log.timestamp) }}</span>
-                <button v-if="log.level === 'error'" @click="copyError(log)" class="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400">复制</button>
+                <button v-if="log.level === 'error'" @click="copyError(log)" class="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400">{{ t('settings.logs.copy') }}</button>
               </div>
             </div>
-            <p v-if="log.target" class="text-xs text-gray-500 dark:text-gray-400 mt-1">目标: {{ log.target }}</p>
+            <p v-if="log.target" class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ t('settings.logs.target', { target: log.target }) }}</p>
             <p :class="['text-sm mt-1', log.level === 'error' ? 'text-red-700 dark:text-red-300' : 'text-gray-600 dark:text-gray-400']">{{ log.detail }}</p>
           </div>
         </div>
@@ -406,28 +445,28 @@ const resetOnboarding = async () => {
 
     <div v-if="showBackupDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showBackupDialog = false; backupPath = ''">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">数据备份与恢复</h3>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          选择备份目录，将复制所有数据到该目录。恢复时会从该目录读取数据覆盖现有数据。
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.backup.title') }}</h3>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          {{ t('settings.backup.desc') }}
         </p>
         <div class="flex gap-2 mb-4">
           <input
             v-model="backupPath"
             type="text"
             readonly
-            placeholder="请选择备份目录"
+            :placeholder="t('settings.backup.selectDir')"
             class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
           />
           <button
             @click="selectBackupPath"
             class="px-4 py-2 bg-gray-100 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 text-sm whitespace-nowrap"
           >
-            浏览
+            {{ t('settings.backup.browse') }}
           </button>
         </div>
         <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 mb-4">
           <p class="text-xs text-yellow-800 dark:text-yellow-200">
-            <strong>注意：</strong>恢复功能会覆盖现有数据，请在恢复前确认备份文件的正确性。
+            <strong>{{ t('settings.backup.warning') }}</strong>
           </p>
         </div>
         <div class="flex justify-end space-x-3">
@@ -435,21 +474,21 @@ const resetOnboarding = async () => {
             @click="showBackupDialog = false; backupPath = ''"
             class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
           >
-            取消
+            {{ t('settings.backup.cancel') }}
           </button>
           <button
             @click="performBackup"
             :disabled="isBackingUp || !backupPath"
             class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
           >
-            {{ isBackingUp ? '备份中...' : '备份数据' }}
+            {{ isBackingUp ? t('settings.backup.restoring') : t('settings.backup.backup') }}
           </button>
           <button
             @click="performRestore"
             :disabled="isRestoring || !backupPath"
             class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
           >
-            {{ isRestoring ? '恢复中...' : '恢复数据' }}
+            {{ isRestoring ? t('settings.backup.restoring') : t('settings.backup.restore') }}
           </button>
         </div>
       </div>
@@ -575,10 +614,29 @@ const resetOnboarding = async () => {
 
     <ConfirmDialog
       v-model="showDeleteTeamConfigConfirm"
-      title="确认删除团队配置"
-      description="确定要删除此团队配置吗？此操作不可撤销。"
-      confirm-text="确认删除"
+      :title="t('settings.teamConfig.deleteConfirmTitle')"
+      :description="t('settings.teamConfig.deleteConfirmDesc')"
+      :confirm-text="t('settings.teamConfig.delete')"
       @confirm="onDeleteTeamConfigConfirm"
     />
+
+    <div v-if="showMigrateDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showMigrateDialog = false">
+      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('settings.pluginRepo.migrateTitle') }}</h3>
+        <p class="text-sm text-gray-600 dark:text-content-secondary mb-3">
+          {{ t('settings.pluginRepo.migrateDesc') }}
+        </p>
+        <div class="bg-gray-50 dark:bg-surface-layer rounded-lg p-3 mb-4 text-xs font-mono space-y-1">
+          <div class="text-red-500 dark:text-red-400">{{ t('settings.pluginRepo.migrateFrom') }}: {{ oldPluginStoragePath }}</div>
+          <div class="text-green-500 dark:text-green-400">{{ t('settings.pluginRepo.migrateTo') }}: {{ settings.plugin_storage_path }}</div>
+        </div>
+        <div class="flex justify-end gap-3">
+          <button @click="skipMigration" :disabled="isMigrating" class="btn-secondary">{{ t('settings.pluginRepo.skipMigration') }}</button>
+          <button @click="migratePlugins" :disabled="isMigrating" class="btn-primary disabled:opacity-50">
+            {{ isMigrating ? t('settings.pluginRepo.migrating') : t('settings.pluginRepo.startMigration') }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>

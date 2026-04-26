@@ -293,8 +293,20 @@ export const api = {
     return await invoke('get_plugin_bindings', { pluginId })
   },
 
+  async checkBindingHealth(projectId: string): Promise<ProjectBinding[]> {
+    return await invoke('check_binding_health', { projectId })
+  },
+
+  async repairBinding(projectId: string, pluginId: string): Promise<void> {
+    return await invoke('repair_binding', { projectId, pluginId })
+  },
+
   async checkPluginDuplicate(path: string): Promise<DuplicateCheckResult> {
     return await invoke('check_plugin_duplicate', { path })
+  },
+
+  async migratePluginStorage(oldPath: string, newPath: string): Promise<void> {
+    return await invoke('migrate_plugin_storage', { oldPath, newPath })
   },
 
   async getTotalStorageStats(): Promise<TotalStorageStats> {

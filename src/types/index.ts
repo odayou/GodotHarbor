@@ -56,6 +56,7 @@ export interface ProjectBinding {
   unit_id: string
   mount_path: string
   created_at: string
+  is_healthy?: boolean
 }
 
 export interface Settings {

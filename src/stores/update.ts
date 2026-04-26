@@ -3,8 +3,10 @@ import { ref, computed } from 'vue'
 import { api } from '@/api'
 import type { AppUpdateInfo, PluginUpdateInfo, VersionUpdateInfo, HotUpdateInfo, UpdateHistoryEntry, UpdateProgress } from '@/types'
 import { listen } from '@tauri-apps/api/event'
+import { useI18n } from 'vue-i18n'
 
 export const useUpdateStore = defineStore('updates', () => {
+  const { t } = useI18n()
   const isChecking = ref(false)
   const lastCheckedAt = ref('')
 
@@ -120,12 +122,12 @@ export const useUpdateStore = defineStore('updates', () => {
   async function installAppUpdate() {
     isInstallingApp.value = true
     installProgress.value = 0
-    installMessage.value = '准备下载...'
+    installMessage.value = t('updates.preparingDownload')
     try {
       await api.installAppUpdate()
-      installMessage.value = '更新安装完成，即将重启...'
+      installMessage.value = t('updates.installCompleteRestarting')
     } catch (error) {
-      installMessage.value = `更新失败: ${error}`
+      installMessage.value = t('updates.installFailed', { error })
       throw error
     } finally {
       isInstallingApp.value = false
@@ -160,13 +162,13 @@ export const useUpdateStore = defineStore('updates', () => {
   async function installHotUpdate() {
     isInstallingHotUpdate.value = true
     hotUpdateProgress.value = 0
-    hotUpdateMessage.value = '准备下载热更新...'
+    hotUpdateMessage.value = t('updates.preparingHotUpdate')
     try {
       await api.installHotUpdate()
       hotUpdate.value = null
       currentHotUpdateVersion.value = await api.getCurrentHotUpdateVersion()
     } catch (error) {
-      hotUpdateMessage.value = `热更新失败: ${error}`
+      hotUpdateMessage.value = t('updates.hotUpdateFailed', { error })
       throw error
     } finally {
       isInstallingHotUpdate.value = false

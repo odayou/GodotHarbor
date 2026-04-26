@@ -221,13 +221,13 @@ onMounted(async () => {
     await updateStore.checkAll()
     if (hasAnyUpdate.value) {
       const parts: string[] = []
-      if (updateStore.appUpdate) parts.push('应用')
-      if (updateStore.pluginUpdates.length > 0) parts.push(`${updateStore.pluginUpdates.length}个插件`)
-      if (engineUpdatesAvailable.value.length > 0) parts.push(`${engineUpdatesAvailable.value.length}个引擎`)
-      if (updateStore.hotUpdate) parts.push('热更新')
+      if (updateStore.appUpdate) parts.push(t('statusbar.appUpdate'))
+      if (updateStore.pluginUpdates.length > 0) parts.push(`${updateStore.pluginUpdates.length} ${t('statusbar.plugins')}`)
+      if (engineUpdatesAvailable.value.length > 0) parts.push(`${engineUpdatesAvailable.value.length} ${t('statusbar.engine')}`)
+      if (updateStore.hotUpdate) parts.push(t('statusbar.hotUpdate'))
       await sendSystemNotification(
-        'Godot Harbor 有可用更新',
-        `发现更新: ${parts.join(', ')}`
+        t('statusbar.updateAvailable'),
+        `${t('statusbar.updateAvailable')}: ${parts.join(', ')}`
       )
     }
   }, 8000)
@@ -392,7 +392,7 @@ onUnmounted(() => {
             v-if="updateStore.appUpdate && updateStore.hotUpdate"
             class="px-4 py-2 border-b border-gray-100 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/10"
           >
-            <p class="text-xs text-blue-600 dark:text-blue-400">💡 同时有全量更新和热更新，建议优先安装全量更新</p>
+            <p class="text-xs text-blue-600 dark:text-blue-400">{{ t('statusbar.bothUpdatesTip') }}</p>
           </div>
 
           <template v-for="ch in ['stable', 'preview', 'snapshot']" :key="ch">
@@ -484,7 +484,7 @@ onUnmounted(() => {
             class="px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
           >
             <div class="flex items-center justify-between">
-              <span class="text-xs text-gray-500 dark:text-gray-400">当前热更新版本: {{ updateStore.currentHotUpdateVersion }}</span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('statusbar.currentHotUpdateVersion') }}: {{ updateStore.currentHotUpdateVersion }}</span>
               <button
                 @click="handleRollbackHotUpdate"
                 class="text-xs px-2 py-0.5 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded hover:bg-red-50 dark:hover:bg-red-900/20"

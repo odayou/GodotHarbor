@@ -16,7 +16,7 @@ import ToastContainer from './components/ToastContainer.vue'
 import OnboardingGuide from './components/OnboardingGuide.vue'
 import CommandPalette from './components/CommandPalette.vue'
 
-const { locale } = useI18n()
+const { t, locale } = useI18n()
 const showLanguageDialog = ref(false)
 
 const pluginStore = usePluginStore()
@@ -69,7 +69,7 @@ registerShortcut({
   handler: () => {
     toggleSidebar()
   },
-  description: '切换侧边栏折叠'
+  description: t('sidebar.toggleShortcut')
 })
 
 registerShortcut({
@@ -81,7 +81,7 @@ registerShortcut({
     const nextIndex = (currentIndex + 1) % themes.length
     setTheme(themes[nextIndex])
   },
-  description: '切换主题'
+  description: t('sidebar.toggleThemeShortcut')
 })
 
 registerShortcut({
@@ -90,7 +90,7 @@ registerShortcut({
   handler: () => {
     setTheme(currentTheme.value === 'dark' ? 'light' : 'dark')
   },
-  description: '切换深色/浅色模式'
+  description: t('sidebar.toggleThemeModeShortcut')
 })
 
 registerShortcut({
@@ -99,7 +99,7 @@ registerShortcut({
   handler: () => {
     openPalette()
   },
-  description: '打开命令面板',
+  description: t('sidebar.openCommandPaletteShortcut'),
   global: true
 })
 </script>

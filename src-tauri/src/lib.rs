@@ -172,9 +172,11 @@ pub fn run() {
                 .item(&quit_item)
                 .build()?;
 
+            let tray_icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray_icon_32.png"))
+                .expect("Failed to load tray icon");
             let _app_handle = app.handle().clone();
             let _tray = TrayIconBuilder::new()
-                .icon(app.default_window_icon().unwrap().clone())
+                .icon(tray_icon)
                 .menu(&menu)
                 .tooltip("Godot Harbor")
                 .on_menu_event(move |app, event| {
