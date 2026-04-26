@@ -181,9 +181,9 @@ const handleClickOutside = (e: MouseEvent) => {
 }
 
 const channelLabel = (ch: string) => {
-  if (ch === 'stable') return '正式版'
-  if (ch === 'preview') return '预览版'
-  if (ch === 'snapshot') return '快照版'
+  if (ch === 'stable') return t('statusbar.channel.stable')
+  if (ch === 'preview') return t('statusbar.channel.preview')
+  if (ch === 'snapshot') return t('statusbar.channel.snapshot')
   return ch
 }
 
@@ -325,7 +325,7 @@ onUnmounted(() => {
           >
             <div class="flex items-center justify-between mb-1">
               <span class="text-sm font-medium text-gray-900 dark:text-gray-100">Godot Harbor</span>
-              <span class="text-xs px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded">应用更新</span>
+              <span class="text-xs px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded">{{ t('statusbar.appUpdate') }}</span>
             </div>
             <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-2">
               <span>{{ updateStore.appUpdate.current_version }}</span>
@@ -349,13 +349,13 @@ onUnmounted(() => {
                 :disabled="updateStore.isInstallingApp"
                 class="text-xs px-2.5 py-1 bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50"
               >
-                {{ updateStore.isInstallingApp ? '安装中...' : '更新' }}
+                {{ updateStore.isInstallingApp ? t('statusbar.installing') : t('statusbar.update') }}
               </button>
               <button
                 @click="handleSkipVersion"
                 class="text-xs px-2.5 py-1 border border-gray-300 dark:border-gray-600 rounded text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
               >
-                跳过
+                {{ t('statusbar.skip') }}
               </button>
             </div>
           </div>
@@ -365,8 +365,8 @@ onUnmounted(() => {
             class="px-4 py-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
           >
             <div class="flex items-center justify-between mb-1">
-              <span class="text-sm font-medium text-gray-900 dark:text-gray-100">热更新</span>
-              <span class="text-xs px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded">热更新</span>
+              <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('statusbar.hotUpdate') }}</span>
+              <span class="text-xs px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded">{{ t('statusbar.hotUpdate') }}</span>
             </div>
             <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-2">
               <span class="font-medium text-amber-600 dark:text-amber-400">{{ updateStore.hotUpdate.version }}</span>
@@ -383,7 +383,7 @@ onUnmounted(() => {
                 :disabled="updateStore.isInstallingHotUpdate"
                 class="text-xs px-2.5 py-1 bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50"
               >
-                {{ updateStore.isInstallingHotUpdate ? '安装中...' : '安装热更新' }}
+                {{ updateStore.isInstallingHotUpdate ? t('statusbar.installing') : t('statusbar.installHotUpdate') }}
               </button>
             </div>
           </div>
@@ -400,7 +400,7 @@ onUnmounted(() => {
               <div class="px-4 py-2 flex items-center justify-between bg-gray-50 dark:bg-gray-700/30">
                 <div class="flex items-center gap-2">
                   <span class="text-xs font-medium text-gray-700 dark:text-gray-300">
-                    引擎 {{ channelLabel(ch) }}
+                    {{ t('statusbar.engine') }} {{ channelLabel(ch) }}
                   </span>
                   <span class="text-xs px-1.5 py-0.5 rounded" :class="channelBadgeClass(ch)">
                     {{ engineUpdatesByChannel[ch].length }}
@@ -447,14 +447,14 @@ onUnmounted(() => {
           >
             <div class="px-4 py-2 flex items-center justify-between bg-gray-50 dark:bg-gray-700/30">
               <span class="text-xs font-medium text-gray-700 dark:text-gray-300">
-                插件更新 ({{ updateStore.pluginUpdates.length }})
+                {{ t('statusbar.plugins') }} ({{ updateStore.pluginUpdates.length }})
               </span>
               <button
                 @click="handleBatchPluginUpdate"
                 :disabled="updateStore.isUpdatingPlugins"
                 class="text-xs px-2 py-0.5 bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50"
               >
-                {{ updateStore.isUpdatingPlugins ? '更新中...' : '全部更新' }}
+                {{ updateStore.isUpdatingPlugins ? t('statusbar.installing') : t('statusbar.updateAll') }}
               </button>
             </div>
             <div
@@ -473,7 +473,7 @@ onUnmounted(() => {
                   @click="handlePluginUpdate(pUpdate.plugin_id)"
                   class="text-xs px-2 py-1 bg-primary-600 text-white rounded hover:bg-primary-700"
                 >
-                  更新
+                  {{ t('statusbar.update') }}
                 </button>
               </div>
             </div>
@@ -489,7 +489,7 @@ onUnmounted(() => {
                 @click="handleRollbackHotUpdate"
                 class="text-xs px-2 py-0.5 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
               >
-                回滚
+                {{ t('statusbar.rollback') }}
               </button>
             </div>
           </div>
@@ -501,7 +501,7 @@ onUnmounted(() => {
             <svg class="mx-auto h-8 w-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">一切已是最新</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">{{ t('statusbar.everythingUpToDate') }}</p>
           </div>
         </div>
       </div>

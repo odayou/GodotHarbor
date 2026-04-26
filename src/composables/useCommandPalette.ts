@@ -267,10 +267,10 @@ export function useCommandPalette() {
       },
       {
         id: 'cmd-toggle-language',
-        label: locale.value === 'zh-CN' ? 'Switch to English' : '切换为中文',
+        label: locale.value === 'zh-CN' ? t('commandPalette.switchToEnglish') : t('commandPalette.switchToChinese'),
         category: 'command',
         icon: 'language',
-        keywords: `language english chinese 中英 切换语言`,
+        keywords: `language english chinese ${t('commandPalette.chineseEnglish')} ${t('commandPalette.switchLanguage')}`,
         action: () => {
           locale.value = locale.value === 'zh-CN' ? 'en' : 'zh-CN'
           closePalette()

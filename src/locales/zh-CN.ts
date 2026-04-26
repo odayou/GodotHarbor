@@ -501,16 +501,32 @@ export default {
     openCommandPaletteShortcut: '打开命令面板'
   },
   statusbar: {
-    newVersionAvailable: '有新版本可用',
+    newVersionAvailable: '新版本可用',
     checkUpdates: '检查更新',
     lastChecked: '上次检查',
-    updateAvailable: '更新可用',
+    updateAvailable: '有可用更新',
     majorUpdate: '大版本更新',
-    downloadPage: '查看下载页面',
+    downloadPage: '查看下载页',
     appUpdateAvailable: '应用更新可用',
     pluginUpdateAvailable: '插件更新可用',
     hotUpdateAvailable: '热更新可用',
-    goToUpdateCenter: '前往更新中心'
+    goToUpdateCenter: '前往更新中心',
+    channel: {
+      stable: '正式版',
+      preview: '预览版',
+      snapshot: '快照版'
+    },
+    installing: '安装中...',
+    update: '更新',
+    skip: '跳过',
+    installHotUpdate: '安装热更新',
+    appUpdate: '应用更新',
+    hotUpdate: '热更新',
+    engine: '引擎',
+    plugins: '插件',
+    everythingUpToDate: '一切已是最新',
+    rollback: '回滚',
+    updateAll: '全部更新'
   },
   commandPalette: {
     placeholder: '搜索项目、插件、引擎或输入命令...',
@@ -529,7 +545,33 @@ export default {
     toggleSidebar: '切换侧边栏折叠',
     scanProjects: '扫描项目',
     importPlugin: '导入插件',
-    registerEngine: '注册引擎'
+    registerEngine: '注册引擎',
+    switchToEnglish: '切换为英文',
+    switchToChinese: '切换为中文',
+    chineseEnglish: '中英',
+    switchLanguage: '切换语言'
+  },
+  onboarding: {
+    welcome: {
+      title: '欢迎使用 Godot Harbor',
+      desc: 'Godot Harbor 帮助你管理 Godot 插件、项目和引擎。\n所有插件都可以一键挂载到任意项目。'
+    },
+    scan: {
+      title: '扫描你的 Godot 项目',
+      desc: '自动发现本地 Godot 项目。\n也可以手动添加或拖拽导入项目。'
+    },
+    import: {
+      title: '导入插件到仓库',
+      desc: '从本地目录、Git 仓库或 Godot Asset Library\n导入插件到你的插件仓库（Vault）。'
+    },
+    link: {
+      title: '绑定插件到项目',
+      desc: '为项目选择需要的插件和版本，\n一键应用变更，插件自动挂载到 addons 目录。'
+    },
+    skip: '跳过引导',
+    startExperience: '前往体验',
+    next: '下一步',
+    startUsing: '开始使用'
   },
   about: {
     title: '关于',

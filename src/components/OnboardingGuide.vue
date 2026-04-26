@@ -3,6 +3,9 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/api'
 import { useOnboarding } from '@/composables/useOnboarding'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const router = useRouter()
 const currentStep = ref(0)
@@ -26,26 +29,26 @@ checkFirstTime()
 
 const steps = [
   {
-    title: '欢迎使用 Godot Harbor',
-    desc: 'Godot Harbor 帮助你管理 Godot 插件、项目和引擎。\n所有插件都可以一键挂载到任意项目。',
+    title: t('onboarding.welcome.title'),
+    desc: t('onboarding.welcome.desc'),
     icon: 'welcome',
     action: null
   },
   {
-    title: '扫描你的 Godot 项目',
-    desc: '自动发现本地 Godot 项目。\n也可以手动添加或拖拽导入项目。',
+    title: t('onboarding.scan.title'),
+    desc: t('onboarding.scan.desc'),
     icon: 'scan',
     action: '/projects'
   },
   {
-    title: '导入插件到仓库',
-    desc: '从本地目录、Git 仓库或 Godot Asset Library\n导入插件到你的插件仓库（Vault）。',
+    title: t('onboarding.import.title'),
+    desc: t('onboarding.import.desc'),
     icon: 'import',
     action: '/plugins'
   },
   {
-    title: '绑定插件到项目',
-    desc: '为项目选择需要的插件和版本，\n一键应用变更，插件自动挂载到 addons 目录。',
+    title: t('onboarding.link.title'),
+    desc: t('onboarding.link.desc'),
     icon: 'link',
     action: '/linker'
   }
@@ -135,7 +138,7 @@ const finish = async () => {
             @click="skip"
             class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
           >
-            跳过引导
+            {{ t('onboarding.skip') }}
           </button>
           <div class="flex items-center gap-3">
             <div class="flex gap-1.5">
@@ -153,13 +156,13 @@ const finish = async () => {
               @click="goToStep"
               class="px-4 py-2 bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400 rounded-lg hover:bg-primary-200 dark:hover:bg-primary-800/50 text-sm font-medium"
             >
-              前往体验
+              {{ t('onboarding.startExperience') }}
             </button>
             <button
               @click="next"
               class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium"
             >
-              {{ isLastStep ? '开始使用' : '下一步' }}
+              {{ isLastStep ? t('onboarding.startUsing') : t('onboarding.next') }}
             </button>
           </div>
         </div>

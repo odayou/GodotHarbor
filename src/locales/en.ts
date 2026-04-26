@@ -511,7 +511,23 @@ export default {
     appUpdateAvailable: 'App update available',
     pluginUpdateAvailable: 'Plugin update available',
     hotUpdateAvailable: 'Hot update available',
-    goToUpdateCenter: 'Go to Update Center'
+    goToUpdateCenter: 'Go to Update Center',
+    channel: {
+      stable: 'Stable',
+      preview: 'Preview',
+      snapshot: 'Snapshot'
+    },
+    installing: 'Installing...',
+    update: 'Update',
+    skip: 'Skip',
+    installHotUpdate: 'Install hot update',
+    appUpdate: 'App Update',
+    hotUpdate: 'Hot Update',
+    engine: 'Engine',
+    plugins: 'Plugins',
+    everythingUpToDate: 'Everything is up to date',
+    rollback: 'Rollback',
+    updateAll: 'Update All'
   },
   commandPalette: {
     placeholder: 'Search projects, plugins, engines or enter commands...',
@@ -530,7 +546,33 @@ export default {
     toggleSidebar: 'Toggle sidebar collapse',
     scanProjects: 'Scan projects',
     importPlugin: 'Import plugin',
-    registerEngine: 'Register engine'
+    registerEngine: 'Register engine',
+    switchToEnglish: 'Switch to English',
+    switchToChinese: 'Switch to Chinese',
+    chineseEnglish: 'Chinese English',
+    switchLanguage: 'Switch language'
+  },
+  onboarding: {
+    welcome: {
+      title: 'Welcome to Godot Harbor',
+      desc: 'Godot Harbor helps you manage Godot plugins, projects and engines.\nAll plugins can be mounted to any project with one click.'
+    },
+    scan: {
+      title: 'Scan Your Godot Projects',
+      desc: 'Automatically discover local Godot projects.\nYou can also manually add or drag and drop projects.'
+    },
+    import: {
+      title: 'Import Plugins to Vault',
+      desc: 'Import plugins to your plugin vault from local directories, Git repositories, or Godot Asset Library.'
+    },
+    link: {
+      title: 'Bind Plugins to Projects',
+      desc: 'Select required plugins and versions for your projects,\none-click apply changes, plugins are automatically mounted to addons directory.'
+    },
+    skip: 'Skip Guide',
+    startExperience: 'Start Experience',
+    next: 'Next',
+    startUsing: 'Start Using'
   },
   about: {
     title: 'About',
