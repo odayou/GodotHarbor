@@ -99,7 +99,7 @@ const navigateTo = (path: string) => {
 
       <div
         class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 cursor-pointer hover:shadow-md transition-shadow"
-        @click="navigateTo('/linker')"
+        @click="navigateTo('/plugins')"
       >
         <div class="flex items-center">
           <div class="p-3 rounded-lg bg-gray-100 dark:bg-gray-700">

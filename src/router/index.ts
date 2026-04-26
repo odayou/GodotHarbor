@@ -18,11 +18,6 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/Plugins.vue')
   },
   {
-    path: '/linker',
-    name: 'linker',
-    component: () => import('@/views/Linker.vue')
-  },
-  {
     path: '/engines',
     name: 'engines',
     component: () => import('@/views/Engines.vue')

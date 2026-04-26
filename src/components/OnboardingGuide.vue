@@ -50,7 +50,7 @@ const steps = [
     title: t('onboarding.link.title'),
     desc: t('onboarding.link.desc'),
     icon: 'link',
-    action: '/linker'
+    action: '/plugins'
   }
 ]
 

@@ -12,8 +12,9 @@ pub mod watcher;
 pub mod update_scheduler;
 pub mod hot_update;
 
-use tauri::Manager;
+use tauri::{Manager, Emitter};
 use std::sync::Mutex;
+use serde_json;
 
 pub struct AppState {
     pub fs_watcher: Mutex<watcher::FsWatcher>,
@@ -152,6 +153,8 @@ pub fn run() {
                         api.prevent_close();
                         if let Some(window) = app_clone.get_webview_window("main") {
                             let _ = window.hide();
+                            // 显示通知，提示软件继续服务中
+                            let _ = window.emit("show-notification", serde_json::json!({}));
                         }
                     }
                 });
@@ -322,6 +325,9 @@ pub fn run() {
             commands::get_current_hot_update_version,
             commands::get_update_history,
             commands::clear_update_history,
+            commands::get_engine_bound_projects,
+            commands::check_engine_health,
+            commands::rename_engine,
         ))
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

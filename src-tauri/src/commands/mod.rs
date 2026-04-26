@@ -3211,3 +3211,65 @@ pub fn auto_discover_engines(app: AppHandle) -> Result<Vec<Engine>, String> {
 
     Ok(discovered)
 }
+
+#[tauri::command]
+pub fn get_engine_bound_projects(app: AppHandle, engine_id: String) -> Result<Vec<String>, String> {
+    let storage = get_storage(&app);
+    let engine_bindings: Vec<ProjectEngineBinding> = storage.load_or_default("engine_bindings.json");
+    let projects: Vec<Project> = storage.load_or_default("projects.json");
+
+    let bound_project_names: Vec<String> = engine_bindings
+        .iter()
+        .filter(|b| b.engine_id == engine_id)
+        .filter_map(|b| projects.iter().find(|p| p.project_id == b.project_id))
+        .map(|p| p.name.clone())
+        .collect();
+
+    Ok(bound_project_names)
+}
+
+#[tauri::command]
+pub fn check_engine_health(app: AppHandle, engine_id: String) -> Result<bool, String> {
+    let storage = get_storage(&app);
+    let engines: Vec<Engine> = storage.load_or_default("engines.json");
+
+    let engine = engines.iter()
+        .find(|e| e.engine_id == engine_id)
+        .ok_or("未找到指定引擎".to_string())?;
+
+    let exe_name = if cfg!(windows) { "godot.exe" } else { "godot" };
+    let exe_path = std::path::Path::new(&engine.path).join(exe_name);
+    let actual_exe = if exe_path.exists() {
+        exe_path
+    } else {
+        std::path::Path::new(&engine.path).join(format!("bin/{}", exe_name))
+    };
+
+    Ok(actual_exe.exists())
+}
+
+#[tauri::command]
+pub fn rename_engine(app: AppHandle, engine_id: String, new_name: String) -> Result<(), String> {
+    if new_name.trim().is_empty() {
+        return Err("引擎名称不能为空".to_string());
+    }
+
+    let storage = get_storage(&app);
+    let mut engines: Vec<Engine> = storage.load_or_default("engines.json");
+
+    let engine = engines.iter_mut()
+        .find(|e| e.engine_id == engine_id)
+        .ok_or("未找到指定引擎".to_string())?;
+
+    let old_name = engine.name.clone();
+    let new_engine_name = new_name.trim().to_string();
+    engine.name = new_engine_name.clone();
+
+    drop(engine);
+
+    storage.save("engines.json", &engines)
+        .map_err(|e| format!("保存引擎列表失败: {}", e))?;
+
+    log_operation(&app, "rename_engine", &engine_id, &format!("引擎重命名: {} -> {}", old_name, new_engine_name));
+    Ok(())
+}

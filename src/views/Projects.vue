@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { api } from '@/api'
-import type { Project, Engine, ProjectEngineBinding, MovedProjectCandidate } from '@/types'
+import type { Project, Engine, ProjectEngineBinding, MovedProjectCandidate, ProjectBinding } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
+import { open as shellOpen } from '@tauri-apps/plugin-shell'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
 import { useDialogEscape } from '@/composables/useDialogEscape'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
+const router = useRouter()
 const toast = useToast()
 const { t } = useI18n()
 const projects = ref<Project[]>([])
@@ -27,6 +30,7 @@ const selectedEngineId = ref<string>('')
 const customArgs = ref('')
 const isLaunching = ref(false)
 const projectEngineBinding = ref<ProjectEngineBinding | null>(null)
+const projectBindings = ref<ProjectBinding[]>([])
 
 const searchQuery = ref('')
 const filterGroup = ref<string>('all')
@@ -37,6 +41,12 @@ let unlisten: UnlistenFn | null = null
 const selectedProjectIds = ref<Set<string>>(new Set())
 const lastClickedIndex = ref<number>(-1)
 const isBatchMode = ref(false)
+
+const sortBy = ref<string>('name')
+const sortOrder = ref<string>('asc')
+
+const showBatchGroupDialog = ref(false)
+const batchGroupInput = ref('')
 
 const toggleProjectSelection = (project: Project, event: MouseEvent | Event) => {
   const mouseEvent = event as MouseEvent
@@ -108,6 +118,35 @@ const batchRemoveProjects = async () => {
   })
 }
 
+const batchSetGroup = async () => {
+  const ids = Array.from(selectedProjectIds.value)
+  if (ids.length === 0) return
+  batchGroupInput.value = ''
+  showBatchGroupDialog.value = true
+}
+
+const saveBatchGroup = async () => {
+  const ids = Array.from(selectedProjectIds.value)
+  let successCount = 0
+  let failCount = 0
+  for (const id of ids) {
+    try {
+      await api.updateProjectGroup(id, batchGroupInput.value)
+      successCount++
+    } catch {
+      failCount++
+    }
+  }
+  if (failCount === 0) {
+    toast.success(t('projects.batchGroupSuccess', { count: successCount }))
+  } else {
+    toast.warning(t('projects.batchGroupPartial', { success: successCount, failed: failCount }))
+  }
+  showBatchGroupDialog.value = false
+  clearSelection()
+  await loadProjects()
+}
+
 onMounted(async () => {
   loadProjects()
   loadGroups()
@@ -162,7 +201,7 @@ const groupedProjects = computed(() => {
 })
 
 const filteredProjects = computed(() => {
-  return projects.value.filter(project => {
+  let result = projects.value.filter(project => {
     const matchesSearch = searchQuery.value === '' ||
       project.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
       project.path.toLowerCase().includes(searchQuery.value.toLowerCase())
@@ -176,6 +215,32 @@ const filteredProjects = computed(() => {
 
     return matchesSearch && matchesGroup && matchesStatus
   })
+
+  result.sort((a, b) => {
+    let cmp = 0
+    switch (sortBy.value) {
+      case 'name':
+        cmp = a.name.localeCompare(b.name)
+        break
+      case 'path':
+        cmp = a.path.localeCompare(b.path)
+        break
+      case 'godotVersion':
+        cmp = a.godot_version.localeCompare(b.godot_version)
+        break
+      case 'status':
+        cmp = a.status.localeCompare(b.status)
+        break
+      case 'updatedAt':
+        cmp = b.updated_at.localeCompare(a.updated_at)
+        break
+      default:
+        cmp = a.name.localeCompare(b.name)
+    }
+    return sortOrder.value === 'asc' ? cmp : -cmp
+  })
+
+  return result
 })
 
 const loadGroups = async () => {
@@ -186,9 +251,22 @@ const loadGroups = async () => {
   }
 }
 
-const showProjectDetails = (project: Project) => {
+const showProjectDetails = async (project: Project) => {
   selectedProject.value = project
   showProjectDetail.value = true
+  try {
+    projectBindings.value = await api.getProjectBindings(project.project_id)
+    projectEngineBinding.value = await api.getProjectEngineBinding(project.project_id)
+    if (projectEngineBinding.value) {
+      selectedEngineId.value = projectEngineBinding.value.engine_id
+      customArgs.value = projectEngineBinding.value.custom_args
+    } else {
+      selectedEngineId.value = ''
+      customArgs.value = ''
+    }
+  } catch (error) {
+    console.error('Failed to load project details:', error)
+  }
 }
 
 const loadProjects = async () => {
@@ -362,6 +440,9 @@ const onDrop = async (e: DragEvent) => {
   const files = e.dataTransfer?.files
   if (!files || files.length === 0) return
 
+  let addedCount = 0
+  let skippedCount = 0
+
   for (let i = 0; i < files.length; i++) {
     const file = files[i]
     const path = (file as any).path
@@ -369,17 +450,21 @@ const onDrop = async (e: DragEvent) => {
 
     try {
       isLoading.value = true
-      const result = await api.addProject(path)
-      toast.success(t('common.addProjectSuccess', { name: result.name }))
+      await api.addProject(path)
+      addedCount++
     } catch (error: any) {
-      if (!String(error).includes('已存在') && !String(error).includes('already exists')) {
-        console.log('Skipped non-project path:', path)
-      }
+      skippedCount++
     } finally {
       isLoading.value = false
     }
   }
   await loadProjects()
+
+  if (addedCount > 0 && skippedCount > 0) {
+    toast.info(t('projects.dragDropResult', { added: addedCount, skipped: skippedCount }))
+  } else if (addedCount > 0) {
+    toast.success(t('projects.dragDropAdded', { count: addedCount }))
+  }
 }
 
 const removeProject = async (projectId: string) => {
@@ -394,6 +479,24 @@ const removeProject = async (projectId: string) => {
       toast.error(t('common.deleteFailed', { error }))
     }
   })
+}
+
+const openInFileManager = async (path: string) => {
+  try {
+    await shellOpen(path)
+  } catch (error) {
+    toast.error(t('projects.openInFileManagerFailed', { error }))
+  }
+}
+
+const syncProject = async (project: Project) => {
+  try {
+    await api.syncProjects()
+    await loadProjects()
+    toast.success(t('projects.syncSuccess', { name: project.name }))
+  } catch (error) {
+    toast.error(t('projects.syncFailed', { error }))
+  }
 }
 
 const openGroupDialog = (project: Project) => {
@@ -490,6 +593,10 @@ const launchProject = async (project: Project, engineId?: string) => {
   }
 }
 
+const goToEngines = () => {
+  router.push('/engines')
+}
+
 const showRelocateDialog = ref(false)
 const relocateProjectId = ref('')
 const relocateNewPath = ref('')
@@ -500,6 +607,7 @@ useDialogEscape(showGroupDialog)
 useDialogEscape(showEngineDialog)
 useDialogEscape(showRelocateDialog)
 useDialogEscape(showMovedDialog)
+useDialogEscape(showBatchGroupDialog)
 
 const openRelocateDialog = (project: Project) => {
   relocateProjectId.value = project.project_id
@@ -612,6 +720,28 @@ const confirmRelocate = async () => {
             <option value="Conflict">{{ t('projects.status.conflict') }}</option>
             <option value="MissingSource">{{ t('projects.status.missingSource') }}</option>
           </select>
+          <select
+            v-model="sortBy"
+            class="px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
+          >
+            <option value="name">{{ t('projects.sortByName') }}</option>
+            <option value="path">{{ t('projects.sortByPath') }}</option>
+            <option value="godotVersion">{{ t('projects.sortByVersion') }}</option>
+            <option value="status">{{ t('projects.sortByStatus') }}</option>
+            <option value="updatedAt">{{ t('projects.sortByUpdated') }}</option>
+          </select>
+          <button
+            @click="sortOrder = sortOrder === 'asc' ? 'desc' : 'asc'"
+            class="px-2 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm"
+            :title="sortOrder === 'asc' ? t('projects.ascending') : t('projects.descending')"
+          >
+            <svg v-if="sortOrder === 'asc'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+            </svg>
+            <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
         </div>
       </div>
     </div>
@@ -633,6 +763,12 @@ const confirmRelocate = async () => {
         </button>
       </div>
       <div class="flex gap-2">
+        <button
+          @click="batchSetGroup"
+          class="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors"
+        >
+          {{ t('projects.batchSetGroup') }} ({{ selectedCount }})
+        </button>
         <button
           @click="batchRemoveProjects"
           class="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
@@ -724,13 +860,31 @@ const confirmRelocate = async () => {
                   </p>
                 </div>
               </div>
-              <div class="flex items-center gap-1">
+              <div class="flex items-center gap-0.5">
+                <button
+                  @click.stop="openInFileManager(project.path)"
+                  class="text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 p-1"
+                  :title="t('projects.openInFileManager')"
+                >
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </button>
+                <button
+                  @click.stop="syncProject(project)"
+                  class="text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 p-1"
+                  :title="t('projects.syncProject')"
+                >
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
                 <button
                   @click.stop="openGroupDialog(project)"
                   class="text-blue-600 hover:text-blue-800 p-1"
                   :title="t('projects.setGroup')"
                 >
-                  <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                   </svg>
                 </button>
@@ -738,32 +892,15 @@ const confirmRelocate = async () => {
                   @click.stop="removeProject(project.project_id)"
                   class="text-red-600 hover:text-red-800 p-1"
                 >
-                  <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
             </div>
             <div class="mt-3 flex items-center justify-between text-sm">
-              <span class="text-gray-600 dark:text-content-secondary">Godot {{ project.godot_version }}</span>
               <div class="flex items-center gap-2">
-                <button
-                  v-if="project.status === 'MissingSource'"
-                  @click.stop="openRelocateDialog(project)"
-                  class="px-2 py-1 rounded text-xs font-medium bg-primary-600 text-white hover:bg-primary-700 transition-colors"
-                  :title="t('projects.relocate')"
-                >
-                  {{ t('projects.relocate') }}
-                </button>
-                <button
-                  v-else
-                  @click.stop="launchProject(project)"
-                  :disabled="isLaunching || engines.length === 0"
-                  class="px-2 py-1 rounded text-xs font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 transition-colors"
-                  :title="t('projects.launch')"
-                >
-                  {{ t('projects.launch') }}
-                </button>
+                <span class="text-gray-600 dark:text-content-secondary">Godot {{ project.godot_version }}</span>
                 <span
                   :class="[
                     'badge',
@@ -777,6 +914,34 @@ const confirmRelocate = async () => {
                   {{ t(`projects.status.${project.status.toLowerCase()}`) }}
                 </span>
               </div>
+              <div class="flex items-center gap-2">
+                <button
+                  v-if="project.status === 'MissingSource'"
+                  @click.stop="openRelocateDialog(project)"
+                  class="px-2 py-1 rounded text-xs font-medium bg-primary-600 text-white hover:bg-primary-700 transition-colors"
+                  :title="t('projects.relocate')"
+                >
+                  {{ t('projects.relocate') }}
+                </button>
+                <template v-else-if="engines.length === 0">
+                  <button
+                    @click.stop="goToEngines"
+                    class="px-2 py-1 rounded text-xs font-medium bg-yellow-500 text-white hover:bg-yellow-600 transition-colors"
+                    :title="t('projects.noEngineHint')"
+                  >
+                    {{ t('projects.registerEngine') }}
+                  </button>
+                </template>
+                <button
+                  v-else
+                  @click.stop="launchProject(project)"
+                  :disabled="isLaunching"
+                  class="px-2 py-1 rounded text-xs font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 transition-colors"
+                  :title="t('projects.launch')"
+                >
+                  {{ t('projects.launch') }}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -784,7 +949,7 @@ const confirmRelocate = async () => {
     </div>
 
     <div v-if="showProjectDetail && selectedProject" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showProjectDetail = false; selectedProject = null">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl" @click.stop>
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto" @click.stop>
         <div class="flex items-center gap-4 mb-4">
           <div class="flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
             <img
@@ -809,9 +974,20 @@ const confirmRelocate = async () => {
         </div>
         <div class="mb-4">
           <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('projects.projectPath') }}</h4>
-          <p class="text-sm text-gray-600 dark:text-gray-400 break-all bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
-            {{ selectedProject.path }}
-          </p>
+          <div class="flex items-center gap-2">
+            <p class="text-sm text-gray-600 dark:text-gray-400 break-all bg-gray-50 dark:bg-gray-700 rounded-lg p-3 flex-1">
+              {{ selectedProject.path }}
+            </p>
+            <button
+              @click="openInFileManager(selectedProject.path)"
+              class="text-primary-600 hover:text-primary-800 dark:text-primary-400 p-1 flex-shrink-0"
+              :title="t('projects.openInFileManager')"
+            >
+              <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </button>
+          </div>
         </div>
         <div class="mb-4">
           <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('projects.statusLabel') }}</h4>
@@ -829,6 +1005,12 @@ const confirmRelocate = async () => {
           </span>
         </div>
         <div class="mb-4">
+          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('projects.pluginBindings') }}</h4>
+          <span class="text-sm text-gray-600 dark:text-gray-400">
+            {{ projectBindings.length > 0 ? t('projects.bindingCount', { count: projectBindings.length }) : t('projects.noBindings') }}
+          </span>
+        </div>
+        <div class="mb-4">
           <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('projects.engineBinding') }}</h4>
           <div class="flex items-center gap-2">
             <button
@@ -838,11 +1020,25 @@ const confirmRelocate = async () => {
               {{ projectEngineBinding ? t('projects.changeEngine') : t('projects.bind') }}
             </button>
             <span v-if="projectEngineBinding" class="text-sm text-gray-600 dark:text-gray-400">
-              {{ t('projects.bound') }}
+              {{ engines.find(e => e.engine_id === projectEngineBinding?.engine_id)?.name || t('projects.bound') }}
             </span>
           </div>
         </div>
-        <div class="flex justify-end gap-2">
+        <div class="flex justify-between gap-2">
+          <div class="flex gap-2">
+            <button
+              @click="openInFileManager(selectedProject.path)"
+              class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 text-sm"
+            >
+              {{ t('projects.openInFileManager') }}
+            </button>
+            <button
+              @click="syncProject(selectedProject)"
+              class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 text-sm"
+            >
+              {{ t('projects.syncProject') }}
+            </button>
+          </div>
           <button
             @click="showProjectDetail = false; selectedProject = null"
             class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
@@ -903,6 +1099,19 @@ const confirmRelocate = async () => {
           :placeholder="t('projects.groupPlaceholder')"
           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
         />
+        <div v-if="availableGroups.length > 0" class="mt-3">
+          <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">{{ t('projects.existingGroups') }}</p>
+          <div class="flex flex-wrap gap-1">
+            <button
+              v-for="group in availableGroups"
+              :key="group"
+              @click="groupInput = group"
+              class="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+            >
+              {{ group }}
+            </button>
+          </div>
+        </div>
         <div class="flex justify-end space-x-3 mt-6">
           <button
             @click="showGroupDialog = false; groupInput = ''; editingProjectId = null"
@@ -912,6 +1121,48 @@ const confirmRelocate = async () => {
           </button>
           <button
             @click="saveGroup"
+            class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+          >
+            {{ t('common.confirm') }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showBatchGroupDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showBatchGroupDialog = false">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('projects.batchGroupTitle') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+          {{ t('projects.batchGroupDesc', { count: selectedCount }) }}
+        </p>
+        <input
+          v-model="batchGroupInput"
+          type="text"
+          :placeholder="t('projects.groupPlaceholder')"
+          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+        />
+        <div v-if="availableGroups.length > 0" class="mt-3">
+          <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">{{ t('projects.existingGroups') }}</p>
+          <div class="flex flex-wrap gap-1">
+            <button
+              v-for="group in availableGroups"
+              :key="group"
+              @click="batchGroupInput = group"
+              class="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+            >
+              {{ group }}
+            </button>
+          </div>
+        </div>
+        <div class="flex justify-end space-x-3 mt-6">
+          <button
+            @click="showBatchGroupDialog = false"
+            class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+          >
+            {{ t('common.cancel') }}
+          </button>
+          <button
+            @click="saveBatchGroup"
             class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
           >
             {{ t('common.confirm') }}

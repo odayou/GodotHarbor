@@ -367,6 +367,18 @@ export const api = {
 
   async clearUpdateHistory(): Promise<void> {
     return await invoke('clear_update_history')
+  },
+
+  async getEngineBoundProjects(engineId: string): Promise<string[]> {
+    return await invoke('get_engine_bound_projects', { engineId })
+  },
+
+  async checkEngineHealth(engineId: string): Promise<boolean> {
+    return await invoke('check_engine_health', { engineId })
+  },
+
+  async renameEngine(engineId: string, newName: string): Promise<void> {
+    return await invoke('rename_engine', { engineId, newName })
   }
 }
 
