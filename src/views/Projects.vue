@@ -5,7 +5,6 @@ import { useRouter } from 'vue-router'
 import { api } from '@/api'
 import type { Project, Engine, ProjectEngineBinding, MovedProjectCandidate, ProjectBinding } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
-import { open as shellOpen } from '@tauri-apps/plugin-shell'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
@@ -498,7 +497,7 @@ const removeProject = async (projectId: string) => {
 
 const openInFileManager = async (path: string) => {
   try {
-    await shellOpen(path)
+    await api.openInFileManager(path)
   } catch (error) {
     toast.error(t('projects.openInFileManagerFailed', { error }))
   }

@@ -379,6 +379,10 @@ export const api = {
 
   async renameEngine(engineId: string, newName: string): Promise<void> {
     return await invoke('rename_engine', { engineId, newName })
+  },
+
+  async openInFileManager(path: string): Promise<void> {
+    return await invoke('open_in_file_manager', { path })
   }
 }
 

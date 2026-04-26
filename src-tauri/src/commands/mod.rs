@@ -3279,3 +3279,35 @@ pub fn rename_engine(app: AppHandle, engine_id: String, new_name: String) -> Res
     log_operation(&app, "rename_engine", &engine_id, &format!("引擎重命名: {} -> {}", old_name, new_engine_name));
     Ok(())
 }
+
+#[tauri::command]
+pub fn open_in_file_manager(path: String) -> Result<(), String> {
+    let p = Path::new(&path);
+    if !p.exists() {
+        return Err(format!("路径不存在: {}", path));
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let target = if p.is_dir() { path.clone() } else { p.parent().map(|d| d.to_string_lossy().to_string()).unwrap_or(path.clone()) };
+        std::process::Command::new("explorer")
+            .arg(&target)
+            .spawn()
+            .map_err(|e| format!("打开文件管理器失败: {}", e))?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(if p.is_dir() { &path } else { "-R" })
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("打开 Finder 失败: {}", e))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(if p.is_dir() { &path } else { p.parent().unwrap_or(p) })
+            .spawn()
+            .map_err(|e| format!("打开文件管理器失败: {}", e))?;
+    }
+    Ok(())
+}

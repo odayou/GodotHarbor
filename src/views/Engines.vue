@@ -4,7 +4,6 @@ import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
 import type { Engine } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
-import { open as shellOpen } from '@tauri-apps/plugin-shell'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
 import { useDialogEscape } from '@/composables/useDialogEscape'
@@ -190,7 +189,7 @@ const setDefault = async (engineId: string) => {
 
 const openInFileManager = async (path: string) => {
   try {
-    await shellOpen(path)
+    await api.openInFileManager(path)
   } catch (error) {
     toast.error(t('engines.openInFileManagerFailed', { error }))
   }

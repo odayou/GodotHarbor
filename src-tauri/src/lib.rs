@@ -328,6 +328,7 @@ pub fn run() {
             commands::get_engine_bound_projects,
             commands::check_engine_health,
             commands::rename_engine,
+            commands::open_in_file_manager,
         ))
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
