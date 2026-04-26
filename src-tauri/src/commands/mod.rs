@@ -749,14 +749,16 @@ fn dir_size(path: &Path) -> u64 {
 }
 
 #[tauri::command]
-pub fn get_plugin_storage_stats(app: AppHandle, plugin_id: String) -> Result<PluginStorageStats, String> {
+pub async fn get_plugin_storage_stats(app: AppHandle, plugin_id: String) -> Result<PluginStorageStats, String> {
     let storage = get_storage(&app);
     let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
     let plugin = plugins.iter().find(|p| p.plugin_id == plugin_id)
         .ok_or("未找到指定插件".to_string())?;
 
     let plugin_dir = get_data_dir(&app).join("plugins").join(&plugin_id);
-    let total_size_bytes = if plugin_dir.exists() { dir_size(&plugin_dir) } else { 0 };
+    let total_size_bytes = tokio::task::spawn_blocking(move || {
+        if plugin_dir.exists() { dir_size(&plugin_dir) } else { 0 }
+    }).await.map_err(|e| format!("计算存储大小失败: {}", e))?;
 
     let bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
     let binding_count = bindings.iter().filter(|b| b.plugin_id == plugin_id).count();
@@ -852,29 +854,35 @@ pub struct TotalStorageStats {
 }
 
 #[tauri::command]
-pub fn get_total_storage_stats(app: AppHandle) -> Result<TotalStorageStats, String> {
+pub async fn get_total_storage_stats(app: AppHandle) -> Result<TotalStorageStats, String> {
     let storage = get_storage(&app);
     let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
     let bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
 
     let total_versions: usize = plugins.iter().map(|p| p.versions.len()).sum();
-    let total_size_bytes = dir_size(&get_data_dir(&app).join("plugins"));
 
-    let plugins_dir = get_data_dir(&app).join("plugins");
-    let mut orphaned_size: u64 = 0;
-    if plugins_dir.exists() {
-        if let Ok(entries) = fs::read_dir(&plugins_dir) {
-            for entry in entries.filter_map(|e| e.ok()) {
-                let entry_path = entry.path();
-                if entry_path.is_dir() {
-                    let dir_name = entry_path.file_name().unwrap_or_default().to_string_lossy().to_string();
-                    if !plugins.iter().any(|p| p.plugin_id == dir_name) {
-                        orphaned_size += dir_size(&entry_path);
+    let data_dir = get_data_dir(&app);
+    let plugins_dir = data_dir.join("plugins");
+    let plugin_ids: Vec<String> = plugins.iter().map(|p| p.plugin_id.clone()).collect();
+
+    let (total_size_bytes, orphaned_size) = tokio::task::spawn_blocking(move || {
+        let total_size = dir_size(&plugins_dir);
+        let mut orphaned: u64 = 0;
+        if plugins_dir.exists() {
+            if let Ok(entries) = fs::read_dir(&plugins_dir) {
+                for entry in entries.filter_map(|e| e.ok()) {
+                    let entry_path = entry.path();
+                    if entry_path.is_dir() {
+                        let dir_name = entry_path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                        if !plugin_ids.iter().any(|id| id == &dir_name) {
+                            orphaned += dir_size(&entry_path);
+                        }
                     }
                 }
             }
         }
-    }
+        (total_size, orphaned)
+    }).await.map_err(|e| format!("计算存储统计失败: {}", e))?;
 
     let mut hash_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
     for p in &plugins {
@@ -897,27 +905,31 @@ pub fn get_total_storage_stats(app: AppHandle) -> Result<TotalStorageStats, Stri
 }
 
 #[tauri::command]
-pub fn cleanup_orphaned_plugin_dirs(app: AppHandle) -> Result<u64, String> {
+pub async fn cleanup_orphaned_plugin_dirs(app: AppHandle) -> Result<u64, String> {
     let storage = get_storage(&app);
     let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
     let plugins_dir = get_data_dir(&app).join("plugins");
+    let plugin_ids: Vec<String> = plugins.iter().map(|p| p.plugin_id.clone()).collect();
 
-    let mut cleaned = 0u64;
-    if plugins_dir.exists() {
-        if let Ok(entries) = fs::read_dir(&plugins_dir) {
-            for entry in entries.filter_map(|e| e.ok()) {
-                let entry_path = entry.path();
-                if entry_path.is_dir() {
-                    let dir_name = entry_path.file_name().unwrap_or_default().to_string_lossy().to_string();
-                    if !plugins.iter().any(|p| p.plugin_id == dir_name) {
-                        if let Ok(()) = fs::remove_dir_all(&entry_path) {
-                            cleaned += 1;
+    let cleaned = tokio::task::spawn_blocking(move || {
+        let mut count = 0u64;
+        if plugins_dir.exists() {
+            if let Ok(entries) = fs::read_dir(&plugins_dir) {
+                for entry in entries.filter_map(|e| e.ok()) {
+                    let entry_path = entry.path();
+                    if entry_path.is_dir() {
+                        let dir_name = entry_path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                        if !plugin_ids.iter().any(|id| id == &dir_name) {
+                            if let Ok(()) = fs::remove_dir_all(&entry_path) {
+                                count += 1;
+                            }
                         }
                     }
                 }
             }
         }
-    }
+        count
+    }).await.map_err(|e| format!("清理孤立目录失败: {}", e))?;
 
     log_operation(&app, "cleanup_orphaned", "", &format!("清理了 {} 个孤立目录", cleaned));
     Ok(cleaned)

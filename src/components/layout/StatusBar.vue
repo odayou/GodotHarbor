@@ -3,13 +3,14 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
 import { useUpdateStore } from '@/stores/update'
-import type { VersionUpdateInfo, GodotVersionCheckResult } from '@/types'
+import type { VersionUpdateInfo, GodotVersionCheckResult, ChannelLatestVersions, LocalEngineVersion } from '@/types'
 
 const { t } = useI18n()
 const updateStore = useUpdateStore()
 
-const latestGodot4 = ref<string>('')
-const latestGodot3 = ref<string>('')
+const godot4Channels = ref<ChannelLatestVersions>({ stable: null, preview: null, snapshot: null })
+const godot3Channels = ref<ChannelLatestVersions>({ stable: null, preview: null, snapshot: null })
+const localEngines = ref<LocalEngineVersion[]>([])
 const engineUpdatesAvailable = ref<VersionUpdateInfo[]>([])
 const isChecking = ref(false)
 const lastChecked = ref<string>('')
@@ -24,17 +25,71 @@ const totalUpdateCount = computed(() => {
 
 const hasAnyUpdate = computed(() => totalUpdateCount.value > 0)
 
+const classifyChannel = (version: string): 'stable' | 'preview' | 'snapshot' => {
+  const lower = version.toLowerCase()
+  if (lower.includes('dev') || lower.includes('alpha')) return 'snapshot'
+  if (lower.includes('rc') || lower.includes('beta')) return 'preview'
+  return 'stable'
+}
+
+const localLatestByChannel = computed(() => {
+  const result: Record<string, LocalEngineVersion | null> = {}
+  for (const major of ['3', '4']) {
+    for (const ch of ['stable', 'preview', 'snapshot']) {
+      const key = `godot${major}_${ch}`
+      const matched = localEngines.value
+        .filter(e => {
+          const m = e.version.split('.')[0]
+          return m === major && classifyChannel(e.version) === ch
+        })
+        .sort((a, b) => {
+          const pa = a.version.split('.').map(Number)
+          const pb = b.version.split('.').map(Number)
+          return (pb[1] || 0) - (pa[1] || 0) || (pb[2] || 0) - (pa[2] || 0)
+        })
+      result[key] = matched[0] || null
+    }
+  }
+  return result
+})
+
+const channelStatusItems = computed(() => {
+  const items: { label: string; localVersion: string | null; remoteVersion: string | null; hasUpdate: boolean }[] = []
+
+  for (const major of ['4', '3']) {
+    const channels = major === '4' ? godot4Channels.value : godot3Channels.value
+    const channelEntries: { key: string; label: string; remote: string | null }[] = [
+      { key: 'stable', label: `Godot ${major}`, remote: channels.stable?.version || null },
+      { key: 'preview', label: `${major} Preview`, remote: channels.preview?.version || null },
+      { key: 'snapshot', label: `${major} Dev`, remote: channels.snapshot?.version || null },
+    ]
+
+    for (const entry of channelEntries) {
+      if (!entry.remote) continue
+      const localKey = `godot${major}_${entry.key}`
+      const local = localLatestByChannel.value[localKey]
+      const localVer = local?.version || null
+      const hasUpdate = !localVer || localVer !== entry.remote
+      items.push({
+        label: entry.label,
+        localVersion: localVer,
+        remoteVersion: entry.remote,
+        hasUpdate
+      })
+    }
+  }
+
+  return items
+})
+
 const checkEngineUpdates = async () => {
   if (isChecking.value) return
   isChecking.value = true
   try {
     const result: GodotVersionCheckResult = await api.checkGodotUpdates()
-    if (result.latest_godot4) {
-      latestGodot4.value = result.latest_godot4.version
-    }
-    if (result.latest_godot3) {
-      latestGodot3.value = result.latest_godot3.version
-    }
+    godot4Channels.value = result.godot4_channels
+    godot3Channels.value = result.godot3_channels
+    localEngines.value = result.local_engines
     engineUpdatesAvailable.value = result.updates_available
     lastChecked.value = result.checked_at
   } catch (e) {
@@ -125,6 +180,30 @@ const handleClickOutside = (e: MouseEvent) => {
   }
 }
 
+const channelLabel = (ch: string) => {
+  if (ch === 'stable') return '正式版'
+  if (ch === 'preview') return '预览版'
+  if (ch === 'snapshot') return '快照版'
+  return ch
+}
+
+const channelBadgeClass = (ch: string) => {
+  if (ch === 'stable') return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+  if (ch === 'preview') return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+  if (ch === 'snapshot') return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+  return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+}
+
+const engineUpdatesByChannel = computed(() => {
+  const groups: Record<string, VersionUpdateInfo[]> = { stable: [], preview: [], snapshot: [] }
+  for (const u of engineUpdatesAvailable.value) {
+    const ch = u.channel || 'stable'
+    if (!groups[ch]) groups[ch] = []
+    groups[ch].push(u)
+  }
+  return groups
+})
+
 onMounted(async () => {
   try {
     const { listen } = await import('@tauri-apps/api/event')
@@ -176,19 +255,21 @@ onUnmounted(() => {
 
 <template>
   <footer class="h-7 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between px-3 text-xs select-none shrink-0">
-    <div class="flex items-center gap-3">
-      <div v-if="latestGodot4" class="flex items-center gap-1 text-gray-500 dark:text-gray-400">
-        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-        </svg>
-        <span>Godot 4: {{ latestGodot4 }}</span>
-      </div>
-      <div v-if="latestGodot3" class="flex items-center gap-1 text-gray-500 dark:text-gray-400">
-        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-        </svg>
-        <span>Godot 3: {{ latestGodot3 }}</span>
-      </div>
+    <div class="flex items-center gap-3 overflow-hidden">
+      <template v-for="item in channelStatusItems" :key="item.label">
+        <div class="flex items-center gap-1 shrink-0" :class="item.hasUpdate ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          <span>{{ item.label }}:</span>
+          <span v-if="item.localVersion" class="font-medium">{{ item.localVersion }}</span>
+          <span v-else class="text-gray-400 dark:text-gray-500">—</span>
+          <svg v-if="item.hasUpdate" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+          </svg>
+          <span v-if="item.hasUpdate" class="font-medium">{{ item.remoteVersion }}</span>
+        </div>
+      </template>
     </div>
 
     <div class="flex items-center gap-2">
@@ -314,37 +395,51 @@ onUnmounted(() => {
             <p class="text-xs text-blue-600 dark:text-blue-400">💡 同时有全量更新和热更新，建议优先安装全量更新</p>
           </div>
 
-          <div
-            v-for="update in engineUpdatesAvailable"
-            :key="update.engine_id"
-            class="px-4 py-3 border-b border-gray-100 dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-          >
-            <div class="flex items-center justify-between mb-1">
-              <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ update.engine_name }}</span>
-              <span
-                v-if="update.is_major_update"
-                class="text-xs px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded"
+          <template v-for="ch in ['stable', 'preview', 'snapshot']" :key="ch">
+            <div v-if="engineUpdatesByChannel[ch]?.length > 0" class="border-b border-gray-100 dark:border-gray-700">
+              <div class="px-4 py-2 flex items-center justify-between bg-gray-50 dark:bg-gray-700/30">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-medium text-gray-700 dark:text-gray-300">
+                    引擎 {{ channelLabel(ch) }}
+                  </span>
+                  <span class="text-xs px-1.5 py-0.5 rounded" :class="channelBadgeClass(ch)">
+                    {{ engineUpdatesByChannel[ch].length }}
+                  </span>
+                </div>
+              </div>
+              <div
+                v-for="update in engineUpdatesByChannel[ch]"
+                :key="update.engine_id"
+                class="px-4 py-3 border-b border-gray-50 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
               >
-                {{ t('statusbar.majorUpdate') }}
-              </span>
+                <div class="flex items-center justify-between mb-1">
+                  <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ update.engine_name }}</span>
+                  <span
+                    v-if="update.is_major_update"
+                    class="text-xs px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded"
+                  >
+                    {{ t('statusbar.majorUpdate') }}
+                  </span>
+                </div>
+                <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                  <span>{{ update.current_version }}</span>
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
+                  <span class="font-medium text-amber-600 dark:text-amber-400">{{ update.latest_version }}</span>
+                </div>
+                <button
+                  @click="openDownloadPage(update.download_url)"
+                  class="mt-2 text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 flex items-center gap-1"
+                >
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                  {{ t('statusbar.downloadPage') }}
+                </button>
+              </div>
             </div>
-            <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-              <span>{{ update.current_version }}</span>
-              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-              </svg>
-              <span class="font-medium text-amber-600 dark:text-amber-400">{{ update.latest_version }}</span>
-            </div>
-            <button
-              @click="openDownloadPage(update.download_url)"
-              class="mt-2 text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 flex items-center gap-1"
-            >
-              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-              {{ t('statusbar.downloadPage') }}
-            </button>
-          </div>
+          </template>
 
           <div
             v-if="updateStore.pluginUpdates.length > 0"

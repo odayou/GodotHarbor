@@ -299,7 +299,7 @@ export default {
   },
   home: {
     welcome: '欢迎使用 Godot Harbor',
-    desc: 'Godot Harbor 是一款独立的桌面应用，用于管理 Godot 插件、项目和引擎。让插件只需导入一次，即可被多个项目复用。',
+    desc: 'Godot Harbor 帮助你管理 Godot 插件、项目和引擎。\n所有插件都可以一键挂载到任意项目。',
     projects: '项目',
     plugins: '插件',
     bindings: '绑定',
@@ -307,7 +307,7 @@ export default {
     recentProjects: '最近项目',
     engines: '引擎',
     step1: '1. 扫描项目',
-    step1Desc: '设置项目扫描目录，自动发现本地 Godot 项目',
+    step1Desc: '自动发现本地 Godot 项目',
     step2: '2. 导入插件',
     step2Desc: '从本地目录或 Git 仓库导入插件到 Vault',
     step3: '3. 绑定插件',
@@ -353,5 +353,69 @@ export default {
     scanProjects: '扫描项目',
     importPlugin: '导入插件',
     registerEngine: '注册引擎'
+  },
+  about: {
+    title: '关于',
+    tabs: {
+      about: '关于',
+      credits: '鸣谢',
+      sponsor: '赞助'
+    },
+    appDescription: 'Godot Harbor 是一款有用的桌面应用，用于管理 Godot 引擎的插件、项目和引擎版本。统一管理所有插件，通过符号链接等方式，一键挂载到任意项目。',
+    features: {
+      symlinkEngine: {
+        title: '符号链接引擎',
+        desc: '零复制安装，磁盘占用最小，一改全改'
+      },
+      versionManagement: {
+        title: '版本精细管理',
+        desc: '同一插件多版本共存，项目按需绑定'
+      },
+      teamCollaboration: {
+        title: '团队协作',
+        desc: '团队配置导入导出，环境一致性保证'
+      }
+    },
+    techStack: '技术栈',
+    rust: 'Rust',
+    rustBackend: '后端核心',
+    tauri: 'Tauri 2',
+    tauriDesktop: '桌面框架',
+    vue: 'Vue 3',
+    vueFrontend: '前端框架',
+    tailwind: 'Tailwind',
+    tailwindCSS: 'CSS 框架',
+    openSource: 'Godot Harbor 是开源软件，基于 Apache-2.0 / MIT 许可证发布',
+    githubRepo: 'GitHub 仓库',
+    issueReport: '问题反馈',
+    contribute: '参与贡献',
+    creditsTitle: '鸣谢',
+    creditsDesc: 'Godot Harbor 的诞生离不开以下开源项目和社区的支持。',
+    rustDeps: 'Rust 依赖',
+    jsDeps: '前端依赖',
+    inspiration: '灵感来源',
+    godotEngine: 'Godot Engine',
+    godotEngineDesc: '优秀的开源游戏引擎，Godot Harbor 为其生态而生',
+    godotEnv: 'GodotEnv',
+    godotEnvDesc: '声明式插件管理的先驱，harbor.json 的灵感来源',
+    gdplug: 'gd-plug',
+    gdplugDesc: '编辑器内插件管理的标杆，Git 版本冻结的思路参考',
+    godam: 'godam',
+    godamDesc: 'Rust 编写的轻量 CLI，Asset Library API 集成的参考',
+    sponsorTitle: '支持 Godot Harbor',
+    sponsorDesc: 'Godot Harbor 是免费开源软件。如果您觉得它对您有帮助，可以考虑通过以下方式支持我们的开发。',
+    buyMeCoffee: 'Buy Me a Coffee',
+    coffeeDesc: '一次性的小额赞助，帮助我们保持开发热情。',
+    buyCoffee: '请我喝咖啡',
+    githubSponsors: 'GitHub Sponsors',
+    githubSponsorsDesc: '通过 GitHub 赞助，按月或一次性支持开发者。',
+    becomeSponsor: '成为赞助者',
+    starGithub: 'Star on GitHub',
+    starGithubDesc: '给项目点一个 Star 是最简单的支持方式，也能帮助更多人发现 Godot Harbor。',
+    giveStar: '给个 Star',
+    contributeAction: '参与贡献',
+    contributeDesc: '代码贡献、Bug 反馈、功能建议、文档完善，每一种贡献都同样宝贵。',
+    contributionGuide: '贡献指南',
+    sponsorThanks: '感谢每一位支持者！您的支持是 Godot Harbor 持续发展的动力。'
   }
 }

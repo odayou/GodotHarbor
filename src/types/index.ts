@@ -189,11 +189,20 @@ export interface VersionUpdateInfo {
   download_url: string
   release_notes: string
   is_major_update: boolean
+  channel: string
+}
+
+export interface ChannelLatestVersions {
+  stable: GodotReleaseInfo | null
+  preview: GodotReleaseInfo | null
+  snapshot: GodotReleaseInfo | null
 }
 
 export interface GodotVersionCheckResult {
   latest_godot4: GodotReleaseInfo | null
   latest_godot3: GodotReleaseInfo | null
+  godot4_channels: ChannelLatestVersions
+  godot3_channels: ChannelLatestVersions
   local_engines: LocalEngineVersion[]
   updates_available: VersionUpdateInfo[]
   checked_at: string

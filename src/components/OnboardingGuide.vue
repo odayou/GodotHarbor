@@ -27,13 +27,13 @@ checkFirstTime()
 const steps = [
   {
     title: '欢迎使用 Godot Harbor',
-    desc: 'Godot Harbor 帮助你管理 Godot 插件、项目和引擎。\n插件只需导入一次，即可被多个项目复用。',
+    desc: 'Godot Harbor 帮助你管理 Godot 插件、项目和引擎。\n所有插件都可以一键挂载到任意项目。',
     icon: 'welcome',
     action: null
   },
   {
     title: '扫描你的 Godot 项目',
-    desc: '设置扫描目录，自动发现本地 Godot 项目。\n也可以手动添加或拖拽导入项目。',
+    desc: '自动发现本地 Godot 项目。\n也可以手动添加或拖拽导入项目。',
     icon: 'scan',
     action: '/projects'
   },

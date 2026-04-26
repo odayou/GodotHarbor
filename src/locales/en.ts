@@ -299,7 +299,8 @@ export default {
   },
   home: {
     welcome: 'Welcome to Godot Harbor',
-    desc: 'Godot Harbor is a standalone desktop app for managing Godot plugins, projects and engines. Import plugins once and reuse them across multiple projects.',
+    // Godot Harbor 帮助你管理 Godot 插件、项目和引擎。\n所有插件都可以一键挂载到任意项目。
+    desc: 'Godot Harbor helps you manage Godot plugins, projects and engines. All plugins can be mounted to any project with one click.',
     projects: 'Projects',
     plugins: 'Plugins',
     bindings: 'Bindings',
@@ -307,7 +308,7 @@ export default {
     recentProjects: 'Recent Projects',
     engines: 'Engines',
     step1: '1. Scan Projects',
-    step1Desc: 'Set project scan directories to automatically discover local Godot projects',
+    step1Desc: 'automatically discover local Godot projects',
     step2: '2. Import Plugins',
     step2Desc: 'Import plugins to Vault from local directory or Git repository',
     step3: '3. Bind Plugins',
@@ -353,5 +354,69 @@ export default {
     scanProjects: 'Scan projects',
     importPlugin: 'Import plugin',
     registerEngine: 'Register engine'
+  },
+  about: {
+    title: 'About',
+    tabs: {
+      about: 'About',
+      credits: 'Credits',
+      sponsor: 'Sponsor'
+    },
+    appDescription: 'Godot Harbor is a useful desktop application for managing Godot engine plugins, projects, and engine versions. Manage all plugins in one place and mount them to any project with one click via symbolic links.',
+    features: {
+      symlinkEngine: {
+        title: 'Symbolic Link Engine',
+        desc: 'Zero-copy installation, minimal disk usage, change once apply everywhere'
+      },
+      versionManagement: {
+        title: 'Fine-grained Version Management',
+        desc: 'Multiple plugin versions coexist, projects bind on demand'
+      },
+      teamCollaboration: {
+        title: 'Team Collaboration',
+        desc: 'Team config import/export, environment consistency guaranteed'
+      }
+    },
+    techStack: 'Tech Stack',
+    rust: 'Rust',
+    rustBackend: 'Backend Core',
+    tauri: 'Tauri 2',
+    tauriDesktop: 'Desktop Framework',
+    vue: 'Vue 3',
+    vueFrontend: 'Frontend Framework',
+    tailwind: 'Tailwind',
+    tailwindCSS: 'CSS Framework',
+    openSource: 'Godot Harbor is open source software, released under Apache-2.0 / MIT license',
+    githubRepo: 'GitHub Repository',
+    issueReport: 'Report Issues',
+    contribute: 'Contribute',
+    creditsTitle: 'Credits',
+    creditsDesc: 'Godot Harbor would not be possible without the following open source projects and communities.',
+    rustDeps: 'Rust Dependencies',
+    jsDeps: 'Frontend Dependencies',
+    inspiration: 'Inspiration',
+    godotEngine: 'Godot Engine',
+    godotEngineDesc: 'Excellent open source game engine, Godot Harbor is built for its ecosystem',
+    godotEnv: 'GodotEnv',
+    godotEnvDesc: 'Pioneer of declarative plugin management, inspiration for harbor.json',
+    gdplug: 'gd-plug',
+    gdplugDesc: 'Benchmark for in-editor plugin management, reference for Git version freezing',
+    godam: 'godam',
+    godamDesc: 'Lightweight CLI written in Rust, reference for Asset Library API integration',
+    sponsorTitle: 'Support Godot Harbor',
+    sponsorDesc: 'Godot Harbor is free and open source software. If you find it helpful, consider supporting our development.',
+    buyMeCoffee: 'Buy Me a Coffee',
+    coffeeDesc: 'One-time small sponsorship to help us maintain development enthusiasm.',
+    buyCoffee: 'Buy Me a Coffee',
+    githubSponsors: 'GitHub Sponsors',
+    githubSponsorsDesc: 'Sponsor through GitHub, monthly or one-time support for developers.',
+    becomeSponsor: 'Become a Sponsor',
+    starGithub: 'Star on GitHub',
+    starGithubDesc: 'Giving a Star is the simplest way to support, and helps more people discover Godot Harbor.',
+    giveStar: 'Give a Star',
+    contributeAction: 'Contribute',
+    contributeDesc: 'Code contributions, bug reports, feature suggestions, documentation improvements — every contribution is equally valuable.',
+    contributionGuide: 'Contribution Guide',
+    sponsorThanks: 'Thank you to every supporter! Your support is the driving force behind Godot Harbor\'s continuous development.'
   }
 }
