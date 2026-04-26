@@ -44,7 +44,11 @@ const loadSettings = async () => {
   finally { isLoading.value = false }
 }
 
-watch(() => settings.value.language, (lang) => { locale.value = lang })
+watch(() => settings.value.language, (lang) => {
+  locale.value = lang
+  // 保存语言设置到localStorage
+  localStorage.setItem('godotharbor-language', lang)
+})
 watch(() => settings.value.theme, (theme) => { if (['light', 'dark', 'system', 'volcano'].includes(theme)) setTheme(theme as 'light' | 'dark' | 'system' | 'volcano') })
 
 const addScanDirectory = async () => {
@@ -454,7 +458,7 @@ const resetOnboarding = async () => {
     <div v-if="showTeamConfigDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showTeamConfigDialog = false">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl shadow-xl max-h-[80vh] flex flex-col" @click.stop>
         <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">团队配置管理</h3>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ t('settings.teamConfig.title') }}</h3>
           <button @click="showTeamConfigDialog = false" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
             <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -466,20 +470,20 @@ const resetOnboarding = async () => {
             @click="openExportDialog"
             class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm"
           >
-            导出新配置
+            {{ t('settings.teamConfig.export') }}
           </button>
         </div>
         <div class="flex-1 overflow-y-auto">
           <div v-if="teamConfigs.length === 0" class="text-center py-8 text-gray-500 dark:text-gray-400">
-            暂无团队配置
+            {{ t('settings.teamConfig.empty') }}
           </div>
           <div v-else class="space-y-4">
             <div v-for="config in teamConfigs" :key="config.config_id" class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
               <div class="flex justify-between items-start">
                 <div>
                   <h4 class="font-medium text-gray-900 dark:text-gray-100">{{ config.name }}</h4>
-                  <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ config.description || '无描述' }}</p>
-                  <p class="text-xs text-gray-400 dark:text-gray-500 mt-2">创建时间: {{ formatDate(config.created_at) }}</p>
+                  <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ config.description || t('settings.teamConfig.description') }}</p>
+                  <p class="text-xs text-gray-400 dark:text-gray-500 mt-2">{{ t('settings.teamConfig.created', { date: formatDate(config.created_at) }) }}</p>
                 </div>
                 <div class="flex gap-2">
                   <button
@@ -487,18 +491,18 @@ const resetOnboarding = async () => {
                     :disabled="isImporting || projects.length === 0"
                     class="px-3 py-1 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors text-sm"
                   >
-                    导入
+                    {{ t('settings.teamConfig.import') }}
                   </button>
                   <button
                     @click="confirmDeleteTeamConfig(config.config_id)"
                     class="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
                   >
-                    删除
+                    {{ t('settings.teamConfig.delete') }}
                   </button>
                 </div>
               </div>
               <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                包含 {{ config.bindings.length }} 个插件绑定, {{ config.engine_bindings.length }} 个引擎绑定
+                {{ t('settings.teamConfig.stats', { bindings: config.bindings.length, engineBindings: config.engine_bindings.length }) }}
               </div>
             </div>
           </div>
@@ -508,7 +512,7 @@ const resetOnboarding = async () => {
             @click="showTeamConfigDialog = false"
             class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
           >
-            关闭
+            {{ t('settings.teamConfig.close') }}
           </button>
         </div>
       </div>
@@ -516,28 +520,28 @@ const resetOnboarding = async () => {
 
     <div v-if="showExportDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showExportDialog = false">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">导出团队配置</h3>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.teamConfig.exportTitle') }}</h3>
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">配置名称</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.teamConfig.name') }}</label>
             <input
               v-model="exportConfigName"
               type="text"
-              placeholder="例如: 项目A标准配置"
+              :placeholder="t('settings.teamConfig.namePlaceholder')"
               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
             />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">描述（可选）</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.teamConfig.descriptionLabel') }}</label>
             <input
               v-model="exportConfigDescription"
               type="text"
-              placeholder="配置描述"
+              :placeholder="t('settings.teamConfig.descriptionPlaceholder')"
               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
             />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">选择项目</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.teamConfig.selectProjects') }}</label>
             <div class="space-y-2 max-h-40 overflow-y-auto bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
               <div v-for="project in projects" :key="project.project_id" class="flex items-center gap-2">
                 <input
@@ -556,14 +560,14 @@ const resetOnboarding = async () => {
             @click="showExportDialog = false"
             class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
           >
-            取消
+            {{ t('settings.teamConfig.cancel') }}
           </button>
           <button
             @click="exportTeamConfig"
             :disabled="isExporting || !exportConfigName || selectedProjectIds.length === 0"
             class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
           >
-            {{ isExporting ? '导出中...' : '导出' }}
+            {{ isExporting ? t('settings.teamConfig.exporting') : t('settings.teamConfig.exportAction') }}
           </button>
         </div>
       </div>

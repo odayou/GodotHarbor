@@ -71,10 +71,8 @@ const inspirationDeps = [
 
     <div v-if="activeTab === 'about'" class="space-y-6">
       <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center">
-        <div class="w-20 h-20 mx-auto mb-4 bg-primary-100 dark:bg-primary-900/30 rounded-2xl flex items-center justify-center">
-          <svg class="w-12 h-12 text-primary-600 dark:text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-          </svg>
+        <div class="w-20 h-20 mx-auto mb-4 flex items-center justify-center">
+          <img src="../assets/StoreLogo.png" alt="Godot Harbor Logo" class="w-full h-full object-contain" />
         </div>
         <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Godot Harbor</h1>
         <p class="text-gray-500 dark:text-gray-400 mt-2">v{{ appVersion }}</p>

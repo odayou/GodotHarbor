@@ -596,28 +596,28 @@ const closePluginDetail = () => {
           :disabled="isLoading"
           class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 text-sm"
         >
-          {{ t('plugins.importFromDir') }}
+          {{ t('plugins.fromDir') }}
         </button>
         <button
           @click="importFromFile"
           :disabled="isLoading"
           class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 text-sm"
         >
-          {{ t('plugins.importFromFile') }}
+          {{ t('plugins.fromFile') }}
         </button>
         <button
           @click="openAssetLibrary"
           :disabled="isLoading"
           class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 text-sm"
         >
-          {{ t('plugins.assetLibrary') }}
+          {{ t('assetLibrary.title') }}
         </button>
         <button
           @click="showGitDialog = true"
           :disabled="isLoading"
           class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 text-sm"
         >
-          {{ t('plugins.importFromGit') }}
+          {{ t('plugins.fromGit') }}
         </button>
       </div>
     </div>

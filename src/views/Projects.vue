@@ -728,7 +728,7 @@ const confirmRelocate = async () => {
                 <button
                   @click.stop="openGroupDialog(project)"
                   class="text-blue-600 hover:text-blue-800 p-1"
-                  title="设置分组"
+                  :title="t('projects.setGroup')"
                 >
                   <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
@@ -760,9 +760,9 @@ const confirmRelocate = async () => {
                   @click.stop="launchProject(project)"
                   :disabled="isLaunching || engines.length === 0"
                   class="px-2 py-1 rounded text-xs font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 transition-colors"
-                  title="启动项目"
+                  :title="t('projects.launch')"
                 >
-                  启动
+                  {{ t('projects.launch') }}
                 </button>
                 <span
                   :class="[
@@ -825,7 +825,7 @@ const confirmRelocate = async () => {
               'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
             ]"
           >
-            {{ selectedProject.status === 'Ready' ? '就绪' : selectedProject.status === 'Warning' ? '警告' : selectedProject.status === 'Conflict' ? '冲突' : selectedProject.status === 'MissingSource' ? '源缺失' : '错误' }}
+            {{ t(`projects.status.${selectedProject.status.toLowerCase()}`) || '错误' }}
           </span>
         </div>
         <div class="mb-4">
@@ -893,14 +893,14 @@ const confirmRelocate = async () => {
 
     <div v-if="showGroupDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showGroupDialog = false; groupInput = ''; editingProjectId = null">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">设置项目分组</h3>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('projects.groupTitle') }}</h3>
         <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          输入分组名称，相同分组的项目会显示在一起
+          {{ t('projects.groupDesc') }}
         </p>
         <input
           v-model="groupInput"
           type="text"
-          placeholder="输入分组名称（留空移除分组）"
+          :placeholder="t('projects.groupPlaceholder')"
           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
         />
         <div class="flex justify-end space-x-3 mt-6">
@@ -908,13 +908,13 @@ const confirmRelocate = async () => {
             @click="showGroupDialog = false; groupInput = ''; editingProjectId = null"
             class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
           >
-            取消
+            {{ t('common.cancel') }}
           </button>
           <button
             @click="saveGroup"
             class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
           >
-            保存
+            {{ t('common.confirm') }}
           </button>
         </div>
       </div>
@@ -979,7 +979,7 @@ const confirmRelocate = async () => {
       v-model="showConfirmDialog"
       :title="confirmAction?.title || ''"
       :description="confirmAction?.message || ''"
-      confirm-text="确认删除"
+      :confirm-text="t('common.confirmDelete')"
       @confirm="onConfirmDialogConfirm"
     />
 
