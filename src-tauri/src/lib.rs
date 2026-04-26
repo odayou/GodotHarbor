@@ -172,7 +172,7 @@ pub fn run() {
                 .item(&quit_item)
                 .build()?;
 
-            let tray_icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray_icon_32.png"))
+            let tray_icon = tauri::image::Image::from_bytes(include_bytes!("../icons/StoreLogo.png"))
                 .expect("Failed to load tray icon");
             let _app_handle = app.handle().clone();
             let _tray = TrayIconBuilder::new()
