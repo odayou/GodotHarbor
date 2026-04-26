@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
-import type { Plugin, Project, PluginUpdateInfo, PluginDependency, AssetLibrarySearchResult, AssetLibrarySearchResponse, AssetLibraryCategory, AssetLibraryAsset, PluginStorageStats, ProjectBinding, TotalStorageStats } from '@/types'
+import type { Plugin, Project, PluginUpdateInfo, PluginDependency, AssetLibrarySearchResult, AssetLibrarySearchResponse, AssetLibraryCategory, AssetLibraryAsset, PluginStorageStats, ProjectBinding, TotalStorageStats, DuplicateCheckResult, ScannedPlugin } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { useToast } from '@/composables/useToast'
@@ -156,8 +156,8 @@ const favoritePlugins = computed(() => {
   return plugins.value.filter(p => p.is_favorite).length
 })
 
-const loadPlugins = async () => {
-  if (hasLoaded.value && pluginStore.plugins.length > 0) {
+const loadPlugins = async (force = false) => {
+  if (!force && hasLoaded.value && pluginStore.plugins.length > 0) {
     return
   }
   isLoading.value = true
@@ -180,9 +180,33 @@ const importFromLocal = async () => {
     })
     if (selected && typeof selected === 'string') {
       isLoading.value = true
+      try {
+        const dupCheck = await api.checkPluginDuplicate(selected)
+        if (dupCheck.is_duplicate) {
+          isLoading.value = false
+          duplicateCheckResult.value = dupCheck
+          pendingImportAction.value = async () => {
+            isLoading.value = true
+            try {
+              const result = await api.importPluginFromLocal(selected)
+              toast.success(t('plugins.importPluginSuccess', { name: result.name }))
+              await loadPlugins(true)
+            } catch (error) {
+              toast.error(t('common.addProjectFailed', { error }))
+            } finally {
+              isLoading.value = false
+            }
+          }
+          showDuplicateConfirm.value = true
+          return
+        }
+      } catch {
+        // duplicate check failed, proceed with import
+      }
+      isLoading.value = true
       const result = await api.importPluginFromLocal(selected)
-      toast.success(t('common.addProjectSuccess', { name: result.name }))
-      await loadPlugins()
+      toast.success(t('plugins.importPluginSuccess', { name: result.name }))
+      await loadPlugins(true)
     }
   } catch (error) {
     toast.error(t('common.addProjectFailed', { error }))
@@ -203,8 +227,8 @@ const importFromFile = async () => {
       isLoading.value = true
       const dirPath = selected.substring(0, selected.lastIndexOf(/[/\\]/.test(selected) ? (selected.includes('\\') ? '\\' : '/') : '/'))
       const result = await api.importPluginFromLocal(dirPath || selected)
-      toast.success(t('common.addProjectSuccess', { name: result.name }))
-      await loadPlugins()
+      toast.success(t('plugins.importPluginSuccess', { name: result.name }))
+      await loadPlugins(true)
     }
   } catch (error) {
     toast.error(t('common.addProjectFailed', { error }))
@@ -221,10 +245,10 @@ const importFromGit = async () => {
   isLoading.value = true
   try {
     const result = await api.importPluginFromGit(gitUrl.value)
-    toast.success(t('common.addProjectSuccess', { name: result.name }))
+    toast.success(t('plugins.importPluginSuccess', { name: result.name }))
     gitUrl.value = ''
     showGitDialog.value = false
-    await loadPlugins()
+    await loadPlugins(true)
   } catch (error) {
     toast.error(t('common.addProjectFailed', { error }))
   } finally {
@@ -252,17 +276,35 @@ const searchCache = ref<Map<string, { data: AssetLibrarySearchResponse; timestam
 const categoriesLoaded = ref(false)
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
+const addMenuRef = ref<HTMLElement | null>(null)
+
+const handleClickOutside = (event: MouseEvent) => {
+  if (showAddMenu.value && addMenuRef.value && !addMenuRef.value.contains(event.target as Node)) {
+    showAddMenu.value = false
+  }
+}
+
 onMounted(async () => {
   loadPlugins()
   loadTotalStorageStats()
+  document.addEventListener('click', handleClickOutside)
 })
 
 onUnmounted(() => {
-  // 清理工作
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer)
+    searchDebounceTimer = null
+  }
+  searchCache.value.clear()
+  document.removeEventListener('click', handleClickOutside)
 })
 
 const showDeletePluginConfirm = ref(false)
 const deletePluginId = ref('')
+
+const showDuplicateConfirm = ref(false)
+const duplicateCheckResult = ref<DuplicateCheckResult | null>(null)
+const pendingImportAction = ref<(() => Promise<void>) | null>(null)
 
 useDialogEscape(showGitDialog)
 useDialogEscape(showPluginDetail)
@@ -270,6 +312,7 @@ useDialogEscape(showAssetLibraryDialog)
 useDialogEscape(showAssetDetailDialog)
 useDialogEscape(showUpdatesDialog)
 useDialogEscape(showImportModeDialog)
+useDialogEscape(showDuplicateConfirm)
 
 const showBindDialog = ref(false)
 const bindTargetPlugin = ref<Plugin | null>(null)
@@ -442,9 +485,9 @@ const importAsset = async (assetId: string, assetTitle: string) => {
   pluginStore.setImporting(assetId)
   try {
     await api.importFromAssetLibraryWithProgress(assetId)
-    toast.success(t('assetLibrary.importSuccess') + ': ' + assetTitle)
-    sendImportNotification('Godot Harbor', t('assetLibrary.importSuccess') + ': ' + assetTitle)
-    await loadPlugins()
+    toast.success(t('plugins.importPluginSuccess', { name: assetTitle }))
+    sendImportNotification('Godot Harbor', t('plugins.importPluginSuccess', { name: assetTitle }))
+    await loadPlugins(true)
   } catch (error) {
     toast.error(t('assetLibrary.importFailed') + ': ' + error)
   } finally {
@@ -474,13 +517,13 @@ const batchImportAssets = async () => {
   }
   selectedAssetIds.value = new Set()
   if (failCount > 0) {
-    toast.warning(t('common.batchDeleteComplete', { success: successCount, failed: failCount }))
-    sendImportNotification('Godot Harbor', t('common.batchDeleteComplete', { success: successCount, failed: failCount }))
+    toast.warning(t('plugins.depDialog.partialSuccess', { success: successCount, failed: failCount }))
+    sendImportNotification('Godot Harbor', t('plugins.depDialog.partialSuccess', { success: successCount, failed: failCount }))
   } else {
-    toast.success(t('common.batchDeleteSuccess', { count: successCount }))
+    toast.success(t('common.batchImportSuccess', { count: successCount }))
     sendImportNotification('Godot Harbor', t('common.batchImportSuccess', { count: successCount }))
   }
-  await loadPlugins()
+  await loadPlugins(true)
 }
 
 const openAssetDetail = async (assetId: string) => {
@@ -513,9 +556,18 @@ const confirmRemovePlugin = async (pluginId: string) => {
 
 const onRemovePluginConfirm = async () => {
   try {
+    if (deletePluginBindings.value.length > 0) {
+      for (const binding of deletePluginBindings.value) {
+        try {
+          await api.unbindPlugin(binding.project_id, deletePluginId.value)
+        } catch {
+          // ignore individual unbind errors
+        }
+      }
+    }
     await api.removePlugin(deletePluginId.value)
     toast.success(t('common.projectDeleted'))
-    await loadPlugins()
+    await loadPlugins(true)
   } catch (error) {
     toast.error(t('common.deleteFailed', { error }))
   }
@@ -531,7 +583,32 @@ const toggleFavorite = async (plugin: Plugin) => {
   }
 }
 
+const scannedPlugins = ref<ScannedPlugin[]>([])
+const isScanningProjects = ref(false)
+const showScanPreviewDialog = ref(false)
+
+useDialogEscape(showScanPreviewDialog)
+
 const importFromProjects = async () => {
+  isScanningProjects.value = true
+  try {
+    const result = await api.scanProjectPlugins()
+    if (result.length === 0) {
+      toast.info(t('plugins.noNewPluginsFound'))
+      isScanningProjects.value = false
+      return
+    }
+    scannedPlugins.value = result
+    showScanPreviewDialog.value = true
+  } catch (error) {
+    toast.error(t('common.loadFailed', { error }))
+  } finally {
+    isScanningProjects.value = false
+  }
+}
+
+const startImportFromPreview = () => {
+  showScanPreviewDialog.value = false
   showImportModeDialog.value = true
 }
 
@@ -547,7 +624,7 @@ const doImportFromProjects = async () => {
     } else {
       toast.info(t('plugins.noNewPluginsFound'))
     }
-    await loadPlugins()
+    await loadPlugins(true)
   } catch (error) {
     toast.error(t('common.loadFailed', { error }))
   } finally {
@@ -691,6 +768,17 @@ const repairBinding = async (projectId: string, pluginId: string) => {
 
 const installedPluginIds = computed(() => new Set(plugins.value.map(p => p.plugin_id)))
 
+const importedAssetIds = computed(() => {
+  const ids = new Set<string>()
+  for (const p of plugins.value) {
+    if (p.source.source_type === 'AssetLibrary' && p.source.url) {
+      const match = p.source.url.match(/^asset-library:\/\/(\d+)$/)
+      if (match) ids.add(match[1])
+    }
+  }
+  return ids
+})
+
 const missingDepPluginIds = computed(() => {
   return pluginDependencies.value
     .filter(d => !d.is_optional && !installedPluginIds.value.has(d.plugin_id))
@@ -708,7 +796,11 @@ const installMissingDeps = async () => {
     try {
       const dep = pluginDependencies.value.find(d => d.plugin_id === depId)
       if (dep?.version_constraint) {
-        await api.importPluginFromGit(dep.version_constraint)
+        try {
+          await api.importPluginFromGit(dep.version_constraint)
+        } catch {
+          // version_constraint may not be a valid git URL, skip
+        }
       }
       successCount++
     } catch {
@@ -721,7 +813,7 @@ const installMissingDeps = async () => {
   } else {
     toast.success(t('plugins.depDialog.success', { count: successCount }))
   }
-  await loadPlugins()
+  await loadPlugins(true)
   if (selectedPlugin.value) {
     pluginDependencies.value = await api.resolvePluginDependencies(selectedPlugin.value.plugin_id)
   }
@@ -741,7 +833,7 @@ const installMissingDeps = async () => {
         >
           {{ isCheckingUpdates ? t('plugins.checkingUpdates') : t('plugins.checkUpdates') }}
         </button>
-        <div class="relative">
+        <div class="relative" ref="addMenuRef">
           <button
             @click="showAddMenu = !showAddMenu"
             :disabled="isLoading"
@@ -1072,7 +1164,7 @@ const installMissingDeps = async () => {
         <input
           v-model="gitUrl"
           type="text"
-          placeholder="https://github.com/user/plugin-repo.git"
+          :placeholder="t('plugins.gitImport.placeholder')"
           class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
         />
         <div class="flex justify-end space-x-3 mt-6">
@@ -1282,12 +1374,12 @@ const installMissingDeps = async () => {
             <option v-for="cat in assetCategories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
           </select>
           <select v-model="assetFilterGodotVersion" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
-            <option value="any">{{ t('assetLibrary.godotVersion') }}: Any</option>
-            <option value="4.0">Godot 4.x</option>
-            <option value="3.0">Godot 3.x</option>
+            <option value="any">{{ t('assetLibrary.godotVersionAny') }}</option>
+            <option value="4.0">{{ t('assetLibrary.godot4x') }}</option>
+            <option value="3.0">{{ t('assetLibrary.godot3x') }}</option>
           </select>
           <select v-model="assetFilterSupport" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
-            <option value="">{{ t('assetLibrary.supportLevel') }}: All</option>
+            <option value="">{{ t('assetLibrary.supportAll') }}</option>
             <option value="official">{{ t('assetLibrary.supportOfficial') }}</option>
             <option value="featured">{{ t('assetLibrary.supportFeatured') }}</option>
             <option value="community">{{ t('assetLibrary.supportCommunity') }}</option>
@@ -1371,12 +1463,14 @@ const installMissingDeps = async () => {
                 </div>
               </div>
               <button
+                v-if="!importedAssetIds.has(asset.asset_id)"
                 @click="importAsset(asset.asset_id, asset.title)"
                 :disabled="pluginStore.isImporting === asset.asset_id"
                 class="btn-primary disabled:opacity-50 text-xs px-3 py-1.5 flex-shrink-0"
               >
                 {{ pluginStore.isImporting === asset.asset_id ? t('assetLibrary.importing') : t('assetLibrary.import') }}
               </button>
+              <span v-else class="text-xs px-3 py-1.5 text-green-600 dark:text-green-400 flex-shrink-0 font-medium">✓ {{ t('assetLibrary.alreadyImported') }}</span>
             </div>
           </div>
         </div>
@@ -1553,6 +1647,25 @@ const installMissingDeps = async () => {
       </div>
     </div>
 
+    <div v-if="showScanPreviewDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showScanPreviewDialog = false">
+      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[80vh] flex flex-col" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('plugins.importFromProject.scanTitle') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">{{ t('plugins.importFromProject.scanDesc', { count: scannedPlugins.length }) }}</p>
+        <div class="flex-1 overflow-y-auto space-y-2 mb-4">
+          <div v-for="(plugin, idx) in scannedPlugins" :key="idx" class="bg-gray-50 dark:bg-surface-layer rounded-lg p-3 flex items-center gap-3">
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate">{{ plugin.plugin_name }}</div>
+              <div class="text-xs text-gray-500 dark:text-content-secondary truncate">{{ plugin.project_name }} · {{ plugin.path }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="flex justify-end gap-3">
+          <button @click="showScanPreviewDialog = false" class="btn-secondary">{{ t('common.cancel') }}</button>
+          <button @click="startImportFromPreview" class="btn-primary">{{ t('plugins.importFromProject.continueImport') }}</button>
+        </div>
+      </div>
+    </div>
+
     <div v-if="showImportModeDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showImportModeDialog = false">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('plugins.importFromProject.title') }}</h3>
@@ -1629,7 +1742,7 @@ const installMissingDeps = async () => {
           </p>
           <div class="space-y-1 max-h-32 overflow-y-auto">
             <div v-for="binding in deletePluginBindings" :key="binding.project_id + binding.mount_path" class="text-xs text-red-600 dark:text-red-400">
-              → {{ binding.mount_path }}
+              �?{{ binding.mount_path }}
             </div>
           </div>
           <p class="text-xs text-red-500 dark:text-red-400 mt-2">
@@ -1650,6 +1763,24 @@ const installMissingDeps = async () => {
       :confirm-text="t('plugins.deleteConfirm.batchConfirm')"
       @confirm="onBatchDeleteConfirm"
     />
+
+    <div v-if="showDuplicateConfirm && duplicateCheckResult" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showDuplicateConfirm = false; duplicateCheckResult = null; pendingImportAction = null">
+      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('plugins.duplicate.title') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">
+          {{ t('plugins.duplicate.desc', { name: duplicateCheckResult.duplicate_plugin_name || duplicateCheckResult.duplicate_plugin_id || '' }) }}
+        </p>
+        <div class="flex justify-end gap-3">
+          <button @click="showDuplicateConfirm = false; duplicateCheckResult = null; pendingImportAction = null" class="btn-secondary">{{ t('plugins.duplicate.cancel') }}</button>
+          <button
+            @click="showDuplicateConfirm = false; duplicateCheckResult = null; if (pendingImportAction) { pendingImportAction(); pendingImportAction = null; }"
+            class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm"
+          >
+            {{ t('plugins.duplicate.importAnyway') }}
+          </button>
+        </div>
+      </div>
+    </div>
 
     <div v-if="showBindDialog && bindTargetPlugin" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showBindDialog = false; bindTargetPlugin = null">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[85vh] flex flex-col" @click.stop>
@@ -1685,7 +1816,7 @@ const installMissingDeps = async () => {
                 />
                 <div class="min-w-0 flex-1">
                   <span class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ project.name }}</span>
-                  <span class="text-xs text-gray-500 dark:text-content-secondary ml-2">Godot {{ project.godot_version }}</span>
+                  <span class="text-xs text-gray-500 dark:text-content-secondary ml-2">{{ project.godot_version }}</span>
                 </div>
               </label>
             </div>

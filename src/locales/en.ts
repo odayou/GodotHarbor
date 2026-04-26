@@ -221,7 +221,10 @@ export default {
       title: 'Import Plugins from Projects',
       modeSelect: 'Select import mode:',
       cancel: 'Cancel',
-      startImport: 'Start Import'
+      startImport: 'Start Import',
+      scanTitle: 'Scan Results Preview',
+      scanDesc: 'Found {count} plugins in the following projects:',
+      continueImport: 'Select import mode to continue'
     },
     bindDialog: {
       title: 'Bind Plugin: {name}',
@@ -247,7 +250,16 @@ export default {
       installing: 'Installing...',
       success: 'Successfully installed {count} dependencies',
       partialSuccess: 'Dependency installation completed: {success} succeeded, {failed} failed'
-    }
+    },
+    duplicate: {
+      title: 'Duplicate Plugin Found',
+      desc: 'Plugin "{name}" already exists in the repository. Import anyway?',
+      importAnyway: 'Import Anyway',
+      cancel: 'Cancel'
+    },
+    importPluginSuccess: 'Plugin {name} imported successfully',
+    deleteWithBindings: 'Delete Plugin & Unbind',
+    deleteWithBindingsDesc: 'This plugin is used by {count} project(s). All bindings will be removed after deletion. Confirm?'
   },
   assetLibrary: {
     title: 'Asset Library',
@@ -261,7 +273,11 @@ export default {
     category: 'Category',
     categoryAll: 'All Categories',
     godotVersion: 'Godot Version',
+    godotVersionAny: 'Any Version',
+    godot4x: 'Godot 4.x',
+    godot3x: 'Godot 3.x',
     supportLevel: 'Support Level',
+    supportAll: 'All',
     supportOfficial: 'Official',
     supportFeatured: 'Featured',
     supportCommunity: 'Community',
@@ -283,6 +299,7 @@ export default {
     parsing: 'Parsing plugin...',
     importSuccess: 'Import successful',
     importFailed: 'Import failed',
+    alreadyImported: 'Imported',
     batchImport: 'Batch Import',
     batchImportProgress: 'Importing {current}/{total}...',
     detail: 'Details',

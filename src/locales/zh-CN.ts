@@ -221,7 +221,10 @@ export default {
       title: '从项目导入插件',
       modeSelect: '选择导入模式：',
       cancel: '取消',
-      startImport: '开始导入'
+      startImport: '开始导入',
+      scanTitle: '扫描结果预览',
+      scanDesc: '在以下项目中发现 {count} 个插件：',
+      continueImport: '选择导入模式继续'
     },
     bindDialog: {
       title: '绑定插件: {name}',
@@ -247,7 +250,16 @@ export default {
       installing: '安装中...',
       success: '已成功安装 {count} 个依赖',
       partialSuccess: '依赖安装完成: 成功 {success} 个, 失败 {failed} 个'
-    }
+    },
+    duplicate: {
+      title: '发现重复插件',
+      desc: '插件 "{name}" 已存在于仓库中，是否仍要导入？',
+      importAnyway: '仍然导入',
+      cancel: '取消'
+    },
+    importPluginSuccess: '插件 {name} 导入成功',
+    deleteWithBindings: '删除插件并解绑',
+    deleteWithBindingsDesc: '该插件正被 {count} 个项目使用，删除后所有绑定将被移除。确定删除？'
   },
   assetLibrary: {
     title: 'Asset Library',
@@ -261,7 +273,11 @@ export default {
     category: '分类',
     categoryAll: '全部分类',
     godotVersion: 'Godot 版本',
+    godotVersionAny: '任意版本',
+    godot4x: 'Godot 4.x',
+    godot3x: 'Godot 3.x',
     supportLevel: '支持级别',
+    supportAll: '全部',
     supportOfficial: '官方',
     supportFeatured: '推荐',
     supportCommunity: '社区',
@@ -283,6 +299,7 @@ export default {
     parsing: '解析插件...',
     importSuccess: '导入成功',
     importFailed: '导入失败',
+    alreadyImported: '已导入',
     batchImport: '批量导入',
     batchImportProgress: '正在导入 {current}/{total}...',
     detail: '详情',
