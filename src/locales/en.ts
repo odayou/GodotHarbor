@@ -438,7 +438,7 @@ export default {
       migrateFailed: 'Migration failed: {error}'
     },
     language: {
-      zhCN: 'Simplified Chinese',
+      zhCN: '简体中文',
       en: 'English'
     },
     cloudProvider: {
