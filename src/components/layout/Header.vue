@@ -19,11 +19,9 @@ const toggleDarkMode = () => {
 </script>
 
 <template>
-  <header class="h-16 bg-white dark:bg-surface-card shadow-sm border-b border-gray-200 dark:border-surface-border flex items-center justify-between px-6">
+  <header class="h-12 bg-white dark:bg-surface-card shadow-sm border-b border-gray-200 dark:border-surface-border flex items-center justify-between px-6">
     <div class="flex items-center space-x-4">
-      <h2 class="text-lg font-semibold text-gray-800 dark:text-content-primary">
-        Godot 开发环境管理中枢
-      </h2>
+ 
     </div>
     
     <div class="flex items-center space-x-4">

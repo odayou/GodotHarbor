@@ -7,7 +7,6 @@ export default {
     linker: 'Plugin Binding',
     engines: 'Engines',
     updates: 'Updates',
-    roadmap: 'Roadmap',
     about: 'About',
     settings: 'Settings'
   },

@@ -12,7 +12,7 @@ const { isCollapsed, toggleSidebar } = useSidebar()
 const asideClass = computed(() => {
   return [
     'bg-white dark:bg-surface-card shadow-lg flex flex-col shrink-0 transition-all duration-200 ease-in-out',
-    isCollapsed.value ? 'w-16' : 'w-64'
+    isCollapsed.value ? 'w-16' : 'w-54'
   ]
 })
 
@@ -22,7 +22,6 @@ const menuItems = [
   { path: '/plugins', icon: 'puzzle', labelKey: 'nav.plugins' },
   { path: '/linker', icon: 'link', labelKey: 'nav.linker' },
   { path: '/engines', icon: 'engine', labelKey: 'nav.engines' },
-  { path: '/roadmap', icon: 'roadmap', labelKey: 'nav.roadmap' },
   { path: '/about', icon: 'about', labelKey: 'nav.about' },
   { path: '/settings', icon: 'settings', labelKey: 'nav.settings' }
 ]
@@ -36,7 +35,7 @@ const navigateTo = (path: string) => {
   <aside :class="asideClass">
     <div
       :class="[
-        'h-16 border-b border-gray-200 dark:border-surface-border flex items-center',
+        'h-12 border-b border-gray-200 dark:border-surface-border flex items-center',
         isCollapsed ? 'justify-center px-0' : 'justify-center gap-2 px-2'
       ]"
     >
@@ -79,9 +78,6 @@ const navigateTo = (path: string) => {
             </svg>
             <svg v-else-if="item.icon === 'engine'" class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-            <svg v-else-if="item.icon === 'roadmap'" class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
             </svg>
             <svg v-else-if="item.icon === 'about'" class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
