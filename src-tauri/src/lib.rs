@@ -164,10 +164,21 @@ pub fn run() {
             let show_item = MenuItemBuilder::with_id("show", "显示窗口")
                 .accelerator("Alt+Space")
                 .build(app)?;
+            
+            let version_item = MenuItemBuilder::with_id("version", format!("版本: {}", commands::get_app_version(app_handle.clone()).unwrap_or("未知".to_string())))
+                .build(app)?;
+            
+            let check_update_item = MenuItemBuilder::with_id("check_update", "检查更新")
+                .build(app)?;
+            
             let quit_item = MenuItemBuilder::with_id("quit", "退出")
                 .build(app)?;
+            
             let menu = MenuBuilder::new(app)
                 .item(&show_item)
+                .separator()
+                .item(&version_item)
+                .item(&check_update_item)
                 .separator()
                 .item(&quit_item)
                 .build()?;
@@ -187,6 +198,24 @@ pub fn run() {
                                 let _ = window.set_focus();
                             }
                         }
+                        "check_update" => {
+                            let app_clone = app.clone();
+                            tauri::async_runtime::spawn(async move {
+                                match commands::check_hot_update(app_clone, None).await {
+                                    Ok(Some(update)) => {
+                                        // 有新版本
+                                        println!("发现新版本: {}", update.version);
+                                    }
+                                    Ok(None) => {
+                                        // 无新版本
+                                        println!("当前已是最新版本");
+                                    }
+                                    Err(e) => {
+                                        eprintln!("检查更新失败: {}", e);
+                                    }
+                                }
+                            });
+                        }
                         "quit" => {
                             app.exit(0);
                         }
@@ -194,12 +223,22 @@ pub fn run() {
                     }
                 })
                 .on_tray_icon_event(move |tray, event| {
-                    if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
-                        let app = tray.app_handle();
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
+                    match event {
+                        TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } => {
+                            let app = tray.app_handle();
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
                         }
+                        TrayIconEvent::DoubleClick { button: MouseButton::Left, .. } => {
+                            let app = tray.app_handle();
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
+                        _ => {}
                     }
                 })
                 .build(app)?;
