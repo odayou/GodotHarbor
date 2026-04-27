@@ -14,11 +14,14 @@ pub mod hot_update;
 
 use tauri::{Manager, Emitter};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use serde_json;
 
 pub struct AppState {
     pub fs_watcher: Mutex<watcher::FsWatcher>,
 }
+
+static WINDOW_CLOSED: AtomicBool = AtomicBool::new(false);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -140,8 +143,10 @@ pub fn run() {
             let show_handle = app_handle.clone();
             tauri::async_runtime::spawn(async move {
                 tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-                if let Some(window) = show_handle.get_webview_window("main") {
-                    let _ = window.show();
+                if !WINDOW_CLOSED.load(Ordering::SeqCst) {
+                    if let Some(window) = show_handle.get_webview_window("main") {
+                        let _ = window.show();
+                    }
                 }
             });
 
@@ -151,6 +156,7 @@ pub fn run() {
                 window.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                         api.prevent_close();
+                        WINDOW_CLOSED.store(true, Ordering::SeqCst);
                         if let Some(window) = app_clone.get_webview_window("main") {
                             let _ = window.hide();
                             // 显示通知，提示软件继续服务中
@@ -228,6 +234,7 @@ pub fn run() {
                 .on_tray_icon_event(move |tray, event| {
                     match event {
                         TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } => {
+                            WINDOW_CLOSED.store(false, Ordering::SeqCst);
                             let app = tray.app_handle();
                             if let Some(window) = app.get_webview_window("main") {
                                 let _ = window.set_focus();
@@ -235,6 +242,7 @@ pub fn run() {
                             }
                         }
                         TrayIconEvent::DoubleClick { button: MouseButton::Left, .. } => {
+                            WINDOW_CLOSED.store(false, Ordering::SeqCst);
                             let app = tray.app_handle();
                             if let Some(window) = app.get_webview_window("main") {
                                 let _ = window.set_focus();

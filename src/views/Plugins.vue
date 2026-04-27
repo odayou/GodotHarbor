@@ -391,7 +391,7 @@ const confirmBind = async (applyNow = false) => {
   let failCount = 0
   for (const projectId of projectIds) {
     try {
-      await api.bindPlugin(projectId, plugin.plugin_id, version.version_id, unit.unit_id, `addons/${unit.name}`)
+      await api.bindPlugin(projectId, plugin.plugin_id, version.version_id, unit.unit_id, unit.subdirectory || `addons/${unit.name}`)
       successCount++
     } catch {
       failCount++
@@ -963,7 +963,7 @@ const doBindPlugin = async (plugin: Plugin, version: any, unit: any) => {
   }
   try {
     for (const projectId of selectedLinkProjectIds.value) {
-      await api.bindPlugin(projectId, plugin.plugin_id, version.version_id, unit.unit_id, `addons/${unit.name}`)
+      await api.bindPlugin(projectId, plugin.plugin_id, version.version_id, unit.unit_id, unit.subdirectory || `addons/${unit.name}`)
     }
     toast.success(t('linker.pluginBound', { name: plugin.name, version: version.version }))
     linkerHasPendingChanges.value = true
@@ -2419,7 +2419,7 @@ useDialogEscape(showLinkerBatchApplyResult)
           </div>
 
           <div class="text-xs text-gray-500 dark:text-content-secondary">
-            {{ t('plugins.bindDialog.mountPath') }}: addons/{{ bindTargetPlugin.versions[bindSelectedVersionIdx]?.units[bindSelectedUnitIdx]?.name || '?' }}
+            {{ t('plugins.bindDialog.mountPath') }}: {{ bindTargetPlugin.versions[bindSelectedVersionIdx]?.units[bindSelectedUnitIdx]?.subdirectory || `addons/${bindTargetPlugin.versions[bindSelectedVersionIdx]?.units[bindSelectedUnitIdx]?.name || '?'}` }}
           </div>
         </div>
 
@@ -2465,7 +2465,7 @@ useDialogEscape(showLinkerBatchApplyResult)
             </select>
           </div>
           <p class="text-xs text-gray-500 dark:text-content-secondary">
-            {{ t('linker.mountPath') }}: addons/{{ versionSelectPlugin.versions[selectedVersionIdx]?.units[selectedUnitIdx]?.name || '?' }}
+            {{ t('linker.mountPath') }}: {{ versionSelectPlugin.versions[selectedVersionIdx]?.units[selectedUnitIdx]?.subdirectory || `addons/${versionSelectPlugin.versions[selectedVersionIdx]?.units[selectedUnitIdx]?.name || '?'}` }}
           </p>
         </div>
         <div class="flex justify-end gap-3 mt-6">

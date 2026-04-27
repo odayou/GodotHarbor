@@ -409,7 +409,8 @@ export default {
     unbindConfirm: '确认解绑',
     unbindConfirmDesc: '确定要从项目中解绑插件 "{name}" 吗？',
     repairSuccess: '绑定修复成功',
-    goToPluginEcosystem: '在插件生态中管理'
+    goToPluginEcosystem: '在插件生态中管理',
+    close: '关闭'
   },
   engines: {
     title: '引擎管理',

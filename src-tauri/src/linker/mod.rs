@@ -157,15 +157,6 @@ impl Linker {
             eprintln!("Warning: {}", warning);
         }
 
-        let conflicts = self.check_conflicts(project_path, desired_bindings)?;
-        if !conflicts.is_empty() {
-            for conflict in &conflicts {
-                result.errors.push(format!("冲突: {}", conflict.message));
-            }
-            result.success = false;
-            return Ok(result);
-        }
-
         let project = Path::new(project_path);
         let addons_dir = project.join("addons");
 
@@ -175,6 +166,15 @@ impl Linker {
         }
 
         let diff = self.compute_diff(current_bindings, desired_bindings);
+
+        let conflicts = self.check_conflicts(project_path, &diff.to_add, &diff.to_keep, addons_dir.to_str().unwrap_or(""))?;
+        if !conflicts.is_empty() {
+            for conflict in &conflicts {
+                result.errors.push(format!("冲突: {}", conflict.message));
+            }
+            result.success = false;
+            return Ok(result);
+        }
 
         let mut applied_ops: Vec<AppliedOp> = Vec::new();
 
@@ -217,14 +217,24 @@ impl Linker {
     pub fn check_conflicts(
         &self,
         project_path: &str,
-        bindings: &[ProjectBinding],
+        to_add: &[ProjectBinding],
+        to_keep: &[ProjectBinding],
+        _addons_dir: &str,
     ) -> Result<Vec<ConflictInfo>> {
         let mut conflicts = Vec::new();
 
         let project = Path::new(project_path);
         let addons_dir = project.join("addons");
 
-        for binding in bindings {
+        let kept_paths: std::collections::HashSet<String> = to_keep.iter()
+            .map(|b| b.mount_path.clone())
+            .collect();
+
+        for binding in to_add {
+            if kept_paths.contains(&binding.mount_path) {
+                continue;
+            }
+
             let target_path = addons_dir.join(&binding.mount_path);
 
             if target_path.exists() && !self.is_managed_link(&target_path)? {
@@ -331,6 +341,10 @@ impl Linker {
         }
 
         if self.is_junction(path) {
+            return Ok(true);
+        }
+
+        if path.is_dir() && path.join(".harbor-managed").exists() {
             return Ok(true);
         }
 
