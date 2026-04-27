@@ -1361,6 +1361,7 @@ useDialogEscape(showLinkerBatchApplyResult)
       </div>
     </div>
 
+    <div v-if="activeTab === 'repository'">
     <div v-if="isLoading" class="flex justify-center py-12">
       <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
     </div>
@@ -2135,6 +2136,7 @@ useDialogEscape(showLinkerBatchApplyResult)
           {{ t('plugins.storageStats.cleanup') }}
         </button>
       </div>
+    </div>
     </div>
 
     <div v-if="activeTab === 'bindings'" class="space-y-4">
