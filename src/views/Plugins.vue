@@ -951,19 +951,20 @@ const bindPluginToProject = async (plugin: Plugin) => {
 }
 
 const doBindPlugin = async (plugin: Plugin, version: any, unit: any) => {
+  const mountPath = unit.subdirectory || `addons/${unit.name}`
   for (const projectId of selectedLinkProjectIds.value) {
     const existingBinding = linkerBindings.value.find(
-      b => b.project_id === projectId && b.mount_path === `addons/${unit.name}`
+      b => b.project_id === projectId && b.mount_path === mountPath
     )
     if (existingBinding) {
       const conflictPlugin = plugins.value.find(p => p.plugin_id === existingBinding.plugin_id)
-      toast.warning(t('linker.mountConflict', { path: `addons/${unit.name}`, plugin: conflictPlugin?.name || existingBinding.plugin_id }))
+      toast.warning(t('linker.mountConflict', { path: mountPath, plugin: conflictPlugin?.name || existingBinding.plugin_id }))
       return
     }
   }
   try {
     for (const projectId of selectedLinkProjectIds.value) {
-      await api.bindPlugin(projectId, plugin.plugin_id, version.version_id, unit.unit_id, unit.subdirectory || `addons/${unit.name}`)
+      await api.bindPlugin(projectId, plugin.plugin_id, version.version_id, unit.unit_id, mountPath)
     }
     toast.success(t('linker.pluginBound', { name: plugin.name, version: version.version }))
     linkerHasPendingChanges.value = true
@@ -1037,7 +1038,8 @@ const confirmBatchBind = async () => {
         const version = plugin.versions[0]
         const unit = version.units[0]
         if (unit) {
-          requests.push({ project_id: projectId, plugin_id: pluginId, version_id: version.version_id, unit_id: unit.unit_id, mount_path: `addons/${unit.name}` })
+          const mountPath = unit.subdirectory || `addons/${unit.name}`
+          requests.push({ project_id: projectId, plugin_id: pluginId, version_id: version.version_id, unit_id: unit.unit_id, mount_path: mountPath })
         }
       }
     }
@@ -1310,7 +1312,7 @@ useDialogEscape(showLinkerBatchApplyResult)
       </div>
     </div>
 
-    <div v-if="activeTab === 'repository'" class="card">
+    <div v-if="activeTab === 'bindings'" class="card">
       <div class="flex flex-col lg:flex-row gap-4">
         <div class="flex-1">
           <input
