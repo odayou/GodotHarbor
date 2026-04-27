@@ -2216,7 +2216,7 @@ useDialogEscape(showLinkerBatchApplyResult)
                 @click="batchBindPlugins"
                 class="px-2 py-1 bg-primary-600 text-white text-xs rounded hover:bg-primary-700"
               >
-                {{ t('linker.batchBind') }}
+                {{ t('linker.batchBind', { count: selectedLinkPluginCount }) }}
               </button>
             </div>
             <input
@@ -2260,7 +2260,7 @@ useDialogEscape(showLinkerBatchApplyResult)
               @click="batchUnbindPlugins"
               class="px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
             >
-              {{ t('linker.batchUnbind') }}
+              {{ t('linker.batchUnbind', { count: linkerBindings.filter(b => selectedLinkPluginIds.has(b.plugin_id)).length }) }}
             </button>
           </div>
           <div class="max-h-[calc(100vh-280px)] overflow-y-auto">

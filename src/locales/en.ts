@@ -410,7 +410,10 @@ export default {
     unbindConfirmDesc: 'Are you sure you want to unbind plugin "{name}" from the project?',
     repairSuccess: 'Binding repaired successfully',
     goToPluginEcosystem: 'Manage in Plugin Ecosystem',
-    close: 'Close'
+    close: 'Close',
+    targetProjects: 'Target Projects',
+    bindPlugins: 'Bind Plugins',
+    cancel: 'Cancel'
   },
   engines: {
     title: 'Engine Management',

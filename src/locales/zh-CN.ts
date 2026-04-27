@@ -410,7 +410,10 @@ export default {
     unbindConfirmDesc: '确定要从项目中解绑插件 "{name}" 吗？',
     repairSuccess: '绑定修复成功',
     goToPluginEcosystem: '在插件生态中管理',
-    close: '关闭'
+    close: '关闭',
+    targetProjects: '目标项目',
+    bindPlugins: '绑定插件',
+    cancel: '取消'
   },
   engines: {
     title: '引擎管理',
