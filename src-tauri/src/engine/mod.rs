@@ -6,7 +6,7 @@ use rayon::prelude::*;
 use regex::Regex;
 use walkdir::WalkDir;
 
-const MAX_SCAN_DEPTH: usize = 3;
+const MAX_SCAN_DEPTH: usize = 5;
 
 pub struct EngineManager {
     #[allow(dead_code)]
@@ -87,6 +87,7 @@ impl EngineManager {
                 || stem.starts_with("godot_v")
                 || stem.starts_with("godot4.")
                 || stem.starts_with("godot3.")
+                || stem.starts_with("godot-")
                 || (stem.starts_with("godot") && stem.contains("_"))
         }
 
@@ -98,6 +99,7 @@ impl EngineManager {
                 || lower.starts_with("godot_v")
                 || lower.starts_with("godot4.")
                 || lower.starts_with("godot3.")
+                || lower.starts_with("godot-")
                 || (lower.starts_with("godot") && lower.contains("_"))
         }
     }
@@ -696,6 +698,45 @@ impl EngineManager {
         false
     }
 
+    #[cfg(windows)]
+    fn scan_drive_root_dirs() -> Vec<std::path::PathBuf> {
+        let mut result = Vec::new();
+        let keywords = ["godot", "engine", "dev", "tool", "game", "program"];
+
+        for letter in b'A'..=b'Z' {
+            let drive = format!("{}:\\", letter as char);
+            let drive_path = std::path::PathBuf::from(&drive);
+            if !drive_path.exists() {
+                continue;
+            }
+
+            if let Ok(entries) = std::fs::read_dir(&drive_path) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if !path.is_dir() {
+                        continue;
+                    }
+                    let dir_name = path.file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("")
+                        .to_lowercase();
+
+                    let matches_keyword = keywords.iter().any(|kw| dir_name.contains(kw));
+                    if matches_keyword || Self::dir_contains_godot_executable(&path) {
+                        result.push(path);
+                    }
+                }
+            }
+        }
+
+        result
+    }
+
+    #[cfg(not(windows))]
+    fn scan_drive_root_dirs() -> Vec<std::path::PathBuf> {
+        Vec::new()
+    }
+
     fn get_search_directories() -> Vec<std::path::PathBuf> {
         let mut dirs = Vec::new();
 
@@ -721,6 +762,9 @@ impl EngineManager {
                 dirs.push(std::path::PathBuf::from(&userprofile).join("Tools"));
                 dirs.push(std::path::PathBuf::from(&userprofile).join("Programs"));
             }
+
+            let drive_subdirs = Self::scan_drive_root_dirs();
+            dirs.extend(drive_subdirs);
         } else if cfg!(target_os = "macos") {
             dirs.push(std::path::PathBuf::from("/Applications"));
             if let Some(home) = std::env::var("HOME").ok() {
