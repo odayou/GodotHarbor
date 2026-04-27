@@ -71,7 +71,7 @@ impl EngineManager {
 
         let lower = file_name.to_lowercase();
 
-        if lower.contains("template") || lower.contains("project") {
+        if lower.contains("template") || lower.contains("project") || lower.contains("harbor") {
             return false;
         }
 
@@ -88,7 +88,7 @@ impl EngineManager {
                 || stem.starts_with("godot4.")
                 || stem.starts_with("godot3.")
                 || stem.starts_with("godot-")
-                || (stem.starts_with("godot") && stem.contains("_"))
+                || (stem.starts_with("godot") && stem.contains("_") && !stem.contains("harbor"))
         }
 
         #[cfg(not(windows))]
@@ -100,7 +100,7 @@ impl EngineManager {
                 || lower.starts_with("godot4.")
                 || lower.starts_with("godot3.")
                 || lower.starts_with("godot-")
-                || (lower.starts_with("godot") && lower.contains("_"))
+                || (lower.starts_with("godot") && lower.contains("_") && !lower.contains("harbor"))
         }
     }
 
@@ -111,13 +111,31 @@ impl EngineManager {
 
         let output = std::process::Command::new(&exe_path)
             .arg("--version")
-            .output()?;
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .output()
+            .ok();
 
-        if output.status.success() {
-            Ok(String::from_utf8_lossy(&output.stdout).to_string())
-        } else {
-            Err(anyhow!("获取引擎版本失败"))
+        if let Some(output) = output {
+            if output.status.success() {
+                let version = String::from_utf8_lossy(&output.stdout).to_string();
+                if !version.trim().is_empty() {
+                    return Ok(version);
+                }
+            }
         }
+
+        let stem = exe_path.file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("godot");
+        let re = Regex::new(r"(\d+\.\d+[\.\d]*)").unwrap();
+        if let Some(caps) = re.captures(stem) {
+            if let Some(m) = caps.get(1) {
+                return Ok(m.as_str().to_string());
+            }
+        }
+
+        Err(anyhow!("获取引擎版本失败"))
     }
 
     fn detect_engine_type(version_output: &str) -> EngineType {
@@ -646,6 +664,15 @@ impl EngineManager {
                         .unwrap_or("")
                         .to_lowercase();
 
+                    if dir_name.ends_with(".app") {
+                        continue;
+                    }
+
+                    let skip_dirs = ["target", "node_modules", ".git", "build", "dist", "cache", "__pycache__", ".cargo", "deps"];
+                    if skip_dirs.iter().any(|sd| dir_name == *sd) {
+                        continue;
+                    }
+
                     let is_godot_dir = dir_name.contains("godot")
                         || Self::dir_contains_godot_executable(path);
 
@@ -658,7 +685,17 @@ impl EngineManager {
                                         local_found.push(engine);
                                     }
                                 }
-                                Err(_) => {}
+                                Err(_) => {
+                                    let name = path.file_name()
+                                        .and_then(|n| n.to_str())
+                                        .unwrap_or("Godot")
+                                        .to_string();
+                                    let engine = Engine::new(name, path_str.clone(), EngineType::Unknown, "Unknown".to_string());
+                                    if !local_seen.contains(&engine.path) {
+                                        local_seen.insert(engine.path.clone());
+                                        local_found.push(engine);
+                                    }
+                                }
                             }
                         }
                     }

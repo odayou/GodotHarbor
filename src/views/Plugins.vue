@@ -1314,7 +1314,7 @@ useDialogEscape(showLinkerBatchApplyResult)
       </div>
     </div>
 
-    <div v-if="activeTab === 'bindings'" class="card">
+    <div v-if="activeTab === 'repository'" class="card">
       <div class="flex flex-col lg:flex-row gap-4">
         <div class="flex-1">
           <input
