@@ -299,6 +299,7 @@ pub fn bind_plugin(
     version_id: String,
     unit_id: String,
     mount_path: String,
+    subdirectory: String,
 ) -> Result<(), String> {
     if mount_path.is_empty() {
         return Err("挂载路径不能为空".to_string());
@@ -317,7 +318,7 @@ pub fn bind_plugin(
         return Err("未找到指定插件".to_string());
     }
 
-    let binding = ProjectBinding::new(project_id.clone(), plugin_id, version_id, unit_id, mount_path);
+    let binding = ProjectBinding::new(project_id.clone(), plugin_id, version_id, unit_id, mount_path, subdirectory);
 
     let mut bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
 
@@ -349,27 +350,24 @@ pub fn unbind_plugin(app: AppHandle, project_id: String, plugin_id: String) -> R
 
     let projects: Vec<Project> = storage.load_or_default("projects.json");
     if let Some(project) = projects.iter().find(|p| p.project_id == project_id) {
-        let addons_dir = std::path::Path::new(&project.path).join("addons");
-        if addons_dir.exists() {
-            let plugin_path = addons_dir.join(&mount_path);
+        let plugin_path = std::path::Path::new(&project.path).join(&mount_path);
 
-            if plugin_path.exists() {
-                let metadata = std::fs::symlink_metadata(&plugin_path);
-                let is_link = metadata.as_ref().map(|m| m.file_type().is_symlink()).unwrap_or(false);
-                let is_junction = if cfg!(windows) {
-                    use std::os::windows::fs::MetadataExt;
-                    metadata.as_ref().map(|m| m.file_attributes() & 0x400 != 0).unwrap_or(false)
-                } else {
-                    false
-                };
+        if plugin_path.exists() {
+            let metadata = std::fs::symlink_metadata(&plugin_path);
+            let is_link = metadata.as_ref().map(|m| m.file_type().is_symlink()).unwrap_or(false);
+            let is_junction = if cfg!(windows) {
+                use std::os::windows::fs::MetadataExt;
+                metadata.as_ref().map(|m| m.file_attributes() & 0x400 != 0).unwrap_or(false)
+            } else {
+                false
+            };
 
-                if is_link || is_junction {
-                    if let Err(e) = std::fs::remove_dir(&plugin_path) {
-                        eprintln!("Failed to remove symlink/junction: {}", e);
-                    }
-                } else if let Err(e) = std::fs::remove_dir_all(&plugin_path) {
-                    eprintln!("Failed to remove plugin directory: {}", e);
+            if is_link || is_junction {
+                if let Err(e) = std::fs::remove_dir(&plugin_path) {
+                    eprintln!("Failed to remove symlink/junction: {}", e);
                 }
+            } else if let Err(e) = std::fs::remove_dir_all(&plugin_path) {
+                eprintln!("Failed to remove plugin directory: {}", e);
             }
         }
     }
@@ -580,6 +578,7 @@ pub fn import_plugins_from_projects(app: AppHandle, mode: Option<String>) -> Res
                                 version_id,
                                 String::new(),
                                 mount_path,
+                                String::new(),
                             ));
                             storage.save("bindings.json", &bindings)
                                 .map_err(|e| format!("保存绑定关系失败: {}", e))?;
@@ -834,7 +833,7 @@ pub fn check_binding_health(app: AppHandle, project_id: String) -> Result<Vec<Pr
 
     let mut results = Vec::new();
     for mut binding in project_bindings {
-        let addons_path = Path::new(&project.path).join("addons").join(&binding.mount_path);
+        let addons_path = Path::new(&project.path).join(&binding.mount_path);
         let is_healthy = if addons_path.exists() {
             let metadata = fs::symlink_metadata(&addons_path);
             match metadata {
@@ -846,10 +845,15 @@ pub fn check_binding_health(app: AppHandle, project_id: String) -> Result<Vec<Pr
                             Err(_) => false,
                         }
                     } else if is_junction_path(&addons_path) {
-                        let source_path = plugin_base_path
+                        let payload_path = plugin_base_path
                             .join(&binding.plugin_id)
                             .join(&binding.version_id)
                             .join("payload");
+                        let source_path = if binding.subdirectory.is_empty() {
+                            payload_path
+                        } else {
+                            payload_path.join(&binding.subdirectory)
+                        };
                         source_path.exists()
                     } else {
                         true
@@ -2989,6 +2993,7 @@ pub fn batch_bind_plugins(app: AppHandle, bindings: Vec<BatchBindingRequest>) ->
             req.version_id.clone(),
             req.unit_id.clone(),
             req.mount_path.clone(),
+            req.subdirectory.clone(),
         );
         all_bindings.push(binding);
         success_count += 1;
@@ -3024,23 +3029,20 @@ pub fn batch_unbind_plugins(app: AppHandle, project_id: String, plugin_ids: Vec<
 
         if let Some(binding) = binding {
             let mount_path = binding.mount_path.clone();
-            let addons_dir = std::path::Path::new(&project.path).join("addons");
-            if addons_dir.exists() {
-                let plugin_path = addons_dir.join(&mount_path);
-                if plugin_path.exists() {
-                    let metadata = std::fs::symlink_metadata(&plugin_path);
-                    let is_link = metadata.as_ref().map(|m| m.file_type().is_symlink()).unwrap_or(false);
-                    let is_junction = if cfg!(windows) {
-                        use std::os::windows::fs::MetadataExt;
-                        metadata.as_ref().map(|m| m.file_attributes() & 0x400 != 0).unwrap_or(false)
-                    } else {
-                        false
-                    };
-                    if is_link || is_junction {
-                        let _ = std::fs::remove_dir(&plugin_path);
-                    } else {
-                        let _ = std::fs::remove_dir_all(&plugin_path);
-                    }
+            let plugin_path = std::path::Path::new(&project.path).join(&mount_path);
+            if plugin_path.exists() {
+                let metadata = std::fs::symlink_metadata(&plugin_path);
+                let is_link = metadata.as_ref().map(|m| m.file_type().is_symlink()).unwrap_or(false);
+                let is_junction = if cfg!(windows) {
+                    use std::os::windows::fs::MetadataExt;
+                    metadata.as_ref().map(|m| m.file_attributes() & 0x400 != 0).unwrap_or(false)
+                } else {
+                    false
+                };
+                if is_link || is_junction {
+                    let _ = std::fs::remove_dir(&plugin_path);
+                } else {
+                    let _ = std::fs::remove_dir_all(&plugin_path);
                 }
             }
             bindings.retain(|b| !(b.project_id == project_id && b.plugin_id == *plugin_id));

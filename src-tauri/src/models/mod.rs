@@ -197,6 +197,8 @@ pub struct ProjectBinding {
     pub created_at: DateTime<Utc>,
     #[serde(default)]
     pub is_healthy: Option<bool>,
+    #[serde(default)]
+    pub subdirectory: String,
 }
 
 impl ProjectBinding {
@@ -206,6 +208,7 @@ impl ProjectBinding {
         version_id: String,
         unit_id: String,
         mount_path: String,
+        subdirectory: String,
     ) -> Self {
         Self {
             project_id,
@@ -215,6 +218,7 @@ impl ProjectBinding {
             mount_path,
             created_at: Utc::now(),
             is_healthy: None,
+            subdirectory,
         }
     }
 }
@@ -422,6 +426,8 @@ pub struct BatchBindingRequest {
     pub version_id: String,
     pub unit_id: String,
     pub mount_path: String,
+    #[serde(default)]
+    pub subdirectory: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

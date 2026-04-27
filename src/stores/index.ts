@@ -232,12 +232,13 @@ export const useBindingStore = defineStore('bindings', () => {
     pluginId: string,
     versionId: string,
     unitId: string,
-    mountPath: string
+    mountPath: string,
+    subdirectory: string
   ) => {
     loading.value = true
     error.value = null
     try {
-      await api.bindPlugin(projectId, pluginId, versionId, unitId, mountPath)
+      await api.bindPlugin(projectId, pluginId, versionId, unitId, mountPath, subdirectory)
       await loadBindings(projectId)
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to bind plugin'

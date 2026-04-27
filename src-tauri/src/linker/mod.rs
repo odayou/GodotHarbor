@@ -158,16 +158,10 @@ impl Linker {
         }
 
         let project = Path::new(project_path);
-        let addons_dir = project.join("addons");
-
-        if !addons_dir.exists() {
-            fs::create_dir_all(&addons_dir)
-                .context("Failed to create addons directory")?;
-        }
 
         let diff = self.compute_diff(current_bindings, desired_bindings);
 
-        let conflicts = self.check_conflicts(project_path, &diff.to_add, &diff.to_keep, addons_dir.to_str().unwrap_or(""))?;
+        let conflicts = self.check_conflicts(project_path, &diff.to_add, &diff.to_keep)?;
         if !conflicts.is_empty() {
             for conflict in &conflicts {
                 result.errors.push(format!("冲突: {}", conflict.message));
@@ -179,7 +173,7 @@ impl Linker {
         let mut applied_ops: Vec<AppliedOp> = Vec::new();
 
         for binding in &diff.to_remove {
-            let target_path = addons_dir.join(&binding.mount_path);
+            let target_path = project.join(&binding.mount_path);
             match self.safe_remove_link(&target_path) {
                 Ok(op) => {
                     result.removed.push(target_path.to_string_lossy().to_string());
@@ -195,7 +189,7 @@ impl Linker {
         }
 
         for binding in &diff.to_add {
-            match self.apply_binding(binding, &addons_dir, plugin_base_path) {
+            match self.apply_binding(binding, project, plugin_base_path) {
                 Ok(mount_path) => {
                     result.created.push(mount_path.clone());
                     applied_ops.push(AppliedOp::Create {
@@ -219,12 +213,10 @@ impl Linker {
         project_path: &str,
         to_add: &[ProjectBinding],
         to_keep: &[ProjectBinding],
-        _addons_dir: &str,
     ) -> Result<Vec<ConflictInfo>> {
         let mut conflicts = Vec::new();
 
         let project = Path::new(project_path);
-        let addons_dir = project.join("addons");
 
         let kept_paths: std::collections::HashSet<String> = to_keep.iter()
             .map(|b| b.mount_path.clone())
@@ -235,7 +227,7 @@ impl Linker {
                 continue;
             }
 
-            let target_path = addons_dir.join(&binding.mount_path);
+            let target_path = project.join(&binding.mount_path);
 
             if target_path.exists() && !self.is_managed_link(&target_path)? {
                 conflicts.push(ConflictInfo {
@@ -255,7 +247,7 @@ impl Linker {
     fn apply_binding(
         &self,
         binding: &ProjectBinding,
-        addons_dir: &Path,
+        project: &Path,
         plugin_base_path: &str,
     ) -> Result<String> {
         let plugin_path = Path::new(plugin_base_path)
@@ -267,8 +259,17 @@ impl Linker {
             anyhow::bail!("Plugin payload directory does not exist: {}", plugin_path.to_string_lossy());
         }
 
-        let source_path = plugin_path;
-        let target_path = addons_dir.join(&binding.mount_path);
+        let source_path = if binding.subdirectory.is_empty() {
+            plugin_path
+        } else {
+            plugin_path.join(&binding.subdirectory)
+        };
+
+        if !source_path.exists() {
+            anyhow::bail!("Plugin subdirectory does not exist: {}", source_path.to_string_lossy());
+        }
+
+        let target_path = project.join(&binding.mount_path);
 
         if target_path.exists() {
             self.safe_remove_link(&target_path)

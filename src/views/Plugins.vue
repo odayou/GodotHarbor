@@ -391,7 +391,7 @@ const confirmBind = async (applyNow = false) => {
   let failCount = 0
   for (const projectId of projectIds) {
     try {
-      await api.bindPlugin(projectId, plugin.plugin_id, version.version_id, unit.unit_id, unit.subdirectory || `addons/${unit.name}`)
+      await api.bindPlugin(projectId, plugin.plugin_id, version.version_id, unit.unit_id, unit.subdirectory || `addons/${unit.name}`, unit.subdirectory || '')
       successCount++
     } catch {
       failCount++
@@ -952,6 +952,7 @@ const bindPluginToProject = async (plugin: Plugin) => {
 
 const doBindPlugin = async (plugin: Plugin, version: any, unit: any) => {
   const mountPath = unit.subdirectory || `addons/${unit.name}`
+  const subdirectory = unit.subdirectory || ''
   for (const projectId of selectedLinkProjectIds.value) {
     const existingBinding = linkerBindings.value.find(
       b => b.project_id === projectId && b.mount_path === mountPath
@@ -964,7 +965,7 @@ const doBindPlugin = async (plugin: Plugin, version: any, unit: any) => {
   }
   try {
     for (const projectId of selectedLinkProjectIds.value) {
-      await api.bindPlugin(projectId, plugin.plugin_id, version.version_id, unit.unit_id, mountPath)
+      await api.bindPlugin(projectId, plugin.plugin_id, version.version_id, unit.unit_id, mountPath, subdirectory)
     }
     toast.success(t('linker.pluginBound', { name: plugin.name, version: version.version }))
     linkerHasPendingChanges.value = true
@@ -1039,7 +1040,8 @@ const confirmBatchBind = async () => {
         const unit = version.units[0]
         if (unit) {
           const mountPath = unit.subdirectory || `addons/${unit.name}`
-          requests.push({ project_id: projectId, plugin_id: pluginId, version_id: version.version_id, unit_id: unit.unit_id, mount_path: mountPath })
+          const subdirectory = unit.subdirectory || ''
+          requests.push({ project_id: projectId, plugin_id: pluginId, version_id: version.version_id, unit_id: unit.unit_id, mount_path: mountPath, subdirectory })
         }
       }
     }

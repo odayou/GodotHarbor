@@ -57,6 +57,7 @@ export interface ProjectBinding {
   mount_path: string
   created_at: string
   is_healthy?: boolean
+  subdirectory?: string
 }
 
 export interface Settings {
@@ -221,6 +222,7 @@ export interface BatchBindingRequest {
   version_id: string
   unit_id: string
   mount_path: string
+  subdirectory?: string
 }
 
 export interface ProjectApplyResult {

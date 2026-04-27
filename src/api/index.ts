@@ -78,14 +78,16 @@ export const api = {
     pluginId: string,
     versionId: string,
     unitId: string,
-    mountPath: string
+    mountPath: string,
+    subdirectory: string
   ): Promise<void> {
     return await invoke('bind_plugin', {
       projectId,
       pluginId,
       versionId,
       unitId,
-      mountPath
+      mountPath,
+      subdirectory
     })
   },
 
