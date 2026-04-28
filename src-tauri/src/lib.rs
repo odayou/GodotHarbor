@@ -279,6 +279,7 @@ pub fn run() {
             commands::get_project_groups,
             commands::backup_data,
             commands::restore_data,
+            commands::reset_data,
             commands::register_engine,
             commands::get_engines,
             commands::remove_engine,
