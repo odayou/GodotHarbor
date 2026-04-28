@@ -517,11 +517,9 @@ export default {
     resetting: '重置中...',
     resetDataStep1Desc: '此操作将永久删除所有数据。请先确认您已了解将被删除的内容：',
     resetDataStep1Continue: '我已了解，继续',
-    resetDataStep2Desc: '为了安全，请先进行数据备份，并输入备份目录路径作为备份指纹。系统将验证备份是否有效。',
-    resetDataStep2Hint: '提示：备份目录名格式通常为 backup_YYYYMMDD_HHMMSS，例如 backup_20240101_120000',
-    resetDataStep2Placeholder: '请输入备份目录完整路径',
-    resetDataStep3Desc: '请再次确认您的操作。此操作不可撤销！',
-    resetDataStep3BackupPath: '备份指纹（验证路径）：',
+    resetDataAutoBackup: '系统将在重置前自动备份当前数据到您指定的目录',
+    resetDataStep2NewDesc: '请选择一个目录，系统将在重置前自动备份当前数据到该目录：',
+    resetDataStep2NewPlaceholder: '请选择或输入备份目标目录',
     resetData: {
       selectBackup: '选择备份目录'
     },

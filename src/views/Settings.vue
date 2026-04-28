@@ -269,7 +269,7 @@ const goToStep = (step: number) => {
   resetStep.value = step
 }
 
-const selectBackupFingerprint = async () => {
+const selectResetBackupPath = async () => {
   try {
     const selected = await open({ directory: true, multiple: false, title: t('settings.resetData.selectBackup') })
     if (selected && typeof selected === 'string') {
@@ -280,7 +280,7 @@ const selectBackupFingerprint = async () => {
 
 const performReset = async () => {
   if (!backupFingerprint.value.trim()) {
-    toast.warning(t('settings.messages.enterBackupFingerprint'))
+    toast.warning(t('settings.messages.selectDirFirst'))
     return
   }
   
@@ -712,8 +712,6 @@ const resetOnboarding = async () => {
           <div :class="['w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold', resetStep >= 1 ? 'bg-primary-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400']">1</div>
           <div :class="['flex-1 h-1', resetStep >= 2 ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-700']"></div>
           <div :class="['w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold', resetStep >= 2 ? 'bg-primary-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400']">2</div>
-          <div :class="['flex-1 h-1', resetStep >= 3 ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-700']"></div>
-          <div :class="['w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold', resetStep >= 3 ? 'bg-primary-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400']">3</div>
         </div>
 
         <div v-if="resetStep === 1" class="mb-6">
@@ -727,6 +725,11 @@ const resetOnboarding = async () => {
             <li>{{ t('settings.resetDataItem.bindings') }}</li>
             <li>{{ t('settings.resetDataItem.settings') }}</li>
           </ul>
+          <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 mb-4">
+            <p class="text-sm text-blue-800 dark:text-blue-300">
+              {{ t('settings.resetDataAutoBackup') }}
+            </p>
+          </div>
           <button @click="goToStep(2)" class="w-full btn-primary">
             {{ t('settings.resetDataStep1Continue') }}
           </button>
@@ -734,47 +737,22 @@ const resetOnboarding = async () => {
 
         <div v-if="resetStep === 2" class="mb-6">
           <p class="text-sm text-gray-600 dark:text-content-secondary mb-4">
-            {{ t('settings.resetDataStep2Desc') }}
+            {{ t('settings.resetDataStep2NewDesc') }}
           </p>
-          <div class="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-3 mb-4">
-            <p class="text-sm text-yellow-800 dark:text-yellow-300">
-              {{ t('settings.resetDataStep2Hint') }}
-            </p>
-          </div>
           <div class="flex gap-3">
             <input
               v-model="backupFingerprint"
               type="text"
-              :placeholder="t('settings.resetDataStep2Placeholder')"
+              :placeholder="t('settings.resetDataStep2NewPlaceholder')"
               class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400"
             />
-            <button @click="selectBackupFingerprint" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">
+            <button @click="selectResetBackupPath" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">
               {{ t('settings.buttons.select') }}
             </button>
           </div>
           <div class="flex justify-end gap-3 mt-4">
             <button @click="goToStep(1)" class="btn-secondary">{{ t('common.back') }}</button>
-            <button @click="goToStep(3)" :disabled="!backupFingerprint.trim()" class="btn-primary disabled:opacity-50">
-              {{ t('common.next') }}
-            </button>
-          </div>
-        </div>
-
-        <div v-if="resetStep === 3" class="mb-6">
-          <p class="text-sm text-red-600 dark:text-red-400 mb-4">
-            {{ t('settings.resetDataStep3Desc') }}
-          </p>
-          <div class="bg-gray-50 dark:bg-surface-layer rounded-lg p-3 mb-4">
-            <p class="text-sm text-gray-600 dark:text-content-secondary">
-              {{ t('settings.resetDataStep3BackupPath') }}
-            </p>
-            <p class="text-sm font-mono text-gray-800 dark:text-gray-200 mt-1 break-all">
-              {{ backupFingerprint }}
-            </p>
-          </div>
-          <div class="flex justify-end gap-3">
-            <button @click="goToStep(2)" class="btn-secondary">{{ t('common.back') }}</button>
-            <button @click="performReset" :disabled="isResetting" class="btn-primary disabled:opacity-50">
+            <button @click="performReset" :disabled="isResetting || !backupFingerprint.trim()" class="btn-primary disabled:opacity-50">
               {{ isResetting ? t('settings.resetting') : t('settings.confirmReset') }}
             </button>
           </div>

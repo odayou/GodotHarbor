@@ -517,11 +517,9 @@ export default {
     resetting: 'Resetting...',
     resetDataStep1Desc: 'This operation will permanently delete all data. Please confirm you understand what will be deleted:',
     resetDataStep1Continue: 'I understand, continue',
-    resetDataStep2Desc: 'For safety, please backup your data first and enter the backup directory path as backup fingerprint. The system will verify the backup is valid.',
-    resetDataStep2Hint: 'Hint: Backup directory name format is usually backup_YYYYMMDD_HHMMSS, e.g. backup_20240101_120000',
-    resetDataStep2Placeholder: 'Enter backup directory full path',
-    resetDataStep3Desc: 'Please confirm your operation again. This action cannot be undone!',
-    resetDataStep3BackupPath: 'Backup Fingerprint (Verification Path):',
+    resetDataAutoBackup: 'The system will automatically backup current data before reset',
+    resetDataStep2NewDesc: 'Please select a directory to backup your data before reset:',
+    resetDataStep2NewPlaceholder: 'Select or enter backup destination directory',
     resetData: {
       selectBackup: 'Select Backup Directory'
     },
