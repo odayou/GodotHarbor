@@ -45,15 +45,8 @@
       "icons/icon.ico",
       "icons/icon.png"
     ],
-    "createUpdaterArtifacts": true
+    "createUpdaterArtifacts": false
   },
 
-  "plugins": {
-    "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDkyRTEzOTMyOTg4MTE0N0UKUldSK0ZJR1lNam5oa2czRlJMcWJmNGJXcW4wUk54bXdJOEZUMzZ6UzRGTGNuK2toVUZ6cDRtQlMK",
-      "endpoints": [
-        "https://godotharbor.odayou.workers.dev/updates/{{target}}/{{arch}}/{{current_version}}"
-      ]
-    }
-  }
+  "plugins": {}
 }

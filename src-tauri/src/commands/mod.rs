@@ -1,5 +1,6 @@
 use std::path::{PathBuf, Path};
 use std::fs;
+use std::io::Write;
 use serde::{Serialize, Deserialize};
 use tauri::{AppHandle, Manager, Emitter, State};
 use crate::models::*;
@@ -1148,89 +1149,255 @@ pub fn update_git_plugin(app: AppHandle, plugin_id: String) -> Result<Plugin, St
     Ok(result)
 }
 
-// #[tauri::command]
-// pub async fn check_app_update(app: AppHandle) -> Result<Option<AppUpdateInfo>, String> {
-//     use tauri_plugin_updater::UpdaterExt;
-//     let _current_version = app.config().version.clone().unwrap_or_default();
-//     
-//     match app.updater() {
-//         Ok(updater) => {
-//             match updater.check().await {
-//                 Ok(Some(update)) => {
-//                     Ok(Some(AppUpdateInfo {
-//                         current_version: current_version.clone(),
-//                         latest_version: update.version.clone(),
-//                         release_notes: update.body.clone().unwrap_or_default(),
-//                         pub_date: update.date.map(|d| d.to_string()).unwrap_or_default(),
-//                         download_size: None,
-//                         is_hot_update: false,
-//                     }))
-//                 }
-//                 Ok(None) => Ok(None),
-//                 Err(e) => Err(format!("检查应用更新失败: {}", e)),
-//             }
-//         }
-//         Err(e) => Err(format!("初始化更新器失败: {}", e)),
-//     }
-// }
-//
-// #[tauri::command]
-// pub async fn install_app_update(app: AppHandle) -> Result<(), String> {
-//     use tauri_plugin_updater::UpdaterExt;
-//     
-//     let updater = app.updater()
-//         .map_err(|e| format!("初始化更新器失败: {}", e))?;
-//     
-//     let update = updater.check().await
-//         .map_err(|e| format!("检查更新失败: {}", e))?
-//         .ok_or("没有可用的更新".to_string())?;
-//
-//     let mut downloaded = 0u64;
-//     let total: u64 = 0;
-//     
-//     update.download_and_install(
-//         |chunk_length, content_len| {
-//             downloaded += chunk_length as u64;
-//             let progress = if total > 0 {
-//                 ((downloaded as f64 / total as f64) * 100.0) as u32
-//             } else if content_len.is_some() {
-//                 ((downloaded as f64 / content_len.unwrap() as f64) * 100.0) as u32
-//             } else {
-//                 0
-//             };
-//             let _ = app.emit("app-update-progress", serde_json::json!({
-//                 "stage": "downloading",
-//                 "progress": progress.min(100),
-//                 "message": format!("下载中... {}%", progress.min(100))
-//             }));
-//         },
-//         || {
-//             let _ = app.emit("app-update-progress", serde_json::json!({
-//                 "stage": "installing",
-//                 "progress": 100,
-//                 "message": "安装中..."
-//             }));
-//         }
-//     ).await.map_err(|e| format!("安装更新失败: {}", e))?;
-//
-//     let data_dir = get_data_dir(&app);
-//     let hot_update_dir = data_dir.join("hot_updates");
-//     if hot_update_dir.exists() {
-//         let _ = fs::remove_dir_all(&hot_update_dir);
-//     }
-//     let overlay_dir = data_dir.join("hotupdate_overlay");
-//     if overlay_dir.exists() {
-//         let _ = fs::remove_dir_all(&overlay_dir);
-//     }
-//
-//     let _ = app.emit("app-update-progress", serde_json::json!({
-//         "stage": "complete",
-//         "progress": 100,
-//         "message": "更新安装完成，热更新已清除，即将重启..."
-//     }));
-//
-//     Ok(())
-// }
+const APP_GITHUB_OWNER: &str = "little-flute";
+const APP_GITHUB_REPO: &str = "GodotHarbor";
+
+#[tauri::command]
+pub async fn check_app_update(app: AppHandle) -> Result<Option<AppUpdateInfo>, String> {
+    let current_version = app.config().version.clone().unwrap_or_default();
+
+    let storage = get_storage(&app);
+    let mut settings: Settings = storage.load_or_default("settings.json");
+    if !settings.skipped_app_version.is_empty() {
+        let skipped = semver::Version::parse(settings.skipped_app_version.trim_start_matches('v')).ok();
+        let current = semver::Version::parse(current_version.trim_start_matches('v')).ok();
+        if let (Some(s), Some(c)) = (skipped, current) {
+            if s <= c {
+                settings.skipped_app_version = String::new();
+                let _ = storage.save("settings.json", &settings);
+            }
+        }
+    }
+
+    let client = reqwest::Client::builder()
+        .user_agent("GodotHarbor")
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+
+    let api_url = format!(
+        "https://api.github.com/repos/{}/{}/releases/latest",
+        APP_GITHUB_OWNER, APP_GITHUB_REPO
+    );
+
+    let resp = client.get(&api_url).send().await
+        .map_err(|e| format!("检查应用更新失败: {}", e))?;
+
+    if !resp.status().is_success() {
+        return Ok(None);
+    }
+
+    let json: serde_json::Value = resp.json().await
+        .map_err(|e| format!("解析更新信息失败: {}", e))?;
+
+    let tag = json.get("tag_name").and_then(|t| t.as_str()).unwrap_or("");
+    let latest_version = tag.trim_start_matches('v').to_string();
+
+    let current_semver = semver::Version::parse(current_version.trim_start_matches('v')).ok();
+    let latest_semver = semver::Version::parse(&latest_version).ok();
+
+    if let (Some(cur), Some(lat)) = (&current_semver, &latest_semver) {
+        if lat <= cur {
+            return Ok(None);
+        }
+    } else if latest_version == current_version {
+        return Ok(None);
+    }
+
+    if !settings.skipped_app_version.is_empty() {
+        if let Some(skipped) = semver::Version::parse(settings.skipped_app_version.trim_start_matches('v')).ok() {
+            if let Some(lat) = &latest_semver {
+                if &skipped >= lat {
+                    return Ok(None);
+                }
+            }
+        }
+    }
+
+    let release_notes = json.get("body").and_then(|b| b.as_str()).unwrap_or("").to_string();
+    let pub_date = json.get("published_at").and_then(|d| d.as_str()).unwrap_or("").to_string();
+
+    let target_ext = if cfg!(target_os = "windows") { ".nsis.zip" } else { ".AppImage.tar.gz" };
+    let mut download_url = None;
+    let mut download_size = None;
+
+    if let Some(assets) = json.get("assets").and_then(|a| a.as_array()) {
+        for asset in assets {
+            let name = asset.get("name").and_then(|n| n.as_str()).unwrap_or("");
+            if name.ends_with(target_ext) {
+                download_url = asset.get("browser_download_url").and_then(|u| u.as_str()).map(|s| s.to_string());
+                download_size = asset.get("size").and_then(|s| s.as_u64());
+                break;
+            }
+        }
+        if download_url.is_none() {
+            for asset in assets {
+                let name = asset.get("name").and_then(|n| n.as_str()).unwrap_or("");
+                if name.ends_with(".exe") || name.ends_with(".msi") {
+                    download_url = asset.get("browser_download_url").and_then(|u| u.as_str()).map(|s| s.to_string());
+                    download_size = asset.get("size").and_then(|s| s.as_u64());
+                    break;
+                }
+            }
+        }
+    }
+
+    Ok(Some(AppUpdateInfo {
+        current_version,
+        latest_version,
+        release_notes,
+        pub_date,
+        download_size,
+        is_hot_update: false,
+        download_url,
+    }))
+}
+
+#[tauri::command]
+pub async fn install_app_update(app: AppHandle) -> Result<(), String> {
+    let update_info = check_app_update(app.clone()).await
+        .map_err(|e| format!("检查更新失败: {}", e))?
+        .ok_or("没有可用的更新".to_string())?;
+
+    let download_url = update_info.download_url
+        .ok_or("未找到下载链接".to_string())?;
+
+    let client = reqwest::Client::builder()
+        .user_agent("GodotHarbor")
+        .build()
+        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+
+    let _ = app.emit("app-update-progress", serde_json::json!({
+        "stage": "downloading",
+        "progress": 0,
+        "message": "正在下载更新..."
+    }));
+
+    let resp = client.get(&download_url).send().await
+        .map_err(|e| format!("下载更新失败: {}", e))?;
+
+    let total_size = resp.content_length();
+    let temp_dir = std::env::temp_dir().join("godot-harbor-update");
+    fs::create_dir_all(&temp_dir)
+        .map_err(|e| format!("创建临时目录失败: {}", e))?;
+
+    let file_name = download_url.split('/').last().unwrap_or("update.exe").to_string();
+    let file_path = temp_dir.join(&file_name);
+
+    let mut file = fs::File::create(&file_path)
+        .map_err(|e| format!("创建文件失败: {}", e))?;
+
+    let mut downloaded: u64 = 0;
+    let mut stream = resp.bytes_stream();
+    use futures::StreamExt;
+
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| format!("下载数据失败: {}", e))?;
+        file.write_all(&chunk)
+            .map_err(|e| format!("写入文件失败: {}", e))?;
+        downloaded += chunk.len() as u64;
+
+        let progress = if let Some(total) = total_size {
+            ((downloaded as f64 / total as f64) * 100.0) as u32
+        } else {
+            0
+        };
+
+        let _ = app.emit("app-update-progress", serde_json::json!({
+            "stage": "downloading",
+            "progress": progress.min(100),
+            "message": format!("下载中... {}%", progress.min(100))
+        }));
+    }
+
+    let _ = app.emit("app-update-progress", serde_json::json!({
+        "stage": "installing",
+        "progress": 100,
+        "message": "下载完成，正在启动安装程序..."
+    }));
+
+    let data_dir = get_data_dir(&app);
+    let hot_update_dir = data_dir.join("hot_updates");
+    if hot_update_dir.exists() {
+        let _ = fs::remove_dir_all(&hot_update_dir);
+    }
+    let overlay_dir = data_dir.join("hotupdate_overlay");
+    if overlay_dir.exists() {
+        let _ = fs::remove_dir_all(&overlay_dir);
+    }
+
+    if cfg!(target_os = "windows") {
+        if file_name.ends_with(".nsis.zip") {
+            let extract_dir = temp_dir.join("nsis_extract");
+            let _ = fs::create_dir_all(&extract_dir);
+            let _ = std::process::Command::new("powershell")
+                .args(["-NoProfile", "-Command", &format!(
+                    "Expand-Archive -Path '{}' -DestinationPath '{}' -Force",
+                    file_path.display(), extract_dir.display()
+                )])
+                .spawn();
+            let installer = walk_dir_for_exe(&extract_dir);
+            if let Some(installer) = installer {
+                std::process::Command::new(&installer)
+                    .args(&["/S", "--force-run"])
+                    .spawn()
+                    .map_err(|e| format!("启动安装程序失败: {}", e))?;
+            } else {
+                open_file_in_os(&file_path)?;
+            }
+        } else {
+            std::process::Command::new(&file_path)
+                .spawn()
+                .map_err(|e| format!("启动安装程序失败: {}", e))?;
+        }
+    } else {
+        open_file_in_os(&file_path)?;
+    }
+
+    let _ = app.emit("app-update-progress", serde_json::json!({
+        "stage": "complete",
+        "progress": 100,
+        "message": "安装程序已启动，即将重启..."
+    }));
+
+    app.exit(0);
+    Ok(())
+}
+
+fn walk_dir_for_exe(dir: &Path) -> Option<PathBuf> {
+    for entry in fs::read_dir(dir).ok()? {
+        let entry = entry.ok()?;
+        let path = entry.path();
+        if path.is_dir() {
+            if let Some(exe) = walk_dir_for_exe(&path) {
+                return Some(exe);
+            }
+        } else if path.extension().map(|e| e == "exe").unwrap_or(false) {
+            return Some(path);
+        }
+    }
+    None
+}
+
+fn open_file_in_os(path: &Path) -> Result<(), String> {
+    if cfg!(target_os = "windows") {
+        std::process::Command::new("explorer")
+            .arg(path)
+            .spawn()
+            .map_err(|e| format!("打开文件失败: {}", e))?;
+    } else if cfg!(target_os = "macos") {
+        std::process::Command::new("open")
+            .arg(path)
+            .spawn()
+            .map_err(|e| format!("打开文件失败: {}", e))?;
+    } else {
+        std::process::Command::new("xdg-open")
+            .arg(path)
+            .spawn()
+            .map_err(|e| format!("打开文件失败: {}", e))?;
+    }
+    Ok(())
+}
 
 #[tauri::command]
 pub fn batch_update_plugins(app: AppHandle, plugin_ids: Vec<String>) -> Result<BatchResult, String> {

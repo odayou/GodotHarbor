@@ -193,6 +193,16 @@ npm run tauri dev
 npm run tauri build
 ```
 
+### 自定义图标替换
+
+```bash
+# 替换所有图标
+python replace-icons.py logo.png ./src-tauri/icons
+
+# 自定义排除前缀
+python replace-icons.py logo.png ./src-tauri/icons --exclude tray_,debug_
+```
+
 ## 常见问题
 
 ### 1. 编译时间过长

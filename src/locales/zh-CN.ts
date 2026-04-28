@@ -750,7 +750,7 @@ export default {
       credits: '鸣谢',
       sponsor: '赞助'
     },
-    appDescription: 'Godot Harbor 是一款有用的桌面应用，用于管理 Godot 引擎的插件、项目和引擎版本。统一管理所有插件，通过符号链接等方式，一键挂载到任意项目。',
+    appDescription: 'Godot Harbor 是一款实用的桌面应用，用于管理 Godot 引擎的插件、项目和引擎版本。统一管理所有插件，通过符号链接等方式，一键挂载到任意项目。',
     features: {
       symlinkEngine: {
         title: '符号链接引擎',

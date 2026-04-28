@@ -365,6 +365,7 @@ export interface AppUpdateInfo {
   pub_date: string
   download_size: number | null
   is_hot_update: boolean
+  download_url: string | null
 }
 
 export interface HotUpdateInfo {

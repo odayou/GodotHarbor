@@ -30,7 +30,7 @@ regex = "1"
 git2 = "0.18"
 anyhow = "1"
 thiserror = "1"
-reqwest = { version = "0.12", features = ["blocking", "json"] }
+reqwest = { version = "0.12", features = ["blocking", "json", "stream"] }
 zip = "2"
 urlencoding = "2"
 notify = "7"
@@ -41,9 +41,6 @@ futures = "0.3"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52"
-
-[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-tauri-plugin-updater = "2"
 
 [patch.crates-io]
 serde_with = { git = "https://github.com/jonasbb/serde_with", tag = "v3.12.0" }

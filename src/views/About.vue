@@ -183,7 +183,7 @@ const inspirationDeps = [
               </a>
               <span class="text-xs text-gray-500 dark:text-gray-400">v{{ dep.version }}</span>
             </div>
-            <span class="text-xs text-gray-400 dark:text-gray-500">{{ dep.license }}</span>
+            <!-- <span class="text-xs text-gray-400 dark:text-gray-500">{{ dep.license }}</span> -->
           </div>
         </div>
 
@@ -200,7 +200,7 @@ const inspirationDeps = [
               </a>
               <span class="text-xs text-gray-500 dark:text-gray-400">v{{ dep.version }}</span>
             </div>
-            <span class="text-xs text-gray-400 dark:text-gray-500">{{ dep.license }}</span>
+            <!-- <span class="text-xs text-gray-400 dark:text-gray-500">{{ dep.license }}</span> -->
           </div>
         </div>
 

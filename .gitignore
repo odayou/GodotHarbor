@@ -6,4 +6,3 @@ Cargo.lock
 .DS_Store
 Thumbs.db
 nul
-.tauri/updater.key

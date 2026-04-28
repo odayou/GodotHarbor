@@ -21,8 +21,8 @@ const menuItems = [
   { path: '/projects', icon: 'folder', labelKey: 'nav.projects' },
   { path: '/plugins', icon: 'puzzle', labelKey: 'nav.pluginsNav' },
   { path: '/engines', icon: 'engine', labelKey: 'nav.enginesNav' },
-  { path: '/about', icon: 'about', labelKey: 'nav.about' },
-  { path: '/settings', icon: 'settings', labelKey: 'nav.settingsNav' }
+  { path: '/settings', icon: 'settings', labelKey: 'nav.settingsNav' },
+  { path: '/about', icon: 'about', labelKey: 'nav.about' }
 ]
 
 const navigateTo = (path: string) => {

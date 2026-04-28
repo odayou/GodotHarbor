@@ -462,6 +462,7 @@ pub struct AppUpdateInfo {
     pub pub_date: String,
     pub download_size: Option<u64>,
     pub is_hot_update: bool,
+    pub download_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
