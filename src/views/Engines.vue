@@ -339,119 +339,128 @@ const checkEngineUpdates = async () => {
       <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('engines.noMatchingEngines') }}</p>
     </div>
 
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      <div
-        v-for="engine in filteredEngines"
-        :key="engine.engine_id"
-        :class="[
-          'bg-white dark:bg-gray-800 rounded-xl shadow p-5 border-2 transition-colors',
-          engine.is_default ? 'border-primary-500' : 'border-transparent hover:border-gray-200 dark:hover:border-gray-600'
-        ]"
-      >
-        <div class="flex items-start justify-between">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-lg bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
-              <svg class="w-6 h-6 text-primary-600 dark:text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
-            <div>
-              <div class="flex items-center gap-2">
-                <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">
-                  {{ engine.name }}
-                </h3>
+    <div v-else class="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full min-w-[800px]">
+          <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+            <tr
+              v-for="engine in filteredEngines"
+              :key="engine.engine_id"
+              :class="[
+                'hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors',
+                engine.is_default ? 'bg-primary-50/50 dark:bg-primary-900/10' : ''
+              ]"
+            >
+              <td class="px-4 py-4 whitespace-nowrap">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-lg bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-primary-600 dark:text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div class="flex items-center gap-2">
+                      <span class="font-medium text-gray-900 dark:text-gray-100 text-sm">
+                        {{ engine.name }}
+                      </span>
+                      <span
+                        v-if="engine.is_default"
+                        class="px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-400"
+                      >
+                        {{ t('engines.default') }}
+                      </span>
+                      <span
+                        v-if="engineHealthMap.get(engine.engine_id) === false"
+                        class="px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                        :title="t('engines.exeNotFound')"
+                      >
+                        ⚠️
+                      </span>
+                    </div>
+                    <span class="text-xs text-gray-500 dark:text-gray-400">v{{ engine.version }}</span>
+                  </div>
+                </div>
+              </td>
+              <td class="px-4 py-4 whitespace-nowrap">
+                <span class="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                  {{ engine.engine_type === 'Godot4' ? 'Godot 4' : engine.engine_type === 'Godot3' ? 'Godot 3' : t('engines.unknown') }}
+                </span>
+              </td>
+              <td class="px-4 py-4 whitespace-nowrap">
                 <span
-                  v-if="engine.is_default"
-                  class="px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-400"
+                  v-if="engineHealthMap.get(engine.engine_id) === true"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
                 >
-                  {{ t('engines.default') }}
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  {{ t('engines.healthy') }}
                 </span>
                 <span
-                  v-if="engineHealthMap.get(engine.engine_id) === false"
-                  class="px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
-                  :title="t('engines.exeNotFound')"
+                  v-else-if="engineHealthMap.get(engine.engine_id) === false"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
                 >
-                  ⚠️
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  {{ t('engines.unhealthy') }}
                 </span>
-              </div>
-              <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                v{{ engine.version }}
-              </p>
-            </div>
-          </div>
-          <div class="flex items-center gap-1">
-            <button
-              @click="openRenameDialog(engine)"
-              class="text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 p-1"
-              :title="t('engines.rename')"
-            >
-              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-            </button>
-            <button
-              @click="openInFileManager(engine.path)"
-              class="text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 p-1"
-              :title="t('engines.openInFileManager')"
-            >
-              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-            </button>
-            <button
-              v-if="!engine.is_default"
-              @click="setDefault(engine.engine_id)"
-              class="text-primary-600 hover:text-primary-800 dark:text-primary-400 p-1"
-              :title="t('engines.setDefault')"
-            >
-              <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-              </svg>
-            </button>
-            <button
-              @click="confirmRemoveEngine(engine.engine_id)"
-              class="text-red-600 hover:text-red-800 p-1"
-              :title="t('engines.deleteEngine')"
-            >
-              <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </button>
-          </div>
-        </div>
-        <div class="mt-4 space-y-2">
-          <div class="flex items-center gap-2 text-sm">
-            <span class="text-gray-500 dark:text-gray-400">{{ t('engines.type') }}:</span>
-            <span class="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
-              {{ engine.engine_type === 'Godot4' ? 'Godot 4' : engine.engine_type === 'Godot3' ? 'Godot 3' : t('engines.unknown') }}
-            </span>
-          </div>
-          <div class="flex items-center gap-2 text-sm">
-            <span class="text-gray-500 dark:text-gray-400">{{ t('engines.health') }}:</span>
-            <span
-              v-if="engineHealthMap.get(engine.engine_id) === true"
-              class="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-            >
-              ✓ {{ t('engines.healthy') }}
-            </span>
-            <span
-              v-else-if="engineHealthMap.get(engine.engine_id) === false"
-              class="px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
-            >
-              ✗ {{ t('engines.unhealthy') }}
-            </span>
-            <span v-else class="text-xs text-gray-400">{{ t('engines.checking') }}</span>
-          </div>
-          <div class="flex items-center gap-2 text-sm">
-            <span class="text-gray-500 dark:text-gray-400">{{ t('engines.boundProjects') }}:</span>
-            <span class="text-xs text-gray-600 dark:text-gray-300">
-              {{ boundProjectsMap.get(engine.engine_id)?.length || 0 }}
-            </span>
-          </div>
-          <div class="text-sm text-gray-500 dark:text-gray-400 truncate" :title="engine.path">
-            {{ engine.path }}
-          </div>
-        </div>
+                <span v-else class="text-xs text-gray-400">{{ t('engines.checking') }}</span>
+              </td>
+              <td class="px-4 py-4 whitespace-nowrap">
+                <span class="text-sm text-gray-600 dark:text-gray-300">
+                  {{ boundProjectsMap.get(engine.engine_id)?.length || 0 }}
+                </span>
+              </td>
+              <td class="px-4 py-4">
+                <span class="text-sm text-gray-500 dark:text-gray-400 truncate max-w-xs block" :title="engine.path">
+                  {{ engine.path }}
+                </span>
+              </td>
+              <td class="px-4 py-4 whitespace-nowrap">
+                <div class="flex items-center justify-end gap-1">
+                  <button
+                    @click="openRenameDialog(engine)"
+                    class="text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                    :title="t('engines.rename')"
+                  >
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                  <button
+                    @click="openInFileManager(engine.path)"
+                    class="text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                    :title="t('engines.openInFileManager')"
+                  >
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  </button>
+                  <button
+                    v-if="!engine.is_default"
+                    @click="setDefault(engine.engine_id)"
+                    class="text-primary-600 hover:text-primary-800 dark:text-primary-400 p-2 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
+                    :title="t('engines.setDefault')"
+                  >
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                    </svg>
+                  </button>
+                  <button
+                    @click="confirmRemoveEngine(engine.engine_id)"
+                    class="text-red-500 hover:text-red-700 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                    :title="t('engines.deleteEngine')"
+                  >
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
