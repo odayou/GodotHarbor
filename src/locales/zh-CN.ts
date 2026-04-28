@@ -40,7 +40,7 @@ export default {
     groupDesc: '输入分组名称，相同分组的项目会显示在一起',
     groupPlaceholder: '输入分组名称（留空移除分组）',
     delete: '删除项目',
-    deleteConfirm: '{count, plural, one {确定要删除项目 "{name}" 吗？} other {确定要删除选中的 {count} 个项目吗？}} 此操作仅从列表中移除，不会删除项目文件。',
+    deleteConfirm: '确定要删除选中的 {count} 个项目吗？此操作仅从列表中移除，不会删除项目文件。',
     dragTitle: '拖放 Godot 项目目录到此处',
     dragDesc: '将自动识别包含 project.godot 的目录',
     engineBind: '引擎绑定',

@@ -40,7 +40,7 @@ export default {
     groupDesc: 'Enter group name, projects with the same group will be displayed together',
     groupPlaceholder: 'Enter group name (leave empty to remove group)',
     delete: 'Delete Project',
-    deleteConfirm: '{count, plural, one {Are you sure to delete project "{name}"?} other {Are you sure to delete the selected {count} projects?}} This operation only removes it from the list, not delete project files.',
+    deleteConfirm: 'Are you sure to delete the selected {count} projects? This operation only removes it from the list, not delete project files.',
     dragTitle: 'Drag and drop Godot project directory here',
     dragDesc: 'Will automatically identify directories containing project.godot',
     engineBind: 'Engine Binding',
