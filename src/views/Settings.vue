@@ -148,7 +148,7 @@ const isMigrating = ref(false)
 
 useDialogEscape(showMigrateDialog)
 
-const backupData = async () => {
+const performBackup = async () => {
   if (!backupPath.value) {
     toast.warning(t('settings.messages.selectDirFirst'))
     return
@@ -237,7 +237,7 @@ const importTeamConfig = async (configId: string) => {
   try {
     await api.importTeamConfig(configId, selectedProjectIds.value)
     toast.success(t('settings.messages.importSuccess'))
-    showImportDialog.value = false
+    showTeamConfigDialog.value = false
     await loadTeamConfigs()
   } catch (error) {
     toast.error(t('settings.messages.importFailed', { error }))
