@@ -629,6 +629,7 @@ export default {
     back: '返回',
     next: '下一步',
     delete: '删除',
+    confirmDelete: '确认删除',
     loading: '加载中...',
     close: '关闭',
     save: '保存',

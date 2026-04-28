@@ -629,6 +629,7 @@ export default {
     back: 'Back',
     next: 'Next',
     delete: 'Delete',
+    confirmDelete: 'Confirm Delete',
     loading: 'Loading...',
     close: 'Close',
     save: 'Save',
