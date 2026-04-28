@@ -3265,15 +3265,17 @@ pub fn rename_engine(app: AppHandle, engine_id: String, new_name: String) -> Res
     let storage = get_storage(&app);
     let mut engines: Vec<Engine> = storage.load_or_default("engines.json");
 
-    let engine = engines.iter_mut()
-        .find(|e| e.engine_id == engine_id)
-        .ok_or("未找到指定引擎".to_string())?;
+    let old_name;
+    let new_engine_name;
+    {
+        let engine = engines.iter_mut()
+            .find(|e| e.engine_id == engine_id)
+            .ok_or("未找到指定引擎".to_string())?;
 
-    let old_name = engine.name.clone();
-    let new_engine_name = new_name.trim().to_string();
-    engine.name = new_engine_name.clone();
-
-    drop(engine);
+        old_name = engine.name.clone();
+        new_engine_name = new_name.trim().to_string();
+        engine.name = new_engine_name.clone();
+    }
 
     storage.save("engines.json", &engines)
         .map_err(|e| format!("保存引擎列表失败: {}", e))?;
