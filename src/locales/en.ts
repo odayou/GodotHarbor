@@ -626,6 +626,8 @@ export default {
   common: {
     cancel: 'Cancel',
     confirm: 'Confirm',
+    back: 'Back',
+    next: 'Next',
     delete: 'Delete',
     loading: 'Loading...',
     close: 'Close',

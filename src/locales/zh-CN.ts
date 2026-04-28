@@ -626,6 +626,8 @@ export default {
   common: {
     cancel: '取消',
     confirm: '确认',
+    back: '返回',
+    next: '下一步',
     delete: '删除',
     loading: '加载中...',
     close: '关闭',
