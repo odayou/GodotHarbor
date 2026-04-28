@@ -473,8 +473,10 @@ const resetOnboarding = async () => {
         <button @click="saveSettingsWithMigrationCheck" :disabled="isLoading" class="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50">{{ t('settings.save') }}</button>
       </div>
     </div>
+    </div>
   </div>
 
+  <Teleport to="body">
   <div v-if="showLogs" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showLogs = false">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-3xl shadow-xl max-h-[80vh] flex flex-col" @click.stop>
         <div class="flex justify-between items-center mb-4">
@@ -502,7 +504,9 @@ const resetOnboarding = async () => {
         </div>
       </div>
     </div>
+  </Teleport>
 
+  <Teleport to="body">
     <div v-if="showBackupDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showBackupDialog = false; backupPath = ''">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.backup.title') }}</h3>
@@ -553,7 +557,9 @@ const resetOnboarding = async () => {
         </div>
       </div>
     </div>
+  </Teleport>
 
+  <Teleport to="body">
     <div v-if="showTeamConfigDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showTeamConfigDialog = false">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl shadow-xl max-h-[80vh] flex flex-col" @click.stop>
         <div class="flex justify-between items-center mb-4">
@@ -616,7 +622,9 @@ const resetOnboarding = async () => {
         </div>
       </div>
     </div>
+  </Teleport>
 
+  <Teleport to="body">
     <div v-if="showExportDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showExportDialog = false">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.teamConfig.exportTitle') }}</h3>
@@ -680,6 +688,9 @@ const resetOnboarding = async () => {
       @confirm="onDeleteTeamConfigConfirm"
     />
 
+  </Teleport>
+
+  <Teleport to="body">
     <div v-if="showMigrateDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showMigrateDialog = false">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('settings.pluginRepo.migrateTitle') }}</h3>
@@ -698,7 +709,9 @@ const resetOnboarding = async () => {
         </div>
       </div>
     </div>
+  </Teleport>
 
+  <Teleport to="body">
     <div v-if="showResetConfirm" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" @click="showResetConfirm = false">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto shadow-xl" @click.stop>
         <div class="flex items-center gap-3 mb-6">
@@ -765,5 +778,5 @@ const resetOnboarding = async () => {
         </button>
       </div>
     </div>
-  </div>
+  </Teleport>
 </template>

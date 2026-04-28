@@ -998,8 +998,10 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
         </div>
       </div>
     </div>
+    </div>
   </div>
 
+  <Teleport to="body">
   <div v-if="showProjectDetail && selectedProject" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showProjectDetail = false; selectedProject = null">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto" @click.stop>
         <div class="flex items-center gap-4 mb-4">
@@ -1148,7 +1150,9 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
         </div>
       </div>
     </div>
+  </Teleport>
 
+  <Teleport to="body">
     <div v-if="showScanDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showScanDialog = false">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('projects.scanTitle') }}</h3>
@@ -1186,7 +1190,9 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
         </div>
       </div>
     </div>
+  </Teleport>
 
+  <Teleport to="body">
     <div v-if="showGroupDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showGroupDialog = false; groupInput = ''; editingProjectId = null">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('projects.groupTitle') }}</h3>
@@ -1228,7 +1234,9 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
         </div>
       </div>
     </div>
+  </Teleport>
 
+  <Teleport to="body">
     <div v-if="showBatchGroupDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showBatchGroupDialog = false">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('projects.batchGroupTitle') }}</h3>
@@ -1270,7 +1278,9 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
         </div>
       </div>
     </div>
+  </Teleport>
 
+  <Teleport to="body">
     <div v-if="showEngineDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showEngineDialog = false">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
@@ -1334,6 +1344,9 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
       @confirm="onConfirmDialogConfirm"
     />
 
+  </Teleport>
+
+  <Teleport to="body">
     <div v-if="showRelocateDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showRelocateDialog = false">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('projects.relocateTitle') }}</h3>
@@ -1375,7 +1388,9 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
         </div>
       </div>
     </div>
+  </Teleport>
 
+  <Teleport to="body">
     <div v-if="showMovedDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showMovedDialog = false">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ t('projects.detectProjectMigration') }}</h3>
@@ -1417,5 +1432,5 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
         </div>
       </div>
     </div>
-  </div>
+  </Teleport>
 </template>

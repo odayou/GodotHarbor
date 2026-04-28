@@ -1560,9 +1560,10 @@ useDialogEscape(showLinkerBatchApplyResult)
         </div>
       </div>
     </div>
-  </div>
+    </div>
 
-  <div v-if="showGitDialog" class="fixed top-0 left-0 right-0 bottom-0 bg-black/50 flex items-center justify-center z-50" @click="showGitDialog = false; gitUrl = ''">
+  <Teleport to="body">
+    <div v-if="showGitDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showGitDialog = false; gitUrl = ''">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('plugins.importFromGit') }}</h3>
         <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">
@@ -1591,7 +1592,9 @@ useDialogEscape(showLinkerBatchApplyResult)
         </div>
       </div>
     </div>
+  </Teleport>
 
+  <Teleport to="body">
     <div v-if="showPluginDetail && selectedPlugin" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="closePluginDetail">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[85vh] flex flex-col" @click.stop>
         <div class="flex items-center justify-between mb-2">
@@ -1741,8 +1744,10 @@ useDialogEscape(showLinkerBatchApplyResult)
         </div>
       </div>
     </div>
+  </Teleport>
 
-  <div v-if="showAssetLibraryDialog" class="fixed top-0 left-0 right-0 bottom-0 bg-black/50 flex items-center justify-center z-50" @click="showAssetLibraryDialog = false">
+  <Teleport to="body">
+    <div v-if="showAssetLibraryDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showAssetLibraryDialog = false">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-2xl shadow-xl max-h-[85vh] flex flex-col" @click.stop>
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('assetLibrary.title') }}</h3>
@@ -1909,7 +1914,9 @@ useDialogEscape(showLinkerBatchApplyResult)
         </div>
       </div>
     </div>
+  </Teleport>
 
+  <Teleport to="body">
     <div v-if="showAssetDetailDialog && assetDetail" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showAssetDetailDialog = false; assetDetail = null">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[80vh] flex flex-col" @click.stop>
         <div class="flex justify-between items-center mb-4">
@@ -1982,8 +1989,10 @@ useDialogEscape(showLinkerBatchApplyResult)
         </div>
       </div>
     </div>
+  </Teleport>
 
-  <div v-if="showUpdatesDialog" class="fixed top-0 left-0 right-0 bottom-0 bg-black/50 flex items-center justify-center z-50" @click="showUpdatesDialog = false">
+  <Teleport to="body">
+    <div v-if="showUpdatesDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showUpdatesDialog = false">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl" @click.stop>
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ t('plugins.updateCheck.title') }}</h3>
@@ -2054,8 +2063,10 @@ useDialogEscape(showLinkerBatchApplyResult)
         </div>
       </div>
     </div>
+  </Teleport>
 
-  <div v-if="showScanPreviewDialog" class="fixed top-0 left-0 right-0 bottom-0 bg-black/50 flex items-center justify-center z-50" @click="showScanPreviewDialog = false">
+  <Teleport to="body">
+    <div v-if="showScanPreviewDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showScanPreviewDialog = false">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[80vh] flex flex-col" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('plugins.importFromProject.scanTitle') }}</h3>
         <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">{{ t('plugins.importFromProject.scanDesc', { count: scannedPlugins.length }) }}</p>
@@ -2073,7 +2084,9 @@ useDialogEscape(showLinkerBatchApplyResult)
         </div>
       </div>
     </div>
+  </Teleport>
 
+  <Teleport to="body">
     <div v-if="showImportModeDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showImportModeDialog = false">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('plugins.importFromProject.title') }}</h3>
@@ -2110,6 +2123,7 @@ useDialogEscape(showLinkerBatchApplyResult)
         </div>
       </div>
     </div>
+  </Teleport>
 
     <div v-if="activeTab === 'repository' && totalStorageStats" class="card">
       <div class="flex items-center justify-between">
@@ -2136,7 +2150,6 @@ useDialogEscape(showLinkerBatchApplyResult)
           {{ t('plugins.storageStats.cleanup') }}
         </button>
       </div>
-    </div>
     </div>
 
     <div v-if="activeTab === 'bindings'" class="space-y-4">
@@ -2307,7 +2320,10 @@ useDialogEscape(showLinkerBatchApplyResult)
         </svg>
       </div>
     </div>
+    </div>
+  </div>
 
+  <Teleport to="body">
     <div v-if="showDeletePluginConfirm" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showDeletePluginConfirm = false">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('plugins.deleteConfirm.single') }}</h3>
@@ -2340,6 +2356,9 @@ useDialogEscape(showLinkerBatchApplyResult)
       @confirm="onBatchDeleteConfirm"
     />
 
+  </Teleport>
+
+  <Teleport to="body">
     <div v-if="showDuplicateConfirm && duplicateCheckResult" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showDuplicateConfirm = false; duplicateCheckResult = null; pendingImportAction = null">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('plugins.duplicate.title') }}</h3>
@@ -2357,7 +2376,9 @@ useDialogEscape(showLinkerBatchApplyResult)
         </div>
       </div>
     </div>
+  </Teleport>
 
+  <Teleport to="body">
     <div v-if="showBindDialog && bindTargetPlugin" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showBindDialog = false; bindTargetPlugin = null">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[85vh] flex flex-col" @click.stop>
         <div class="flex items-center justify-between mb-4">
@@ -2451,7 +2472,9 @@ useDialogEscape(showLinkerBatchApplyResult)
         </div>
       </div>
     </div>
+  </Teleport>
 
+  <Teleport to="body">
     <div v-if="showLinkerVersionSelect && versionSelectPlugin" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showLinkerVersionSelect = false">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('linker.versionSelectTitle', { name: versionSelectPlugin.name }) }}</h3>
@@ -2478,7 +2501,9 @@ useDialogEscape(showLinkerBatchApplyResult)
         </div>
       </div>
     </div>
+  </Teleport>
 
+  <Teleport to="body">
     <div v-if="showLinkerApplyResult && linkerApplyResult" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showLinkerApplyResult = false">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ linkerApplyResult.errors.length === 0 ? t('linker.applySuccess') : t('linker.applyWithErrors') }}</h3>
@@ -2505,7 +2530,9 @@ useDialogEscape(showLinkerBatchApplyResult)
         </div>
       </div>
     </div>
+  </Teleport>
 
+  <Teleport to="body">
     <div v-if="showLinkerBatchBindDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showLinkerBatchBindDialog = false">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('linker.batchBindTitle') }}</h3>
@@ -2536,7 +2563,9 @@ useDialogEscape(showLinkerBatchApplyResult)
         </div>
       </div>
     </div>
+  </Teleport>
 
+  <Teleport to="body">
     <div v-if="showLinkerBatchUnbindDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showLinkerBatchUnbindDialog = false">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('linker.batchUnbindTitle') }}</h3>
@@ -2558,7 +2587,9 @@ useDialogEscape(showLinkerBatchApplyResult)
         </div>
       </div>
     </div>
+  </Teleport>
 
+  <Teleport to="body">
     <div v-if="showLinkerBatchApplyDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showLinkerBatchApplyDialog = false">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('linker.batchApplyTitle') }}</h3>
@@ -2577,7 +2608,9 @@ useDialogEscape(showLinkerBatchApplyResult)
         </div>
       </div>
     </div>
+  </Teleport>
 
+  <Teleport to="body">
     <div v-if="showLinkerBatchApplyResult" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showLinkerBatchApplyResult = false">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('linker.batchApplyResultTitle') }}</h3>
@@ -2597,5 +2630,5 @@ useDialogEscape(showLinkerBatchApplyResult)
         </div>
       </div>
     </div>
-  </div>
+  </Teleport>
 </template>

@@ -464,8 +464,10 @@ const checkEngineUpdates = async () => {
         </table>
       </div>
     </div>
+    </div>
   </div>
 
+  <Teleport to="body">
   <div v-if="showAddDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showAddDialog = false; newEnginePath = ''; newEngineName = ''">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('engines.registerTitle') }}</h3>
@@ -518,7 +520,9 @@ const checkEngineUpdates = async () => {
         </div>
       </div>
     </div>
+  </Teleport>
 
+  <Teleport to="body">
     <div v-if="showRenameDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showRenameDialog = false">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('engines.renameTitle') }}</h3>
@@ -556,5 +560,5 @@ const checkEngineUpdates = async () => {
       :confirm-text="t('common.confirm')"
       @confirm="onRemoveEngineConfirm"
     />
-  </div>
+  </Teleport>
 </template>
