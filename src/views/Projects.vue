@@ -690,13 +690,7 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
 </script>
 
 <template>
-  <div
-    class="space-y-6"
-    @dragenter="onDragEnter"
-    @dragleave="onDragLeave"
-    @dragover="onDragOver"
-    @drop="onDrop"
-  >
+  <div class="relative">
     <div v-if="isDragging" class="fixed inset-0 bg-primary-500/10 border-4 border-dashed border-primary-500 z-40 flex items-center justify-center pointer-events-none">
       <div class="bg-white dark:bg-gray-800 rounded-xl p-8 shadow-2xl">
         <svg class="mx-auto h-12 w-12 text-primary-500 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -706,7 +700,14 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ t('projects.dragDesc') }}</p>
       </div>
     </div>
-    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div
+      class="space-y-6"
+      @dragenter="onDragEnter"
+      @dragleave="onDragLeave"
+      @dragover="onDragOver"
+      @drop="onDrop"
+    >
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
       <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ t('projects.title') }}</h1>
       <div class="flex flex-wrap gap-2">
         <button
@@ -997,8 +998,9 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
         </div>
       </div>
     </div>
+  </div>
 
-    <div v-if="showProjectDetail && selectedProject" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showProjectDetail = false; selectedProject = null">
+  <div v-if="showProjectDetail && selectedProject" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showProjectDetail = false; selectedProject = null">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto" @click.stop>
         <div class="flex items-center gap-4 mb-4">
           <div class="flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
