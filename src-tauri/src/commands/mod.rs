@@ -38,6 +38,29 @@ fn get_logger(app: &AppHandle) -> OperationLogger {
     OperationLogger::new(data_dir)
 }
 
+fn get_backup_search_paths(app: &AppHandle) -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    
+    if let Some(documents) = dirs::document_dir() {
+        paths.push(documents.join("GodotHarbor"));
+        paths.push(documents);
+    }
+    
+    if let Some(downloads) = dirs::download_dir() {
+        paths.push(downloads.join("GodotHarbor"));
+        paths.push(downloads);
+    }
+    
+    if let Some(desktop) = dirs::desktop_dir() {
+        paths.push(desktop.join("GodotHarbor"));
+        paths.push(desktop);
+    }
+    
+    paths.push(get_data_dir(app).join("backups"));
+    
+    paths
+}
+
 fn log_operation(app: &AppHandle, action: &str, target: &str, detail: &str) {
     let logger = get_logger(app);
     if let Err(e) = logger.log(action, target, detail) {
@@ -1744,7 +1767,14 @@ pub fn backup_data(app: AppHandle, backup_path: String) -> Result<String, String
     let storage = get_storage(&app);
     
     let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S").to_string();
-    let backup_dir = std::path::Path::new(&backup_path).join(format!("backup_{}", timestamp));
+    let base_backup_dir = std::path::Path::new(&backup_path).join(format!("backup_{}", timestamp));
+    
+    let mut backup_dir = base_backup_dir.clone();
+    let mut counter = 1;
+    while backup_dir.exists() {
+        backup_dir = std::path::Path::new(&backup_path).join(format!("backup_{}_{}", timestamp, counter));
+        counter += 1;
+    }
     
     std::fs::create_dir_all(&backup_dir)
         .map_err(|e| format!("创建备份目录失败: {}", e))?;
@@ -1872,10 +1902,29 @@ pub fn reset_data(app: AppHandle, backup_fingerprint: String) -> Result<String, 
         return Err("请先进行数据备份，并提供备份指纹".to_string());
     }
 
-    let backup_dir = std::path::Path::new(&backup_fingerprint);
-    if !backup_dir.exists() {
-        return Err(format!("未找到备份目录: {}", backup_fingerprint).to_string());
-    }
+    let backup_dir = {
+        let initial_path = std::path::PathBuf::from(&backup_fingerprint);
+        
+        if initial_path.exists() {
+            initial_path
+        } else {
+            let search_paths = get_backup_search_paths(&app);
+            let mut found_path: Option<std::path::PathBuf> = None;
+            
+            for search_path in search_paths {
+                let candidate = search_path.join(&backup_fingerprint);
+                if candidate.exists() && candidate.is_dir() {
+                    found_path = Some(candidate);
+                    break;
+                }
+            }
+            
+            match found_path {
+                Some(path) => path,
+                None => return Err(format!("未找到备份目录: {}\n\n请确保备份目录存在，或尝试使用完整路径", backup_fingerprint).to_string()),
+            }
+        }
+    };
 
     if !backup_dir.is_dir() {
         return Err(format!("备份指纹不是有效的目录: {}", backup_fingerprint).to_string());

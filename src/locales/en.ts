@@ -105,6 +105,7 @@ export default {
     fromDir: 'Import from Directory',
     fromFile: 'Import from File',
     fromGit: 'Import from Git',
+    importFromGit: 'Import from Git',
     empty: 'No Plugins',
     emptyDesc: 'Try adjusting your search or import new plugins',
     onboarding: {
@@ -501,7 +502,7 @@ export default {
     other: 'Other',
     showOnboarding: 'Show Onboarding Again',
     showOnboardingDesc: 'Click to show the onboarding guide immediately',
-    resetData: 'Reset Data',
+    resetDataLabel: 'Reset Data',
     resetDataDesc: 'Restore all data and settings to initial state, this action cannot be undone',
     resetDataConfirmTitle: 'Confirm Data Reset',
     resetDataConfirmDesc: 'This action will permanently delete all data, including projects, plugins, engines, bindings, and settings. Please ensure you have backed up important data.',
@@ -521,10 +522,14 @@ export default {
     resetDataStep2Placeholder: 'Enter backup directory full path',
     resetDataStep3Desc: 'Please confirm your operation again. This action cannot be undone!',
     resetDataStep3BackupPath: 'Backup Fingerprint (Verification Path):',
+    resetData: {
+      selectBackup: 'Select Backup Directory'
+    },
     buttons: {
       viewLogs: 'View logs',
       backup: 'Data Backup & Restore',
-      teamConfig: 'Team Configuration'
+      teamConfig: 'Team Configuration',
+      select: 'Select'
     },
     pluginRepo: {
       title: 'Plugin Repository',

@@ -105,6 +105,7 @@ export default {
     fromDir: '从目录导入',
     fromFile: '从文件导入',
     fromGit: '从 Git 导入',
+    importFromGit: '从 Git 导入',
     empty: '暂无插件',
     emptyDesc: '尝试调整搜索条件或导入新插件',
     onboarding: {
@@ -501,7 +502,7 @@ export default {
     other: '其他',
     showOnboarding: '重新显示引导',
     showOnboardingDesc: '点击后立即显示新手引导',
-    resetData: '重置数据',
+    resetDataLabel: '重置数据',
     resetDataDesc: '将所有数据和设置恢复到初始状态，此操作不可撤销',
     resetDataConfirmTitle: '确认重置数据',
     resetDataConfirmDesc: '此操作将永久删除所有数据，包括项目、插件、引擎、绑定关系和设置。请确保已备份重要数据。',
@@ -521,10 +522,14 @@ export default {
     resetDataStep2Placeholder: '请输入备份目录完整路径',
     resetDataStep3Desc: '请再次确认您的操作。此操作不可撤销！',
     resetDataStep3BackupPath: '备份指纹（验证路径）：',
+    resetData: {
+      selectBackup: '选择备份目录'
+    },
     buttons: {
       viewLogs: '查看日志',
       backup: '数据备份与恢复',
-      teamConfig: '团队配置'
+      teamConfig: '团队配置',
+      select: '选择'
     },
     pluginRepo: {
       title: '插件仓库',
