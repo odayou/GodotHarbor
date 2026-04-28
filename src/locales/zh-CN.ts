@@ -501,6 +501,26 @@ export default {
     other: '其他',
     showOnboarding: '重新显示引导',
     showOnboardingDesc: '点击后立即显示新手引导',
+    resetData: '重置数据',
+    resetDataDesc: '将所有数据和设置恢复到初始状态，此操作不可撤销',
+    resetDataConfirmTitle: '确认重置数据',
+    resetDataConfirmDesc: '此操作将永久删除所有数据，包括项目、插件、引擎、绑定关系和设置。请确保已备份重要数据。',
+    resetDataItem: {
+      projects: '- 所有项目',
+      plugins: '- 所有插件',
+      engines: '- 所有引擎',
+      bindings: '- 所有绑定关系',
+      settings: '- 所有设置'
+    },
+    confirmReset: '确认重置',
+    resetting: '重置中...',
+    resetDataStep1Desc: '此操作将永久删除所有数据。请先确认您已了解将被删除的内容：',
+    resetDataStep1Continue: '我已了解，继续',
+    resetDataStep2Desc: '为了安全，请先进行数据备份，并输入备份目录路径作为备份指纹。系统将验证备份是否有效。',
+    resetDataStep2Hint: '提示：备份目录名格式通常为 backup_YYYYMMDD_HHMMSS，例如 backup_20240101_120000',
+    resetDataStep2Placeholder: '请输入备份目录完整路径',
+    resetDataStep3Desc: '请再次确认您的操作。此操作不可撤销！',
+    resetDataStep3BackupPath: '备份指纹（验证路径）：',
     buttons: {
       viewLogs: '查看日志',
       backup: '数据备份与恢复',
@@ -598,7 +618,9 @@ export default {
       importFailed: '导入失败: {error}',
       deleteSuccess: '团队配置已删除',
       deleteFailed: '删除失败: {error}',
-      resetGuideFailed: '重置引导失败: {error}'
+      resetGuideFailed: '重置引导失败: {error}',
+      resetFailed: '重置失败: {error}',
+      enterBackupFingerprint: '请输入备份指纹'
     }
   },
   common: {

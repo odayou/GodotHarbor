@@ -500,7 +500,27 @@ export default {
     autoDiscoverEngines: 'Auto discover Godot engines on startup',
     other: 'Other',
     showOnboarding: 'Show Onboarding Again',
-    showOnboardingDesc: 'Click to show onboarding immediately',
+    showOnboardingDesc: 'Click to show the onboarding guide immediately',
+    resetData: 'Reset Data',
+    resetDataDesc: 'Restore all data and settings to initial state, this action cannot be undone',
+    resetDataConfirmTitle: 'Confirm Data Reset',
+    resetDataConfirmDesc: 'This action will permanently delete all data, including projects, plugins, engines, bindings, and settings. Please ensure you have backed up important data.',
+    resetDataItem: {
+      projects: '- All projects',
+      plugins: '- All plugins',
+      engines: '- All engines',
+      bindings: '- All bindings',
+      settings: '- All settings'
+    },
+    confirmReset: 'Confirm Reset',
+    resetting: 'Resetting...',
+    resetDataStep1Desc: 'This operation will permanently delete all data. Please confirm you understand what will be deleted:',
+    resetDataStep1Continue: 'I understand, continue',
+    resetDataStep2Desc: 'For safety, please backup your data first and enter the backup directory path as backup fingerprint. The system will verify the backup is valid.',
+    resetDataStep2Hint: 'Hint: Backup directory name format is usually backup_YYYYMMDD_HHMMSS, e.g. backup_20240101_120000',
+    resetDataStep2Placeholder: 'Enter backup directory full path',
+    resetDataStep3Desc: 'Please confirm your operation again. This action cannot be undone!',
+    resetDataStep3BackupPath: 'Backup Fingerprint (Verification Path):',
     buttons: {
       viewLogs: 'View logs',
       backup: 'Data Backup & Restore',
@@ -598,7 +618,9 @@ export default {
       importFailed: 'Import failed: {error}',
       deleteSuccess: 'Team configuration deleted',
       deleteFailed: 'Delete failed: {error}',
-      resetGuideFailed: 'Failed to reset guide: {error}'
+      resetGuideFailed: 'Failed to reset guide: {error}',
+      resetFailed: 'Reset failed: {error}',
+      enterBackupFingerprint: 'Please enter backup fingerprint'
     }
   },
   common: {

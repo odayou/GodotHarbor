@@ -1716,16 +1716,51 @@ pub fn get_project_groups(app: AppHandle) -> Result<Vec<String>, String> {
     Ok(groups)
 }
 
+fn copy_dir_all(src: impl AsRef<std::path::Path>, dst: impl AsRef<std::path::Path>) -> Result<(), String> {
+    let src = src.as_ref();
+    let dst = dst.as_ref();
+
+    std::fs::create_dir_all(dst)
+        .map_err(|e| format!("创建目录失败: {}", e))?;
+
+    for entry in std::fs::read_dir(src)
+        .map_err(|e| format!("读取目录失败: {}", e))?
+    {
+        let entry = entry.map_err(|e| format!("读取目录条目失败: {}", e))?;
+        let ty = entry.file_type().map_err(|e| format!("获取文件类型失败: {}", e))?;
+        if ty.is_dir() {
+            copy_dir_all(entry.path(), dst.join(entry.file_name()))?;
+        } else {
+            std::fs::copy(entry.path(), dst.join(entry.file_name()))
+                .map_err(|e| format!("复制文件失败: {}", e))?;
+        }
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub fn backup_data(app: AppHandle, backup_path: String) -> Result<String, String> {
     let data_dir = get_data_dir(&app);
-    let backup_dir = std::path::Path::new(&backup_path);
-
-    std::fs::create_dir_all(backup_dir)
+    let storage = get_storage(&app);
+    
+    let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S").to_string();
+    let backup_dir = std::path::Path::new(&backup_path).join(format!("backup_{}", timestamp));
+    
+    std::fs::create_dir_all(&backup_dir)
         .map_err(|e| format!("创建备份目录失败: {}", e))?;
 
-    let files = ["settings.json", "projects.json", "plugins.json", "bindings.json", "engines.json", "engine_bindings.json", "team_configs.json"];
-    let mut backup_info = Vec::new();
+    let files = [
+        "settings.json", 
+        "projects.json", 
+        "plugins.json", 
+        "bindings.json", 
+        "engines.json", 
+        "engine_bindings.json", 
+        "team_configs.json",
+        "operation_logs.json",
+        "update_logs.json"
+    ];
+    let mut backup_files = Vec::new();
 
     for filename in &files {
         let src = data_dir.join(filename);
@@ -1733,36 +1768,70 @@ pub fn backup_data(app: AppHandle, backup_path: String) -> Result<String, String
             let dst = backup_dir.join(filename);
             std::fs::copy(&src, &dst)
                 .map_err(|e| format!("备份文件 {} 失败: {}", filename, e))?;
-            backup_info.push(filename.to_string());
+            backup_files.push(filename.to_string());
         }
     }
 
-    let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S").to_string();
-    let backup_file = backup_dir.join(format!("backup_{}.json", timestamp));
+    let settings: Settings = storage.load_or_default("settings.json");
+    let plugins_src_dir = if settings.plugin_storage_path.is_empty() {
+        data_dir.join("plugins")
+    } else {
+        std::path::PathBuf::from(&settings.plugin_storage_path)
+    };
+    let plugins_dst_dir = backup_dir.join("plugins");
+    
+    if plugins_src_dir.exists() {
+        copy_dir_all(&plugins_src_dir, &plugins_dst_dir)
+            .map_err(|e| format!("备份插件目录失败: {}", e))?;
+    }
 
-    let backup_data = serde_json::json!({
+    let projects: Vec<Project> = storage.load_or_default("projects.json");
+    let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+    let bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
+
+    let backup_info = serde_json::json!({
         "version": "1.0",
         "timestamp": chrono::Utc::now().to_rfc3339(),
-        "files": backup_info
+        "app_version": env!("CARGO_PKG_VERSION"),
+        "files": backup_files,
+        "project_count": projects.len(),
+        "plugin_count": plugins.len(),
+        "binding_count": bindings.len()
     });
 
-    std::fs::write(&backup_file, serde_json::to_string_pretty(&backup_data).unwrap())
+    std::fs::write(backup_dir.join("backup_info.json"), serde_json::to_string_pretty(&backup_info).unwrap())
         .map_err(|e| format!("创建备份信息文件失败: {}", e))?;
 
-    log_operation(&app, "backup_data", &backup_path, &format!("数据备份成功，共备份 {} 个文件", backup_info.len()));
-    Ok(format!("备份成功，共备份 {} 个文件", backup_info.len()))
+    log_operation(&app, "backup_data", &backup_path, &format!("数据备份成功，共备份 {} 个文件", backup_files.len()));
+    Ok(format!("备份成功，备份位置: {}", backup_dir.display()))
 }
 
 #[tauri::command]
 pub fn restore_data(app: AppHandle, backup_path: String) -> Result<String, String> {
     let data_dir = get_data_dir(&app);
+    let storage = get_storage(&app);
     let backup_dir = std::path::Path::new(&backup_path);
 
     if !backup_dir.exists() {
         return Err("备份目录不存在".to_string());
     }
 
-    let files = ["settings.json", "projects.json", "plugins.json", "bindings.json", "engines.json", "engine_bindings.json", "team_configs.json"];
+    let backup_info_path = backup_dir.join("backup_info.json");
+    if !backup_info_path.exists() {
+        return Err("无效的备份目录，缺少 backup_info.json".to_string());
+    }
+
+    let files = [
+        "settings.json", 
+        "projects.json", 
+        "plugins.json", 
+        "bindings.json", 
+        "engines.json", 
+        "engine_bindings.json", 
+        "team_configs.json",
+        "operation_logs.json",
+        "update_logs.json"
+    ];
     let mut restore_info = Vec::new();
 
     for filename in &files {
@@ -1775,8 +1844,85 @@ pub fn restore_data(app: AppHandle, backup_path: String) -> Result<String, Strin
         }
     }
 
-    log_operation(&app, "restore_data", &backup_path, &format!("数据恢复成功，共恢复 {} 个文件", restore_info.len()));
-    Ok(format!("恢复成功，共恢复 {} 个文件", restore_info.len()))
+    let settings: Settings = storage.load_or_default("settings.json");
+    let plugins_dst_dir = if settings.plugin_storage_path.is_empty() {
+        data_dir.join("plugins")
+    } else {
+        std::path::PathBuf::from(&settings.plugin_storage_path)
+    };
+    let plugins_src_dir = backup_dir.join("plugins");
+    
+    if plugins_src_dir.exists() {
+        if plugins_dst_dir.exists() {
+            std::fs::remove_dir_all(&plugins_dst_dir)
+                .map_err(|e| format!("删除现有插件目录失败: {}", e))?;
+        }
+        copy_dir_all(&plugins_src_dir, &plugins_dst_dir)
+            .map_err(|e| format!("恢复插件目录失败: {}", e))?;
+        restore_info.push("plugins/".to_string());
+    }
+
+    log_operation(&app, "restore_data", &backup_path, &format!("数据恢复成功，共恢复 {} 个项目", restore_info.len()));
+    Ok(format!("恢复成功，共恢复 {} 个项目", restore_info.len()))
+}
+
+#[tauri::command]
+pub fn reset_data(app: AppHandle, backup_fingerprint: String) -> Result<String, String> {
+    if backup_fingerprint.is_empty() {
+        return Err("请先进行数据备份，并提供备份指纹".to_string());
+    }
+
+    let backup_dir = std::path::Path::new(&backup_fingerprint);
+    if !backup_dir.exists() {
+        return Err(format!("未找到备份目录: {}", backup_fingerprint).to_string());
+    }
+
+    if !backup_dir.is_dir() {
+        return Err(format!("备份指纹不是有效的目录: {}", backup_fingerprint).to_string());
+    }
+
+    let backup_info_path = backup_dir.join("backup_info.json");
+    if !backup_info_path.exists() {
+        return Err("备份目录无效，缺少 backup_info.json 文件".to_string());
+    }
+
+    let data_dir = get_data_dir(&app);
+    let storage = get_storage(&app);
+
+    let files_to_delete = [
+        "settings.json",
+        "projects.json",
+        "plugins.json",
+        "bindings.json",
+        "engines.json",
+        "engine_bindings.json",
+        "team_configs.json",
+        "operation_logs.json",
+        "update_logs.json"
+    ];
+
+    for filename in &files_to_delete {
+        let file_path = data_dir.join(filename);
+        if file_path.exists() {
+            std::fs::remove_file(&file_path)
+                .map_err(|e| format!("删除文件 {} 失败: {}", filename, e))?;
+        }
+    }
+
+    let settings: Settings = storage.load_or_default("settings.json");
+    let plugins_dir = if settings.plugin_storage_path.is_empty() {
+        data_dir.join("plugins")
+    } else {
+        std::path::PathBuf::from(&settings.plugin_storage_path)
+    };
+
+    if plugins_dir.exists() {
+        std::fs::remove_dir_all(&plugins_dir)
+            .map_err(|e| format!("删除插件目录失败: {}", e))?;
+    }
+
+    log_operation(&app, "reset_data", &backup_fingerprint, "数据重置成功");
+    Ok("数据重置成功，请重启应用".to_string())
 }
 
 #[tauri::command]

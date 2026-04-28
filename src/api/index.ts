@@ -143,6 +143,10 @@ export const api = {
     return await invoke('restore_data', { backupPath })
   },
 
+  async resetData(backupFingerprint: string): Promise<string> {
+    return await invoke('reset_data', { backupFingerprint })
+  },
+
   async registerEngine(path: string, name: string): Promise<Engine> {
     return await invoke('register_engine', { path, name })
   },
