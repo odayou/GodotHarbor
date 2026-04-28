@@ -865,85 +865,36 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
           </h2>
           <span class="text-sm text-gray-500 dark:text-content-secondary">({{ groupProjects.length }} {{ t('projects.projectCount') }})</span>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div class="space-y-3">
           <div
             v-for="project in (filterGroup === 'all' ? groupProjects : filteredProjects)"
             :key="project.project_id"
             :class="[
-              'bg-white dark:bg-surface-card rounded-xl shadow hover:shadow-md transition-shadow p-5',
+              'bg-white dark:bg-surface-card rounded-xl shadow hover:shadow-md transition-shadow p-4 flex items-center gap-4',
               selectedProjectIds.has(project.project_id) ? 'ring-2 ring-primary-500' : ''
             ]"
           >
-            <div class="flex items-start justify-between min-w-0">
-              <div class="flex items-center gap-3 min-w-0 flex-1">
-                <input
-                  type="checkbox"
-                  :checked="selectedProjectIds.has(project.project_id)"
-                  @click.stop="toggleProjectSelection(project, $event)"
-                  class="w-4 h-4 text-primary-600 rounded flex-shrink-0 cursor-pointer"
-                />
-                <div 
-                  class="min-w-0 flex-1 cursor-pointer hover:text-primary-600 dark:hover:text-primary-400"
-                  @click="showProjectDetails(project)"
-                >
-                  <div class="flex items-center gap-2">
-                    <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary truncate">
-                      {{ project.name }}
-                    </h3>
-                    <span
-                      v-if="project.group"
-                      @click.stop="openGroupDialog(project)"
-                      class="badge badge-neutral hover:bg-gray-200 dark:hover:bg-surface-layer cursor-pointer"
-                    >
-                      {{ project.group }}
-                    </span>
-                  </div>
-                  <p class="text-sm text-gray-500 dark:text-content-secondary mt-1 truncate" :title="project.path">
-                    {{ project.path }}
-                  </p>
-                </div>
-              </div>
-              <div class="flex items-center gap-0.5">
-                <button
-                  @click.stop="openInFileManager(project.path)"
-                  class="text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 p-1"
-                  :title="t('projects.openInFileManager')"
-                >
-                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
-                </button>
-                <button
-                  @click.stop="syncProject(project)"
-                  class="text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 p-1"
-                  :title="t('projects.syncProject')"
-                >
-                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                </button>
-                <button
-                  @click.stop="openGroupDialog(project)"
-                  class="text-blue-600 hover:text-blue-800 p-1"
-                  :title="t('projects.setGroup')"
-                >
-                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                  </svg>
-                </button>
-                <button
-                  @click.stop="removeProject(project.project_id)"
-                  class="text-red-600 hover:text-red-800 p-1"
-                >
-                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-            <div class="mt-3 flex items-center justify-between text-sm">
+            <input
+              type="checkbox"
+              :checked="selectedProjectIds.has(project.project_id)"
+              @click.stop="toggleProjectSelection(project, $event)"
+              class="w-4 h-4 text-primary-600 rounded flex-shrink-0 cursor-pointer"
+            />
+            <div 
+              class="min-w-0 flex-1 cursor-pointer hover:text-primary-600 dark:hover:text-primary-400"
+              @click="showProjectDetails(project)"
+            >
               <div class="flex items-center gap-2">
-                <span class="text-gray-600 dark:text-content-secondary">Godot {{ project.godot_version }}</span>
+                <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary">
+                  {{ project.name }}
+                </h3>
+                <span
+                  v-if="project.group"
+                  @click.stop="openGroupDialog(project)"
+                  class="badge badge-neutral hover:bg-gray-200 dark:hover:bg-surface-layer cursor-pointer"
+                >
+                  {{ project.group }}
+                </span>
                 <span
                   :class="[
                     'badge',
@@ -957,10 +908,15 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
                   {{ t(`projects.status.${project.status.toLowerCase()}`) }}
                 </span>
               </div>
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-3 mt-1">
+                <span class="text-sm text-gray-500 dark:text-content-secondary" :title="project.path">
+                  {{ project.path }}
+                </span>
+                <span class="text-sm text-gray-400">|</span>
+                <span class="text-sm text-gray-500 dark:text-content-secondary">Godot {{ project.godot_version }}</span>
                 <span
                   v-if="projectBindingMap.get(project.project_id)?.length"
-                  class="text-xs text-gray-500 dark:text-content-secondary flex items-center gap-1"
+                  class="text-sm text-gray-500 dark:text-content-secondary flex items-center gap-1"
                 >
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
@@ -972,33 +928,70 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
                     :title="t('projects.unhealthyBindings')"
                   ></span>
                 </span>
-                <button
-                  v-if="project.status === 'MissingSource'"
-                  @click.stop="openRelocateDialog(project)"
-                  class="px-2 py-1 rounded text-xs font-medium bg-primary-600 text-white hover:bg-primary-700 transition-colors"
-                  :title="t('projects.relocate')"
-                >
-                  {{ t('projects.relocate') }}
-                </button>
-                <template v-else-if="engines.length === 0">
-                  <button
-                    @click.stop="goToEngines"
-                    class="px-2 py-1 rounded text-xs font-medium bg-yellow-500 text-white hover:bg-yellow-600 transition-colors"
-                    :title="t('projects.noEngineHint')"
-                  >
-                    {{ t('projects.registerEngine') }}
-                  </button>
-                </template>
-                <button
-                  v-else
-                  @click.stop="launchProject(project)"
-                  :disabled="isLaunching"
-                  class="px-2 py-1 rounded text-xs font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 transition-colors"
-                  :title="t('projects.launch')"
-                >
-                  {{ t('projects.launch') }}
-                </button>
               </div>
+            </div>
+            <div class="flex items-center gap-1">
+              <button
+                @click.stop="openInFileManager(project.path)"
+                class="text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                :title="t('projects.openInFileManager')"
+              >
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </button>
+              <button
+                @click.stop="syncProject(project)"
+                class="text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                :title="t('projects.syncProject')"
+              >
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+              <button
+                @click.stop="openGroupDialog(project)"
+                class="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                :title="t('projects.setGroup')"
+              >
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                </svg>
+              </button>
+              <button
+                v-if="project.status === 'MissingSource'"
+                @click.stop="openRelocateDialog(project)"
+                class="px-3 py-1.5 rounded-lg text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 transition-colors"
+                :title="t('projects.relocate')"
+              >
+                {{ t('projects.relocate') }}
+              </button>
+              <template v-else-if="engines.length === 0">
+                <button
+                  @click.stop="goToEngines"
+                  class="px-3 py-1.5 rounded-lg text-sm font-medium bg-yellow-500 text-white hover:bg-yellow-600 transition-colors"
+                  :title="t('projects.noEngineHint')"
+                >
+                  {{ t('projects.registerEngine') }}
+                </button>
+              </template>
+              <button
+                v-else
+                @click.stop="launchProject(project)"
+                :disabled="isLaunching"
+                class="px-3 py-1.5 rounded-lg text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 transition-colors"
+                :title="t('projects.launch')"
+              >
+                {{ t('projects.launch') }}
+              </button>
+              <button
+                @click.stop="removeProject(project.project_id)"
+                class="text-red-600 hover:text-red-800 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
+              >
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
           </div>
         </div>

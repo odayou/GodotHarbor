@@ -1475,75 +1475,63 @@ useDialogEscape(showLinkerBatchApplyResult)
         </div>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <div class="space-y-3">
         <div
           v-for="plugin in filteredPlugins"
           :key="plugin.plugin_id"
           :class="[
-            'bg-white dark:bg-surface-card rounded-xl shadow hover:shadow-md transition-shadow p-5',
+            'bg-white dark:bg-surface-card rounded-xl shadow hover:shadow-md transition-shadow p-4 flex items-center gap-4',
             selectedPluginIds.has(plugin.plugin_id) ? 'ring-2 ring-primary-500' : ''
           ]"
         >
-          <div class="flex items-start justify-between min-w-0">
-            <div class="flex items-start gap-3 min-w-0 flex-1">
-              <input
-                type="checkbox"
-                :checked="selectedPluginIds.has(plugin.plugin_id)"
-                @click.stop="togglePluginSelection(plugin, $event)"
-                class="w-4 h-4 text-primary-600 rounded flex-shrink-0 mt-1 cursor-pointer"
-              />
-              <div class="min-w-0 flex-1 cursor-pointer" @click="showPluginDetails(plugin)">
-                <div class="flex items-center gap-2">
-                  <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary truncate">
-                    {{ plugin.name }}
-                  </h3>
-                  <button
-                    @click.stop="toggleFavorite(plugin)"
-                    :class="[
-                      'p-1 rounded transition-colors',
-                      plugin.is_favorite
-                        ? 'text-yellow-500 hover:text-yellow-600'
-                        : 'text-gray-400 dark:text-content-secondary hover:text-yellow-500'
-                    ]"
-                  >
-                    <svg class="w-5 h-5" :fill="plugin.is_favorite ? 'currentColor' : 'none'" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                    </svg>
-                  </button>
-                </div>
-                <p 
-                  class="text-sm text-gray-500 dark:text-content-secondary mt-1 line-clamp-2"
-                  :title="plugin.description || t('plugins.noDescription')"
-                >
-                  {{ plugin.description || t('plugins.noDescription') }}
-                </p>
-              </div>
+          <input
+            type="checkbox"
+            :checked="selectedPluginIds.has(plugin.plugin_id)"
+            @click.stop="togglePluginSelection(plugin, $event)"
+            class="w-4 h-4 text-primary-600 rounded flex-shrink-0 cursor-pointer"
+          />
+          <div class="min-w-0 flex-1 cursor-pointer" @click="showPluginDetails(plugin)">
+            <div class="flex items-center gap-2">
+              <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary">
+                {{ plugin.name }}
+              </h3>
+              <button
+                @click.stop="toggleFavorite(plugin)"
+                :class="[
+                  'p-1 rounded transition-colors',
+                  plugin.is_favorite
+                    ? 'text-yellow-500 hover:text-yellow-600'
+                    : 'text-gray-400 dark:text-content-secondary hover:text-yellow-500'
+                ]"
+              >
+                <svg class="w-4 h-4" :fill="plugin.is_favorite ? 'currentColor' : 'none'" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                </svg>
+              </button>
+              <span class="badge badge-neutral">
+                {{ plugin.compatibility === 'Godot4' ? 'Godot 4' : plugin.compatibility === 'Godot3' ? 'Godot 3' : plugin.compatibility === 'Both' ? t('plugins.compat.both') : t('plugins.compat.unknown') }}
+              </span>
+              <span class="badge badge-neutral">
+                {{ plugin.source.source_type === 'Local' ? t('plugins.source.local') : plugin.source.source_type === 'Git' ? t('plugins.source.git') : t('plugins.source.assetlibrary') }}
+              </span>
             </div>
-            <button
-              @click.stop="confirmRemovePlugin(plugin.plugin_id)"
-              class="text-red-600 hover:text-red-800 ml-2"
-            >
-              <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            <div class="flex items-center gap-3 mt-1">
+              <p 
+                class="text-sm text-gray-500 dark:text-content-secondary"
+                :title="plugin.description || t('plugins.noDescription')"
+              >
+                {{ plugin.description || t('plugins.noDescription') }}
+              </p>
+              <span class="text-sm text-gray-400">|</span>
+              <span class="text-sm text-gray-500 dark:text-content-secondary">v{{ plugin.versions[0]?.version || '1.0.0' }}</span>
+              <span class="text-sm text-gray-400">|</span>
+              <span class="text-sm text-gray-500 dark:text-content-secondary">{{ plugin.author || t('plugins.unknownAuthor') }}</span>
+            </div>
           </div>
-          <div class="mt-3 flex items-center justify-between text-sm text-gray-600 dark:text-content-secondary">
-            <span>v{{ plugin.versions[0]?.version || '1.0.0' }}</span>
-            <span>{{ plugin.author || t('plugins.unknownAuthor') }}</span>
-          </div>
-          <div class="mt-2 flex items-center gap-2 flex-wrap">
-            <span class="badge badge-neutral">
-              {{ plugin.compatibility === 'Godot4' ? 'Godot 4' : plugin.compatibility === 'Godot3' ? 'Godot 3' : plugin.compatibility === 'Both' ? t('plugins.compat.both') : t('plugins.compat.unknown') }}
-            </span>
-            <span class="badge badge-neutral">
-              {{ plugin.source.source_type === 'Local' ? t('plugins.source.local') : plugin.source.source_type === 'Git' ? t('plugins.source.git') : t('plugins.source.assetlibrary') }}
-            </span>
-          </div>
-          <div class="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex gap-2">
+          <div class="flex items-center gap-1">
             <button
               @click.stop="openBindDialog(plugin)"
-              class="flex-1 px-3 py-1.5 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700 transition-colors flex items-center justify-center gap-1.5"
+              class="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-1.5"
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
@@ -1552,11 +1540,19 @@ useDialogEscape(showLinkerBatchApplyResult)
             </button>
             <button
               @click.stop="goToBindings(plugin)"
-              class="px-2 py-1.5 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-content-secondary text-xs rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              class="px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-content-secondary text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               :title="t('plugins.goToBindings')"
             >
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
+            </button>
+            <button
+              @click.stop="confirmRemovePlugin(plugin.plugin_id)"
+              class="text-red-600 hover:text-red-800 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
+            >
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
