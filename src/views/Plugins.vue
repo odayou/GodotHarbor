@@ -1210,8 +1210,9 @@ useDialogEscape(showLinkerBatchApplyResult)
 </script>
 
 <template>
-  <div class="space-y-6">
-    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+  <div class="relative">
+    <div class="space-y-6">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
       <div class="flex items-center gap-4">
         <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ t('plugins.title') }}</h1>
         <div class="flex bg-gray-100 dark:bg-surface-layer rounded-lg p-1">
@@ -1559,8 +1560,9 @@ useDialogEscape(showLinkerBatchApplyResult)
         </div>
       </div>
     </div>
+  </div>
 
-    <div v-if="showGitDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showGitDialog = false; gitUrl = ''">
+  <div v-if="showGitDialog" class="fixed top-0 left-0 right-0 bottom-0 bg-black/50 flex items-center justify-center z-50" @click="showGitDialog = false; gitUrl = ''">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('plugins.importFromGit') }}</h3>
         <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">
@@ -1740,7 +1742,7 @@ useDialogEscape(showLinkerBatchApplyResult)
       </div>
     </div>
 
-    <div v-if="showAssetLibraryDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showAssetLibraryDialog = false">
+  <div v-if="showAssetLibraryDialog" class="fixed top-0 left-0 right-0 bottom-0 bg-black/50 flex items-center justify-center z-50" @click="showAssetLibraryDialog = false">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-2xl shadow-xl max-h-[85vh] flex flex-col" @click.stop>
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('assetLibrary.title') }}</h3>
@@ -1981,7 +1983,7 @@ useDialogEscape(showLinkerBatchApplyResult)
       </div>
     </div>
 
-    <div v-if="showUpdatesDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showUpdatesDialog = false">
+  <div v-if="showUpdatesDialog" class="fixed top-0 left-0 right-0 bottom-0 bg-black/50 flex items-center justify-center z-50" @click="showUpdatesDialog = false">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl" @click.stop>
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ t('plugins.updateCheck.title') }}</h3>
@@ -2053,7 +2055,7 @@ useDialogEscape(showLinkerBatchApplyResult)
       </div>
     </div>
 
-    <div v-if="showScanPreviewDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showScanPreviewDialog = false">
+  <div v-if="showScanPreviewDialog" class="fixed top-0 left-0 right-0 bottom-0 bg-black/50 flex items-center justify-center z-50" @click="showScanPreviewDialog = false">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[80vh] flex flex-col" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('plugins.importFromProject.scanTitle') }}</h3>
         <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">{{ t('plugins.importFromProject.scanDesc', { count: scannedPlugins.length }) }}</p>

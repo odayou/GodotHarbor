@@ -231,8 +231,9 @@ const checkEngineUpdates = async () => {
 </script>
 
 <template>
-  <div class="space-y-6">
-    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+  <div class="relative">
+    <div class="space-y-6">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
       <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ t('engines.title') }}</h1>
       <div class="flex flex-wrap gap-2">
         <button
@@ -463,8 +464,9 @@ const checkEngineUpdates = async () => {
         </table>
       </div>
     </div>
+  </div>
 
-    <div v-if="showAddDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showAddDialog = false; newEnginePath = ''; newEngineName = ''">
+  <div v-if="showAddDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showAddDialog = false; newEnginePath = ''; newEngineName = ''">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('engines.registerTitle') }}</h3>
         <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">

@@ -336,8 +336,9 @@ const resetOnboarding = async () => {
 </script>
 
 <template>
-  <div class="space-y-6">
-    <div class="flex justify-between items-center">
+  <div class="relative">
+    <div class="space-y-6">
+      <div class="flex justify-between items-center">
       <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ t('settings.title') }}</h1>
       <div class="flex gap-2">
         <button @click="loadLogs" class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm">{{ t('settings.buttons.viewLogs') }}</button>
@@ -472,8 +473,9 @@ const resetOnboarding = async () => {
         <button @click="saveSettingsWithMigrationCheck" :disabled="isLoading" class="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50">{{ t('settings.save') }}</button>
       </div>
     </div>
+  </div>
 
-    <div v-if="showLogs" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showLogs = false">
+  <div v-if="showLogs" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showLogs = false">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-3xl shadow-xl max-h-[80vh] flex flex-col" @click.stop>
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ t('settings.logs.title') }}</h3>
