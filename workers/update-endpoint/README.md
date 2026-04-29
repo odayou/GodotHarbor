@@ -18,7 +18,7 @@ Returns tauri-plugin-updater compatible JSON:
   "platforms": {
     "windows-x86_64": {
       "signature": "...",
-      "url": "https://github.com/user/godotharbor/releases/download/v0.2.0/GodotHarbor_0.2.0_x64-setup.nsis.zip"
+      "url": "https://github.com/odayou/GodotHarbor/releases/download/v0.2.0/GodotHarbor_0.2.0_x64-setup.nsis.zip"
     }
   }
 }

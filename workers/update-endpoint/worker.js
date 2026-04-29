@@ -1,4 +1,4 @@
-const GITHUB_REPO = 'user/godotharbor';
+const GITHUB_REPO = 'odayou/GodotHarbor';
 
 export default {
   async fetch(request) {

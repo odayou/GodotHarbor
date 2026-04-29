@@ -150,13 +150,13 @@ const inspirationDeps = [
           {{ t('about.openSource') }}
         </p>
         <div class="flex justify-center gap-4 mt-4">
-          <a href="https://github.com" target="_blank" class="text-primary-600 dark:text-primary-400 hover:underline text-sm">
+          <a href="https://github.com/odayou/GodotHarbor" target="_blank" class="text-primary-600 dark:text-primary-400 hover:underline text-sm">
             {{ t('about.githubRepo') }}
           </a>
-          <a href="https://github.com" target="_blank" class="text-primary-600 dark:text-primary-400 hover:underline text-sm">
+          <a href="https://github.com/odayou/GodotHarbor/issues" target="_blank" class="text-primary-600 dark:text-primary-400 hover:underline text-sm">
             {{ t('about.issueReport') }}
           </a>
-          <a href="https://github.com" target="_blank" class="text-primary-600 dark:text-primary-400 hover:underline text-sm">
+          <a href="https://github.com/odayou/GodotHarbor/contribute" target="_blank" class="text-primary-600 dark:text-primary-400 hover:underline text-sm">
             {{ t('about.contribute') }}
           </a>
         </div>
@@ -276,7 +276,7 @@ const inspirationDeps = [
           <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
             {{ t('about.starGithubDesc') }}
           </p>
-          <a href="https://github.com" target="_blank" class="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+          <a href="https://github.com/odayou/GodotHarbor" target="_blank" class="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
             {{ t('about.giveStar') }}
           </a>
         </div>
@@ -291,7 +291,7 @@ const inspirationDeps = [
           <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
             {{ t('about.contributeDesc') }}
           </p>
-          <a href="https://github.com" target="_blank" class="inline-block px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
+          <a href="https://github.com/odayou/GodotHarbor/contribute" target="_blank" class="inline-block px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
             {{ t('about.contributionGuide') }}
           </a>
         </div>

@@ -596,7 +596,7 @@ Tauri 2 官方插件，支持 Windows NSIS/MSI 安装包的自动更新。
   "platforms": {
     "windows-x86_64": {
       "signature": "<签名>",
-      "url": "https://github.com/user/godotharbor/releases/download/v0.3.0/GodotHarbor_0.3.0_x64-setup.nsis.zip.sig"
+      "url": "https://github.com/odayou/GodotHarbor/releases/download/v0.3.0/GodotHarbor_0.3.0_x64-setup.nsis.zip.sig"
     }
   }
 }
