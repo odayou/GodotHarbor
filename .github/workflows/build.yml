@@ -16,6 +16,9 @@ env:
   CARGO_NET_RETRY: 10
   CARGO_NET_GIT_FETCH_WITH_CLI: true
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build ${{ matrix.platform.name }}
@@ -60,6 +63,12 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
+
+      - name: Install Perl (Windows, for vendored-openssl)
+        if: matrix.platform.os == 'windows-latest'
+        run: |
+          choco install strawberryperl -y
+          echo "C:\Strawberry\perl\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Install dependencies (Ubuntu)
         if: matrix.platform.os == 'ubuntu-22.04'

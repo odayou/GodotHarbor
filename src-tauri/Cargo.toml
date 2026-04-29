@@ -30,7 +30,7 @@ regex = "1"
 git2 = { version = "0.18", features = ["vendored-openssl"] }
 anyhow = "1"
 thiserror = "1"
-reqwest = { version = "0.12", features = ["blocking", "json", "stream"] }
+reqwest = { version = "0.12", features = ["blocking", "json", "stream", "native-tls-vendored"] }
 zip = "2"
 urlencoding = "2"
 notify = "7"
@@ -41,6 +41,3 @@ futures = "0.3"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52"
-
-[patch.crates-io]
-serde_with = { git = "https://github.com/jonasbb/serde_with", tag = "v3.12.0" }

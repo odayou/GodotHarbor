@@ -33,6 +33,10 @@ impl Storage {
         fs::write(&temp_path, &content)
             .with_context(|| format!("Failed to write temp file: {}.tmp", filename))?;
 
+        if path.exists() {
+            fs::remove_file(&path)
+                .with_context(|| format!("Failed to remove old file: {}", filename))?;
+        }
         fs::rename(&temp_path, &path)
             .with_context(|| format!("Failed to rename temp file to: {}", filename))?;
 

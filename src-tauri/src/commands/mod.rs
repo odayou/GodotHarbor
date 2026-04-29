@@ -1245,7 +1245,7 @@ pub async fn check_app_update(app: AppHandle) -> Result<Option<AppUpdateInfo>, S
     let release_notes = json.get("body").and_then(|b| b.as_str()).unwrap_or("").to_string();
     let pub_date = json.get("published_at").and_then(|d| d.as_str()).unwrap_or("").to_string();
 
-    let target_ext = if cfg!(target_os = "windows") { ".nsis.zip" } else { ".AppImage.tar.gz" };
+    let target_ext = if cfg!(target_os = "windows") { ".nsis.zip" } else if cfg!(target_os = "macos") { ".app.tar.gz" } else { ".AppImage.tar.gz" };
     let mut download_url = None;
     let mut download_size = None;
 
@@ -2182,10 +2182,17 @@ pub fn launch_project_with_engine(
         "未找到可用的引擎，请先注册引擎".to_string()
     })?;
 
-    let exe_name = if cfg!(windows) { "godot.exe" } else { "godot" };
+    let exe_name = if cfg!(windows) { "godot.exe" } else if cfg!(target_os = "macos") { "godot" } else { "godot" };
     let exe_path = std::path::Path::new(&engine.path).join(exe_name);
     let actual_exe = if exe_path.exists() {
         exe_path
+    } else if cfg!(target_os = "macos") {
+        let macos_exe = std::path::Path::new(&engine.path).join("Contents/MacOS/godot");
+        if macos_exe.exists() {
+            macos_exe
+        } else {
+            std::path::Path::new(&engine.path).join(format!("bin/{}", exe_name))
+        }
     } else {
         std::path::Path::new(&engine.path).join(format!("bin/{}", exe_name))
     };
@@ -3638,6 +3645,13 @@ pub fn check_engine_health(app: AppHandle, engine_id: String) -> Result<bool, St
     let exe_path = std::path::Path::new(&engine.path).join(exe_name);
     let actual_exe = if exe_path.exists() {
         exe_path
+    } else if cfg!(target_os = "macos") {
+        let macos_exe = std::path::Path::new(&engine.path).join("Contents/MacOS/godot");
+        if macos_exe.exists() {
+            macos_exe
+        } else {
+            std::path::Path::new(&engine.path).join(format!("bin/{}", exe_name))
+        }
     } else {
         std::path::Path::new(&engine.path).join(format!("bin/{}", exe_name))
     };
@@ -3689,9 +3703,11 @@ pub fn open_in_file_manager(path: String) -> Result<(), String> {
     }
     #[cfg(target_os = "macos")]
     {
-        std::process::Command::new("open")
-            .arg(if p.is_dir() { &path } else { "-R" })
-            .arg(&path)
+        let mut cmd = std::process::Command::new("open");
+        if !p.is_dir() {
+            cmd.arg("-R");
+        }
+        cmd.arg(&path)
             .spawn()
             .map_err(|e| format!("打开 Finder 失败: {}", e))?;
     }
