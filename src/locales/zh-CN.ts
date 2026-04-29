@@ -290,7 +290,10 @@ export default {
     },
     importPluginSuccess: '插件 {name} 导入成功',
     deleteWithBindings: '删除插件并解绑',
-    deleteWithBindingsDesc: '该插件正被 {count} 个项目使用，删除后所有绑定将被移除。确定删除？'
+    deleteWithBindingsDesc: '该插件正被 {count} 个项目使用，删除后所有绑定将被移除。确定删除？',
+    description: '描述',
+    author: '作者',
+    noDescription: '暂无描述'
   },
   assetLibrary: {
     title: 'Asset Library',

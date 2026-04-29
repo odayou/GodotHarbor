@@ -290,7 +290,10 @@ export default {
     },
     importPluginSuccess: 'Plugin {name} imported successfully',
     deleteWithBindings: 'Delete Plugin & Unbind',
-    deleteWithBindingsDesc: 'This plugin is used by {count} project(s). All bindings will be removed after deletion. Confirm?'
+    deleteWithBindingsDesc: 'This plugin is used by {count} project(s). All bindings will be removed after deletion. Confirm?',
+    description: 'Description',
+    author: 'Author',
+    noDescription: 'No description available'
   },
   assetLibrary: {
     title: 'Asset Library',
