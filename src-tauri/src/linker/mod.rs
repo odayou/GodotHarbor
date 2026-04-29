@@ -352,6 +352,7 @@ impl Linker {
         Ok(false)
     }
 
+    #[allow(unused_variables)]
     fn is_junction(&self, path: &Path) -> bool {
         #[cfg(windows)]
         {

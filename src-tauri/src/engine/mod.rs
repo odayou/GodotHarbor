@@ -477,11 +477,14 @@ impl EngineManager {
 
         let home = std::env::var("HOME").unwrap_or_default();
 
-        let desktop_dirs = [
+        let home_apps = format!("{}/.local/share/applications", home);
+        let flatpak_apps = format!("{}/.local/share/flatpak/exports/share/applications", home);
+
+        let desktop_dirs: Vec<&str> = vec![
             "/usr/share/applications",
-            format!("{}/.local/share/applications", home),
+            &home_apps,
             "/var/lib/flatpak/exports/share/applications",
-            format!("{}/.local/share/flatpak/exports/share/applications", home),
+            &flatpak_apps,
         ];
 
         for dir_str in &desktop_dirs {

@@ -379,11 +379,16 @@ pub fn unbind_plugin(app: AppHandle, project_id: String, plugin_id: String) -> R
         if plugin_path.exists() {
             let metadata = std::fs::symlink_metadata(&plugin_path);
             let is_link = metadata.as_ref().map(|m| m.file_type().is_symlink()).unwrap_or(false);
-            let is_junction = if cfg!(windows) {
-                use std::os::windows::fs::MetadataExt;
-                metadata.as_ref().map(|m| m.file_attributes() & 0x400 != 0).unwrap_or(false)
-            } else {
-                false
+            let is_junction = {
+                #[cfg(windows)]
+                {
+                    use std::os::windows::fs::MetadataExt;
+                    metadata.as_ref().map(|m| m.file_attributes() & 0x400 != 0).unwrap_or(false)
+                }
+                #[cfg(not(windows))]
+                {
+                    false
+                }
             };
 
             if is_link || is_junction {
@@ -3412,11 +3417,16 @@ pub fn batch_unbind_plugins(app: AppHandle, project_id: String, plugin_ids: Vec<
             if plugin_path.exists() {
                 let metadata = std::fs::symlink_metadata(&plugin_path);
                 let is_link = metadata.as_ref().map(|m| m.file_type().is_symlink()).unwrap_or(false);
-                let is_junction = if cfg!(windows) {
-                    use std::os::windows::fs::MetadataExt;
-                    metadata.as_ref().map(|m| m.file_attributes() & 0x400 != 0).unwrap_or(false)
-                } else {
-                    false
+                let is_junction = {
+                    #[cfg(windows)]
+                    {
+                        use std::os::windows::fs::MetadataExt;
+                        metadata.as_ref().map(|m| m.file_attributes() & 0x400 != 0).unwrap_or(false)
+                    }
+                    #[cfg(not(windows))]
+                    {
+                        false
+                    }
                 };
                 if is_link || is_junction {
                     let _ = std::fs::remove_dir(&plugin_path);
@@ -3687,8 +3697,9 @@ pub fn open_in_file_manager(path: String) -> Result<(), String> {
     }
     #[cfg(target_os = "linux")]
     {
+        let target = if p.is_dir() { path.clone() } else { p.parent().map(|d| d.to_string_lossy().to_string()).unwrap_or(path.clone()) };
         std::process::Command::new("xdg-open")
-            .arg(if p.is_dir() { &path } else { p.parent().unwrap_or(p) })
+            .arg(&target)
             .spawn()
             .map_err(|e| format!("打开文件管理器失败: {}", e))?;
     }
