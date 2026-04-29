@@ -27,7 +27,7 @@ dirs = "5"
 walkdir = "2"
 rayon = "1"
 regex = "1"
-git2 = "0.18"
+git2 = { version = "0.18", features = ["vendored-openssl"] }
 anyhow = "1"
 thiserror = "1"
 reqwest = { version = "0.12", features = ["blocking", "json", "stream"] }

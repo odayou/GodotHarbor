@@ -27,7 +27,7 @@ const checkFirstTime = async () => {
 
 checkFirstTime()
 
-const steps = [
+const steps = computed(() => [
   {
     title: t('onboarding.welcome.title'),
     desc: t('onboarding.welcome.desc'),
@@ -52,11 +52,11 @@ const steps = [
     icon: 'link',
     action: '/plugins'
   }
-]
+])
 
-const currentStepData = computed(() => steps[currentStep.value])
-const isLastStep = computed(() => currentStep.value === steps.length - 1)
-const progress = computed(() => ((currentStep.value + 1) / steps.length) * 100)
+const currentStepData = computed(() => steps.value[currentStep.value])
+const isLastStep = computed(() => currentStep.value === steps.value.length - 1)
+const progress = computed(() => ((currentStep.value + 1) / steps.value.length) * 100)
 
 const markOnboardingCompleted = async () => {
   try {

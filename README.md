@@ -100,12 +100,40 @@ npm run tauri dev
 
 ## 构建生产版本
 
+### 本地构建
+
 ```bash
 # 构建桌面应用
 npm run tauri build
 ```
 
 构建完成后，安装包位于 `src-tauri/target/release/bundle/` 目录。
+
+### GitHub Actions 构建（推荐）
+
+项目已配置 GitHub Actions 自动构建工作流，支持**多平台并行构建**。
+
+#### 触发方式
+
+工作流配置为**纯手动触发**，不会在每次 push 时自动构建：
+
+1. 进入 GitHub 仓库的 **Actions** 页面
+2. 在左侧选择 **Build Godot Harbor** 工作流
+3. 点击 **Run workflow** 按钮
+4. 填写版本号（如 `v1.0.0`）和可选的构建原因
+5. 点击 **Run workflow** 开始构建
+
+#### 构建目标
+
+| 平台 | 架构 | 输出格式 |
+|-----|-----|---------|
+| Windows | x86_64 | NSIS (.exe) |
+| macOS | Universal (ARM + Intel) | DMG |
+| Linux | x86_64 | DEB |
+
+#### 构建产物
+
+构建完成后，所有平台的安装包会自动打包到 GitHub Release（Draft 状态），可从 **Releases** 页面下载。
 
 ## 项目结构
 
