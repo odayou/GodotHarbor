@@ -40,6 +40,7 @@ const remoteVersions = ref<RemoteEngineVersion[]>([])
 const selectedMirrorId = ref('official')
 const mirrorConfigs = ref<EngineMirrorConfig[]>([])
 const downloadChannelFilter = ref<EngineReleaseChannel | 'all'>('all')
+const downloadVariantFilter = ref<'all' | 'standard' | 'mono'>('all')
 const downloadSearchQuery = ref('')
 const activeDownloads = ref<Map<string, EngineDownloadProgress>>(new Map())
 const expandedReleaseVersion = ref<string>('')
@@ -95,10 +96,11 @@ const filteredEngines = computed(() => {
 const filteredRemoteVersions = computed(() => {
   return remoteVersions.value.filter(v => {
     const matchesChannel = downloadChannelFilter.value === 'all' || v.channel === downloadChannelFilter.value
+    const matchesVariant = downloadVariantFilter.value === 'all' || v.variant === downloadVariantFilter.value
     const matchesSearch = downloadSearchQuery.value === '' ||
       v.version.toLowerCase().includes(downloadSearchQuery.value.toLowerCase()) ||
       v.tag_name.toLowerCase().includes(downloadSearchQuery.value.toLowerCase())
-    return matchesChannel && matchesSearch
+    return matchesChannel && matchesVariant && matchesSearch
   })
 })
 
@@ -354,10 +356,12 @@ const openDownloadDialog = async () => {
   await fetchRemoteVersions()
 }
 
-const fetchRemoteVersions = async () => {
+const fetchRemoteVersions = async (forceRefresh: boolean = false) => {
   if (!selectedMirrorId.value) return
   isFetchingVersions.value = true
-  remoteVersions.value = []
+  if (forceRefresh) {
+    remoteVersions.value = []
+  }
   try {
     const settings = await api.getSettings()
     if (settings.selected_mirror_id !== selectedMirrorId.value) {
@@ -366,7 +370,7 @@ const fetchRemoteVersions = async () => {
     }
   } catch { /* ignore */ }
   try {
-    const versions = await api.fetchRemoteEngineVersions(selectedMirrorId.value)
+    const versions = await api.fetchRemoteEngineVersions(selectedMirrorId.value, forceRefresh)
     remoteVersions.value = versions
   } catch (error) {
     const errMsg = String(error)
@@ -811,7 +815,7 @@ const cancelDownload = async (version: string) => {
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ t('engines.download.mirror') }}</label>
               <select
                 v-model="selectedMirrorId"
-                @change="fetchRemoteVersions"
+                @change="fetchRemoteVersions(false)"
                 :disabled="isFetchingVersions"
                 class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
               >
@@ -821,7 +825,7 @@ const cancelDownload = async (version: string) => {
               </select>
             </div>
             <button
-              @click="fetchRemoteVersions"
+              @click="fetchRemoteVersions(true)"
               :disabled="isFetchingVersions"
               class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 text-sm whitespace-nowrap disabled:opacity-50"
             >
@@ -848,6 +852,14 @@ const cancelDownload = async (version: string) => {
               <option value="Beta">{{ t('engines.download.channelBeta') }}</option>
               <option value="Alpha">{{ t('engines.download.channelAlpha') }}</option>
               <option value="Dev">{{ t('engines.download.channelDev') }}</option>
+            </select>
+            <select
+              v-model="downloadVariantFilter"
+              class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+            >
+              <option value="all">{{ t('engines.download.allVariants') }}</option>
+              <option value="standard">{{ t('engines.download.variantStandard') }}</option>
+              <option value="mono">{{ t('engines.download.variantMono') }}</option>
             </select>
           </div>
 
@@ -905,6 +917,12 @@ const cancelDownload = async (version: string) => {
                     <span class="font-medium text-sm text-gray-900 dark:text-gray-100">v{{ version.version }}</span>
                     <span :class="['px-1.5 py-0.5 rounded text-xs font-medium', channelBadgeClass(version.channel)]">
                       {{ channelLabel(version.channel) }}
+                    </span>
+                    <span
+                      v-if="version.variant === 'mono'"
+                      class="px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400"
+                    >
+                      .NET
                     </span>
                     <span
                       v-if="version.is_installed"

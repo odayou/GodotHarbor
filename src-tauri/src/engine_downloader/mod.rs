@@ -164,9 +164,8 @@ impl EngineDownloader {
                                     break;
                                 }
                                 for release in arr {
-                                    if let Some(version) = Self::parse_remote_release(release, mirror, local_versions) {
-                                        all_versions.push(version);
-                                    }
+                                    let versions = Self::parse_remote_release(release, mirror, local_versions);
+                                    all_versions.extend(versions);
                                 }
                                 if arr.len() < per_page {
                                     break;
@@ -206,7 +205,7 @@ impl EngineDownloader {
         });
 
         let mut seen = std::collections::HashSet::new();
-        all_versions.retain(|v| seen.insert(v.version.clone()));
+        all_versions.retain(|v| seen.insert(format!("{}_{}", v.version, v.variant)));
 
         Ok(all_versions)
     }
@@ -215,9 +214,15 @@ impl EngineDownloader {
         release: &serde_json::Value,
         mirror: &EngineMirrorConfig,
         local_versions: &[String],
-    ) -> Option<RemoteEngineVersion> {
-        let tag_name = release.get("tag_name")?.as_str()?.to_string();
-        let html_url = release.get("html_url")?.as_str()?.to_string();
+    ) -> Vec<RemoteEngineVersion> {
+        let tag_name = match release.get("tag_name").and_then(|t| t.as_str()) {
+            Some(t) => t.to_string(),
+            None => return vec![],
+        };
+        let html_url = release.get("html_url")
+            .and_then(|u| u.as_str())
+            .unwrap_or("")
+            .to_string();
         let body = release.get("body")
             .and_then(|b| b.as_str())
             .unwrap_or("")
@@ -236,7 +241,7 @@ impl EngineDownloader {
             .unwrap_or(false);
 
         if draft {
-            return None;
+            return vec![];
         }
 
         let version_str = tag_name.trim_start_matches('v');
@@ -253,7 +258,8 @@ impl EngineDownloader {
             .cloned()
             .unwrap_or_default();
 
-        let mut best_asset: Option<(String, String, u64)> = None;
+        let mut standard_asset: Option<(String, String, u64)> = None;
+        let mut mono_asset: Option<(String, String, u64)> = None;
 
         for asset in &assets {
             let name = asset.get("name")
@@ -266,27 +272,41 @@ impl EngineDownloader {
                 .and_then(|s| s.as_u64())
                 .unwrap_or(0);
 
-            if is_platform_asset(name) {
-                let name_lower = name.to_lowercase();
-                let is_preferred = if cfg!(target_os = "macos") {
-                    name_lower.contains("universal")
-                } else {
-                    true
-                };
+            if !is_platform_asset(name) {
+                continue;
+            }
 
-                match &best_asset {
+            let name_lower = name.to_lowercase();
+            let is_mono = name_lower.contains("mono") || name_lower.contains("_net") || name_lower.contains(".net");
+
+            let is_preferred = if cfg!(target_os = "macos") {
+                name_lower.contains("universal")
+            } else {
+                true
+            };
+
+            if is_mono {
+                match &mono_asset {
                     None => {
-                        best_asset = Some((name.to_string(), download_url.to_string(), size));
+                        mono_asset = Some((name.to_string(), download_url.to_string(), size));
                     }
                     Some((_, _, _)) if is_preferred => {
-                        best_asset = Some((name.to_string(), download_url.to_string(), size));
+                        mono_asset = Some((name.to_string(), download_url.to_string(), size));
+                    }
+                    _ => {}
+                }
+            } else {
+                match &standard_asset {
+                    None => {
+                        standard_asset = Some((name.to_string(), download_url.to_string(), size));
+                    }
+                    Some((_, _, _)) if is_preferred => {
+                        standard_asset = Some((name.to_string(), download_url.to_string(), size));
                     }
                     _ => {}
                 }
             }
         }
-
-        let (file_name, download_url, file_size) = best_asset?;
 
         let is_installed = local_versions.iter().any(|lv| {
             let local_clean = lv.trim().to_lowercase();
@@ -296,33 +316,42 @@ impl EngineDownloader {
                 || remote_clean.starts_with(&local_clean)
         });
 
-        let final_download_url = if mirror.mirror_type == "direct" {
-            let version_dir = version_str.replace('.', "_");
-            format!("{}/{}/{}",
-                mirror.base_url.trim_end_matches('/'),
-                version_dir,
-                file_name
-            )
-        } else {
-            download_url
-        };
+        let mut results = Vec::new();
 
-        Some(RemoteEngineVersion {
-            version: version_str.to_string(),
-            tag_name,
-            channel,
-            major,
-            minor,
-            patch,
-            is_stable,
-            published_at,
-            release_url: html_url,
-            release_notes: body.chars().take(500).collect(),
-            download_url: final_download_url,
-            file_name,
-            file_size,
-            is_installed,
-        })
+        for (variant, asset_opt) in &[("standard", &standard_asset), ("mono", &mono_asset)] {
+            if let Some((file_name, download_url, file_size)) = asset_opt {
+                let final_download_url = if mirror.mirror_type == "direct" {
+                    let version_dir = version_str.replace('.', "_");
+                    format!("{}/{}/{}",
+                        mirror.base_url.trim_end_matches('/'),
+                        version_dir,
+                        file_name
+                    )
+                } else {
+                    download_url.clone()
+                };
+
+                results.push(RemoteEngineVersion {
+                    version: version_str.to_string(),
+                    tag_name: tag_name.clone(),
+                    channel: channel.clone(),
+                    major,
+                    minor,
+                    patch,
+                    is_stable,
+                    published_at: published_at.clone(),
+                    release_url: html_url.clone(),
+                    release_notes: body.chars().take(500).collect(),
+                    download_url: final_download_url,
+                    file_name: file_name.clone(),
+                    file_size: *file_size,
+                    is_installed,
+                    variant: variant.to_string(),
+                });
+            }
+        }
+
+        results
     }
 
     pub async fn download_and_install(

@@ -624,6 +624,13 @@ pub struct DownloadEngineResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CachedRemoteVersions {
+    pub cached_at: String,
+    pub mirror_id: String,
+    pub versions: Vec<RemoteEngineVersion>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StoragePaths {
     pub app_data_dir: String,
     pub plugins_dir: String,

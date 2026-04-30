@@ -210,6 +210,7 @@ pub fn get_storage_paths(app: AppHandle) -> Result<StoragePaths, String> {
 pub async fn fetch_remote_engine_versions(
     app: AppHandle,
     mirror_id: String,
+    force_refresh: Option<bool>,
 ) -> Result<Vec<crate::models::RemoteEngineVersion>, String> {
     let settings = load_settings(&app);
 
@@ -221,11 +222,44 @@ pub async fn fetch_remote_engine_versions(
         return Err("该镜像已被禁用".to_string());
     }
 
+    let force = force_refresh.unwrap_or(false);
+
+    if !force {
+        let cache_dir = get_data_dir(&app).join("cache");
+        let cache_file = cache_dir.join(format!("remote_versions_{}.json", mirror_id));
+        if cache_file.exists() {
+            if let Ok(content) = fs::read_to_string(&cache_file) {
+                if let Ok(cached) = serde_json::from_str::<crate::models::CachedRemoteVersions>(&content) {
+                    if let Ok(cached_time) = chrono::DateTime::parse_from_rfc3339(&cached.cached_at) {
+                        let elapsed = chrono::Utc::now().signed_duration_since(cached_time.with_timezone(&chrono::Utc));
+                        if elapsed.num_minutes() < 30 {
+                            log_operation(&app, "fetch_remote_engine_versions", &mirror_id,
+                                &format!("使用缓存，共 {} 个版本", cached.versions.len()));
+                            return Ok(cached.versions);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     let storage = get_storage(&app);
     let engines: Vec<Engine> = storage.load_or_default("engines.json");
     let local_versions: Vec<String> = engines.iter().map(|e| e.version.clone()).collect();
 
     let versions = crate::engine_downloader::EngineDownloader::fetch_remote_versions(mirror, &local_versions).await?;
+
+    let cache_dir = get_data_dir(&app).join("cache");
+    let _ = fs::create_dir_all(&cache_dir);
+    let cache_file = cache_dir.join(format!("remote_versions_{}.json", mirror_id));
+    let cached = crate::models::CachedRemoteVersions {
+        cached_at: chrono::Utc::now().to_rfc3339(),
+        mirror_id: mirror_id.clone(),
+        versions: versions.clone(),
+    };
+    if let Ok(json) = serde_json::to_string_pretty(&cached) {
+        let _ = fs::write(&cache_file, json);
+    }
 
     log_operation(&app, "fetch_remote_engine_versions", &mirror_id,
         &format!("获取远程引擎版本列表，共 {} 个版本", versions.len()));

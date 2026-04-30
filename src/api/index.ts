@@ -402,8 +402,8 @@ export const api = {
     return await invoke('migrate_data_dir', { newDataDir })
   },
 
-  async fetchRemoteEngineVersions(mirrorId: string): Promise<RemoteEngineVersion[]> {
-    return await invoke('fetch_remote_engine_versions', { mirrorId })
+  async fetchRemoteEngineVersions(mirrorId: string, forceRefresh: boolean = false): Promise<RemoteEngineVersion[]> {
+    return await invoke('fetch_remote_engine_versions', { mirrorId, forceRefresh })
   },
 
   async downloadEngine(remoteVersion: RemoteEngineVersion): Promise<DownloadEngineResult> {

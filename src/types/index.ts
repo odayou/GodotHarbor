@@ -447,6 +447,7 @@ export interface RemoteEngineVersion {
   file_name: string
   file_size: number
   is_installed: boolean
+  variant: string
 }
 
 export interface EngineDownloadProgress {
