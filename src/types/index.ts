@@ -85,6 +85,7 @@ export interface Settings {
   skipped_app_version?: string
   engine_mirrors?: EngineMirrorConfig[]
   custom_data_dir?: string
+  selected_mirror_id?: string
 }
 
 export interface ApplyResult {
@@ -454,4 +455,11 @@ export interface EngineDownloadProgress {
   total_bytes: number
   progress: number
   message: string
+}
+
+export interface DownloadEngineResult {
+  success: boolean
+  cancelled: boolean
+  engine: Engine | null
+  error: string | null
 }

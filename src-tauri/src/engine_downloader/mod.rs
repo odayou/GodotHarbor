@@ -119,30 +119,52 @@ impl EngineDownloader {
             .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
 
         let mut all_versions = Vec::new();
+        let max_pages = 3;
+        let per_page = 50;
 
         for repo in &["godotengine/godot", "godotengine/godot-builds"] {
-            let url = format!("{}/repos/{}/releases?per_page=50", mirror.base_url.trim_end_matches('/'), repo);
+            for page in 1..=max_pages {
+                let url = format!(
+                    "{}/repos/{}/releases?per_page={}&page={}",
+                    mirror.base_url.trim_end_matches('/'), repo, per_page, page
+                );
 
-            let resp = client.get(&url).send().await;
-            match resp {
-                Ok(resp) if resp.status().is_success() => {
-                    if let Ok(json) = resp.json::<serde_json::Value>().await {
-                        if let Some(arr) = json.as_array() {
-                            for release in arr {
-                                if let Some(version) = Self::parse_remote_release(release, mirror, local_versions) {
-                                    all_versions.push(version);
+                let resp = client.get(&url).send().await;
+                match resp {
+                    Ok(resp) if resp.status().is_success() => {
+                        if let Ok(json) = resp.json::<serde_json::Value>().await {
+                            if let Some(arr) = json.as_array() {
+                                if arr.is_empty() {
+                                    break;
                                 }
+                                for release in arr {
+                                    if let Some(version) = Self::parse_remote_release(release, mirror, local_versions) {
+                                        all_versions.push(version);
+                                    }
+                                }
+                                if arr.len() < per_page {
+                                    break;
+                                }
+                            } else {
+                                break;
                             }
                         }
                     }
-                }
-                Ok(resp) => {
-                    eprintln!("获取 {} 返回状态码: {}", url, resp.status());
-                    continue;
-                }
-                Err(e) => {
-                    eprintln!("获取 {} 失败: {}", url, e);
-                    continue;
+                    Ok(resp) => {
+                        let status = resp.status().as_u16();
+                        if status == 403 {
+                            return Err("RATE_LIMITED".to_string());
+                        }
+                        eprintln!("获取 {} 返回状态码: {}", url, resp.status());
+                        break;
+                    }
+                    Err(e) => {
+                        if e.is_connect() || e.is_timeout() || e.is_request() {
+                            return Err("NETWORK_ERROR".to_string());
+                        }
+                        eprintln!("获取 {} 失败: {}", url, e);
+                        break;
+                    }
                 }
             }
         }
@@ -288,23 +310,33 @@ impl EngineDownloader {
 
         let archive_path = download_dir.join(&remote_version.file_name);
 
-        Self::download_file(app, &remote_version.download_url, &archive_path, &remote_version.version, remote_version.file_size).await?;
+        let download_result = Self::download_file(app, &remote_version.download_url, &archive_path, &remote_version.version, remote_version.file_size).await;
+
+        if let Err(e) = download_result {
+            let _ = std::fs::remove_file(&archive_path);
+            return Err(e);
+        }
 
         if is_cancelled() {
             let _ = std::fs::remove_file(&archive_path);
             return Err("下载已取消".to_string());
         }
 
-        Self::emit_progress(app, &remote_version.version, "extracting", 0.0, "正在解压引擎文件...");
+        Self::emit_progress(app, &remote_version.version, "extracting", 0.0, "正在解压引擎文件...", 0, 0);
 
         std::fs::create_dir_all(&target_dir)
             .map_err(|e| format!("创建引擎目录失败: {}", e))?;
 
-        Self::extract_archive(&archive_path, &target_dir)?;
+        let extract_result = Self::extract_archive(app, &remote_version.version, &archive_path, &target_dir);
 
         let _ = std::fs::remove_file(&archive_path);
 
-        Self::emit_progress(app, &remote_version.version, "complete", 100.0, "引擎下载安装完成");
+        if let Err(e) = extract_result {
+            let _ = std::fs::remove_dir_all(&target_dir);
+            return Err(e);
+        }
+
+        Self::emit_progress(app, &remote_version.version, "complete", 100.0, "引擎下载安装完成", 0, 0);
 
         Ok(target_dir)
     }
@@ -316,7 +348,7 @@ impl EngineDownloader {
         version: &str,
         total_size: u64,
     ) -> Result<(), String> {
-        Self::emit_progress(app, version, "downloading", 0.0, "正在下载引擎...");
+        Self::emit_progress(app, version, "downloading", 0.0, "正在下载引擎...", 0, total_size);
 
         let client = reqwest::Client::builder()
             .user_agent("GodotHarbor")
@@ -324,74 +356,100 @@ impl EngineDownloader {
             .build()
             .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
 
-        let mut response = client.get(url).send().await
-            .map_err(|e| format!("下载请求失败: {}", e))?;
-
-        if !response.status().is_success() {
-            return Err(format!("下载失败，HTTP 状态码: {}", response.status()));
-        }
-
-        let total = if total_size > 0 {
-            total_size
-        } else {
-            response.content_length().unwrap_or(0)
-        };
-
-        let mut file = std::fs::File::create(path)
-            .map_err(|e| format!("创建文件失败: {}", e))?;
-
-        let mut downloaded: u64 = 0;
-
-        use std::io::Write;
+        let max_retries = 3;
+        let mut attempt = 0;
 
         loop {
-            if is_cancelled() {
-                return Err("下载已取消".to_string());
-            }
-
-            let chunk = response.chunk().await
-                .map_err(|e| format!("读取下载数据失败: {}", e))?;
-
-            match chunk {
-                Some(data) => {
-                    file.write_all(&data)
-                        .map_err(|e| format!("写入文件失败: {}", e))?;
-                    downloaded += data.len() as u64;
-
-                    let progress = if total > 0 {
-                        (downloaded as f64 / total as f64) * 100.0
-                    } else {
-                        0.0
-                    };
-
-                    let size_mb = downloaded as f64 / 1024.0 / 1024.0;
-                    let total_mb = total as f64 / 1024.0 / 1024.0;
-                    let msg = if total > 0 {
-                        format!("正在下载: {:.1}MB / {:.1}MB", size_mb, total_mb)
-                    } else {
-                        format!("正在下载: {:.1}MB", size_mb)
-                    };
-
-                    Self::emit_progress(app, version, "downloading", progress, &msg);
+            attempt += 1;
+            let mut response = match client.get(url).send().await {
+                Ok(resp) => resp,
+                Err(e) => {
+                    if attempt < max_retries && (e.is_connect() || e.is_timeout() || e.is_request()) {
+                        let msg = format!("下载请求失败，第 {} 次重试...", attempt);
+                        Self::emit_progress(app, version, "downloading", 0.0, &msg, 0, total_size);
+                        tokio::time::sleep(std::time::Duration::from_secs(2u64.pow(attempt as u32 - 1))).await;
+                        continue;
+                    }
+                    return Err(format!("下载请求失败: {}", e));
                 }
-                None => break,
+            };
+
+            if !response.status().is_success() {
+                let status = response.status().as_u16();
+                if status >= 500 && attempt < max_retries {
+                    let msg = format!("服务器错误 ({}), 第 {} 次重试...", status, attempt);
+                    Self::emit_progress(app, version, "downloading", 0.0, &msg, 0, total_size);
+                    tokio::time::sleep(std::time::Duration::from_secs(2u64.pow(attempt as u32 - 1))).await;
+                    continue;
+                }
+                return Err(format!("下载失败，HTTP 状态码: {}", response.status()));
             }
+
+            let total = if total_size > 0 {
+                total_size
+            } else {
+                response.content_length().unwrap_or(0)
+            };
+
+            let mut file = std::fs::File::create(path)
+                .map_err(|e| format!("创建文件失败: {}", e))?;
+
+            let mut downloaded: u64 = 0;
+
+            use std::io::Write;
+
+            loop {
+                if is_cancelled() {
+                    return Err("下载已取消".to_string());
+                }
+
+                let chunk = response.chunk().await
+                    .map_err(|e| format!("读取下载数据失败: {}", e))?;
+
+                match chunk {
+                    Some(data) => {
+                        file.write_all(&data)
+                            .map_err(|e| format!("写入文件失败: {}", e))?;
+                        downloaded += data.len() as u64;
+
+                        let progress = if total > 0 {
+                            (downloaded as f64 / total as f64) * 100.0
+                        } else {
+                            0.0
+                        };
+
+                        let size_mb = downloaded as f64 / 1024.0 / 1024.0;
+                        let total_mb = total as f64 / 1024.0 / 1024.0;
+                        let msg = if total > 0 {
+                            format!("正在下载: {:.1}MB / {:.1}MB", size_mb, total_mb)
+                        } else {
+                            format!("正在下载: {:.1}MB", size_mb)
+                        };
+
+                        Self::emit_progress(app, version, "downloading", progress, &msg, downloaded, total);
+                    }
+                    None => break,
+                }
+            }
+
+            file.flush()
+                .map_err(|e| format!("刷新文件失败: {}", e))?;
+
+            return Ok(());
         }
-
-        file.flush()
-            .map_err(|e| format!("刷新文件失败: {}", e))?;
-
-        Ok(())
     }
 
-    fn extract_archive(archive_path: &Path, target_dir: &Path) -> Result<(), String> {
+    fn extract_archive(app: &AppHandle, version: &str, archive_path: &Path, target_dir: &Path) -> Result<(), String> {
         let file = std::fs::File::open(archive_path)
             .map_err(|e| format!("打开压缩包失败: {}", e))?;
 
         let mut archive = zip::ZipArchive::new(file)
             .map_err(|e| format!("解析压缩包失败: {}", e))?;
 
-        for i in 0..archive.len() {
+        let total_entries = archive.len();
+        let mut extracted = 0usize;
+
+        for i in 0..total_entries {
             let mut entry = archive.by_index(i)
                 .map_err(|e| format!("读取压缩包条目失败: {}", e))?;
 
@@ -405,6 +463,7 @@ impl EngineDownloader {
                 .to_string();
 
             if file_name.is_empty() || file_name.ends_with('/') {
+                extracted += 1;
                 continue;
             }
 
@@ -436,17 +495,24 @@ impl EngineDownloader {
                     }
                 }
             }
+
+            extracted += 1;
+            if extracted % 5 == 0 || extracted == total_entries {
+                let progress = (extracted as f64 / total_entries as f64) * 100.0;
+                let msg = format!("正在解压: {}/{}", extracted, total_entries);
+                Self::emit_progress(app, version, "extracting", progress, &msg, 0, 0);
+            }
         }
 
         Ok(())
     }
 
-    fn emit_progress(app: &AppHandle, version: &str, stage: &str, progress: f64, message: &str) {
+    fn emit_progress(app: &AppHandle, version: &str, stage: &str, progress: f64, message: &str, downloaded_bytes: u64, total_bytes: u64) {
         let progress_info = EngineDownloadProgress {
             version: version.to_string(),
             stage: stage.to_string(),
-            downloaded_bytes: 0,
-            total_bytes: 0,
+            downloaded_bytes,
+            total_bytes,
             progress,
             message: message.to_string(),
         };

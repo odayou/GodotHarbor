@@ -31,7 +31,8 @@ import type {
   HotUpdateInfo,
   UpdateHistoryEntry,
   StoragePaths,
-  RemoteEngineVersion
+  RemoteEngineVersion,
+  DownloadEngineResult
 } from '@/types'
 
 export const api = {
@@ -405,7 +406,7 @@ export const api = {
     return await invoke('fetch_remote_engine_versions', { mirrorId })
   },
 
-  async downloadEngine(remoteVersion: RemoteEngineVersion): Promise<Engine> {
+  async downloadEngine(remoteVersion: RemoteEngineVersion): Promise<DownloadEngineResult> {
     return await invoke('download_engine', { remoteVersion })
   },
 

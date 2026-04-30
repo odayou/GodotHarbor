@@ -512,7 +512,11 @@ export default {
       alreadyInstalled: '该版本已安装',
       downloadSuccess: '引擎 {name} 下载安装成功',
       downloadFailed: '下载引擎失败: {error}',
-      downloadCancelled: '下载已取消'
+      downloadCancelled: '下载已取消',
+      showNotes: '更新说明',
+      hideNotes: '收起说明',
+      rateLimitError: 'GitHub API 请求频率受限，请稍后重试或更换镜像源',
+      networkError: '网络连接失败，请检查网络或更换镜像源'
     }
   },
   settings: {

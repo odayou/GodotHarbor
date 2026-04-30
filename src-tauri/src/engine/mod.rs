@@ -178,6 +178,36 @@ impl EngineManager {
         Self::find_executable_in_dir(engine_path).is_some()
     }
 
+    pub fn validate_engine_path_detail(path: &str) -> Result<(), String> {
+        let engine_path = Path::new(path);
+        if !engine_path.exists() {
+            return Err(format!("引擎目录不存在: {}", path));
+        }
+        if !engine_path.is_dir() {
+            return Err(format!("路径不是目录: {}", path));
+        }
+        if let Ok(entries) = std::fs::read_dir(engine_path) {
+            let files: Vec<String> = entries
+                .filter_map(|e| e.ok())
+                .map(|e| e.file_name().to_string_lossy().to_string())
+                .collect();
+            if files.is_empty() {
+                return Err("引擎目录为空，未找到任何文件".to_string());
+            }
+            let exe_files: Vec<&String> = files.iter().filter(|f| {
+                let lower = f.to_lowercase();
+                lower.ends_with(".exe") || (!lower.contains('.') && lower.contains("godot"))
+            }).collect();
+            if exe_files.is_empty() {
+                return Err(format!("目录中未找到 Godot 可执行文件，目录内容: {}", files.join(", ")));
+            }
+        }
+        if Self::find_executable_in_dir(engine_path).is_none() {
+            return Err("找到文件但无法识别为有效的 Godot 引擎可执行文件（文件名需匹配 godot/godot3/godot4/godot_v* 等模式）".to_string());
+        }
+        Ok(())
+    }
+
     pub fn get_engine_info(path: &str) -> Result<Engine> {
         let (engine_type, version) = Self::detect_engine(path)?;
 

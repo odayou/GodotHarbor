@@ -43,6 +43,7 @@ const downloadSearchQuery = ref('')
 const isDownloading = ref(false)
 const downloadProgress = ref<EngineDownloadProgress | null>(null)
 const downloadingVersion = ref<string>('')
+const expandedReleaseVersion = ref<string>('')
 
 useDialogEscape(showAddDialog)
 useDialogEscape(showRenameDialog)
@@ -304,22 +305,30 @@ const openDownloadDialog = async () => {
   showDownloadDialog.value = true
   downloadChannelFilter.value = 'all'
   downloadSearchQuery.value = ''
-  remoteVersions.value = []
-  downloadProgress.value = null
-  isDownloading.value = false
-  downloadingVersion.value = ''
+  expandedReleaseVersion.value = ''
+
+  if (!isDownloading.value) {
+    remoteVersions.value = []
+    downloadProgress.value = null
+    downloadingVersion.value = ''
+  }
 
   try {
     const settings = await api.getSettings()
     mirrorConfigs.value = settings.engine_mirrors || []
-    if (mirrorConfigs.value.length > 0 && !mirrorConfigs.value.find(m => m.id === selectedMirrorId.value)) {
-      selectedMirrorId.value = mirrorConfigs.value[0].id
+    if (settings.selected_mirror_id && mirrorConfigs.value.find(m => m.id === settings.selected_mirror_id && m.enabled)) {
+      selectedMirrorId.value = settings.selected_mirror_id
+    } else if (mirrorConfigs.value.length > 0) {
+      const firstEnabled = mirrorConfigs.value.find(m => m.enabled)
+      selectedMirrorId.value = firstEnabled?.id || mirrorConfigs.value[0].id
     }
   } catch {
     mirrorConfigs.value = []
   }
 
-  await fetchRemoteVersions()
+  if (!isDownloading.value) {
+    await fetchRemoteVersions()
+  }
 }
 
 const fetchRemoteVersions = async () => {
@@ -327,10 +336,24 @@ const fetchRemoteVersions = async () => {
   isFetchingVersions.value = true
   remoteVersions.value = []
   try {
+    const settings = await api.getSettings()
+    if (settings.selected_mirror_id !== selectedMirrorId.value) {
+      settings.selected_mirror_id = selectedMirrorId.value
+      await api.saveSettings(settings)
+    }
+  } catch { /* ignore */ }
+  try {
     const versions = await api.fetchRemoteEngineVersions(selectedMirrorId.value)
     remoteVersions.value = versions
   } catch (error) {
-    toast.error(t('engines.download.fetchVersionsFailed', { error }))
+    const errMsg = String(error)
+    if (errMsg.includes('RATE_LIMITED')) {
+      toast.error(t('engines.download.rateLimitError'))
+    } else if (errMsg.includes('NETWORK_ERROR')) {
+      toast.error(t('engines.download.networkError'))
+    } else {
+      toast.error(t('engines.download.fetchVersionsFailed', { error }))
+    }
   } finally {
     isFetchingVersions.value = false
   }
@@ -346,16 +369,17 @@ const startDownload = async (version: RemoteEngineVersion) => {
   downloadProgress.value = null
   try {
     const result = await api.downloadEngine(version)
-    toast.success(t('engines.download.downloadSuccess', { name: result.name }))
-    await loadEngines()
-    await fetchRemoteVersions()
-  } catch (error) {
-    const errMsg = String(error)
-    if (errMsg.includes('取消')) {
+    if (result.cancelled) {
       toast.info(t('engines.download.downloadCancelled'))
-    } else {
-      toast.error(t('engines.download.downloadFailed', { error }))
+    } else if (result.success && result.engine) {
+      toast.success(t('engines.download.downloadSuccess', { name: result.engine.name }))
+      await loadEngines()
+      await fetchRemoteVersions()
+    } else if (result.error) {
+      toast.error(t('engines.download.downloadFailed', { error: result.error }))
     }
+  } catch (error) {
+    toast.error(t('engines.download.downloadFailed', { error }))
   } finally {
     isDownloading.value = false
     downloadingVersion.value = ''
@@ -425,6 +449,37 @@ const cancelDownload = async () => {
         >
           {{ t('engines.checkUpdates') }}
         </button>
+      </div>
+    </div>
+
+    <div v-if="isDownloading && !showDownloadDialog" class="bg-blue-50 dark:bg-blue-900/20 rounded-xl shadow p-4">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-sm font-medium text-blue-800 dark:text-blue-300">
+          {{ t('engines.download.downloading') }} v{{ downloadingVersion }}
+        </span>
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-blue-600 dark:text-blue-400">
+            {{ downloadProgress?.progress.toFixed(1) || 0 }}%
+          </span>
+          <button
+            @click="openDownloadDialog"
+            class="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+          >
+            {{ t('engines.download.title') }}
+          </button>
+          <button
+            @click="cancelDownload"
+            class="text-xs text-red-600 dark:text-red-400 hover:underline"
+          >
+            {{ t('engines.download.cancel') }}
+          </button>
+        </div>
+      </div>
+      <div class="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
+        <div class="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-300" :style="{ width: `${downloadProgress?.progress || 0}%` }"></div>
+      </div>
+      <div v-if="downloadProgress?.message" class="text-xs text-blue-500 dark:text-blue-400 mt-1">
+        {{ downloadProgress.message }}
       </div>
     </div>
 
@@ -768,6 +823,9 @@ const cancelDownload = async () => {
             <div class="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
               <div class="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-300" :style="{ width: `${downloadProgress.progress}%` }"></div>
             </div>
+            <div v-if="downloadProgress.total_bytes > 0" class="text-xs text-blue-500 dark:text-blue-400 mt-1">
+              {{ formatFileSize(downloadProgress.downloaded_bytes) }} / {{ formatFileSize(downloadProgress.total_bytes) }}
+            </div>
             <div class="flex justify-end mt-2">
               <button
                 @click="cancelDownload"
@@ -797,53 +855,66 @@ const cancelDownload = async () => {
               v-for="version in filteredRemoteVersions"
               :key="version.tag_name"
               :class="[
-                'flex items-center gap-3 p-3 rounded-lg border transition-colors',
+                'p-3 rounded-lg border transition-colors',
                 version.is_installed
                   ? 'bg-gray-50 dark:bg-gray-700/30 border-gray-200 dark:border-gray-600'
                   : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-primary-300 dark:hover:border-primary-600'
               ]"
             >
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2">
-                  <span class="font-medium text-sm text-gray-900 dark:text-gray-100">v{{ version.version }}</span>
-                  <span :class="['px-1.5 py-0.5 rounded text-xs font-medium', channelBadgeClass(version.channel)]">
-                    {{ channelLabel(version.channel) }}
-                  </span>
-                  <span
-                    v-if="version.is_installed"
-                    class="px-1.5 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-400"
-                  >
+              <div class="flex items-center gap-3">
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2">
+                    <span class="font-medium text-sm text-gray-900 dark:text-gray-100">v{{ version.version }}</span>
+                    <span :class="['px-1.5 py-0.5 rounded text-xs font-medium', channelBadgeClass(version.channel)]">
+                      {{ channelLabel(version.channel) }}
+                    </span>
+                    <span
+                      v-if="version.is_installed"
+                      class="px-1.5 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-400"
+                    >
+                      {{ t('engines.download.installed') }}
+                    </span>
+                  </div>
+                  <div class="flex items-center gap-3 mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    <span>{{ formatFileSize(version.file_size) }}</span>
+                    <span>{{ formatDate(version.published_at) }}</span>
+                    <span class="truncate" :title="version.file_name">{{ version.file_name }}</span>
+                    <button
+                      v-if="version.release_notes"
+                      @click="expandedReleaseVersion = expandedReleaseVersion === version.version ? '' : version.version"
+                      class="text-primary-600 dark:text-primary-400 hover:underline"
+                    >
+                      {{ expandedReleaseVersion === version.version ? t('engines.download.hideNotes') : t('engines.download.showNotes') }}
+                    </button>
+                  </div>
+                </div>
+                <button
+                  @click="startDownload(version)"
+                  :disabled="version.is_installed || isDownloading"
+                  :class="[
+                    'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap',
+                    version.is_installed
+                      ? 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500 cursor-not-allowed'
+                      : isDownloading && downloadingVersion === version.version
+                        ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
+                        : 'bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50'
+                  ]"
+                >
+                  <template v-if="isDownloading && downloadingVersion === version.version">
+                    {{ t('engines.download.downloading') }}
+                  </template>
+                  <template v-else-if="version.is_installed">
                     {{ t('engines.download.installed') }}
-                  </span>
-                </div>
-                <div class="flex items-center gap-3 mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  <span>{{ formatFileSize(version.file_size) }}</span>
-                  <span>{{ formatDate(version.published_at) }}</span>
-                  <span class="truncate" :title="version.file_name">{{ version.file_name }}</span>
-                </div>
+                  </template>
+                  <template v-else>
+                    {{ t('engines.download.downloadAction') }}
+                  </template>
+                </button>
               </div>
-              <button
-                @click="startDownload(version)"
-                :disabled="version.is_installed || isDownloading"
-                :class="[
-                  'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap',
-                  version.is_installed
-                    ? 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500 cursor-not-allowed'
-                    : isDownloading && downloadingVersion === version.version
-                      ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
-                      : 'bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50'
-                ]"
-              >
-                <template v-if="isDownloading && downloadingVersion === version.version">
-                  {{ t('engines.download.downloading') }}
-                </template>
-                <template v-else-if="version.is_installed">
-                  {{ t('engines.download.installed') }}
-                </template>
-                <template v-else>
-                  {{ t('engines.download.downloadAction') }}
-                </template>
-              </button>
+              <div
+                v-if="expandedReleaseVersion === version.version && version.release_notes"
+                class="mt-2 p-2 bg-gray-50 dark:bg-gray-700/50 rounded text-xs text-gray-600 dark:text-gray-300 whitespace-pre-wrap max-h-40 overflow-y-auto"
+              >{{ version.release_notes }}</div>
             </div>
           </div>
         </div>

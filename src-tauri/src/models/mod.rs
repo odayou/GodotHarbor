@@ -283,6 +283,8 @@ pub struct Settings {
     pub engine_mirrors: Vec<EngineMirrorConfig>,
     #[serde(default)]
     pub custom_data_dir: String,
+    #[serde(default)]
+    pub selected_mirror_id: String,
 }
 
 fn default_true() -> bool { true }
@@ -310,6 +312,7 @@ impl Default for Settings {
             skipped_app_version: String::new(),
             engine_mirrors: default_engine_mirrors(),
             custom_data_dir: String::new(),
+            selected_mirror_id: String::new(),
         }
     }
 }
@@ -586,6 +589,14 @@ pub struct EngineDownloadProgress {
     pub total_bytes: u64,
     pub progress: f64,
     pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DownloadEngineResult {
+    pub success: bool,
+    pub cancelled: bool,
+    pub engine: Option<Engine>,
+    pub error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

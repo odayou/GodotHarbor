@@ -147,6 +147,39 @@ pub fn migrate_data_dir(app: AppHandle, new_data_dir: String) -> Result<(), Stri
     settings.custom_data_dir = new_data_dir.clone();
     save_settings_to_config(&app, &settings)?;
 
+    let new_data_dir_path = PathBuf::from(&new_data_dir);
+    let new_engines_json = new_data_dir_path.join("engines.json");
+    if new_engines_json.exists() {
+        let new_storage = Storage::new(new_data_dir_path.clone());
+        let mut engines: Vec<Engine> = new_storage.load_or_default("engines.json");
+        let mut changed = false;
+        for engine in &mut engines {
+            if engine.path.starts_with(&old_str) {
+                engine.path = engine.path.replacen(&old_str, &new_data_dir, 1);
+                changed = true;
+            }
+        }
+        if changed {
+            let _ = new_storage.save("engines.json", &engines);
+        }
+    }
+
+    let new_projects_json = new_data_dir_path.join("projects.json");
+    if new_projects_json.exists() {
+        let new_storage = Storage::new(new_data_dir_path.clone());
+        let mut projects: Vec<Project> = new_storage.load_or_default("projects.json");
+        let mut changed = false;
+        for project in &mut projects {
+            if project.path.starts_with(&old_str) {
+                project.path = project.path.replacen(&old_str, &new_data_dir, 1);
+                changed = true;
+            }
+        }
+        if changed {
+            let _ = new_storage.save("projects.json", &projects);
+        }
+    }
+
     log_operation(&app, "migrate_data_dir", &new_data_dir,
         &format!("数据目录已迁移: {} -> {}", old_str, new_data_dir));
     Ok(())
@@ -204,21 +237,56 @@ pub async fn fetch_remote_engine_versions(
 pub async fn download_engine(
     app: AppHandle,
     remote_version: crate::models::RemoteEngineVersion,
-) -> Result<Engine, String> {
+) -> Result<crate::models::DownloadEngineResult, String> {
     let data_dir = get_data_dir(&app);
     let engines_dir = data_dir.join("engines");
     std::fs::create_dir_all(&engines_dir)
         .map_err(|e| format!("创建引擎目录失败: {}", e))?;
 
-    let installed_path = crate::engine_downloader::EngineDownloader::download_and_install(
+    if remote_version.file_size > 0 {
+        if let Ok(available) = fs2::available_space(&engines_dir) {
+            let required = remote_version.file_size as u64 * 3;
+            if available < required {
+                let avail_mb = available as f64 / 1024.0 / 1024.0;
+                let req_mb = required as f64 / 1024.0 / 1024.0;
+                return Ok(crate::models::DownloadEngineResult {
+                    success: false,
+                    cancelled: false,
+                    engine: None,
+                    error: Some(format!("磁盘空间不足，可用 {:.0}MB，需要约 {:.0}MB", avail_mb, req_mb)),
+                });
+            }
+        }
+    }
+
+    let installed_path = match crate::engine_downloader::EngineDownloader::download_and_install(
         &app, &remote_version, engines_dir,
-    ).await?;
+    ).await {
+        Ok(path) => path,
+        Err(e) => {
+            let is_cancelled = e.contains("取消");
+            if is_cancelled {
+                return Ok(crate::models::DownloadEngineResult {
+                    success: false,
+                    cancelled: true,
+                    engine: None,
+                    error: Some(e),
+                });
+            }
+            return Err(e);
+        }
+    };
 
     let path_str = installed_path.to_string_lossy().to_string();
 
-    if !crate::engine::EngineManager::validate_engine_path(&path_str) {
+    if let Err(detail) = crate::engine::EngineManager::validate_engine_path_detail(&path_str) {
         let _ = std::fs::remove_dir_all(&installed_path);
-        return Err("下载的引擎文件无效，无法找到 Godot 可执行文件".to_string());
+        return Ok(crate::models::DownloadEngineResult {
+            success: false,
+            cancelled: false,
+            engine: None,
+            error: Some(format!("下载的引擎文件无效: {}", detail)),
+        });
     }
 
     let engine = crate::engine::EngineManager::get_engine_info(&path_str)
@@ -231,7 +299,12 @@ pub async fn download_engine(
     let mut engines: Vec<Engine> = storage.load_or_default("engines.json");
 
     if engines.iter().any(|e| e.path == registered_engine.path) {
-        return Err("该引擎已被注册".to_string());
+        return Ok(crate::models::DownloadEngineResult {
+            success: false,
+            cancelled: false,
+            engine: None,
+            error: Some("该引擎已被注册".to_string()),
+        });
     }
 
     if engines.is_empty() {
@@ -247,7 +320,12 @@ pub async fn download_engine(
 
     let _ = app.emit("engines-discovered", ());
 
-    Ok(registered_engine)
+    Ok(crate::models::DownloadEngineResult {
+        success: true,
+        cancelled: false,
+        engine: Some(registered_engine),
+        error: None,
+    })
 }
 
 #[tauri::command]
