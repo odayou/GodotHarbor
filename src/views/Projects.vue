@@ -397,6 +397,11 @@ const addProject = async () => {
       title: t('projects.scanTitle')
     })
     if (selected && typeof selected === 'string') {
+      const existing = projects.value.find(p => p.path === selected)
+      if (existing) {
+        toast.warning(t('projects.projectAlreadyExists', { name: existing.name }))
+        return
+      }
       isLoading.value = true
       const result = await api.addProject(selected)
       toast.success(t('common.addProjectSuccess', { name: result.name }))
@@ -456,11 +461,18 @@ const onDrop = async (e: DragEvent) => {
 
   let addedCount = 0
   let skippedCount = 0
+  let duplicateCount = 0
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i]
     const path = (file as any).path
     if (!path) continue
+
+    const existing = projects.value.find(p => p.path === path)
+    if (existing) {
+      duplicateCount++
+      continue
+    }
 
     try {
       isLoading.value = true
@@ -474,8 +486,10 @@ const onDrop = async (e: DragEvent) => {
   }
   await loadProjects()
 
-  if (addedCount > 0 && skippedCount > 0) {
-    toast.info(t('projects.dragDropResult', { added: addedCount, skipped: skippedCount }))
+  if (duplicateCount > 0 && addedCount > 0) {
+    toast.info(t('projects.dragDropResult', { added: addedCount, skipped: skippedCount + duplicateCount }))
+  } else if (duplicateCount > 0 && addedCount === 0) {
+    toast.warning(t('projects.projectAlreadyExists', { name: duplicateCount + '' }))
   } else if (addedCount > 0) {
     toast.success(t('projects.dragDropAdded', { count: addedCount }))
   }
@@ -654,8 +668,13 @@ const confirmRelocate = async () => {
     toast.success(t('common.projectPathUpdated'))
     showRelocateDialog.value = false
     await loadProjects()
-  } catch (error) {
-    toast.error(t('common.relocateFailed', { error }))
+  } catch (error: any) {
+    const msg = String(error)
+    if (msg.includes('project.godot') || msg.includes('not a valid')) {
+      toast.error(t('projects.invalidRelocatePath'))
+    } else {
+      toast.error(t('common.relocateFailed', { error }))
+    }
   }
 }
 
@@ -1219,6 +1238,14 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
           </div>
         </div>
         <div class="flex justify-end space-x-3 mt-6">
+          <button
+            v-if="groupInput"
+            @click="groupInput = ''"
+            class="px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50"
+          >
+            {{ t('projects.clearGroup') }}
+          </button>
+          <div class="flex-1"></div>
           <button
             @click="showGroupDialog = false; groupInput = ''; editingProjectId = null"
             class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"

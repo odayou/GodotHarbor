@@ -93,7 +93,10 @@ export default {
     noEngineHint: '请先注册引擎才能启动项目',
     dragDropResult: '已添加 {added} 个项目，跳过 {skipped} 个',
     dragDropAdded: '已添加 {count} 个项目',
-    confirmDelete: '确认删除'
+    confirmDelete: '确认删除',
+    projectAlreadyExists: '项目已存在: {name}',
+    clearGroup: '清除分组',
+    invalidRelocatePath: '所选路径不是有效的 Godot 项目（缺少 project.godot）'
   },
   plugins: {
     title: '插件生态',
@@ -459,6 +462,8 @@ export default {
     checking: '检查中...',
     exeNotFound: '引擎可执行文件不存在',
     boundProjects: '关联项目',
+    boundProjectsList: '关联项目列表',
+    noBoundProjects: '暂无关联项目',
     rename: '重命名',
     renameTitle: '重命名引擎',
     renameSuccess: '引擎重命名成功',
@@ -565,7 +570,10 @@ export default {
       error: '错误',
       success: '成功',
       copy: '复制',
-      target: '目标: {target}'
+      target: '目标: {target}',
+      sortByTime: '按时间排序',
+      sortNewest: '最新优先',
+      sortOldest: '最早优先'
     },
     backup: {
       title: '数据备份与恢复',
@@ -615,6 +623,7 @@ export default {
       selectDirFirst: '请先选择备份目录',
       backupFailed: '备份失败: {error}',
       restoreFailed: '恢复失败: {error}',
+      invalidBackupFile: '备份文件无效或已损坏，请检查后重试',
       enterConfigName: '请输入配置名称',
       selectAtLeastOneProject: '请选择至少一个项目',
       exportSuccess: '团队配置导出成功',

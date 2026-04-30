@@ -93,7 +93,10 @@ export default {
     noEngineHint: 'Register an engine first to launch projects',
     dragDropResult: 'Added {added} projects, skipped {skipped}',
     dragDropAdded: 'Added {count} projects',
-    confirmDelete: 'Confirm Delete'
+    confirmDelete: 'Confirm Delete',
+    projectAlreadyExists: 'Project already exists: {name}',
+    clearGroup: 'Clear Group',
+    invalidRelocatePath: 'Selected path is not a valid Godot project (missing project.godot)'
   },
   plugins: {
     title: 'Plugin Ecosystem',
@@ -459,6 +462,8 @@ export default {
     checking: 'Checking...',
     exeNotFound: 'Engine executable not found',
     boundProjects: 'Bound Projects',
+    boundProjectsList: 'Bound Projects List',
+    noBoundProjects: 'No bound projects',
     rename: 'Rename',
     renameTitle: 'Rename Engine',
     renameSuccess: 'Engine renamed successfully',
@@ -565,7 +570,10 @@ export default {
       error: 'Error',
       success: 'Success',
       copy: 'Copy',
-      target: 'Target: {target}'
+      target: 'Target: {target}',
+      sortByTime: 'Sort by Time',
+      sortNewest: 'Newest First',
+      sortOldest: 'Oldest First'
     },
     backup: {
       title: 'Data Backup & Restore',
@@ -615,6 +623,7 @@ export default {
       selectDirFirst: 'Please select backup directory first',
       backupFailed: 'Backup failed: {error}',
       restoreFailed: 'Restore failed: {error}',
+      invalidBackupFile: 'Invalid or corrupted backup file, please check and try again',
       enterConfigName: 'Please enter configuration name',
       selectAtLeastOneProject: 'Please select at least one project',
       exportSuccess: 'Team configuration exported successfully',

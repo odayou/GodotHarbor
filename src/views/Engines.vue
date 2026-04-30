@@ -26,6 +26,7 @@ const searchQuery = ref('')
 const filterType = ref<string>('all')
 const engineHealthMap = ref<Map<string, boolean>>(new Map())
 const boundProjectsMap = ref<Map<string, string[]>>(new Map())
+const expandedEngineId = ref<string | null>(null)
 
 const showRenameDialog = ref(false)
 const renameEngineId = ref('')
@@ -228,6 +229,10 @@ const checkEngineUpdates = async () => {
     toast.error(t('engines.checkUpdatesFailed', { error }))
   }
 }
+
+const toggleBoundProjects = (engineId: string) => {
+  expandedEngineId.value = expandedEngineId.value === engineId ? null : engineId
+}
 </script>
 
 <template>
@@ -344,9 +349,8 @@ const checkEngineUpdates = async () => {
       <div class="overflow-x-auto">
         <table class="w-full min-w-[800px]">
           <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+            <template v-for="engine in filteredEngines" :key="engine.engine_id">
             <tr
-              v-for="engine in filteredEngines"
-              :key="engine.engine_id"
               :class="[
                 'hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors',
                 engine.is_default ? 'bg-primary-50/50 dark:bg-primary-900/10' : ''
@@ -409,9 +413,14 @@ const checkEngineUpdates = async () => {
                 <span v-else class="text-xs text-gray-400">{{ t('engines.checking') }}</span>
               </td>
               <td class="px-4 py-4 whitespace-nowrap">
-                <span class="text-sm text-gray-600 dark:text-gray-300">
+                <button
+                  @click="toggleBoundProjects(engine.engine_id)"
+                  class="text-sm text-primary-600 dark:text-primary-400 hover:underline cursor-pointer"
+                  :title="t('engines.boundProjectsList')"
+                >
                   {{ boundProjectsMap.get(engine.engine_id)?.length || 0 }}
-                </span>
+                  <svg class="w-3 h-3 inline-block ml-0.5 transition-transform" :class="{ 'rotate-180': expandedEngineId === engine.engine_id }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                </button>
               </td>
               <td class="px-4 py-4">
                 <span class="text-sm text-gray-500 dark:text-gray-400 truncate max-w-xs block" :title="engine.path">
@@ -460,6 +469,24 @@ const checkEngineUpdates = async () => {
                 </div>
               </td>
             </tr>
+            <tr v-if="expandedEngineId === engine.engine_id">
+              <td colspan="6" class="px-6 py-3 bg-gray-50 dark:bg-gray-700/30">
+                <div class="text-sm">
+                  <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('engines.boundProjectsList') }}:</span>
+                  <div v-if="boundProjectsMap.get(engine.engine_id)?.length" class="mt-1 flex flex-wrap gap-2">
+                    <span
+                      v-for="projectName in boundProjectsMap.get(engine.engine_id)"
+                      :key="projectName"
+                      class="px-2 py-1 bg-white dark:bg-gray-600 rounded text-xs text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-500"
+                    >
+                      {{ projectName }}
+                    </span>
+                  </div>
+                  <span v-else class="text-gray-400 dark:text-gray-500 ml-2">{{ t('engines.noBoundProjects') }}</span>
+                </div>
+              </td>
+            </tr>
+            </template>
           </tbody>
         </table>
       </div>

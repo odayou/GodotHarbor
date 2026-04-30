@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
 import type { Settings, LogEntry, TeamSharedConfig, Project } from '@/types'
@@ -17,6 +17,12 @@ const settings = ref<Settings>({ scan_directories: [], mount_strategy: 'Symlink'
 const isLoading = ref(false)
 const logs = ref<LogEntry[]>([])
 const showLogs = ref(false)
+const logSortOrder = ref<'newest' | 'oldest'>('newest')
+
+const sortedLogs = computed(() => {
+  const sorted = [...logs.value]
+  return logSortOrder.value === 'newest' ? sorted : sorted.reverse()
+})
 const showBackupDialog = ref(false)
 const backupPath = ref('')
 const isBackingUp = ref(false)
@@ -176,8 +182,13 @@ const performRestore = async () => {
     toast.success(result)
     await loadSettings()
     showBackupDialog.value = false
-  } catch (error) {
-    toast.error(t('settings.messages.restoreFailed', { error }))
+  } catch (error: any) {
+    const msg = String(error)
+    if (msg.includes('invalid') || msg.includes('corrupt') || msg.includes('not found') || msg.includes('损坏') || msg.includes('无效')) {
+      toast.error(t('settings.messages.invalidBackupFile'))
+    } else {
+      toast.error(t('settings.messages.restoreFailed', { error }))
+    }
   } finally {
     isRestoring.value = false
   }
@@ -481,13 +492,22 @@ const resetOnboarding = async () => {
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-3xl shadow-xl max-h-[80vh] flex flex-col" @click.stop>
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ t('settings.logs.title') }}</h3>
-          <button @click="showLogs = false" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
-            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
+          <div class="flex items-center gap-3">
+            <button
+              @click="logSortOrder = logSortOrder === 'newest' ? 'oldest' : 'newest'"
+              class="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1"
+            >
+              <svg class="w-3.5 h-3.5" :class="{ 'rotate-180': logSortOrder === 'oldest' }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+              {{ logSortOrder === 'newest' ? t('settings.logs.sortNewest') : t('settings.logs.sortOldest') }}
+            </button>
+            <button @click="showLogs = false" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+              <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
         </div>
         <div class="flex-1 overflow-y-auto space-y-2">
-          <div v-if="logs.length === 0" class="text-center py-8 text-gray-500 dark:text-gray-400">{{ t('settings.logs.empty') }}</div>
-          <div v-for="(log, index) in logs" :key="index" :class="['p-3 rounded-lg border', log.level === 'error' ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600']">
+          <div v-if="sortedLogs.length === 0" class="text-center py-8 text-gray-500 dark:text-gray-400">{{ t('settings.logs.empty') }}</div>
+          <div v-for="(log, index) in sortedLogs" :key="index" :class="['p-3 rounded-lg border', log.level === 'error' ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600']">
             <div class="flex justify-between items-start">
               <div class="flex items-center gap-2">
                 <span :class="['px-2 py-0.5 rounded text-xs font-medium', log.level === 'error' ? 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300' : 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300']">{{ log.level === 'error' ? t('settings.logs.error') : t('settings.logs.success') }}</span>
