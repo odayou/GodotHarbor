@@ -18,8 +18,11 @@ Fetch open issues from the project's GitHub repository, analyze each issue, impl
 ### Step 1: Identify Repository
 
 1. Run `git remote -v` to find the repository URL
-2. If the remote is on Gitee or other non-GitHub platforms, ask the user for the GitHub repository URL
-3. Extract owner/repo from the GitHub URL (e.g., `odayou/GodotHarbor`)
+2. The project has two remotes:
+   - **GitHub (primary for issues)**: `https://github.com/odayou/GodotHarbor` — always use this for fetching and closing issues
+   - **Gitee (mirror)**: `git@gitee.com:odayou/godot-harbor.git` — code push target
+3. If the git remote is on Gitee or other non-GitHub platforms, still use the known GitHub repo `odayou/GodotHarbor` for issue operations
+4. Extract owner/repo from the GitHub URL (e.g., `odayou/GodotHarbor`)
 
 ### Step 2: Fetch Open Issues
 
