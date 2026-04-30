@@ -142,11 +142,17 @@ impl EngineDownloader {
         let max_pages = 3;
         let per_page = 50;
 
+        let api_base = if mirror.mirror_type == "direct" {
+            "https://api.github.com"
+        } else {
+            mirror.base_url.trim_end_matches('/')
+        };
+
         for repo in &["godotengine/godot", "godotengine/godot-builds"] {
             for page in 1..=max_pages {
                 let url = format!(
                     "{}/repos/{}/releases?per_page={}&page={}",
-                    mirror.base_url.trim_end_matches('/'), repo, per_page, page
+                    api_base, repo, per_page, page
                 );
 
                 let resp = client.get(&url).send().await;
@@ -207,7 +213,7 @@ impl EngineDownloader {
 
     fn parse_remote_release(
         release: &serde_json::Value,
-        _mirror: &EngineMirrorConfig,
+        mirror: &EngineMirrorConfig,
         local_versions: &[String],
     ) -> Option<RemoteEngineVersion> {
         let tag_name = release.get("tag_name")?.as_str()?.to_string();
@@ -290,6 +296,17 @@ impl EngineDownloader {
                 || remote_clean.starts_with(&local_clean)
         });
 
+        let final_download_url = if mirror.mirror_type == "direct" {
+            let version_dir = version_str.replace('.', "_");
+            format!("{}/{}/{}",
+                mirror.base_url.trim_end_matches('/'),
+                version_dir,
+                file_name
+            )
+        } else {
+            download_url
+        };
+
         Some(RemoteEngineVersion {
             version: version_str.to_string(),
             tag_name,
@@ -301,7 +318,7 @@ impl EngineDownloader {
             published_at,
             release_url: html_url,
             release_notes: body.chars().take(500).collect(),
-            download_url,
+            download_url: final_download_url,
             file_name,
             file_size,
             is_installed,

@@ -18,6 +18,7 @@ const newEnginePath = ref('')
 const newEngineName = ref('')
 const isRegistering = ref(false)
 const showDeleteConfirm = ref(false)
+const deleteAlsoFiles = ref(false)
 const deleteTargetId = ref('')
 const deleteBoundProjects = ref<string[]>([])
 let unlistenDiscover: UnlistenFn | null = null
@@ -154,12 +155,19 @@ const loadEngines = async () => {
 
 const checkAllEngineHealth = async () => {
   const healthMap = new Map<string, boolean>()
-  for (const engine of engines.value) {
-    try {
-      const healthy = await api.checkEngineHealth(engine.engine_id)
-      healthMap.set(engine.engine_id, healthy)
-    } catch {
-      healthMap.set(engine.engine_id, false)
+  const results = await Promise.allSettled(
+    engines.value.map(async (engine) => {
+      try {
+        const healthy = await api.checkEngineHealth(engine.engine_id)
+        return { id: engine.engine_id, healthy }
+      } catch {
+        return { id: engine.engine_id, healthy: false }
+      }
+    })
+  )
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      healthMap.set(result.value.id, result.value.healthy)
     }
   }
   engineHealthMap.value = healthMap
@@ -167,12 +175,19 @@ const checkAllEngineHealth = async () => {
 
 const loadAllBoundProjects = async () => {
   const projectsMap = new Map<string, string[]>()
-  for (const engine of engines.value) {
-    try {
-      const projects = await api.getEngineBoundProjects(engine.engine_id)
-      projectsMap.set(engine.engine_id, projects)
-    } catch {
-      projectsMap.set(engine.engine_id, [])
+  const results = await Promise.allSettled(
+    engines.value.map(async (engine) => {
+      try {
+        const projects = await api.getEngineBoundProjects(engine.engine_id)
+        return { id: engine.engine_id, projects }
+      } catch {
+        return { id: engine.engine_id, projects: [] }
+      }
+    })
+  )
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      projectsMap.set(result.value.id, result.value.projects)
     }
   }
   boundProjectsMap.value = projectsMap
@@ -197,11 +212,21 @@ const discoverEngines = async () => {
 
 const selectEnginePath = async () => {
   try {
-    const selected = await open({
+    let selected = await open({
       directory: true,
       multiple: false,
       title: t('engines.selectEngineDir')
     })
+    if (!selected) {
+      selected = await open({
+        multiple: false,
+        title: t('engines.selectEngineFile'),
+        filters: [{
+          name: t('engines.engineExecutable'),
+          extensions: ['exe', '*']
+        }]
+      })
+    }
     if (selected && typeof selected === 'string') {
       newEnginePath.value = selected
     }
@@ -232,6 +257,7 @@ const registerEngine = async () => {
 
 const confirmRemoveEngine = async (engineId: string) => {
   deleteTargetId.value = engineId
+  deleteAlsoFiles.value = false
   try {
     deleteBoundProjects.value = await api.getEngineBoundProjects(engineId)
   } catch {
@@ -242,7 +268,7 @@ const confirmRemoveEngine = async (engineId: string) => {
 
 const onRemoveEngineConfirm = async () => {
   try {
-    await api.removeEngine(deleteTargetId.value)
+    await api.removeEngine(deleteTargetId.value, deleteAlsoFiles.value)
     toast.success(t('engines.deleteSuccess'))
     await loadEngines()
   } catch (error) {
@@ -971,6 +997,11 @@ const cancelDownload = async (version: string) => {
         : t('engines.deleteConfirmDesc')"
       :confirm-text="t('common.confirm')"
       @confirm="onRemoveEngineConfirm"
-    />
+    >
+      <label class="flex items-center gap-2 mt-2 cursor-pointer">
+        <input type="checkbox" v-model="deleteAlsoFiles" class="rounded border-gray-300 text-red-600 focus:ring-red-500" />
+        <span class="text-sm text-gray-600 dark:text-gray-400">{{ t('engines.deleteAlsoFiles') }}</span>
+      </label>
+    </ConfirmDialog>
   </Teleport>
 </template>

@@ -66,6 +66,7 @@ export interface EngineMirrorConfig {
   base_url: string
   enabled: boolean
   is_official: boolean
+  mirror_type: string
 }
 
 export interface Settings {

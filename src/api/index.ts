@@ -158,8 +158,8 @@ export const api = {
     return await invoke('get_engines')
   },
 
-  async removeEngine(engineId: string): Promise<void> {
-    return await invoke('remove_engine', { engineId })
+  async removeEngine(engineId: string, deleteFiles: boolean = false): Promise<void> {
+    return await invoke('remove_engine', { engineId, deleteFiles })
   },
 
   async setDefaultEngine(engineId: string): Promise<void> {

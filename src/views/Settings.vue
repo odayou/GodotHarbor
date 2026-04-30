@@ -458,6 +458,7 @@ const saveMirror = () => {
       base_url: mirrorFormUrl.value.trim(),
       enabled: mirrorFormEnabled.value,
       is_official: false,
+      mirror_type: 'github_api',
     }
     settings.value.engine_mirrors.push(newMirror)
   }

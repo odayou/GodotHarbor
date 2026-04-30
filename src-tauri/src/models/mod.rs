@@ -239,6 +239,12 @@ pub struct EngineMirrorConfig {
     pub enabled: bool,
     #[serde(default)]
     pub is_official: bool,
+    #[serde(default = "default_mirror_type")]
+    pub mirror_type: String,
+}
+
+fn default_mirror_type() -> String {
+    "github_api".to_string()
 }
 
 impl EngineMirrorConfig {
@@ -249,6 +255,18 @@ impl EngineMirrorConfig {
             base_url: "https://api.github.com".to_string(),
             enabled: true,
             is_official: true,
+            mirror_type: "github_api".to_string(),
+        }
+    }
+
+    pub fn your_objectstorage() -> Self {
+        Self {
+            id: "your-objectstorage".to_string(),
+            name: "Your ObjectStorage (CN)".to_string(),
+            base_url: "https://godot-releases.nbg1.your-objectstorage.com".to_string(),
+            enabled: true,
+            is_official: false,
+            mirror_type: "direct".to_string(),
         }
     }
 }
@@ -290,7 +308,7 @@ pub struct Settings {
 fn default_true() -> bool { true }
 fn default_four() -> u32 { 4 }
 fn default_engine_mirrors() -> Vec<EngineMirrorConfig> {
-    vec![EngineMirrorConfig::official()]
+    vec![EngineMirrorConfig::official(), EngineMirrorConfig::your_objectstorage()]
 }
 
 impl Default for Settings {

@@ -2240,12 +2240,21 @@ pub fn register_engine(app: AppHandle, path: String, name: String) -> Result<Eng
         return Err("引擎路径不能为空".to_string());
     }
 
-    if !crate::engine::EngineManager::validate_engine_path(&path) {
-        log_error(&app, "register_engine", &path, "引擎路径无效或找不到可执行文件");
-        return Err("引擎路径无效或找不到 Godot 可执行文件".to_string());
+    let engine_dir = {
+        let p = std::path::Path::new(&path);
+        if p.is_file() {
+            p.parent().map(|dir| dir.to_string_lossy().to_string()).unwrap_or(path.clone())
+        } else {
+            path.clone()
+        }
+    };
+
+    if let Err(detail) = crate::engine::EngineManager::validate_engine_path_detail(&engine_dir) {
+        log_error(&app, "register_engine", &path, &detail);
+        return Err(format!("引擎路径无效: {}", detail));
     }
 
-    let engine = crate::engine::EngineManager::get_engine_info(&path)
+    let engine = crate::engine::EngineManager::get_engine_info(&engine_dir)
         .map_err(|e| format!("获取引擎信息失败: {}", e))?;
 
     let mut registered_engine = engine;
@@ -2278,13 +2287,14 @@ pub fn get_engines(app: AppHandle) -> Result<Vec<Engine>, String> {
 }
 
 #[tauri::command]
-pub fn remove_engine(app: AppHandle, engine_id: String) -> Result<(), String> {
+pub fn remove_engine(app: AppHandle, engine_id: String, delete_files: bool) -> Result<(), String> {
     let storage = get_storage(&app);
     let mut engines: Vec<Engine> = storage.load_or_default("engines.json");
 
     let engine = engines.iter().find(|e| e.engine_id == engine_id)
         .ok_or("未找到指定引擎".to_string())?;
     let engine_name = engine.name.clone();
+    let engine_path = engine.path.clone();
     let was_default = engine.is_default;
 
     engines.retain(|e| e.engine_id != engine_id);
@@ -2296,7 +2306,18 @@ pub fn remove_engine(app: AppHandle, engine_id: String) -> Result<(), String> {
     storage.save("engines.json", &engines)
         .map_err(|e| format!("保存引擎列表失败: {}", e))?;
 
-    log_operation(&app, "remove_engine", &engine_id, &format!("已删除引擎: {}", engine_name));
+    if delete_files && !engine_path.is_empty() {
+        let path = std::path::Path::new(&engine_path);
+        if path.exists() && path.is_dir() {
+            let data_dir = get_data_dir(&app);
+            let engines_dir = data_dir.join("engines");
+            if path.starts_with(&engines_dir) {
+                let _ = std::fs::remove_dir_all(path);
+            }
+        }
+    }
+
+    log_operation(&app, "remove_engine", &engine_id, &format!("已删除引擎: {}{}", engine_name, if delete_files { "（含文件）" } else { "" }));
     Ok(())
 }
 
