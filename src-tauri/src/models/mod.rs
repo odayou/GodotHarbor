@@ -597,6 +597,12 @@ pub struct RemoteEngineVersion {
     pub file_name: String,
     pub file_size: u64,
     pub is_installed: bool,
+    #[serde(default = "default_variant")]
+    pub variant: String,
+}
+
+fn default_variant() -> String {
+    "standard".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
