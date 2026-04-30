@@ -779,6 +779,18 @@ export default {
       title: 'Bind Plugins to Projects',
       desc: 'Select required plugins and versions for your projects,\none-click apply changes, plugins are automatically mounted to addons directory.'
     },
+    shortcuts: {
+      title: 'Keyboard Shortcuts',
+      desc: 'Master shortcuts to boost productivity:',
+      ctrlK: 'Ctrl+K',
+      ctrlKDesc: 'Open command palette',
+      ctrlB: 'Ctrl+B',
+      ctrlBDesc: 'Toggle sidebar',
+      ctrlT: 'Ctrl+T',
+      ctrlTDesc: 'Cycle theme',
+      ctrlD: 'Ctrl+D',
+      ctrlDDesc: 'Toggle dark/light mode'
+    },
     skip: 'Skip Guide',
     startExperience: 'Start Experience',
     next: 'Next',

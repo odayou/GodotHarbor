@@ -25,13 +25,13 @@ watch(isOpen, async (open) => {
   }
 })
 
-const categoryLabels: Record<string, string> = computed(() => ({
-  command: t('commandPalette.categoryCommands'),
-  project: t('commandPalette.categoryProjects'),
-  plugin: t('commandPalette.categoryPlugins'),
-  engine: t('commandPalette.categoryEngines'),
-  setting: t('commandPalette.categorySettings'),
-})).value
+const categoryLabels = computed(() => ({
+  command: t('commandPalette.category.commands'),
+  project: t('commandPalette.category.projects'),
+  plugin: t('commandPalette.category.plugins'),
+  engine: t('commandPalette.category.engines'),
+  setting: t('commandPalette.category.settings'),
+}))
 
 function onOverlayClick(e: MouseEvent) {
   if (e.target === e.currentTarget) {

@@ -778,6 +778,18 @@ export default {
       title: '绑定插件到项目',
       desc: '为项目选择需要的插件和版本，\n一键应用变更，插件自动挂载到 addons 目录。'
     },
+    shortcuts: {
+      title: '快捷键',
+      desc: '掌握快捷键，提升操作效率：',
+      ctrlK: 'Ctrl+K',
+      ctrlKDesc: '打开命令面板',
+      ctrlB: 'Ctrl+B',
+      ctrlBDesc: '折叠/展开侧边栏',
+      ctrlT: 'Ctrl+T',
+      ctrlTDesc: '循环切换主题',
+      ctrlD: 'Ctrl+D',
+      ctrlDDesc: '深色/浅色模式切换'
+    },
     skip: '跳过引导',
     startExperience: '前往体验',
     next: '下一步',

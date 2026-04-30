@@ -51,6 +51,12 @@ const steps = computed(() => [
     desc: t('onboarding.link.desc'),
     icon: 'link',
     action: '/plugins'
+  },
+  {
+    title: t('onboarding.shortcuts.title'),
+    desc: t('onboarding.shortcuts.desc'),
+    icon: 'shortcuts',
+    action: null
   }
 ])
 
@@ -124,14 +130,38 @@ const finish = async () => {
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
             </svg>
           </div>
+          <div v-else-if="currentStepData.icon === 'shortcuts'" class="w-20 h-20 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+            <svg class="w-10 h-10 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707" />
+            </svg>
+          </div>
         </div>
 
         <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100 text-center mb-3">
           {{ currentStepData.title }}
         </h2>
-        <p class="text-sm text-gray-600 dark:text-gray-400 text-center whitespace-pre-line mb-8">
+        <p v-if="currentStepData.icon !== 'shortcuts'" class="text-sm text-gray-600 dark:text-gray-400 text-center whitespace-pre-line mb-8">
           {{ currentStepData.desc }}
         </p>
+        <div v-else class="mb-8 space-y-2.5">
+          <p class="text-sm text-gray-600 dark:text-gray-400 text-center mb-4">{{ currentStepData.desc }}</p>
+          <div class="flex items-center justify-between px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+            <kbd class="px-2 py-0.5 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded text-xs font-mono text-gray-800 dark:text-gray-200 shadow-sm">{{ t('onboarding.shortcuts.ctrlK') }}</kbd>
+            <span class="text-sm text-gray-600 dark:text-gray-400">{{ t('onboarding.shortcuts.ctrlKDesc') }}</span>
+          </div>
+          <div class="flex items-center justify-between px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+            <kbd class="px-2 py-0.5 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded text-xs font-mono text-gray-800 dark:text-gray-200 shadow-sm">{{ t('onboarding.shortcuts.ctrlB') }}</kbd>
+            <span class="text-sm text-gray-600 dark:text-gray-400">{{ t('onboarding.shortcuts.ctrlBDesc') }}</span>
+          </div>
+          <div class="flex items-center justify-between px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+            <kbd class="px-2 py-0.5 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded text-xs font-mono text-gray-800 dark:text-gray-200 shadow-sm">{{ t('onboarding.shortcuts.ctrlT') }}</kbd>
+            <span class="text-sm text-gray-600 dark:text-gray-400">{{ t('onboarding.shortcuts.ctrlTDesc') }}</span>
+          </div>
+          <div class="flex items-center justify-between px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+            <kbd class="px-2 py-0.5 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded text-xs font-mono text-gray-800 dark:text-gray-200 shadow-sm">{{ t('onboarding.shortcuts.ctrlD') }}</kbd>
+            <span class="text-sm text-gray-600 dark:text-gray-400">{{ t('onboarding.shortcuts.ctrlDDesc') }}</span>
+          </div>
+        </div>
 
         <div class="flex items-center justify-between">
           <button
