@@ -45,6 +45,10 @@ const loadSettings = async () => {
     const result = await api.getSettings()
     settings.value = { scan_directories: result.scan_directories || [], mount_strategy: result.mount_strategy || 'Symlink', language: result.language || 'zh-CN', theme: result.theme || 'system', auto_scan_on_startup: result.auto_scan_on_startup ?? true, auto_discover_engines: result.auto_discover_engines ?? true, plugin_storage_path: result.plugin_storage_path || '', auto_check_plugin_updates: result.auto_check_plugin_updates ?? false, auto_check_app_updates: result.auto_check_app_updates ?? true, auto_check_engine_updates: result.auto_check_engine_updates ?? true, update_check_interval_hours: result.update_check_interval_hours ?? 4, skipped_app_version: result.skipped_app_version || '' }
     oldPluginStoragePath.value = settings.value.plugin_storage_path || ''
+    const localStorageLang = localStorage.getItem('godotharbor-language')
+    if (localStorageLang && localStorageLang !== settings.value.language) {
+      settings.value.language = localStorageLang
+    }
     locale.value = settings.value.language
     if (['light', 'dark', 'system', 'volcano'].includes(settings.value.theme)) setTheme(settings.value.theme as 'light' | 'dark' | 'system' | 'volcano')
   } catch (error) { toast.error(t('settings.messages.loadFailed', { error })) }
@@ -83,6 +87,9 @@ const saveSettings = async () => {
 }
 
 const saveSettingsWithMigrationCheck = async () => {
+  if (checkDataDirChange()) {
+    return
+  }
   if (settings.value.plugin_storage_path && oldPluginStoragePath.value &&
       settings.value.plugin_storage_path !== oldPluginStoragePath.value) {
     showMigrateDialog.value = true
@@ -165,12 +172,51 @@ const openPath = async (path: string) => {
   }
 }
 
+const selectCustomDataDir = async () => {
+  try {
+    const selected = await open({ directory: true, multiple: false, title: t('settings.storage.customDataDir') })
+    if (selected && typeof selected === 'string') {
+      settings.value.custom_data_dir = selected
+    }
+  } catch (error) { toast.error(t('settings.messages.selectDirFailed', { error })) }
+}
+
+const showDataMigrateDialog = ref(false)
+const isMigratingData = ref(false)
+const pendingDataDir = ref('')
+
+const checkDataDirChange = () => {
+  const oldDir = storagePaths.value?.app_data_dir || ''
+  const newDir = settings.value.custom_data_dir || ''
+  if (oldDir !== newDir && newDir) {
+    pendingDataDir.value = newDir
+    showDataMigrateDialog.value = true
+    return true
+  }
+  return false
+}
+
+const executeDataMigration = async () => {
+  isMigratingData.value = true
+  try {
+    await api.migrateDataDir(pendingDataDir.value)
+    toast.success(t('settings.storage.migrateSuccess'))
+    showDataMigrateDialog.value = false
+    await loadStoragePaths()
+  } catch (error) {
+    toast.error(t('settings.storage.migrateFailed') + ': ' + error)
+  } finally {
+    isMigratingData.value = false
+  }
+}
+
 const oldPluginStoragePath = ref('')
 const showMigrateDialog = ref(false)
 const isMigrating = ref(false)
 const storagePaths = ref<StoragePaths | null>(null)
 
 useDialogEscape(showMigrateDialog)
+useDialogEscape(showDataMigrateDialog)
 
 const performBackup = async () => {
   if (!backupPath.value) {
@@ -594,6 +640,18 @@ const toggleMirrorEnabled = (mirrorId: string) => {
       <div v-if="storagePaths" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ t('settings.storage.title') }}</h2>
         <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">{{ t('settings.storage.description') }}</p>
+        <div class="mb-4 p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
+          <label class="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">{{ t('settings.storage.customDataDir') }}</label>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ t('settings.storage.customDataDirDesc') }}</p>
+          <div class="flex gap-2">
+            <input type="text" v-model="settings.custom_data_dir"
+                   :placeholder="t('settings.storage.customDataDirPlaceholder')"
+                   class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+            <button @click="selectCustomDataDir" class="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.pluginRepo.browse') }}</button>
+            <button v-if="settings.custom_data_dir" @click="settings.custom_data_dir = ''" class="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.storage.resetToDefault') }}</button>
+          </div>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">{{ t('settings.storage.customDataDirHint') }}</p>
+        </div>
         <div class="space-y-3">
           <div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
             <div class="flex-1 min-w-0">
@@ -936,6 +994,30 @@ const toggleMirrorEnabled = (mirrorId: string) => {
           <button @click="skipMigration" :disabled="isMigrating" class="btn-secondary">{{ t('settings.pluginRepo.skipMigration') }}</button>
           <button @click="migratePlugins" :disabled="isMigrating" class="btn-primary disabled:opacity-50">
             {{ isMigrating ? t('settings.pluginRepo.migrating') : t('settings.pluginRepo.startMigration') }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div v-if="showDataMigrateDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showDataMigrateDialog = false">
+      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('settings.storage.migrateTitle') }}</h3>
+        <p class="text-sm text-gray-600 dark:text-content-secondary mb-3">
+          {{ t('settings.storage.migrateDescription') }}
+        </p>
+        <div class="bg-gray-50 dark:bg-surface-layer rounded-lg p-3 mb-3 text-xs font-mono space-y-1">
+          <div class="text-red-500 dark:text-red-400">{{ t('settings.storage.migrateFrom') }}: {{ storagePaths?.app_data_dir }}</div>
+          <div class="text-green-500 dark:text-green-400">{{ t('settings.storage.migrateTo') }}: {{ pendingDataDir }}</div>
+        </div>
+        <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 mb-4">
+          <p class="text-xs text-yellow-700 dark:text-yellow-400">{{ t('settings.storage.migrateWarning') }}</p>
+        </div>
+        <div class="flex justify-end gap-3">
+          <button @click="showDataMigrateDialog = false; saveSettings()" :disabled="isMigratingData" class="btn-secondary">{{ t('settings.pluginRepo.skipMigration') }}</button>
+          <button @click="executeDataMigration" :disabled="isMigratingData" class="btn-primary disabled:opacity-50">
+            {{ isMigratingData ? t('settings.storage.migrating') : t('settings.storage.migrateButton') }}
           </button>
         </div>
       </div>

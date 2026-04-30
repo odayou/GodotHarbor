@@ -84,6 +84,7 @@ export interface Settings {
   update_check_interval_hours?: number
   skipped_app_version?: string
   engine_mirrors?: EngineMirrorConfig[]
+  custom_data_dir?: string
 }
 
 export interface ApplyResult {

@@ -69,10 +69,21 @@ pub fn run() {
         })
         .setup(|app| {
             let app_handle = app.handle();
-            let data_dir = app_handle.path().app_data_dir()
+            let config_dir = app_handle.path().app_data_dir()
                 .expect("Failed to get app data directory");
-            std::fs::create_dir_all(&data_dir)
+            std::fs::create_dir_all(&config_dir)
                 .expect("Failed to create app data directory");
+
+            let config_storage = crate::storage::Storage::new(config_dir.clone());
+            let settings: crate::models::Settings = config_storage.load_or_default("settings.json");
+            let data_dir = if settings.custom_data_dir.is_empty() {
+                config_dir
+            } else {
+                std::path::PathBuf::from(&settings.custom_data_dir)
+            };
+            std::fs::create_dir_all(&data_dir)
+                .expect("Failed to create data directory");
+
             let plugins_dir = data_dir.join("plugins");
             std::fs::create_dir_all(&plugins_dir)
                 .expect("Failed to create plugins directory");
@@ -361,6 +372,7 @@ pub fn run() {
             commands::download_engine,
             commands::cancel_engine_download,
             commands::get_storage_paths,
+            commands::migrate_data_dir,
         ))
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

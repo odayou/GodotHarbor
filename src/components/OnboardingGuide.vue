@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/api'
 import { useOnboarding } from '@/composables/useOnboarding'
+import { useLanguageDialog } from '@/composables/useLanguageDialog'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -10,6 +11,7 @@ const { t } = useI18n()
 const router = useRouter()
 const currentStep = ref(0)
 const { isVisible, hideOnboarding } = useOnboarding()
+const { isVisible: languageDialogVisible } = useLanguageDialog()
 
 const checkFirstTime = async () => {
   try {
@@ -20,12 +22,21 @@ const checkFirstTime = async () => {
       api.getPlugins()
     ])
     if (projects.length === 0 && plugins.length === 0) {
+      if (languageDialogVisible.value) return
       isVisible.value = true
     }
   } catch {}
 }
 
-checkFirstTime()
+if (!languageDialogVisible.value) {
+  checkFirstTime()
+}
+
+watch(languageDialogVisible, (visible) => {
+  if (!visible) {
+    checkFirstTime()
+  }
+})
 
 const steps = computed(() => [
   {

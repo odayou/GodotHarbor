@@ -281,6 +281,8 @@ pub struct Settings {
     pub skipped_app_version: String,
     #[serde(default = "default_engine_mirrors")]
     pub engine_mirrors: Vec<EngineMirrorConfig>,
+    #[serde(default)]
+    pub custom_data_dir: String,
 }
 
 fn default_true() -> bool { true }
@@ -307,6 +309,7 @@ impl Default for Settings {
             update_check_interval_hours: 4,
             skipped_app_version: String::new(),
             engine_mirrors: default_engine_mirrors(),
+            custom_data_dir: String::new(),
         }
     }
 }

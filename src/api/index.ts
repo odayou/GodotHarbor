@@ -397,6 +397,10 @@ export const api = {
     return await invoke('get_storage_paths')
   },
 
+  async migrateDataDir(newDataDir: string): Promise<void> {
+    return await invoke('migrate_data_dir', { newDataDir })
+  },
+
   async fetchRemoteEngineVersions(mirrorId: string): Promise<RemoteEngineVersion[]> {
     return await invoke('fetch_remote_engine_versions', { mirrorId })
   },

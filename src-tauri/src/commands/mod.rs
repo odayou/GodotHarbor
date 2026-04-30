@@ -12,19 +12,41 @@ use crate::operation_log::{OperationLogger, LogEntry};
 use crate::AppState;
 use uuid::Uuid;
 
-fn get_data_dir(app: &AppHandle) -> PathBuf {
+fn get_config_dir(app: &AppHandle) -> PathBuf {
     app.path().app_data_dir()
         .expect("Failed to get app data directory")
 }
 
+fn get_data_dir(app: &AppHandle) -> PathBuf {
+    let config_dir = get_config_dir(app);
+    let config_storage = Storage::new(config_dir.clone());
+    let settings: Settings = config_storage.load_or_default("settings.json");
+    if settings.custom_data_dir.is_empty() {
+        config_dir
+    } else {
+        PathBuf::from(&settings.custom_data_dir)
+    }
+}
+
+fn get_config_storage(app: &AppHandle) -> Storage {
+    Storage::new(get_config_dir(app))
+}
+
 fn get_storage(app: &AppHandle) -> Storage {
-    let data_dir = get_data_dir(app);
-    Storage::new(data_dir)
+    Storage::new(get_data_dir(app))
+}
+
+fn load_settings(app: &AppHandle) -> Settings {
+    get_config_storage(app).load_or_default("settings.json")
+}
+
+fn save_settings_to_config(app: &AppHandle, settings: &Settings) -> Result<(), String> {
+    get_config_storage(app).save("settings.json", settings)
+        .map_err(|e| format!("保存设置失败: {}", e))
 }
 
 fn get_plugin_manager(app: &AppHandle) -> PluginManager {
-    let storage = get_storage(app);
-    let settings: Settings = storage.load_or_default("settings.json");
+    let settings = load_settings(app);
     let plugins_dir = if settings.plugin_storage_path.is_empty() {
         get_data_dir(app).join("plugins")
     } else {
@@ -77,25 +99,63 @@ fn log_error(app: &AppHandle, action: &str, target: &str, error: &str) {
 
 #[tauri::command]
 pub fn get_settings(app: AppHandle) -> Result<Settings, String> {
-    let storage = get_storage(&app);
-    let settings: Settings = storage.load_or_default("settings.json");
-    Ok(settings)
+    Ok(load_settings(&app))
 }
 
 #[tauri::command]
 pub fn save_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
-    let storage = get_storage(&app);
-    storage.save("settings.json", &settings)
-        .map_err(|e| format!("保存设置失败: {}", e))?;
+    save_settings_to_config(&app, &settings)?;
     log_operation(&app, "save_settings", "settings.json", "设置已保存");
     Ok(())
 }
 
 #[tauri::command]
+pub fn migrate_data_dir(app: AppHandle, new_data_dir: String) -> Result<(), String> {
+    let new_path = Path::new(&new_data_dir);
+    if new_path.exists() && !new_path.is_dir() {
+        return Err("目标路径已存在但不是目录".to_string());
+    }
+
+    let old_data_dir = get_data_dir(&app);
+    let old_str = old_data_dir.to_string_lossy().to_string();
+    if old_str == new_data_dir {
+        return Err("新目录与当前目录相同".to_string());
+    }
+
+    std::fs::create_dir_all(new_path)
+        .map_err(|e| format!("创建目录失败: {}", e))?;
+
+    let dirs_to_migrate = ["plugins", "engines", "cache", "logs", "hot_updates", "hotupdate_overlay", "backups"];
+    for dir_name in &dirs_to_migrate {
+        let src = old_data_dir.join(dir_name);
+        if src.exists() {
+            copy_dir_recursive(&src, &new_path.join(dir_name))
+                .map_err(|e| format!("复制 {} 目录失败: {}", dir_name, e))?;
+        }
+    }
+
+    let files_to_migrate = ["projects.json", "engines.json", "team_configs.json"];
+    for file_name in &files_to_migrate {
+        let src = old_data_dir.join(file_name);
+        if src.exists() {
+            std::fs::copy(&src, &new_path.join(file_name))
+                .map_err(|e| format!("复制 {} 失败: {}", file_name, e))?;
+        }
+    }
+
+    let mut settings = load_settings(&app);
+    settings.custom_data_dir = new_data_dir.clone();
+    save_settings_to_config(&app, &settings)?;
+
+    log_operation(&app, "migrate_data_dir", &new_data_dir,
+        &format!("数据目录已迁移: {} -> {}", old_str, new_data_dir));
+    Ok(())
+}
+#[tauri::command]
 pub fn get_storage_paths(app: AppHandle) -> Result<StoragePaths, String> {
+    let config_dir = get_config_dir(&app);
     let data_dir = get_data_dir(&app);
-    let storage = get_storage(&app);
-    let settings: Settings = storage.load_or_default("settings.json");
+    let settings = load_settings(&app);
     let plugins_dir = if settings.plugin_storage_path.is_empty() {
         data_dir.join("plugins")
     } else {
@@ -108,7 +168,7 @@ pub fn get_storage_paths(app: AppHandle) -> Result<StoragePaths, String> {
         cache_dir: data_dir.join("cache").to_string_lossy().to_string(),
         logs_dir: data_dir.join("logs").to_string_lossy().to_string(),
         hot_updates_dir: data_dir.join("hot_updates").to_string_lossy().to_string(),
-        settings_file: data_dir.join("settings.json").to_string_lossy().to_string(),
+        settings_file: config_dir.join("settings.json").to_string_lossy().to_string(),
         projects_file: data_dir.join("projects.json").to_string_lossy().to_string(),
         engines_file: data_dir.join("engines.json").to_string_lossy().to_string(),
     })
@@ -118,8 +178,7 @@ pub async fn fetch_remote_engine_versions(
     app: AppHandle,
     mirror_id: String,
 ) -> Result<Vec<crate::models::RemoteEngineVersion>, String> {
-    let storage = get_storage(&app);
-    let settings: Settings = storage.load_or_default("settings.json");
+    let settings = load_settings(&app);
 
     let mirror = settings.engine_mirrors.iter()
         .find(|m| m.id == mirror_id)
@@ -129,6 +188,7 @@ pub async fn fetch_remote_engine_versions(
         return Err("该镜像已被禁用".to_string());
     }
 
+    let storage = get_storage(&app);
     let engines: Vec<Engine> = storage.load_or_default("engines.json");
     let local_versions: Vec<String> = engines.iter().map(|e| e.version.clone()).collect();
 
@@ -538,7 +598,7 @@ pub fn apply_changes(app: AppHandle, project_id: String) -> Result<ApplyResult, 
         return Err("该项目没有绑定任何插件".to_string());
     }
 
-    let settings: Settings = storage.load_or_default("settings.json");
+    let settings = load_settings(&app);
     let linker = Linker::new(settings.mount_strategy);
 
     let data_dir = get_data_dir(&app);
@@ -562,8 +622,7 @@ pub fn apply_changes(app: AppHandle, project_id: String) -> Result<ApplyResult, 
 
 #[tauri::command]
 pub fn restart_fs_watcher(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
-    let storage = get_storage(&app);
-    let settings: Settings = storage.load_or_default("settings.json");
+    let settings = load_settings(&app);
 
     let dirs = if settings.scan_directories.is_empty() {
         let mut default_dirs = Vec::new();
@@ -958,7 +1017,7 @@ pub fn check_binding_health(app: AppHandle, project_id: String) -> Result<Vec<Pr
     }
     let project = project.unwrap();
 
-    let settings: Settings = storage.load_or_default("settings.json");
+    let settings = load_settings(&app);
     let plugin_base_path = if settings.plugin_storage_path.is_empty() {
         get_data_dir(&app).join("plugins")
     } else {
@@ -1024,7 +1083,7 @@ pub fn repair_binding(app: AppHandle, project_id: String, plugin_id: String) -> 
     }
     let project = project.unwrap();
 
-    let settings: Settings = storage.load_or_default("settings.json");
+    let settings = load_settings(&app);
     let linker = Linker::new(settings.mount_strategy.clone());
     let plugin_base_path = if settings.plugin_storage_path.is_empty() {
         get_data_dir(&app).join("plugins")
@@ -1289,15 +1348,14 @@ const APP_GITHUB_REPO: &str = "GodotHarbor";
 pub async fn check_app_update(app: AppHandle) -> Result<Option<AppUpdateInfo>, String> {
     let current_version = app.config().version.clone().unwrap_or_default();
 
-    let storage = get_storage(&app);
-    let mut settings: Settings = storage.load_or_default("settings.json");
+    let mut settings = load_settings(&app);
     if !settings.skipped_app_version.is_empty() {
         let skipped = semver::Version::parse(settings.skipped_app_version.trim_start_matches('v')).ok();
         let current = semver::Version::parse(current_version.trim_start_matches('v')).ok();
         if let (Some(s), Some(c)) = (skipped, current) {
             if s <= c {
                 settings.skipped_app_version = String::new();
-                let _ = storage.save("settings.json", &settings);
+                let _ = save_settings_to_config(&app, &settings);
             }
         }
     }
@@ -1600,10 +1658,9 @@ pub fn batch_update_plugins(app: AppHandle, plugin_ids: Vec<String>) -> Result<B
 
 #[tauri::command]
 pub fn skip_app_version(app: AppHandle, version: String) -> Result<(), String> {
-    let storage = get_storage(&app);
-    let mut settings: Settings = storage.load_or_default("settings.json");
+    let mut settings = load_settings(&app);
     settings.skipped_app_version = version;
-    storage.save("settings.json", &settings)
+    save_settings_to_config(&app, &settings)
         .map_err(|e| format!("保存设置失败: {}", e))?;
     Ok(())
 }
@@ -1704,8 +1761,7 @@ pub fn get_app_version(app: AppHandle) -> Result<String, String> {
 #[tauri::command]
 pub async fn check_hot_update(app: AppHandle, manifest_url: Option<String>) -> Result<Option<HotUpdateInfo>, String> {
     let data_dir = get_data_dir(&app);
-    let storage = get_storage(&app);
-    let settings: Settings = storage.load_or_default("settings.json");
+    let settings = load_settings(&app);
     let current_version = app.config().version.clone().unwrap_or_default();
 
     if !settings.skipped_app_version.is_empty() {
@@ -1912,7 +1968,7 @@ pub fn backup_data(app: AppHandle, backup_path: String) -> Result<String, String
         }
     }
 
-    let settings: Settings = storage.load_or_default("settings.json");
+    let settings = load_settings(&app);
     let plugins_src_dir = if settings.plugin_storage_path.is_empty() {
         data_dir.join("plugins")
     } else {
@@ -1949,7 +2005,6 @@ pub fn backup_data(app: AppHandle, backup_path: String) -> Result<String, String
 #[tauri::command]
 pub fn restore_data(app: AppHandle, backup_path: String) -> Result<String, String> {
     let data_dir = get_data_dir(&app);
-    let storage = get_storage(&app);
     let backup_dir = std::path::Path::new(&backup_path);
 
     if !backup_dir.exists() {
@@ -1984,7 +2039,7 @@ pub fn restore_data(app: AppHandle, backup_path: String) -> Result<String, Strin
         }
     }
 
-    let settings: Settings = storage.load_or_default("settings.json");
+    let settings = load_settings(&app);
     let plugins_dst_dir = if settings.plugin_storage_path.is_empty() {
         data_dir.join("plugins")
     } else {
@@ -2040,7 +2095,7 @@ pub fn reset_data(app: AppHandle, backup_path: String) -> Result<String, String>
         }
     }
 
-    let settings: Settings = storage.load_or_default("settings.json");
+    let settings = load_settings(&app);
     let plugins_src_dir = if settings.plugin_storage_path.is_empty() {
         data_dir.join("plugins")
     } else {
@@ -2287,29 +2342,12 @@ pub fn launch_project_with_engine(
         "未找到可用的引擎，请先注册引擎".to_string()
     })?;
 
-    let exe_name = if cfg!(windows) { "godot.exe" } else if cfg!(target_os = "macos") { "godot" } else { "godot" };
-    let exe_path = std::path::Path::new(&engine.path).join(exe_name);
-    let actual_exe = if exe_path.exists() {
-        exe_path
-    } else if cfg!(target_os = "macos") {
-        let macos_exe = std::path::Path::new(&engine.path).join("Contents/MacOS/godot");
-        if macos_exe.exists() {
-            macos_exe
-        } else {
-            std::path::Path::new(&engine.path).join(format!("bin/{}", exe_name))
-        }
-    } else {
-        std::path::Path::new(&engine.path).join(format!("bin/{}", exe_name))
-    };
-
-    if !actual_exe.exists() {
-        log_error(&app, "launch_project", &project_id, "引擎可执行文件不存在");
-        return Ok(LaunchResult {
-            success: false,
-            pid: None,
-            error: Some("引擎可执行文件不存在".to_string()),
-        });
-    }
+    let engine_dir = std::path::Path::new(&engine.path);
+    let actual_exe = crate::engine::EngineManager::find_executable_in_dir(engine_dir)
+        .ok_or_else(|| {
+            log_error(&app, "launch_project", &project_id, "引擎可执行文件不存在");
+            "引擎可执行文件不存在".to_string()
+        })?;
 
     let mut cmd = std::process::Command::new(&actual_exe);
     cmd.current_dir(&project.path);
@@ -3128,10 +3166,7 @@ pub fn get_dashboard_stats(app: AppHandle) -> Result<DashboardStats, String> {
 
 #[tauri::command]
 pub async fn auto_scan_projects(app: AppHandle) -> Result<Vec<Project>, String> {
-    let settings: Settings = {
-        let storage = get_storage(&app);
-        storage.load_or_default("settings.json")
-    };
+    let settings = load_settings(&app);
 
     if !settings.auto_scan_on_startup {
         return Ok(Vec::new());
@@ -3253,7 +3288,7 @@ pub fn detect_moved_projects(app: AppHandle) -> Result<Vec<MovedProjectCandidate
         return Ok(Vec::new());
     }
 
-    let settings: Settings = storage.load_or_default("settings.json");
+    let settings = load_settings(&app);
     let scan_dirs = if settings.scan_directories.is_empty() {
         let mut default_dirs = Vec::new();
         if cfg!(windows) {
@@ -3568,7 +3603,7 @@ pub fn batch_apply_changes(app: AppHandle, project_ids: Vec<String>) -> Result<B
     let storage = get_storage(&app);
     let projects: Vec<Project> = storage.load_or_default("projects.json");
     let all_bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
-    let settings: Settings = storage.load_or_default("settings.json");
+    let settings = load_settings(&app);
     let linker = Linker::new(settings.mount_strategy);
     let data_dir = get_data_dir(&app);
     let plugin_base_path = data_dir.join("plugins");
@@ -3647,10 +3682,7 @@ pub fn batch_apply_changes(app: AppHandle, project_ids: Vec<String>) -> Result<B
 
 #[tauri::command]
 pub async fn auto_discover_engines(app: AppHandle) -> Result<Vec<Engine>, String> {
-    let settings: Settings = {
-        let storage = get_storage(&app);
-        storage.load_or_default("settings.json")
-    };
+    let settings = load_settings(&app);
 
     if !settings.auto_discover_engines {
         log_operation(&app, "auto_discover_engines", "", "自动发现已关闭");

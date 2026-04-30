@@ -38,7 +38,7 @@ impl EngineManager {
         Ok((engine_type, version))
     }
 
-    fn find_executable_in_dir(dir: &Path) -> Option<std::path::PathBuf> {
+    pub fn find_executable_in_dir(dir: &Path) -> Option<std::path::PathBuf> {
         if let Ok(entries) = std::fs::read_dir(dir) {
             for entry in entries.flatten() {
                 let path = entry.path();

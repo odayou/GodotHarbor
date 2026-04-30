@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { onMounted, onUnmounted } from 'vue'
 import { RouterView } from 'vue-router'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { listen } from '@tauri-apps/api/event'
@@ -9,6 +9,8 @@ import { useSidebar } from './composables/useSidebar'
 import { useCommandPalette } from './composables/useCommandPalette'
 import { usePluginStore } from './stores'
 import { useI18n } from 'vue-i18n'
+import { useLanguageDialog } from './composables/useLanguageDialog'
+import { api } from './api'
 import Sidebar from './components/layout/Sidebar.vue'
 import Header from './components/layout/Header.vue'
 import StatusBar from './components/layout/StatusBar.vue'
@@ -17,7 +19,7 @@ import OnboardingGuide from './components/OnboardingGuide.vue'
 import CommandPalette from './components/CommandPalette.vue'
 
 const { t, locale } = useI18n()
-const showLanguageDialog = ref(false)
+const { isVisible: showLanguageDialog, hideLanguageDialog } = useLanguageDialog()
 
 const pluginStore = usePluginStore()
 let unlistenProgress: any = null
@@ -51,10 +53,15 @@ onMounted(async () => {
   })
 })
 
-const selectLanguage = (lang: string) => {
+const selectLanguage = async (lang: string) => {
   locale.value = lang
   localStorage.setItem('godotharbor-language', lang)
-  showLanguageDialog.value = false
+  hideLanguageDialog()
+  try {
+    const currentSettings = await api.getSettings()
+    currentSettings.language = lang
+    await api.saveSettings(currentSettings)
+  } catch {}
 }
 
 onUnmounted(() => {
@@ -122,7 +129,7 @@ registerShortcut({
   </div>
   
   <!-- 首次启动语言选择对话框 -->
-  <div v-if="showLanguageDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+  <div v-if="showLanguageDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-[110]">
     <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
       <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">选择语言 / Select Language</h3>
       <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">请选择您偏好的语言 / Please select your preferred language</p>
