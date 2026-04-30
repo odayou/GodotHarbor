@@ -40,9 +40,7 @@ const selectedMirrorId = ref('official')
 const mirrorConfigs = ref<EngineMirrorConfig[]>([])
 const downloadChannelFilter = ref<EngineReleaseChannel | 'all'>('all')
 const downloadSearchQuery = ref('')
-const isDownloading = ref(false)
-const downloadProgress = ref<EngineDownloadProgress | null>(null)
-const downloadingVersion = ref<string>('')
+const activeDownloads = ref<Map<string, EngineDownloadProgress>>(new Map())
 const expandedReleaseVersion = ref<string>('')
 
 useDialogEscape(showAddDialog)
@@ -55,7 +53,14 @@ onMounted(async () => {
     loadEngines()
   })
   unlistenDownloadProgress = await listen('engine-download-progress', (event) => {
-    downloadProgress.value = event.payload as EngineDownloadProgress
+    const progress = event.payload as EngineDownloadProgress
+    const newMap = new Map(activeDownloads.value)
+    if (progress.stage === 'complete') {
+      newMap.delete(progress.version)
+    } else {
+      newMap.set(progress.version, progress)
+    }
+    activeDownloads.value = newMap
   })
 })
 
@@ -307,12 +312,6 @@ const openDownloadDialog = async () => {
   downloadSearchQuery.value = ''
   expandedReleaseVersion.value = ''
 
-  if (!isDownloading.value) {
-    remoteVersions.value = []
-    downloadProgress.value = null
-    downloadingVersion.value = ''
-  }
-
   try {
     const settings = await api.getSettings()
     mirrorConfigs.value = settings.engine_mirrors || []
@@ -326,9 +325,7 @@ const openDownloadDialog = async () => {
     mirrorConfigs.value = []
   }
 
-  if (!isDownloading.value) {
-    await fetchRemoteVersions()
-  }
+  await fetchRemoteVersions()
 }
 
 const fetchRemoteVersions = async () => {
@@ -364,9 +361,20 @@ const startDownload = async (version: RemoteEngineVersion) => {
     toast.info(t('engines.download.alreadyInstalled'))
     return
   }
-  isDownloading.value = true
-  downloadingVersion.value = version.version
-  downloadProgress.value = null
+  if (activeDownloads.value.has(version.version)) {
+    toast.info(t('engines.download.alreadyDownloading'))
+    return
+  }
+  const newMap = new Map(activeDownloads.value)
+  newMap.set(version.version, {
+    version: version.version,
+    stage: 'downloading',
+    downloaded_bytes: 0,
+    total_bytes: 0,
+    progress: 0,
+    message: t('engines.download.downloading')
+  })
+  activeDownloads.value = newMap
   try {
     const result = await api.downloadEngine(version)
     if (result.cancelled) {
@@ -381,15 +389,15 @@ const startDownload = async (version: RemoteEngineVersion) => {
   } catch (error) {
     toast.error(t('engines.download.downloadFailed', { error }))
   } finally {
-    isDownloading.value = false
-    downloadingVersion.value = ''
-    downloadProgress.value = null
+    const cleanupMap = new Map(activeDownloads.value)
+    cleanupMap.delete(version.version)
+    activeDownloads.value = cleanupMap
   }
 }
 
-const cancelDownload = async () => {
+const cancelDownload = async (version: string) => {
   try {
-    await api.cancelEngineDownload()
+    await api.cancelEngineDownload(version)
   } catch {
     // ignore
   }
@@ -452,34 +460,36 @@ const cancelDownload = async () => {
       </div>
     </div>
 
-    <div v-if="isDownloading && !showDownloadDialog" class="bg-blue-50 dark:bg-blue-900/20 rounded-xl shadow p-4">
+    <div v-if="activeDownloads.size > 0 && !showDownloadDialog" class="bg-blue-50 dark:bg-blue-900/20 rounded-xl shadow p-4">
       <div class="flex items-center justify-between mb-2">
         <span class="text-sm font-medium text-blue-800 dark:text-blue-300">
-          {{ t('engines.download.downloading') }} v{{ downloadingVersion }}
+          {{ t('engines.download.downloading') }} ({{ activeDownloads.size }})
         </span>
-        <div class="flex items-center gap-2">
-          <span class="text-xs text-blue-600 dark:text-blue-400">
-            {{ downloadProgress?.progress.toFixed(1) || 0 }}%
-          </span>
-          <button
-            @click="openDownloadDialog"
-            class="text-xs text-primary-600 dark:text-primary-400 hover:underline"
-          >
-            {{ t('engines.download.title') }}
-          </button>
-          <button
-            @click="cancelDownload"
-            class="text-xs text-red-600 dark:text-red-400 hover:underline"
-          >
-            {{ t('engines.download.cancel') }}
-          </button>
+        <button
+          @click="openDownloadDialog"
+          class="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+        >
+          {{ t('engines.download.title') }}
+        </button>
+      </div>
+      <div class="space-y-2">
+        <div v-for="[ver, progress] in activeDownloads" :key="ver">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs text-blue-700 dark:text-blue-300">v{{ ver }} - {{ progress.message }}</span>
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-blue-600 dark:text-blue-400">{{ progress.progress.toFixed(1) }}%</span>
+              <button
+                @click="cancelDownload(ver)"
+                class="text-xs text-red-600 dark:text-red-400 hover:underline"
+              >
+                {{ t('engines.download.cancel') }}
+              </button>
+            </div>
+          </div>
+          <div class="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-1.5">
+            <div class="bg-blue-600 dark:bg-blue-400 h-1.5 rounded-full transition-all duration-300" :style="{ width: `${progress.progress}%` }"></div>
+          </div>
         </div>
-      </div>
-      <div class="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
-        <div class="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-300" :style="{ width: `${downloadProgress?.progress || 0}%` }"></div>
-      </div>
-      <div v-if="downloadProgress?.message" class="text-xs text-blue-500 dark:text-blue-400 mt-1">
-        {{ downloadProgress.message }}
       </div>
     </div>
 
@@ -815,24 +825,26 @@ const cancelDownload = async () => {
             </select>
           </div>
 
-          <div v-if="isDownloading && downloadProgress" class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
-            <div class="flex justify-between items-center mb-1">
-              <span class="text-sm font-medium text-blue-800 dark:text-blue-300">{{ downloadProgress.message }}</span>
-              <span class="text-xs text-blue-600 dark:text-blue-400">{{ downloadProgress.progress.toFixed(1) }}%</span>
-            </div>
-            <div class="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
-              <div class="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-300" :style="{ width: `${downloadProgress.progress}%` }"></div>
-            </div>
-            <div v-if="downloadProgress.total_bytes > 0" class="text-xs text-blue-500 dark:text-blue-400 mt-1">
-              {{ formatFileSize(downloadProgress.downloaded_bytes) }} / {{ formatFileSize(downloadProgress.total_bytes) }}
-            </div>
-            <div class="flex justify-end mt-2">
-              <button
-                @click="cancelDownload"
-                class="px-3 py-1 text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
-              >
-                {{ t('engines.download.cancel') }}
-              </button>
+          <div v-if="activeDownloads.size > 0" class="space-y-2">
+            <div v-for="[ver, progress] in activeDownloads" :key="ver" class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
+              <div class="flex justify-between items-center mb-1">
+                <span class="text-sm font-medium text-blue-800 dark:text-blue-300">v{{ ver }} - {{ progress.message }}</span>
+                <span class="text-xs text-blue-600 dark:text-blue-400">{{ progress.progress.toFixed(1) }}%</span>
+              </div>
+              <div class="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
+                <div class="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-300" :style="{ width: `${progress.progress}%` }"></div>
+              </div>
+              <div v-if="progress.total_bytes > 0" class="text-xs text-blue-500 dark:text-blue-400 mt-1">
+                {{ formatFileSize(progress.downloaded_bytes) }} / {{ formatFileSize(progress.total_bytes) }}
+              </div>
+              <div class="flex justify-end mt-2">
+                <button
+                  @click="cancelDownload(ver)"
+                  class="px-3 py-1 text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
+                >
+                  {{ t('engines.download.cancel') }}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -890,17 +902,17 @@ const cancelDownload = async () => {
                 </div>
                 <button
                   @click="startDownload(version)"
-                  :disabled="version.is_installed || isDownloading"
+                  :disabled="version.is_installed || activeDownloads.has(version.version)"
                   :class="[
                     'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap',
                     version.is_installed
                       ? 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500 cursor-not-allowed'
-                      : isDownloading && downloadingVersion === version.version
+                      : activeDownloads.has(version.version)
                         ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
                         : 'bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50'
                   ]"
                 >
-                  <template v-if="isDownloading && downloadingVersion === version.version">
+                  <template v-if="activeDownloads.has(version.version)">
                     {{ t('engines.download.downloading') }}
                   </template>
                   <template v-else-if="version.is_installed">

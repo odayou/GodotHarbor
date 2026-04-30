@@ -510,6 +510,7 @@ export default {
       noMatchingVersions: 'No matching versions',
       fetchVersionsFailed: 'Failed to fetch remote versions: {error}',
       alreadyInstalled: 'This version is already installed',
+      alreadyDownloading: 'This version is already downloading',
       downloadSuccess: 'Engine {name} downloaded and installed successfully',
       downloadFailed: 'Download engine failed: {error}',
       downloadCancelled: 'Download cancelled',

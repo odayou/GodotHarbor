@@ -510,6 +510,7 @@ export default {
       noMatchingVersions: '没有匹配的版本',
       fetchVersionsFailed: '获取远程版本列表失败: {error}',
       alreadyInstalled: '该版本已安装',
+      alreadyDownloading: '该版本正在下载中',
       downloadSuccess: '引擎 {name} 下载安装成功',
       downloadFailed: '下载引擎失败: {error}',
       downloadCancelled: '下载已取消',

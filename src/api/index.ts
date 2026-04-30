@@ -410,8 +410,8 @@ export const api = {
     return await invoke('download_engine', { remoteVersion })
   },
 
-  async cancelEngineDownload(): Promise<void> {
-    return await invoke('cancel_engine_download')
+  async cancelEngineDownload(version: string): Promise<void> {
+    return await invoke('cancel_engine_download', { version })
   }
 }
 

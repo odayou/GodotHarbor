@@ -4,19 +4,39 @@ use crate::models::{
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter, Manager};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::collections::HashMap;
+use std::sync::Mutex;
 
-static CANCEL_DOWNLOAD: AtomicBool = AtomicBool::new(false);
+static CANCEL_FLAGS: once_cell::sync::Lazy<Mutex<HashMap<String, AtomicBool>>> =
+    once_cell::sync::Lazy::new(|| Mutex::new(HashMap::new()));
 
-pub fn request_cancel_download() {
-    CANCEL_DOWNLOAD.store(true, Ordering::SeqCst);
+pub fn request_cancel_download(version: &str) {
+    if let Ok(map) = CANCEL_FLAGS.lock() {
+        if let Some(flag) = map.get(version) {
+            flag.store(true, Ordering::SeqCst);
+        }
+    }
 }
 
-fn is_cancelled() -> bool {
-    CANCEL_DOWNLOAD.load(Ordering::SeqCst)
+fn is_cancelled(version: &str) -> bool {
+    if let Ok(map) = CANCEL_FLAGS.lock() {
+        if let Some(flag) = map.get(version) {
+            return flag.load(Ordering::SeqCst);
+        }
+    }
+    false
 }
 
-fn reset_cancel() {
-    CANCEL_DOWNLOAD.store(false, Ordering::SeqCst);
+fn reset_cancel(version: &str) {
+    if let Ok(mut map) = CANCEL_FLAGS.lock() {
+        map.insert(version.to_string(), AtomicBool::new(false));
+    }
+}
+
+fn remove_cancel_flag(version: &str) {
+    if let Ok(mut map) = CANCEL_FLAGS.lock() {
+        map.remove(version);
+    }
 }
 
 fn classify_channel(version: &str) -> EngineReleaseChannel {
@@ -293,7 +313,7 @@ impl EngineDownloader {
         remote_version: &RemoteEngineVersion,
         engines_dir: PathBuf,
     ) -> Result<PathBuf, String> {
-        reset_cancel();
+        reset_cancel(&remote_version.version);
 
         let version_dir_name = format!("godot_{}", remote_version.version.replace('.', "_"));
         let target_dir = engines_dir.join(&version_dir_name);
@@ -314,11 +334,13 @@ impl EngineDownloader {
 
         if let Err(e) = download_result {
             let _ = std::fs::remove_file(&archive_path);
+            remove_cancel_flag(&remote_version.version);
             return Err(e);
         }
 
-        if is_cancelled() {
+        if is_cancelled(&remote_version.version) {
             let _ = std::fs::remove_file(&archive_path);
+            remove_cancel_flag(&remote_version.version);
             return Err("下载已取消".to_string());
         }
 
@@ -333,10 +355,13 @@ impl EngineDownloader {
 
         if let Err(e) = extract_result {
             let _ = std::fs::remove_dir_all(&target_dir);
+            remove_cancel_flag(&remote_version.version);
             return Err(e);
         }
 
         Self::emit_progress(app, &remote_version.version, "complete", 100.0, "引擎下载安装完成", 0, 0);
+
+        remove_cancel_flag(&remote_version.version);
 
         Ok(target_dir)
     }
@@ -399,7 +424,7 @@ impl EngineDownloader {
             use std::io::Write;
 
             loop {
-                if is_cancelled() {
+                if is_cancelled(version) {
                     return Err("下载已取消".to_string());
                 }
 

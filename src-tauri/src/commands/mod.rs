@@ -329,8 +329,8 @@ pub async fn download_engine(
 }
 
 #[tauri::command]
-pub fn cancel_engine_download() -> Result<(), String> {
-    crate::engine_downloader::request_cancel_download();
+pub fn cancel_engine_download(version: String) -> Result<(), String> {
+    crate::engine_downloader::request_cancel_download(&version);
     Ok(())
 }
 
