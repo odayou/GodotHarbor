@@ -452,6 +452,7 @@ export interface RemoteEngineVersion {
 
 export interface EngineDownloadProgress {
   version: string
+  variant: string
   stage: string
   downloaded_bytes: number
   total_bytes: number

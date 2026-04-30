@@ -520,7 +520,8 @@ export default {
       showNotes: '更新说明',
       hideNotes: '收起说明',
       rateLimitError: 'GitHub API 请求频率受限，请稍后重试或更换镜像源',
-      networkError: '网络连接失败，请检查网络或更换镜像源'
+      networkError: '网络连接失败，请检查网络或更换镜像源',
+      hideInstalled: '隐藏已安装'
     }
   },
   settings: {

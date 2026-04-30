@@ -98,7 +98,7 @@ jobs:
           releaseBody: |
             **Version:** ${{ github.event.inputs.version }}
             **Build Reason:** ${{ github.event.inputs.reason || 'Manual build' }}
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: '--target ${{ matrix.platform.target }} --bundles ${{ matrix.platform.bundle }}'
 

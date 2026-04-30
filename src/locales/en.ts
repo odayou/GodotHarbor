@@ -520,7 +520,8 @@ export default {
       showNotes: 'Release Notes',
       hideNotes: 'Hide Notes',
       rateLimitError: 'GitHub API rate limit exceeded. Please try again later or switch to a different mirror',
-      networkError: 'Network connection failed. Please check your network or switch to a different mirror'
+      networkError: 'Network connection failed. Please check your network or switch to a different mirror',
+      hideInstalled: 'Hide installed'
     }
   },
   settings: {

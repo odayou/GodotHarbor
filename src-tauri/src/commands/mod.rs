@@ -327,7 +327,11 @@ pub async fn download_engine(
         .map_err(|e| format!("获取引擎信息失败: {}", e))?;
 
     let mut registered_engine = engine;
-    registered_engine.name = format!("Godot {}", remote_version.version);
+    registered_engine.name = if remote_version.variant == "mono" {
+        format!("Godot {} (.NET)", remote_version.version)
+    } else {
+        format!("Godot {}", remote_version.version)
+    };
 
     let storage = get_storage(&app);
     let mut engines: Vec<Engine> = storage.load_or_default("engines.json");
@@ -363,9 +367,35 @@ pub async fn download_engine(
 }
 
 #[tauri::command]
-pub fn cancel_engine_download(version: String) -> Result<(), String> {
-    crate::engine_downloader::request_cancel_download(&version);
+pub fn cancel_engine_download(version: String, variant: String) -> Result<(), String> {
+    crate::engine_downloader::request_cancel_download(&version, &variant);
     Ok(())
+}
+
+#[tauri::command]
+pub fn cleanup_download_temp(app: AppHandle) -> Result<u64, String> {
+    let download_dir = get_data_dir(&app).join("downloads");
+    if !download_dir.exists() {
+        return Ok(0);
+    }
+    let mut cleaned = 0u64;
+    if let Ok(entries) = fs::read_dir(&download_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() {
+                if let Ok(metadata) = fs::metadata(&path) {
+                    let modified = metadata.modified().ok();
+                    let age = modified.and_then(|m| m.elapsed().ok());
+                    if age.map_or(false, |d| d.as_secs() > 3600) {
+                        if fs::remove_file(&path).is_ok() {
+                            cleaned += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(cleaned)
 }
 
 #[tauri::command]

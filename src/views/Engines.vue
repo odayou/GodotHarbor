@@ -42,6 +42,7 @@ const mirrorConfigs = ref<EngineMirrorConfig[]>([])
 const downloadChannelFilter = ref<EngineReleaseChannel | 'all'>('all')
 const downloadVariantFilter = ref<'all' | 'standard' | 'mono'>('all')
 const downloadSearchQuery = ref('')
+const hideInstalled = ref(false)
 const activeDownloads = ref<Map<string, EngineDownloadProgress>>(new Map())
 const expandedReleaseVersion = ref<string>('')
 
@@ -56,11 +57,12 @@ onMounted(async () => {
   })
   unlistenDownloadProgress = await listen('engine-download-progress', (event) => {
     const progress = event.payload as EngineDownloadProgress
+    const key = `${progress.version}_${progress.variant}`
     const newMap = new Map(activeDownloads.value)
     if (progress.stage === 'complete') {
-      newMap.delete(progress.version)
+      newMap.delete(key)
     } else {
-      newMap.set(progress.version, progress)
+      newMap.set(key, progress)
     }
     activeDownloads.value = newMap
   })
@@ -100,7 +102,8 @@ const filteredRemoteVersions = computed(() => {
     const matchesSearch = downloadSearchQuery.value === '' ||
       v.version.toLowerCase().includes(downloadSearchQuery.value.toLowerCase()) ||
       v.tag_name.toLowerCase().includes(downloadSearchQuery.value.toLowerCase())
-    return matchesChannel && matchesVariant && matchesSearch
+    const matchesInstalled = !hideInstalled.value || !v.is_installed
+    return matchesChannel && matchesVariant && matchesSearch && matchesInstalled
   })
 })
 
@@ -341,6 +344,10 @@ const openDownloadDialog = async () => {
   expandedReleaseVersion.value = ''
 
   try {
+    await api.cleanupDownloadTemp()
+  } catch { /* ignore */ }
+
+  try {
     const settings = await api.getSettings()
     mirrorConfigs.value = settings.engine_mirrors || []
     if (settings.selected_mirror_id && mirrorConfigs.value.find(m => m.id === settings.selected_mirror_id && m.enabled)) {
@@ -353,7 +360,9 @@ const openDownloadDialog = async () => {
     mirrorConfigs.value = []
   }
 
-  await fetchRemoteVersions()
+  if (remoteVersions.value.length === 0) {
+    await fetchRemoteVersions()
+  }
 }
 
 const fetchRemoteVersions = async (forceRefresh: boolean = false) => {
@@ -391,13 +400,15 @@ const startDownload = async (version: RemoteEngineVersion) => {
     toast.info(t('engines.download.alreadyInstalled'))
     return
   }
-  if (activeDownloads.value.has(version.version)) {
+  const dlKey = `${version.version}_${version.variant}`
+  if (activeDownloads.value.has(dlKey)) {
     toast.info(t('engines.download.alreadyDownloading'))
     return
   }
   const newMap = new Map(activeDownloads.value)
-  newMap.set(version.version, {
+  newMap.set(dlKey, {
     version: version.version,
+    variant: version.variant,
     stage: 'downloading',
     downloaded_bytes: 0,
     total_bytes: 0,
@@ -412,7 +423,12 @@ const startDownload = async (version: RemoteEngineVersion) => {
     } else if (result.success && result.engine) {
       toast.success(t('engines.download.downloadSuccess', { name: result.engine.name }))
       await loadEngines()
-      await fetchRemoteVersions()
+      remoteVersions.value = remoteVersions.value.map(v => {
+        if (v.version === version.version && v.variant === version.variant) {
+          return { ...v, is_installed: true }
+        }
+        return v
+      })
     } else if (result.error) {
       toast.error(t('engines.download.downloadFailed', { error: result.error }))
     }
@@ -420,14 +436,14 @@ const startDownload = async (version: RemoteEngineVersion) => {
     toast.error(t('engines.download.downloadFailed', { error }))
   } finally {
     const cleanupMap = new Map(activeDownloads.value)
-    cleanupMap.delete(version.version)
+    cleanupMap.delete(dlKey)
     activeDownloads.value = cleanupMap
   }
 }
 
-const cancelDownload = async (version: string) => {
+const cancelDownload = async (version: string, variant: string) => {
   try {
-    await api.cancelEngineDownload(version)
+    await api.cancelEngineDownload(version, variant)
   } catch {
     // ignore
   }
@@ -503,13 +519,13 @@ const cancelDownload = async (version: string) => {
         </button>
       </div>
       <div class="space-y-2">
-        <div v-for="[ver, progress] in activeDownloads" :key="ver">
+        <div v-for="[key, progress] in activeDownloads" :key="key">
           <div class="flex items-center justify-between mb-1">
-            <span class="text-xs text-blue-700 dark:text-blue-300">v{{ ver }} - {{ progress.message }}</span>
+            <span class="text-xs text-blue-700 dark:text-blue-300">v{{ progress.version }}{{ progress.variant === 'mono' ? ' (.NET)' : '' }} - {{ progress.message }}</span>
             <div class="flex items-center gap-2">
               <span class="text-xs text-blue-600 dark:text-blue-400">{{ progress.progress.toFixed(1) }}%</span>
               <button
-                @click="cancelDownload(ver)"
+                @click="cancelDownload(progress.version, progress.variant)"
                 class="text-xs text-red-600 dark:text-red-400 hover:underline"
               >
                 {{ t('engines.download.cancel') }}
@@ -673,7 +689,11 @@ const cancelDownload = async (version: string) => {
                 </button>
               </td>
               <td class="px-4 py-4">
-                <span class="text-sm text-gray-500 dark:text-gray-400 truncate max-w-xs block" :title="engine.path">
+                <span
+                  class="text-sm text-primary-600 dark:text-primary-400 hover:underline cursor-pointer truncate max-w-xs block"
+                  :title="engine.path"
+                  @click="openInFileManager(engine.path)"
+                >
                   {{ engine.path }}
                 </span>
               </td>
@@ -861,12 +881,16 @@ const cancelDownload = async (version: string) => {
               <option value="standard">{{ t('engines.download.variantStandard') }}</option>
               <option value="mono">{{ t('engines.download.variantMono') }}</option>
             </select>
+            <label class="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400 cursor-pointer whitespace-nowrap">
+              <input type="checkbox" v-model="hideInstalled" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+              {{ t('engines.download.hideInstalled') }}
+            </label>
           </div>
 
           <div v-if="activeDownloads.size > 0" class="space-y-2">
-            <div v-for="[ver, progress] in activeDownloads" :key="ver" class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
+            <div v-for="[key, progress] in activeDownloads" :key="key" class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
               <div class="flex justify-between items-center mb-1">
-                <span class="text-sm font-medium text-blue-800 dark:text-blue-300">v{{ ver }} - {{ progress.message }}</span>
+                <span class="text-sm font-medium text-blue-800 dark:text-blue-300">v{{ progress.version }}{{ progress.variant === 'mono' ? ' (.NET)' : '' }} - {{ progress.message }}</span>
                 <span class="text-xs text-blue-600 dark:text-blue-400">{{ progress.progress.toFixed(1) }}%</span>
               </div>
               <div class="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
@@ -877,7 +901,7 @@ const cancelDownload = async (version: string) => {
               </div>
               <div class="flex justify-end mt-2">
                 <button
-                  @click="cancelDownload(ver)"
+                  @click="cancelDownload(progress.version, progress.variant)"
                   class="px-3 py-1 text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
                 >
                   {{ t('engines.download.cancel') }}
@@ -946,17 +970,17 @@ const cancelDownload = async (version: string) => {
                 </div>
                 <button
                   @click="startDownload(version)"
-                  :disabled="version.is_installed || activeDownloads.has(version.version)"
+                  :disabled="version.is_installed || activeDownloads.has(`${version.version}_${version.variant}`)"
                   :class="[
                     'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap',
                     version.is_installed
                       ? 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500 cursor-not-allowed'
-                      : activeDownloads.has(version.version)
+                      : activeDownloads.has(`${version.version}_${version.variant}`)
                         ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
                         : 'bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50'
                   ]"
                 >
-                  <template v-if="activeDownloads.has(version.version)">
+                  <template v-if="activeDownloads.has(`${version.version}_${version.variant}`)">
                     {{ t('engines.download.downloading') }}
                   </template>
                   <template v-else-if="version.is_installed">

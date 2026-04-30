@@ -10,32 +10,40 @@ use std::sync::Mutex;
 static CANCEL_FLAGS: once_cell::sync::Lazy<Mutex<HashMap<String, AtomicBool>>> =
     once_cell::sync::Lazy::new(|| Mutex::new(HashMap::new()));
 
-pub fn request_cancel_download(version: &str) {
+fn download_key(version: &str, variant: &str) -> String {
+    format!("{}_{}", version, variant)
+}
+
+pub fn request_cancel_download(version: &str, variant: &str) {
+    let key = download_key(version, variant);
     if let Ok(map) = CANCEL_FLAGS.lock() {
-        if let Some(flag) = map.get(version) {
+        if let Some(flag) = map.get(&key) {
             flag.store(true, Ordering::SeqCst);
         }
     }
 }
 
-fn is_cancelled(version: &str) -> bool {
+fn is_cancelled(version: &str, variant: &str) -> bool {
+    let key = download_key(version, variant);
     if let Ok(map) = CANCEL_FLAGS.lock() {
-        if let Some(flag) = map.get(version) {
+        if let Some(flag) = map.get(&key) {
             return flag.load(Ordering::SeqCst);
         }
     }
     false
 }
 
-fn reset_cancel(version: &str) {
+fn reset_cancel(version: &str, variant: &str) {
+    let key = download_key(version, variant);
     if let Ok(mut map) = CANCEL_FLAGS.lock() {
-        map.insert(version.to_string(), AtomicBool::new(false));
+        map.insert(key, AtomicBool::new(false));
     }
 }
 
-fn remove_cancel_flag(version: &str) {
+fn remove_cancel_flag(version: &str, variant: &str) {
+    let key = download_key(version, variant);
     if let Ok(mut map) = CANCEL_FLAGS.lock() {
-        map.remove(version);
+        map.remove(&key);
     }
 }
 
@@ -78,13 +86,7 @@ fn platform_keywords() -> Vec<&'static str> {
 }
 
 fn platform_extension() -> &'static str {
-    if cfg!(target_os = "windows") {
-        ".zip"
-    } else if cfg!(target_os = "macos") {
-        ".zip"
-    } else {
-        ".zip"
-    }
+    ".zip"
 }
 
 fn is_platform_asset(name: &str) -> bool {
@@ -359,9 +361,15 @@ impl EngineDownloader {
         remote_version: &RemoteEngineVersion,
         engines_dir: PathBuf,
     ) -> Result<PathBuf, String> {
-        reset_cancel(&remote_version.version);
+        let variant = &remote_version.variant;
+        let version = &remote_version.version;
+        reset_cancel(version, variant);
 
-        let version_dir_name = format!("godot_{}", remote_version.version.replace('.', "_"));
+        let version_dir_name = if variant == "mono" {
+            format!("godot_{}_dotnet", version.replace('.', "_"))
+        } else {
+            format!("godot_{}", version.replace('.', "_"))
+        };
         let target_dir = engines_dir.join(&version_dir_name);
 
         if target_dir.exists() {
@@ -376,38 +384,38 @@ impl EngineDownloader {
 
         let archive_path = download_dir.join(&remote_version.file_name);
 
-        let download_result = Self::download_file(app, &remote_version.download_url, &archive_path, &remote_version.version, remote_version.file_size).await;
+        let download_result = Self::download_file(app, &remote_version.download_url, &archive_path, version, variant, remote_version.file_size).await;
 
         if let Err(e) = download_result {
             let _ = std::fs::remove_file(&archive_path);
-            remove_cancel_flag(&remote_version.version);
+            remove_cancel_flag(version, variant);
             return Err(e);
         }
 
-        if is_cancelled(&remote_version.version) {
+        if is_cancelled(version, variant) {
             let _ = std::fs::remove_file(&archive_path);
-            remove_cancel_flag(&remote_version.version);
+            remove_cancel_flag(version, variant);
             return Err("下载已取消".to_string());
         }
 
-        Self::emit_progress(app, &remote_version.version, "extracting", 0.0, "正在解压引擎文件...", 0, 0);
+        Self::emit_progress(app, version, variant, "extracting", 0.0, "正在解压引擎文件...", 0, 0);
 
         std::fs::create_dir_all(&target_dir)
             .map_err(|e| format!("创建引擎目录失败: {}", e))?;
 
-        let extract_result = Self::extract_archive(app, &remote_version.version, &archive_path, &target_dir);
+        let extract_result = Self::extract_archive(app, version, variant, &archive_path, &target_dir);
 
         let _ = std::fs::remove_file(&archive_path);
 
         if let Err(e) = extract_result {
             let _ = std::fs::remove_dir_all(&target_dir);
-            remove_cancel_flag(&remote_version.version);
+            remove_cancel_flag(version, variant);
             return Err(e);
         }
 
-        Self::emit_progress(app, &remote_version.version, "complete", 100.0, "引擎下载安装完成", 0, 0);
+        Self::emit_progress(app, version, variant, "complete", 100.0, "引擎下载安装完成", 0, 0);
 
-        remove_cancel_flag(&remote_version.version);
+        remove_cancel_flag(version, variant);
 
         Ok(target_dir)
     }
@@ -417,9 +425,10 @@ impl EngineDownloader {
         url: &str,
         path: &Path,
         version: &str,
+        variant: &str,
         total_size: u64,
     ) -> Result<(), String> {
-        Self::emit_progress(app, version, "downloading", 0.0, "正在下载引擎...", 0, total_size);
+        Self::emit_progress(app, version, variant, "downloading", 0.0, "正在下载引擎...", 0, total_size);
 
         let client = reqwest::Client::builder()
             .user_agent("GodotHarbor")
@@ -437,7 +446,7 @@ impl EngineDownloader {
                 Err(e) => {
                     if attempt < max_retries && (e.is_connect() || e.is_timeout() || e.is_request()) {
                         let msg = format!("下载请求失败，第 {} 次重试...", attempt);
-                        Self::emit_progress(app, version, "downloading", 0.0, &msg, 0, total_size);
+                        Self::emit_progress(app, version, variant, "downloading", 0.0, &msg, 0, total_size);
                         tokio::time::sleep(std::time::Duration::from_secs(2u64.pow(attempt as u32 - 1))).await;
                         continue;
                     }
@@ -449,7 +458,7 @@ impl EngineDownloader {
                 let status = response.status().as_u16();
                 if status >= 500 && attempt < max_retries {
                     let msg = format!("服务器错误 ({}), 第 {} 次重试...", status, attempt);
-                    Self::emit_progress(app, version, "downloading", 0.0, &msg, 0, total_size);
+                    Self::emit_progress(app, version, variant, "downloading", 0.0, &msg, 0, total_size);
                     tokio::time::sleep(std::time::Duration::from_secs(2u64.pow(attempt as u32 - 1))).await;
                     continue;
                 }
@@ -470,7 +479,7 @@ impl EngineDownloader {
             use std::io::Write;
 
             loop {
-                if is_cancelled(version) {
+                if is_cancelled(version, variant) {
                     return Err("下载已取消".to_string());
                 }
 
@@ -497,7 +506,7 @@ impl EngineDownloader {
                             format!("正在下载: {:.1}MB", size_mb)
                         };
 
-                        Self::emit_progress(app, version, "downloading", progress, &msg, downloaded, total);
+                        Self::emit_progress(app, version, variant, "downloading", progress, &msg, downloaded, total);
                     }
                     None => break,
                 }
@@ -510,7 +519,7 @@ impl EngineDownloader {
         }
     }
 
-    fn extract_archive(app: &AppHandle, version: &str, archive_path: &Path, target_dir: &Path) -> Result<(), String> {
+    fn extract_archive(app: &AppHandle, version: &str, variant: &str, archive_path: &Path, target_dir: &Path) -> Result<(), String> {
         let file = std::fs::File::open(archive_path)
             .map_err(|e| format!("打开压缩包失败: {}", e))?;
 
@@ -571,16 +580,17 @@ impl EngineDownloader {
             if extracted % 5 == 0 || extracted == total_entries {
                 let progress = (extracted as f64 / total_entries as f64) * 100.0;
                 let msg = format!("正在解压: {}/{}", extracted, total_entries);
-                Self::emit_progress(app, version, "extracting", progress, &msg, 0, 0);
+                Self::emit_progress(app, version, variant, "extracting", progress, &msg, 0, 0);
             }
         }
 
         Ok(())
     }
 
-    fn emit_progress(app: &AppHandle, version: &str, stage: &str, progress: f64, message: &str, downloaded_bytes: u64, total_bytes: u64) {
+    fn emit_progress(app: &AppHandle, version: &str, variant: &str, stage: &str, progress: f64, message: &str, downloaded_bytes: u64, total_bytes: u64) {
         let progress_info = EngineDownloadProgress {
             version: version.to_string(),
+            variant: variant.to_string(),
             stage: stage.to_string(),
             downloaded_bytes,
             total_bytes,

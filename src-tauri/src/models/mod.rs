@@ -608,6 +608,7 @@ fn default_variant() -> String {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EngineDownloadProgress {
     pub version: String,
+    pub variant: String,
     pub stage: String,
     pub downloaded_bytes: u64,
     pub total_bytes: u64,
