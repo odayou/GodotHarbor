@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
-import type { Engine } from '@/types'
+import type { Engine, RemoteEngineVersion, EngineMirrorConfig, EngineDownloadProgress, EngineReleaseChannel } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
@@ -21,6 +21,7 @@ const showDeleteConfirm = ref(false)
 const deleteTargetId = ref('')
 const deleteBoundProjects = ref<string[]>([])
 let unlistenDiscover: UnlistenFn | null = null
+let unlistenDownloadProgress: UnlistenFn | null = null
 
 const searchQuery = ref('')
 const filterType = ref<string>('all')
@@ -32,19 +33,37 @@ const showRenameDialog = ref(false)
 const renameEngineId = ref('')
 const renameInput = ref('')
 
+const showDownloadDialog = ref(false)
+const isFetchingVersions = ref(false)
+const remoteVersions = ref<RemoteEngineVersion[]>([])
+const selectedMirrorId = ref('official')
+const mirrorConfigs = ref<EngineMirrorConfig[]>([])
+const downloadChannelFilter = ref<EngineReleaseChannel | 'all'>('all')
+const downloadSearchQuery = ref('')
+const isDownloading = ref(false)
+const downloadProgress = ref<EngineDownloadProgress | null>(null)
+const downloadingVersion = ref<string>('')
+
 useDialogEscape(showAddDialog)
 useDialogEscape(showRenameDialog)
+useDialogEscape(showDownloadDialog)
 
 onMounted(async () => {
   await loadEngines()
   unlistenDiscover = await listen('engines-discovered', () => {
     loadEngines()
   })
+  unlistenDownloadProgress = await listen('engine-download-progress', (event) => {
+    downloadProgress.value = event.payload as EngineDownloadProgress
+  })
 })
 
 onUnmounted(() => {
   if (unlistenDiscover) {
     unlistenDiscover()
+  }
+  if (unlistenDownloadProgress) {
+    unlistenDownloadProgress()
   }
 })
 
@@ -65,6 +84,53 @@ const filteredEngines = computed(() => {
     return matchesSearch && matchesType
   })
 })
+
+const filteredRemoteVersions = computed(() => {
+  return remoteVersions.value.filter(v => {
+    const matchesChannel = downloadChannelFilter.value === 'all' || v.channel === downloadChannelFilter.value
+    const matchesSearch = downloadSearchQuery.value === '' ||
+      v.version.toLowerCase().includes(downloadSearchQuery.value.toLowerCase()) ||
+      v.tag_name.toLowerCase().includes(downloadSearchQuery.value.toLowerCase())
+    return matchesChannel && matchesSearch
+  })
+})
+
+const channelBadgeClass = (channel: EngineReleaseChannel) => {
+  switch (channel) {
+    case 'Stable': return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+    case 'Rc': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+    case 'Beta': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+    case 'Alpha': return 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400'
+    case 'Dev': return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+    default: return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+  }
+}
+
+const channelLabel = (channel: EngineReleaseChannel) => {
+  switch (channel) {
+    case 'Stable': return t('engines.download.channelStable')
+    case 'Rc': return t('engines.download.channelRc')
+    case 'Beta': return t('engines.download.channelBeta')
+    case 'Alpha': return t('engines.download.channelAlpha')
+    case 'Dev': return t('engines.download.channelDev')
+    default: return channel
+  }
+}
+
+const formatFileSize = (bytes: number) => {
+  if (bytes === 0) return '—'
+  const mb = bytes / 1024 / 1024
+  if (mb < 1024) return `${mb.toFixed(1)} MB`
+  return `${(mb / 1024).toFixed(2)} GB`
+}
+
+const formatDate = (dateStr: string) => {
+  try {
+    return new Date(dateStr).toLocaleDateString()
+  } catch {
+    return dateStr
+  }
+}
 
 const loadEngines = async () => {
   isLoading.value = true
@@ -233,6 +299,77 @@ const checkEngineUpdates = async () => {
 const toggleBoundProjects = (engineId: string) => {
   expandedEngineId.value = expandedEngineId.value === engineId ? null : engineId
 }
+
+const openDownloadDialog = async () => {
+  showDownloadDialog.value = true
+  downloadChannelFilter.value = 'all'
+  downloadSearchQuery.value = ''
+  remoteVersions.value = []
+  downloadProgress.value = null
+  isDownloading.value = false
+  downloadingVersion.value = ''
+
+  try {
+    const settings = await api.getSettings()
+    mirrorConfigs.value = settings.engine_mirrors || []
+    if (mirrorConfigs.value.length > 0 && !mirrorConfigs.value.find(m => m.id === selectedMirrorId.value)) {
+      selectedMirrorId.value = mirrorConfigs.value[0].id
+    }
+  } catch {
+    mirrorConfigs.value = []
+  }
+
+  await fetchRemoteVersions()
+}
+
+const fetchRemoteVersions = async () => {
+  if (!selectedMirrorId.value) return
+  isFetchingVersions.value = true
+  remoteVersions.value = []
+  try {
+    const versions = await api.fetchRemoteEngineVersions(selectedMirrorId.value)
+    remoteVersions.value = versions
+  } catch (error) {
+    toast.error(t('engines.download.fetchVersionsFailed', { error }))
+  } finally {
+    isFetchingVersions.value = false
+  }
+}
+
+const startDownload = async (version: RemoteEngineVersion) => {
+  if (version.is_installed) {
+    toast.info(t('engines.download.alreadyInstalled'))
+    return
+  }
+  isDownloading.value = true
+  downloadingVersion.value = version.version
+  downloadProgress.value = null
+  try {
+    const result = await api.downloadEngine(version)
+    toast.success(t('engines.download.downloadSuccess', { name: result.name }))
+    await loadEngines()
+    await fetchRemoteVersions()
+  } catch (error) {
+    const errMsg = String(error)
+    if (errMsg.includes('取消')) {
+      toast.info(t('engines.download.downloadCancelled'))
+    } else {
+      toast.error(t('engines.download.downloadFailed', { error }))
+    }
+  } finally {
+    isDownloading.value = false
+    downloadingVersion.value = ''
+    downloadProgress.value = null
+  }
+}
+
+const cancelDownload = async () => {
+  try {
+    await api.cancelEngineDownload()
+  } catch {
+    // ignore
+  }
+}
 </script>
 
 <template>
@@ -247,6 +384,15 @@ const toggleBoundProjects = (engineId: string) => {
           class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 text-sm"
         >
           {{ t('engines.discover') }}
+        </button>
+        <button
+          @click="openDownloadDialog"
+          class="px-4 py-2 border border-primary-600 text-primary-600 dark:text-primary-400 bg-white dark:bg-gray-800 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors text-sm inline-flex items-center gap-1.5"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          {{ t('engines.download.title') }}
         </button>
         <button
           @click="showAddDialog = true"
@@ -328,6 +474,15 @@ const toggleBoundProjects = (engineId: string) => {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           {{ t('engines.discover') }}
+        </button>
+        <button
+          @click="openDownloadDialog"
+          class="inline-flex items-center gap-1.5 px-4 py-2 border border-primary-600 text-primary-600 dark:text-primary-400 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors text-sm"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          {{ t('engines.download.title') }}
         </button>
         <button
           @click="showAddDialog = true"
@@ -544,6 +699,153 @@ const toggleBoundProjects = (engineId: string) => {
           >
             {{ isRegistering ? t('engines.registering') : t('engines.register') }}
           </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div v-if="showDownloadDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showDownloadDialog = false">
+      <div class="bg-white dark:bg-gray-800 rounded-lg w-full max-w-3xl shadow-xl max-h-[85vh] flex flex-col" @click.stop>
+        <div class="flex justify-between items-center p-6 pb-4">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ t('engines.download.title') }}</h3>
+          <button @click="showDownloadDialog = false" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        <div class="px-6 pb-4 space-y-3">
+          <div class="flex gap-3 items-end">
+            <div class="flex-1">
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ t('engines.download.mirror') }}</label>
+              <select
+                v-model="selectedMirrorId"
+                @change="fetchRemoteVersions"
+                :disabled="isFetchingVersions"
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+              >
+                <option v-for="mirror in mirrorConfigs" :key="mirror.id" :value="mirror.id" :disabled="!mirror.enabled">
+                  {{ mirror.name }}{{ !mirror.enabled ? ` (${t('engines.download.disabled')})` : '' }}
+                </option>
+              </select>
+            </div>
+            <button
+              @click="fetchRemoteVersions"
+              :disabled="isFetchingVersions"
+              class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 text-sm whitespace-nowrap disabled:opacity-50"
+            >
+              {{ isFetchingVersions ? t('engines.download.fetching') : t('engines.download.refresh') }}
+            </button>
+          </div>
+
+          <div class="flex gap-3">
+            <div class="flex-1">
+              <input
+                v-model="downloadSearchQuery"
+                type="text"
+                :placeholder="t('engines.download.searchPlaceholder')"
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+              />
+            </div>
+            <select
+              v-model="downloadChannelFilter"
+              class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+            >
+              <option value="all">{{ t('engines.download.allChannels') }}</option>
+              <option value="Stable">{{ t('engines.download.channelStable') }}</option>
+              <option value="Rc">{{ t('engines.download.channelRc') }}</option>
+              <option value="Beta">{{ t('engines.download.channelBeta') }}</option>
+              <option value="Alpha">{{ t('engines.download.channelAlpha') }}</option>
+              <option value="Dev">{{ t('engines.download.channelDev') }}</option>
+            </select>
+          </div>
+
+          <div v-if="isDownloading && downloadProgress" class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
+            <div class="flex justify-between items-center mb-1">
+              <span class="text-sm font-medium text-blue-800 dark:text-blue-300">{{ downloadProgress.message }}</span>
+              <span class="text-xs text-blue-600 dark:text-blue-400">{{ downloadProgress.progress.toFixed(1) }}%</span>
+            </div>
+            <div class="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
+              <div class="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-300" :style="{ width: `${downloadProgress.progress}%` }"></div>
+            </div>
+            <div class="flex justify-end mt-2">
+              <button
+                @click="cancelDownload"
+                class="px-3 py-1 text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
+              >
+                {{ t('engines.download.cancel') }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto px-6 pb-6">
+          <div v-if="isFetchingVersions" class="flex justify-center py-12">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+          </div>
+
+          <div v-else-if="remoteVersions.length === 0" class="text-center py-8">
+            <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('engines.download.noVersions') }}</p>
+          </div>
+
+          <div v-else-if="filteredRemoteVersions.length === 0" class="text-center py-8">
+            <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('engines.download.noMatchingVersions') }}</p>
+          </div>
+
+          <div v-else class="space-y-2">
+            <div
+              v-for="version in filteredRemoteVersions"
+              :key="version.tag_name"
+              :class="[
+                'flex items-center gap-3 p-3 rounded-lg border transition-colors',
+                version.is_installed
+                  ? 'bg-gray-50 dark:bg-gray-700/30 border-gray-200 dark:border-gray-600'
+                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-primary-300 dark:hover:border-primary-600'
+              ]"
+            >
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="font-medium text-sm text-gray-900 dark:text-gray-100">v{{ version.version }}</span>
+                  <span :class="['px-1.5 py-0.5 rounded text-xs font-medium', channelBadgeClass(version.channel)]">
+                    {{ channelLabel(version.channel) }}
+                  </span>
+                  <span
+                    v-if="version.is_installed"
+                    class="px-1.5 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-400"
+                  >
+                    {{ t('engines.download.installed') }}
+                  </span>
+                </div>
+                <div class="flex items-center gap-3 mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  <span>{{ formatFileSize(version.file_size) }}</span>
+                  <span>{{ formatDate(version.published_at) }}</span>
+                  <span class="truncate" :title="version.file_name">{{ version.file_name }}</span>
+                </div>
+              </div>
+              <button
+                @click="startDownload(version)"
+                :disabled="version.is_installed || isDownloading"
+                :class="[
+                  'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap',
+                  version.is_installed
+                    ? 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500 cursor-not-allowed'
+                    : isDownloading && downloadingVersion === version.version
+                      ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
+                      : 'bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50'
+                ]"
+              >
+                <template v-if="isDownloading && downloadingVersion === version.version">
+                  {{ t('engines.download.downloading') }}
+                </template>
+                <template v-else-if="version.is_installed">
+                  {{ t('engines.download.installed') }}
+                </template>
+                <template v-else>
+                  {{ t('engines.download.downloadAction') }}
+                </template>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

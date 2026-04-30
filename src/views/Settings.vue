@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
-import type { Settings, LogEntry, TeamSharedConfig, Project } from '@/types'
+import type { Settings, LogEntry, TeamSharedConfig, Project, EngineMirrorConfig, StoragePaths } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useToast } from '@/composables/useToast'
 import { useTheme } from '@/composables/useTheme'
@@ -37,7 +37,7 @@ const selectedProjectIds = ref<string[]>([])
 const isExporting = ref(false)
 const isImporting = ref(false)
 
-onMounted(() => { initTheme(); loadSettings(); loadTeamConfigs(); loadProjects() })
+onMounted(() => { initTheme(); loadSettings(); loadTeamConfigs(); loadProjects(); loadStoragePaths() })
 
 const loadSettings = async () => {
   isLoading.value = true
@@ -75,6 +75,7 @@ const saveSettings = async () => {
   isLoading.value = true
   try {
     await api.saveSettings(settings.value)
+    await loadStoragePaths()
     toast.success(t('settings.messages.saveSuccess'))
   }
   catch (error) { toast.error(t('settings.messages.saveFailed', { error })) }
@@ -148,9 +149,26 @@ const selectPluginStoragePath = async () => {
   } catch (error) { toast.error(t('settings.messages.selectDirFailed', { error })) }
 }
 
+const loadStoragePaths = async () => {
+  try {
+    storagePaths.value = await api.getStoragePaths()
+  } catch (error) {
+    console.error('Failed to load storage paths:', error)
+  }
+}
+
+const openPath = async (path: string) => {
+  try {
+    await api.openInFileManager(path)
+  } catch (error) {
+    toast.error(t('settings.messages.selectDirFailed', { error }))
+  }
+}
+
 const oldPluginStoragePath = ref('')
 const showMigrateDialog = ref(false)
 const isMigrating = ref(false)
+const storagePaths = ref<StoragePaths | null>(null)
 
 useDialogEscape(showMigrateDialog)
 
@@ -344,6 +362,79 @@ const resetOnboarding = async () => {
     toast.error(t('settings.messages.resetGuideFailed', { error }))
   }
 }
+
+const showMirrorDialog = ref(false)
+const editingMirror = ref<EngineMirrorConfig | null>(null)
+const mirrorFormName = ref('')
+const mirrorFormUrl = ref('')
+const mirrorFormEnabled = ref(true)
+
+useDialogEscape(showMirrorDialog)
+
+const openAddMirror = () => {
+  editingMirror.value = null
+  mirrorFormName.value = ''
+  mirrorFormUrl.value = ''
+  mirrorFormEnabled.value = true
+  showMirrorDialog.value = true
+}
+
+const openEditMirror = (mirror: EngineMirrorConfig) => {
+  if (mirror.is_official) return
+  editingMirror.value = mirror
+  mirrorFormName.value = mirror.name
+  mirrorFormUrl.value = mirror.base_url
+  mirrorFormEnabled.value = mirror.enabled
+  showMirrorDialog.value = true
+}
+
+const saveMirror = () => {
+  if (!mirrorFormName.value.trim() || !mirrorFormUrl.value.trim()) {
+    toast.warning(t('settings.engineMirror.nameUrlRequired'))
+    return
+  }
+
+  if (!settings.value.engine_mirrors) {
+    settings.value.engine_mirrors = []
+  }
+
+  if (editingMirror.value) {
+    const mirror = settings.value.engine_mirrors.find(m => m.id === editingMirror.value!.id)
+    if (mirror) {
+      mirror.name = mirrorFormName.value.trim()
+      mirror.base_url = mirrorFormUrl.value.trim()
+      mirror.enabled = mirrorFormEnabled.value
+    }
+  } else {
+    const newMirror: EngineMirrorConfig = {
+      id: `mirror_${Date.now()}`,
+      name: mirrorFormName.value.trim(),
+      base_url: mirrorFormUrl.value.trim(),
+      enabled: mirrorFormEnabled.value,
+      is_official: false,
+    }
+    settings.value.engine_mirrors.push(newMirror)
+  }
+
+  showMirrorDialog.value = false
+  toast.info(t('settings.engineMirror.saveHint'))
+}
+
+const removeMirror = (mirrorId: string) => {
+  if (!settings.value.engine_mirrors) return
+  const mirror = settings.value.engine_mirrors.find(m => m.id === mirrorId)
+  if (mirror?.is_official) return
+  settings.value.engine_mirrors = settings.value.engine_mirrors.filter(m => m.id !== mirrorId)
+  toast.info(t('settings.engineMirror.saveHint'))
+}
+
+const toggleMirrorEnabled = (mirrorId: string) => {
+  if (!settings.value.engine_mirrors) return
+  const mirror = settings.value.engine_mirrors.find(m => m.id === mirrorId)
+  if (mirror) {
+    mirror.enabled = !mirror.enabled
+  }
+}
 </script>
 
 <template>
@@ -431,6 +522,55 @@ const resetOnboarding = async () => {
         </div>
       </div>
       <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.engineMirror.title') }}</h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ t('settings.engineMirror.desc') }}</p>
+        <div class="space-y-3">
+          <div v-for="mirror in (settings.engine_mirrors || [])" :key="mirror.id"
+            class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-600"
+            :class="{ 'opacity-60': !mirror.enabled }"
+          >
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ mirror.name }}</span>
+                <span v-if="mirror.is_official" class="px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">{{ t('settings.engineMirror.official') }}</span>
+                <span v-else class="px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">{{ t('settings.engineMirror.custom') }}</span>
+              </div>
+              <span class="text-xs text-gray-500 dark:text-gray-400 truncate block mt-0.5">{{ mirror.base_url }}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <button
+                @click="toggleMirrorEnabled(mirror.id)"
+                :class="['px-2 py-1 rounded text-xs font-medium transition-colors', mirror.enabled ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400']"
+              >
+                {{ mirror.enabled ? t('settings.engineMirror.enabled') : t('settings.engineMirror.disabled') }}
+              </button>
+              <button
+                v-if="!mirror.is_official"
+                @click="openEditMirror(mirror)"
+                class="text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                :title="t('settings.engineMirror.edit')"
+              >
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+              </button>
+              <button
+                v-if="!mirror.is_official"
+                @click="removeMirror(mirror.id)"
+                class="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                :title="t('settings.engineMirror.remove')"
+              >
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+              </button>
+            </div>
+          </div>
+          <button
+            @click="openAddMirror"
+            class="px-4 py-2 border border-dashed border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm w-full"
+          >
+            + {{ t('settings.engineMirror.addMirror') }}
+          </button>
+        </div>
+      </div>
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.appearance') }}</h2>
         <div class="space-y-4">
           <div>
@@ -448,6 +588,77 @@ const resetOnboarding = async () => {
               <option value="system">{{ t('settings.themeSystem') }}</option>
               <option value="volcano">{{ t('settings.cloudProvider.volcano') }}</option>
             </select>
+          </div>
+        </div>
+      </div>
+      <div v-if="storagePaths" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ t('settings.storage.title') }}</h2>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">{{ t('settings.storage.description') }}</p>
+        <div class="space-y-3">
+          <div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('settings.storage.appDataDir') }}</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('settings.storage.appDataDirDesc') }}</div>
+              <div class="text-xs font-mono text-gray-600 dark:text-gray-300 mt-1 break-all">{{ storagePaths.app_data_dir }}</div>
+            </div>
+            <button @click="openPath(storagePaths.app_data_dir)" class="shrink-0 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.storage.openInFileManager') }}</button>
+          </div>
+          <div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('settings.storage.pluginsDir') }}</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('settings.storage.pluginsDirDesc') }} · {{ t('settings.storage.customizable') }}</div>
+              <div class="text-xs font-mono text-gray-600 dark:text-gray-300 mt-1 break-all">{{ storagePaths.plugins_dir }}</div>
+            </div>
+            <button @click="openPath(storagePaths.plugins_dir)" class="shrink-0 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.storage.openInFileManager') }}</button>
+          </div>
+          <div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('settings.storage.enginesDir') }}</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('settings.storage.enginesDirDesc') }}</div>
+              <div class="text-xs font-mono text-gray-600 dark:text-gray-300 mt-1 break-all">{{ storagePaths.engines_dir }}</div>
+            </div>
+            <button @click="openPath(storagePaths.engines_dir)" class="shrink-0 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.storage.openInFileManager') }}</button>
+          </div>
+          <div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('settings.storage.cacheDir') }}</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('settings.storage.cacheDirDesc') }}</div>
+              <div class="text-xs font-mono text-gray-600 dark:text-gray-300 mt-1 break-all">{{ storagePaths.cache_dir }}</div>
+            </div>
+            <button @click="openPath(storagePaths.cache_dir)" class="shrink-0 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.storage.openInFileManager') }}</button>
+          </div>
+          <div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('settings.storage.logsDir') }}</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('settings.storage.logsDirDesc') }}</div>
+              <div class="text-xs font-mono text-gray-600 dark:text-gray-300 mt-1 break-all">{{ storagePaths.logs_dir }}</div>
+            </div>
+            <button @click="openPath(storagePaths.logs_dir)" class="shrink-0 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.storage.openInFileManager') }}</button>
+          </div>
+          <div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('settings.storage.hotUpdatesDir') }}</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('settings.storage.hotUpdatesDirDesc') }}</div>
+              <div class="text-xs font-mono text-gray-600 dark:text-gray-300 mt-1 break-all">{{ storagePaths.hot_updates_dir }}</div>
+            </div>
+            <button @click="openPath(storagePaths.hot_updates_dir)" class="shrink-0 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.storage.openInFileManager') }}</button>
+          </div>
+          <div class="pt-2 border-t border-gray-200 dark:border-gray-700">
+            <div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">{{ t('settings.storage.settingsFile') }}</div>
+            <div class="flex items-center gap-3 p-2 bg-gray-50 dark:bg-gray-700/50 rounded">
+              <div class="flex-1 min-w-0 text-xs font-mono text-gray-600 dark:text-gray-300 break-all">{{ storagePaths.settings_file }}</div>
+              <button @click="openPath(storagePaths.settings_file)" class="shrink-0 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.storage.openInFileManager') }}</button>
+            </div>
+            <div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 mt-2">{{ t('settings.storage.projectsFile') }}</div>
+            <div class="flex items-center gap-3 p-2 bg-gray-50 dark:bg-gray-700/50 rounded">
+              <div class="flex-1 min-w-0 text-xs font-mono text-gray-600 dark:text-gray-300 break-all">{{ storagePaths.projects_file }}</div>
+              <button @click="openPath(storagePaths.projects_file)" class="shrink-0 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.storage.openInFileManager') }}</button>
+            </div>
+            <div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 mt-2">{{ t('settings.storage.enginesFile') }}</div>
+            <div class="flex items-center gap-3 p-2 bg-gray-50 dark:bg-gray-700/50 rounded">
+              <div class="flex-1 min-w-0 text-xs font-mono text-gray-600 dark:text-gray-300 break-all">{{ storagePaths.engines_file }}</div>
+              <button @click="openPath(storagePaths.engines_file)" class="shrink-0 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.storage.openInFileManager') }}</button>
+            </div>
           </div>
         </div>
       </div>
@@ -796,6 +1007,54 @@ const resetOnboarding = async () => {
         <button @click="showResetConfirm = false" class="w-full mt-4 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
           {{ t('common.cancel') }}
         </button>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div v-if="showMirrorDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showMirrorDialog = false">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ editingMirror ? t('settings.engineMirror.editMirror') : t('settings.engineMirror.addMirror') }}</h3>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.engineMirror.mirrorName') }}</label>
+            <input
+              v-model="mirrorFormName"
+              type="text"
+              :placeholder="t('settings.engineMirror.mirrorNamePlaceholder')"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.engineMirror.mirrorUrl') }}</label>
+            <input
+              v-model="mirrorFormUrl"
+              type="text"
+              :placeholder="t('settings.engineMirror.mirrorUrlPlaceholder')"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+            />
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ t('settings.engineMirror.urlHint') }}</p>
+          </div>
+          <label class="flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" v-model="mirrorFormEnabled" class="w-4 h-4 text-primary-600 rounded" />
+            <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.engineMirror.enableMirror') }}</span>
+          </label>
+        </div>
+        <div class="flex justify-end space-x-3 mt-6">
+          <button
+            @click="showMirrorDialog = false"
+            class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+          >
+            {{ t('common.cancel') }}
+          </button>
+          <button
+            @click="saveMirror"
+            :disabled="!mirrorFormName.trim() || !mirrorFormUrl.trim()"
+            class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+          >
+            {{ t('common.confirm') }}
+          </button>
+        </div>
       </div>
     </div>
   </Teleport>

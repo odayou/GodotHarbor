@@ -231,6 +231,29 @@ pub enum MountStrategy {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EngineMirrorConfig {
+    pub id: String,
+    pub name: String,
+    pub base_url: String,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default)]
+    pub is_official: bool,
+}
+
+impl EngineMirrorConfig {
+    pub fn official() -> Self {
+        Self {
+            id: "official".to_string(),
+            name: "GitHub Official".to_string(),
+            base_url: "https://api.github.com".to_string(),
+            enabled: true,
+            is_official: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
     pub scan_directories: Vec<String>,
     pub mount_strategy: MountStrategy,
@@ -256,10 +279,15 @@ pub struct Settings {
     pub update_check_interval_hours: u32,
     #[serde(default)]
     pub skipped_app_version: String,
+    #[serde(default = "default_engine_mirrors")]
+    pub engine_mirrors: Vec<EngineMirrorConfig>,
 }
 
 fn default_true() -> bool { true }
 fn default_four() -> u32 { 4 }
+fn default_engine_mirrors() -> Vec<EngineMirrorConfig> {
+    vec![EngineMirrorConfig::official()]
+}
 
 impl Default for Settings {
     fn default() -> Self {
@@ -278,6 +306,7 @@ impl Default for Settings {
             auto_check_engine_updates: true,
             update_check_interval_hours: 4,
             skipped_app_version: String::new(),
+            engine_mirrors: default_engine_mirrors(),
         }
     }
 }
@@ -505,4 +534,66 @@ pub struct UpdateHistoryEntry {
     pub status: String,
     pub applied_at: String,
     pub notes: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum EngineReleaseChannel {
+    Stable,
+    Rc,
+    Beta,
+    Alpha,
+    Dev,
+}
+
+impl std::fmt::Display for EngineReleaseChannel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EngineReleaseChannel::Stable => write!(f, "stable"),
+            EngineReleaseChannel::Rc => write!(f, "rc"),
+            EngineReleaseChannel::Beta => write!(f, "beta"),
+            EngineReleaseChannel::Alpha => write!(f, "alpha"),
+            EngineReleaseChannel::Dev => write!(f, "dev"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RemoteEngineVersion {
+    pub version: String,
+    pub tag_name: String,
+    pub channel: EngineReleaseChannel,
+    pub major: u32,
+    pub minor: u32,
+    pub patch: u32,
+    pub is_stable: bool,
+    pub published_at: String,
+    pub release_url: String,
+    pub release_notes: String,
+    pub download_url: String,
+    pub file_name: String,
+    pub file_size: u64,
+    pub is_installed: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EngineDownloadProgress {
+    pub version: String,
+    pub stage: String,
+    pub downloaded_bytes: u64,
+    pub total_bytes: u64,
+    pub progress: f64,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StoragePaths {
+    pub app_data_dir: String,
+    pub plugins_dir: String,
+    pub engines_dir: String,
+    pub cache_dir: String,
+    pub logs_dir: String,
+    pub hot_updates_dir: String,
+    pub settings_file: String,
+    pub projects_file: String,
+    pub engines_file: String,
 }

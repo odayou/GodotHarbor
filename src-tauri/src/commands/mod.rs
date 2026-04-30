@@ -92,6 +92,111 @@ pub fn save_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn get_storage_paths(app: AppHandle) -> Result<StoragePaths, String> {
+    let data_dir = get_data_dir(&app);
+    let storage = get_storage(&app);
+    let settings: Settings = storage.load_or_default("settings.json");
+    let plugins_dir = if settings.plugin_storage_path.is_empty() {
+        data_dir.join("plugins")
+    } else {
+        PathBuf::from(&settings.plugin_storage_path)
+    };
+    Ok(StoragePaths {
+        app_data_dir: data_dir.to_string_lossy().to_string(),
+        plugins_dir: plugins_dir.to_string_lossy().to_string(),
+        engines_dir: data_dir.join("engines").to_string_lossy().to_string(),
+        cache_dir: data_dir.join("cache").to_string_lossy().to_string(),
+        logs_dir: data_dir.join("logs").to_string_lossy().to_string(),
+        hot_updates_dir: data_dir.join("hot_updates").to_string_lossy().to_string(),
+        settings_file: data_dir.join("settings.json").to_string_lossy().to_string(),
+        projects_file: data_dir.join("projects.json").to_string_lossy().to_string(),
+        engines_file: data_dir.join("engines.json").to_string_lossy().to_string(),
+    })
+}
+#[tauri::command]
+pub async fn fetch_remote_engine_versions(
+    app: AppHandle,
+    mirror_id: String,
+) -> Result<Vec<crate::models::RemoteEngineVersion>, String> {
+    let storage = get_storage(&app);
+    let settings: Settings = storage.load_or_default("settings.json");
+
+    let mirror = settings.engine_mirrors.iter()
+        .find(|m| m.id == mirror_id)
+        .ok_or("未找到指定的镜像配置".to_string())?;
+
+    if !mirror.enabled {
+        return Err("该镜像已被禁用".to_string());
+    }
+
+    let engines: Vec<Engine> = storage.load_or_default("engines.json");
+    let local_versions: Vec<String> = engines.iter().map(|e| e.version.clone()).collect();
+
+    let versions = crate::engine_downloader::EngineDownloader::fetch_remote_versions(mirror, &local_versions).await?;
+
+    log_operation(&app, "fetch_remote_engine_versions", &mirror_id,
+        &format!("获取远程引擎版本列表，共 {} 个版本", versions.len()));
+
+    Ok(versions)
+}
+
+#[tauri::command]
+pub async fn download_engine(
+    app: AppHandle,
+    remote_version: crate::models::RemoteEngineVersion,
+) -> Result<Engine, String> {
+    let data_dir = get_data_dir(&app);
+    let engines_dir = data_dir.join("engines");
+    std::fs::create_dir_all(&engines_dir)
+        .map_err(|e| format!("创建引擎目录失败: {}", e))?;
+
+    let installed_path = crate::engine_downloader::EngineDownloader::download_and_install(
+        &app, &remote_version, engines_dir,
+    ).await?;
+
+    let path_str = installed_path.to_string_lossy().to_string();
+
+    if !crate::engine::EngineManager::validate_engine_path(&path_str) {
+        let _ = std::fs::remove_dir_all(&installed_path);
+        return Err("下载的引擎文件无效，无法找到 Godot 可执行文件".to_string());
+    }
+
+    let engine = crate::engine::EngineManager::get_engine_info(&path_str)
+        .map_err(|e| format!("获取引擎信息失败: {}", e))?;
+
+    let mut registered_engine = engine;
+    registered_engine.name = format!("Godot {}", remote_version.version);
+
+    let storage = get_storage(&app);
+    let mut engines: Vec<Engine> = storage.load_or_default("engines.json");
+
+    if engines.iter().any(|e| e.path == registered_engine.path) {
+        return Err("该引擎已被注册".to_string());
+    }
+
+    if engines.is_empty() {
+        registered_engine.is_default = true;
+    }
+
+    engines.push(registered_engine.clone());
+    storage.save("engines.json", &engines)
+        .map_err(|e| format!("保存引擎信息失败: {}", e))?;
+
+    log_operation(&app, "download_engine", &remote_version.version,
+        &format!("已下载并注册引擎: {}", registered_engine.name));
+
+    let _ = app.emit("engines-discovered", ());
+
+    Ok(registered_engine)
+}
+
+#[tauri::command]
+pub fn cancel_engine_download() -> Result<(), String> {
+    crate::engine_downloader::request_cancel_download();
+    Ok(())
+}
+
+#[tauri::command]
 pub fn scan_projects(app: AppHandle, root_dirs: Vec<String>) -> Result<Vec<Project>, String> {
     if root_dirs.is_empty() {
         log_error(&app, "scan_projects", "", "未提供扫描目录");

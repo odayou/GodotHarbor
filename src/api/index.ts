@@ -29,7 +29,9 @@ import type {
   AppUpdateInfo,
   UpdateCheckResult,
   HotUpdateInfo,
-  UpdateHistoryEntry
+  UpdateHistoryEntry,
+  StoragePaths,
+  RemoteEngineVersion
 } from '@/types'
 
 export const api = {
@@ -389,6 +391,22 @@ export const api = {
 
   async openInFileManager(path: string): Promise<void> {
     return await invoke('open_in_file_manager', { path })
+  },
+
+  async getStoragePaths(): Promise<StoragePaths> {
+    return await invoke('get_storage_paths')
+  },
+
+  async fetchRemoteEngineVersions(mirrorId: string): Promise<RemoteEngineVersion[]> {
+    return await invoke('fetch_remote_engine_versions', { mirrorId })
+  },
+
+  async downloadEngine(remoteVersion: RemoteEngineVersion): Promise<Engine> {
+    return await invoke('download_engine', { remoteVersion })
+  },
+
+  async cancelEngineDownload(): Promise<void> {
+    return await invoke('cancel_engine_download')
   }
 }
 

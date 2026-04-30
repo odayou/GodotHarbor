@@ -60,6 +60,14 @@ export interface ProjectBinding {
   subdirectory?: string
 }
 
+export interface EngineMirrorConfig {
+  id: string
+  name: string
+  base_url: string
+  enabled: boolean
+  is_official: boolean
+}
+
 export interface Settings {
   scan_directories: string[]
   mount_strategy: 'Symlink' | 'Junction' | 'Copy'
@@ -75,6 +83,7 @@ export interface Settings {
   auto_check_engine_updates?: boolean
   update_check_interval_hours?: number
   skipped_app_version?: string
+  engine_mirrors?: EngineMirrorConfig[]
 }
 
 export interface ApplyResult {
@@ -404,4 +413,44 @@ export interface UpdateHistoryEntry {
   status: string
   applied_at: string
   notes: string
+}
+
+export interface StoragePaths {
+  app_data_dir: string
+  plugins_dir: string
+  engines_dir: string
+  cache_dir: string
+  logs_dir: string
+  hot_updates_dir: string
+  settings_file: string
+  projects_file: string
+  engines_file: string
+}
+
+export type EngineReleaseChannel = 'Stable' | 'Rc' | 'Beta' | 'Alpha' | 'Dev'
+
+export interface RemoteEngineVersion {
+  version: string
+  tag_name: string
+  channel: EngineReleaseChannel
+  major: number
+  minor: number
+  patch: number
+  is_stable: boolean
+  published_at: string
+  release_url: string
+  release_notes: string
+  download_url: string
+  file_name: string
+  file_size: number
+  is_installed: boolean
+}
+
+export interface EngineDownloadProgress {
+  version: string
+  stage: string
+  downloaded_bytes: number
+  total_bytes: number
+  progress: number
+  message: string
 }

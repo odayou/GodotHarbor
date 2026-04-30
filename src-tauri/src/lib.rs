@@ -6,6 +6,7 @@ pub mod plugin_manager;
 pub mod linker;
 pub mod operation_log;
 pub mod engine;
+pub mod engine_downloader;
 pub mod godot_resolver;
 pub mod version_checker;
 pub mod watcher;
@@ -339,6 +340,10 @@ pub fn run() {
             commands::check_engine_health,
             commands::rename_engine,
             commands::open_in_file_manager,
+            commands::fetch_remote_engine_versions,
+            commands::download_engine,
+            commands::cancel_engine_download,
+            commands::get_storage_paths,
         ))
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
