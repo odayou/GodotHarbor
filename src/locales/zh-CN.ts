@@ -144,6 +144,8 @@ export default {
       assetlibrary: 'AssetLibrary'
     },
     favorites: '收藏',
+    showDuplicates: '显示重复',
+    viewDuplicates: '查看重复',
     details: '插件详情',
     version: '版本',
     sourceType: '来源',
@@ -255,6 +257,8 @@ export default {
       title: '从项目导入插件',
       modeSelect: '选择导入模式：',
       cancel: '取消',
+    batchVersionSelectTitle: '选择绑定版本',
+    batchVersionSelectDesc: '以下插件有多个版本或单元，请选择要绑定的版本：',
       startImport: '开始导入',
       scanTitle: '扫描结果预览',
       scanDesc: '在以下项目中发现 {count} 个插件：',
@@ -275,8 +279,11 @@ export default {
       bindAndApplySuccess: '已将 {name} 绑定到 {count} 个项目并应用变更',
       partialSuccess: '绑定完成: 成功 {success} 个, 失败 {failed} 个',
       broken: '链接断裂',
+      unknown: '未检测',
       repair: '修复',
-      repairSuccess: '符号链接已修复'
+      repairSuccess: '符号链接已修复',
+      bindingCount: '{count} 个绑定',
+      compatWarning: '插件兼容性与项目 Godot 版本不匹配'
     },
     depDialog: {
       missing: '缺失',
@@ -292,6 +299,7 @@ export default {
       cancel: '取消'
     },
     importPluginSuccess: '插件 {name} 导入成功',
+    postImportGuide: '插件 {name} 已就绪，可前往"项目绑定"标签将其绑定到项目',
     deleteWithBindings: '删除插件并解绑',
     deleteWithBindingsDesc: '该插件正被 {count} 个项目使用，删除后所有绑定将被移除。确定删除？',
     description: '描述',
@@ -397,6 +405,7 @@ export default {
     batchApplyDesc: '将为以下项目应用所有插件绑定变更',
     batchApplyResultTitle: '批量应用结果',
     bindingCountUnit: '{count} 个绑定',
+    bindingCountShort: '个绑定',
     createdItem: '已创建 {count} 个项目',
     removedItem: '已移除 {count} 个项目',
     errorList: '错误: {errors}',

@@ -144,6 +144,8 @@ export default {
       assetlibrary: 'AssetLibrary'
     },
     favorites: 'Favorites',
+    showDuplicates: 'Show Duplicates',
+    viewDuplicates: 'View Duplicates',
     details: 'Plugin Details',
     version: 'Version',
     sourceType: 'Source',
@@ -275,8 +277,11 @@ export default {
       bindAndApplySuccess: 'Bound {name} to {count} project(s) and applied changes',
       partialSuccess: 'Binding completed: {success} succeeded, {failed} failed',
       broken: 'Broken',
+      unknown: 'Unchecked',
       repair: 'Repair',
-      repairSuccess: 'Symlink repaired successfully'
+      repairSuccess: 'Symlink repaired successfully',
+      bindingCount: '{count} bound',
+      compatWarning: 'Plugin compatibility does not match project Godot version'
     },
     depDialog: {
       missing: 'Missing',
@@ -289,9 +294,12 @@ export default {
       title: 'Duplicate Plugin Found',
       desc: 'Plugin "{name}" already exists in the repository. Import anyway?',
       importAnyway: 'Import Anyway',
-      cancel: 'Cancel'
+      cancel: 'Cancel',
+      batchVersionSelectTitle: 'Select Binding Version',
+      batchVersionSelectDesc: 'The following plugins have multiple versions or units. Please select the version to bind:',
     },
     importPluginSuccess: 'Plugin {name} imported successfully',
+    postImportGuide: 'Plugin {name} is ready. Go to "Project Bindings" tab to bind it to a project',
     deleteWithBindings: 'Delete Plugin & Unbind',
     deleteWithBindingsDesc: 'This plugin is used by {count} project(s). All bindings will be removed after deletion. Confirm?',
     description: 'Description',
@@ -397,6 +405,7 @@ export default {
     batchApplyDesc: 'Apply all plugin bindings for the following projects',
     batchApplyResultTitle: 'Batch Apply Results',
     bindingCountUnit: '{count} bindings',
+    bindingCountShort: 'bound',
     createdItem: 'Created {count} items',
     removedItem: 'Removed {count} items',
     errorList: 'Errors: {errors}',

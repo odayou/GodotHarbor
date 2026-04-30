@@ -1,7 +1,7 @@
-# 插件生态 UX 分析报告
+# 插件生态项目绑定 UX 分析报告
 
-> 分析日期：2026-04-26
-> 分析范围：插件仓库(Plugins.vue) + 插件绑定(Linker.vue) + Store/API/Types
+> 分析日期：2026-04-30
+> 分析范围：插件仓库(Plugins.vue) + 项目绑定Tab + Store/API/Types/Projects.vue
 > 分析方法：module-ux-analysis skill 六维度分析
 
 ---
@@ -9,29 +9,32 @@
 ## 一、当前功能流程全景图
 
 ```
-插件发现 ────→ 插件导入 ────→ 插件仓库管理 ────→ 插件绑定 ────→ 应用变更 ────→ 状态维护
-   │              │              │               │            │           │
-   ├ AssetLib     ├ 本地目录      ├ 列表/搜索      ├ 选项目      ├ 创建symlink ├ 存储统计
-   ├ (无推荐)     ├ 本地文件      ├ 收藏/筛选      ├ 选版本      ├ 批量应用    ├ 孤立清理
-   └ (无分类)     ├ Git克隆       ├ 批量选择       ├ 选单元      └ 结果展示    ├ 重复检测(UI缺失)
-                  ├ 从项目导入    ├ 插件详情       └ 冲突检测                  ├ 版本删除
-                  └ AssetLib     ├ 版本管理                                   └ 健康检查(UI缺失)
-                                 └ 更新检查
+插件发现 ─────→ 插件导入 ─────→ 插件仓库管理 ─────→ 插件绑定 ─────→ 应用变更 ─────→ 状态维护
+   │               │               │                │             │            │
+   ├ AssetLib      ├ 本地目录       ├ 列表/搜索       ├ 方式A:       ├ 单项目应用   ├ 存储统计
+   │  搜索/浏览     │  (含重复检测)   ├ 收藏/筛选       │  卡片→绑定弹窗 ├ 批量应用    ├ 孤立清理
+   ├ (无推荐机制)   ├ 本地文件       ├ 批量选择/删除    │  (选项目/版本  ├ 结果展示    ├ 健康检查
+   └ (无分类浏览)   ├ Git克隆        ├ 插件详情         │   /单元)      └ (仅被动)   ├ 版本删除
+                   ├ AssetLib下载   ├ 版本管理         ├ 方式B:                     ├ 修复绑定
+                   └ 从项目导入     ├ 更新检查         │  绑定Tab三栏布局             └ 重复检测
+                   └ (含预览确认)   └ 依赖管理         │  (项目/可用/已绑)
+                                                     └ 方式C:
+                                                        项目详情→解绑
 ```
 
 ## 二、各环节详细梳理
 
 | 环节 | 已实现功能 | 涉及文件 |
 |------|-----------|---------|
-| **插件发现** | Asset Library搜索(关键词/分类/类型/Godot版本/支持级别/排序) | `Plugins.vue` |
-| **插件扫描** | 从项目扫描插件(copy/move/reference三种模式) | `Plugins.vue#L534-L556` |
-| **插件导入** | 本地目录、本地文件、Git克隆、Asset Library下载、从项目导入 | `api/index.ts#L60-L110` |
-| **插件仓库管理** | 列表/搜索/收藏/筛选/批量选择/删除/详情/版本管理 | `Plugins.vue` |
-| **插件绑定** | 选项目/选版本/选单元/挂载路径/冲突检测/批量绑定/批量解绑 | `Linker.vue` |
-| **应用变更** | 单项目应用/批量应用/结果展示 | `Linker.vue#L298-L344` |
-| **状态维护** | 存储统计/孤立清理/绑定健康/版本删除/修复绑定 | `Plugins.vue#L610-L690` |
-| **更新管理** | 检查更新/单个更新/批量更新/release notes | `Plugins.vue#L558-L608` |
-| **依赖管理** | 依赖解析/缺失依赖安装 | `Plugins.vue#L632-L728` |
+| **插件发现** | Asset Library搜索(关键词/分类/类型/Godot版本/支持级别/排序/分页/缓存) | `Plugins.vue#L288-L497` |
+| **插件导入** | 本地目录(含重复检测)、本地文件、Git克隆、Asset Library下载(含进度)、从项目导入(含预览) | `Plugins.vue#L203-L683`, `api/index.ts#L60-L112` |
+| **插件仓库管理** | 列表/搜索/收藏/筛选(兼容性/来源)/批量选择(Shift/Ctrl)/批量删除/详情/版本管理 | `Plugins.vue#L1318-L1563` |
+| **插件绑定** | 方式A:绑定弹窗(选项目/版本/单元/绑定并应用)、方式B:绑定Tab三栏(项目列表/可用插件/已绑插件/批量绑定解绑)、方式C:项目详情中解绑/修复 | `Plugins.vue#L356-L419, #L928-L1001`, `Projects.vue#L681-L730` |
+| **应用变更** | 单项目应用(含pending提示)、批量应用、结果展示(创建/移除/错误) | `Plugins.vue#L1003-L1135` |
+| **状态维护** | 存储统计/孤立清理/绑定健康(被动)/版本删除/修复绑定/重复检测(导入时) | `Plugins.vue#L737-L829` |
+| **更新管理** | 检查更新/单个更新/批量更新/release notes展开 | `Plugins.vue#L685-L735` |
+| **依赖管理** | 依赖解析/缺失依赖安装(逻辑有误) | `Plugins.vue#L759-L882` |
+| **图形视图** | 简易SVG绑定关系图(项目-插件连线) | `Plugins.vue#L1179-L1200, #L2306-L2321` |
 
 ## 三、六维度问题分析
 
@@ -39,93 +42,134 @@
 
 | # | 问题 | 严重度 | 说明 |
 |---|------|--------|------|
-| S1 | 添加菜单无点击外部关闭 | 🟡 | `showAddMenu` 下拉菜单没有 click-outside 关闭，用户需再次点击按钮才能关闭 (`Plugins.vue#L744-L821`) |
-| S2 | 绑定流程步骤多 | 🟡 | 从插件卡片绑定需：点击绑定→选项目→选版本→选单元→确认，5步操作 (`Plugins.vue#L1654-L1746`) |
-| S3 | 批量绑定只用第一个版本 | 🔴 | `batchBindPlugins` 始终用 `plugin.versions[0]`，无法选择版本 (`Linker.vue#L216-L218`) |
-| S4 | 串行批量操作 | 🟡 | 批量导入/更新/依赖安装均串行 `for...await`，大量操作时极慢 (`Plugins.vue#L461-L474, L588-L608, L702-L728`) |
-| S5 | Asset Library 弹窗内操作和仓库管理割裂 | 🟡 | Asset Library 是独立弹窗，导入后需关闭弹窗才能在主列表看到结果 |
+| S1 | 绑定流程步骤过多 | 🟡 | 从插件卡片绑定：点击绑定→选项目→选版本→选单元→确认绑定→手动应用变更，6步操作 (`Plugins.vue#L2382-L2475`) |
+| S2 | 批量绑定只用第一个版本/单元 | 🔴 | `confirmBatchBind` 始终用 `plugin.versions[0].units[0]`，无法选择版本，多版本插件批量绑定会绑定错误版本 (`Plugins.vue#L1032-L1067`) |
+| S3 | 串行批量操作 | 🟡 | 批量导入/更新/依赖安装均串行 `for...await`，大量操作时极慢 (`Plugins.vue#L537-L566, #L715-L735`) |
+| S4 | 两套绑定入口功能重复 | 🟡 | 绑定弹窗(bindDialog)和绑定Tab(linker)功能重叠，弹窗更简洁但功能少，Tab更完整但需切换，用户困惑 |
+| S5 | 绑定后需手动应用变更 | 🟡 | 绑定操作仅记录关系，需额外点击"应用变更"才创建symlink，两步操作可合并为一步默认行为 |
+| S6 | 解绑无确认弹窗 | 🟡 | `unbindPluginFromProject` 直接执行无确认，误操作风险 (`Plugins.vue#L990-L1001`) |
 
 ### 维度2：便利性最大化
 
-| # | 问题 | 严重度 | 说明|
+| # | 问题 | 严重度 | 说明 |
 |---|------|--------|------|
-| C1 | 插件卡片无快捷绑定 | 🟡 | 卡片只有"绑定到项目"按钮，无法直接看到已绑定项目数或快速操作 (`Plugins.vue#L1050-L1061`) |
-| C2 | 搜索/筛选状态不持久 | 🟢 | 切换页面后筛选条件丢失，无 localStorage/sessionStorage 保存 |
-| C3 | 无右键上下文菜单 | 🟢 | 插件卡片无右键菜单(绑定/删除/收藏/详情) |
-| C4 | 无键盘快捷键 | 🟢 | 无 Ctrl+F 聚焦搜索、Delete 删除选中、Ctrl+A 全选等 |
-| C5 | 插件详情中来源URL不可点击 | 🟡 | Git URL 显示为纯文本，无法一键打开 (`Plugins.vue#L1214`) |
-| C6 | Asset Library 搜索结果无"已导入"标识 | 🟡 | 无法区分哪些资产已经导入过 (`Plugins.vue#L1335-L1381`) |
-| C7 | 更新检查结果只显示 plugin_id | 🟡 | 更新弹窗用 `update.plugin_id` 而非插件名称，用户难以识别 (`Plugins.vue#L1501`) |
+| C1 | 插件卡片无绑定状态指示 | 🟡 | 卡片不显示已绑定项目数，用户需点进详情才能看到 (`Plugins.vue#L1480-L1560`) |
+| C2 | 更新弹窗显示plugin_id而非名称 | � | `update.plugin_id` 对用户无意义，应显示 `plugin_name` (`Plugins.vue#L2012`) |
+| C3 | 插件详情中Git URL不可点击 | 🟢 | 来源URL为纯文本，无法一键打开仓库 (`Plugins.vue#L1717`) |
+| C4 | 无右键上下文菜单 | 🟢 | 插件卡片无右键菜单(绑定/删除/收藏/详情) |
+| C5 | 无键盘快捷键 | 🟢 | 无 Ctrl+F 聚焦搜索、Delete 删除选中、Ctrl+A 全选等 |
+| C6 | 搜索/筛选状态不持久 | � | 切换Tab后筛选条件丢失 |
+| C7 | 绑定Tab中项目列表无绑定数量 | � | 项目列表不显示每个项目绑定了多少插件，无法快速了解绑定密度 (`Plugins.vue#L2209-L2218`) |
+| C8 | 绑定Tab中已绑插件不显示版本 | � | 已绑插件列表只显示名称和mount_path，不显示绑定的版本号 (`Plugins.vue#L2284-L2301`) |
 
 ### 维度3：功能实现完成度
 
 | # | 问题 | 严重度 | 说明 |
 |---|------|--------|------|
-| F1 | `checkPluginDuplicate` 未接入UI | 🔴 | API已实现导入前重复检查，但前端未调用 (`api/index.ts#L304-L306`) |
-| F2 | `migratePluginStorage` 无UI入口 | 🔴 | 存储路径迁移API已存在但无UI入口 (`api/index.ts#L308-L310`) |
-| F3 | `checkBindingHealth` 未主动调用 | 🟡 | 绑定健康检查API存在但未主动使用，只在插件详情中被动显示 (`api/index.ts#L296-L298`) |
-| F4 | `scanProjectPlugins` 无预览UI | 🟡 | 扫描结果不展示给用户，直接导入，用户无法选择性导入 (`api/index.ts#L104-L106`) |
-| F5 | 依赖安装逻辑有误 | 🔴 | `installMissingDeps` 将 `version_constraint` 当 Git URL 使用，语义错误 (`Plugins.vue#L709-L711`) |
-| F6 | Linker 不使用 PluginStore | 🟡 | Linker.vue 直接调用 `api.getPlugins()`，与 Plugins.vue 数据不同步 (`Linker.vue`) |
-| F7 | useBindingStore 形同虚设 | 🟡 | 定义了完整方法但 Linker.vue 完全不使用 (`stores/index.ts#L213-L288`) |
-| F8 | 重复检测有数据无操作 | 🟡 | `totalStorageStats.duplicate_hash_count` 显示重复数，但无"查看/清理重复"操作 (`Plugins.vue#L1606-L1608`) |
+| F1 | `migratePluginStorage` 无UI入口 | 🔴 | 存储路径迁移API已存在但无UI入口，Settings中有调用但流程不完整 (`api/index.ts#L314-L316`) |
+| F2 | `checkBindingHealth` 未主动调用 | 🟡 | 绑定健康检查API存在但未在页面加载时主动使用，只在插件详情中被动显示 (`api/index.ts#L302-L304`) |
+| F3 | `useBindingStore` 形同虚设 | 🟡 | 定义了完整CRUD方法但绑定Tab完全不使用，直接调用api，数据不一致风险 (`stores/index.ts#L213-L288`) |
+| F4 | 依赖安装逻辑有误 | 🔴 | `installMissingDeps` 将 `version_constraint` 当 Git URL 使用，语义错误且 try-catch 吞掉错误 (`Plugins.vue#L852-L882`) |
+| F5 | 重复数量无操作入口 | 🟡 | `totalStorageStats.duplicate_hash_count` 显示重复数，但无"查看/清理重复"操作 (`Plugins.vue#L2141-L2143`) |
+| F6 | 图形视图过于简陋 | 🟢 | SVG图形视图无交互、无缩放、无拖拽、节点重叠，实用性低 (`Plugins.vue#L2306-L2321`) |
+| F7 | 无插件推荐/发现机制 | 🟢 | Asset Library有搜索但无推荐、热门、最近更新等发现机制 |
 
 ### 维度4：流程完备性
 
 | # | 问题 | 严重度 | 说明 |
 |---|------|--------|------|
-| P1 | 导入后无自动绑定引导 | 🟡 | 导入插件后不会引导用户绑定到项目，流程断裂 |
-| P2 | 删除插件不自动解绑 | 🔴 | 删除插件后绑定关系仍存在，symlink 断裂但无自动清理 (`Plugins.vue#L514-L522`) |
-| P3 | 从项目导入无预览确认 | 🟡 | 点击导入直接执行，用户不知道会导入哪些插件 (`Plugins.vue#L538-L556`) |
-| P4 | 更新后不自动重新应用 | 🟡 | Git 插件更新后，已绑定的项目不会自动更新 symlink |
-| P5 | 批量应用结果不刷新绑定列表 | 🟡 | `confirmBatchApply` 完成后不重新加载 bindings (`Linker.vue#L322-L344`) |
-| P6 | loadPlugins 缓存逻辑缺陷 | 🟡 | `hasLoaded && plugins.length > 0` 导致空列表每次重新加载，且导入/删除后无法强制刷新 (`Plugins.vue#L160-L162`) |
+| P1 | 导入后无绑定引导 | 🟡 | 导入插件后不会引导用户绑定到项目，流程断裂 |
+| P2 | 更新后不自动重新应用 | � | Git插件更新后，已绑定的项目不会自动更新symlink，需手动重新应用 |
+| P3 | 无全局绑定视图 | 🟡 | 无法一次查看所有项目的所有绑定关系，只能逐项目查看 |
+| P4 | pending changes 不持久 | 🟡 | `linkerHasPendingChanges` 仅内存状态，刷新页面后丢失，用户可能遗忘应用 |
+| P5 | 从项目详情跳转到绑定Tab后无法返回 | � | `goToPluginBindings` 跳转到绑定Tab后无返回项目详情的入口 |
+| P6 | 删除插件时解绑但不重新应用 | 🟡 | `onRemovePluginConfirm` 先解绑再删除，但不调用 `applyChanges` 清理symlink (`Plugins.vue#L607-L624`) |
 
 ### 维度5：冲突容错
 
 | # | 问题 | 严重度 | 说明 |
 |---|------|--------|------|
-| T1 | 导入前无重复检查 | 🔴 | `checkPluginDuplicate` API 未调用，同插件可重复导入 (`api/index.ts#L304`) |
-| T2 | 删除不检查下游影响 | 🟡 | 删除插件虽有绑定警告，但用户仍可强行删除，导致 symlink 断裂 |
-| T3 | 绑定健康状态判断不严谨 | 🟡 | `is_healthy` 是可选字段，`undefined` 时不会显示异常，应默认为不健康 (`Plugins.vue#L1161`) |
+| T1 | `is_healthy` undefined 默认为健康 | � | `is_healthy` 是可选字段，`undefined` 时不会显示异常图标，应默认为未知/需检查 (`Plugins.vue#L1663-L1673`) |
+| T2 | 无Godot版本兼容性检查 | 🟡 | 绑定时不检查插件兼容性与项目Godot版本是否匹配，Godot3插件可绑到Godot4项目 |
+| T3 | 删除插件解绑后不重新应用 | 🟡 | 解绑操作记录了但未apply，symlink可能残留 (`Plugins.vue#L607-L624`) |
 | T4 | 导入失败无重试机制 | 🟢 | 导入失败后只能重新操作，无 resume/retry |
-| T5 | Asset Library 网络错误无重试 | 🟢 | 搜索/下载失败只显示错误 toast，无重试按钮 |
+| T5 | Asset Library 网络错误无重试 | 🟢 | 搜索/下载失败只显示错误toast，无重试按钮 |
 
 ### 维度6：场景边界情况
 
 | # | 问题 | 严重度 | 说明 |
 |---|------|--------|------|
-| E1 | 搜索缓存无上限 | 🟡 | `searchCache` Map 无大小限制，长时间使用可能内存泄漏 (`Plugins.vue#L251`) |
-| E2 | onUnmounted 未清理定时器 | 🟡 | `searchDebounceTimer` 未在组件卸载时清理 (`Plugins.vue#L260-L262`) |
-| E3 | 大量插件时无虚拟滚动 | 🟢 | 插件列表直接渲染，100+插件时可能卡顿 |
-| E4 | Asset Library 离线无降级 | 🟢 | 网络不可用时搜索直接报错，无缓存降级 |
-| E5 | importProgress 类型为 any | 🟢 | `pluginStore.importProgress` 无类型约束 (`stores/index.ts`) |
-| E6 | importFromFile 路径解析脆弱 | 🟡 | 用正则和条件判断提取目录路径，逻辑复杂且容易出错 (`Plugins.vue#L204`) |
+| E1 | 搜索缓存无上限 | 🟡 | `searchCache` Map 无大小限制，长时间使用可能内存泄漏 (`Plugins.vue#L304`) |
+| E2 | 大量插件时无虚拟滚动 | 🟢 | 插件列表直接渲染，100+插件时可能卡顿 |
+| E3 | importFromFile 路径解析脆弱 | 🟡 | 用正则和条件判断提取目录路径，逻辑复杂且容易出错 (`Plugins.vue#L257`) |
+| E4 | importProgress 类型为 any | 🟢 | `pluginStore.importProgress` 无类型约束 (`stores/index.ts#L107`) |
+| E5 | 并发绑定操作无锁 | 🟢 | 快速连续点击绑定按钮可能触发并发请求 |
 
-## 四、i18n 问题汇总
-
-| 位置 | 硬编码内容 | 应使用的 key |
-|------|-----------|-------------|
-| `Plugins.vue#L1075` | Git URL placeholder | `plugins.gitImport.placeholder` |
-| `Plugins.vue#L1285` | "Any" | `assetLibrary.typeAny` |
-| `Plugins.vue#L1286-1287` | "Godot 4.x" / "Godot 3.x" | `assetLibrary.godot4x` / `assetLibrary.godot3x` |
-| `Plugins.vue#L1290` | "All" | `assetLibrary.supportAll` |
-| `Plugins.vue#L445,446` | 字符串拼接 | 使用 i18n 插值 |
-| `Plugins.vue#L477,480` | 语义错误 key | 使用 import 相关 key |
-| `Linker.vue#L679` | "Godot" 前缀 | 使用 i18n |
-| `stores/index.ts` | error 信息硬编码英文 | 使用 i18n |
-
-## 五、优先级排序（Top 10 改进项）
+## 四、优先级排序（Top 10 改进项）
 
 | 优先级 | 改进项 | 预期收益 | 对应问题 |
 |--------|--------|---------|---------|
-| **P0** | 导入前接入重复检查 `checkPluginDuplicate` | 避免重复导入同一插件，核心数据完整性 | F1, T1 |
-| **P0** | 修复依赖安装逻辑 `installMissingDeps` | 修复功能错误，当前代码语义不对 | F5 |
-| **P0** | 删除插件时自动解绑或强制确认 | 避免删除后 symlink 断裂，核心数据安全 | P2 |
-| **P1** | 修复 i18n 硬编码和 key 语义错误 | 多语言体验完整性 | i18n |
-| **P1** | 修复 loadPlugins 缓存逻辑 | 确保导入/删除后列表正确刷新 | P6 |
-| **P1** | 修复 onUnmounted 定时器泄漏 | 避免内存泄漏 | E2 |
-| **P1** | 添加菜单 click-outside 关闭 | 基础交互体验 | S1 |
-| **P2** | 统一 Store 使用，Linker 接入 PluginStore | 数据一致性 | F6, F7 |
-| **P2** | Asset Library 搜索结果标记"已导入" | 避免重复导入 | C6 |
-| **P2** | 从项目导入增加预览确认步骤 | 用户可控性 | F4, P3 |
+| **P0** | 修复依赖安装逻辑 `installMissingDeps` | 修复功能错误 | F4 |
+| **P0** | 删除插件时解绑后自动应用变更 | 避免symlink残留 | P6, T3 |
+| **P1** | 插件卡片增加绑定数量指示 | 快速了解绑定状态 | C1 |
+| **P1** | 更新弹窗显示插件名称而非ID | 用户可识别 | C2 |
+| **P1** | 绑定Tab项目列表增加绑定数量 | 快速了解绑定密度 | C7 |
+| **P1** | 解绑操作增加确认弹窗 | 防止误操作 | S6 |
+| **P2** | 绑定后默认自动应用变更 | 减少操作步骤 | S5 |
+| **P2** | 绑定时检查Godot版本兼容性 | 防止不兼容绑定 | T2 |
+| **P2** | 页面加载时主动检查绑定健康 | 及时发现问题 | F2 |
+| **P2** | 已绑插件列表显示版本号 | 信息完整性 | C8 |
+| **P2** | 批量绑定支持版本/单元选择 | 多版本插件批量绑定正确性 | S2 |
+| **P2** | 重复数量增加查看/清理入口 | 重复插件可发现可处理 | F5 |
+| **P2** | 批量更新改为并发(限3) | 大量更新时速度提升 | S3 |
+| **P2** | 插件详情Git URL可点击 | 快速访问仓库 | C3 |
+| **P2** | 导入后引导绑定提示 | 流程不断裂 | P1 |
+| **P2** | 更新后自动重新应用绑定 | symlink保持最新 | P2 |
+| **P2** | is_healthy undefined显示未检测 | 状态不遗漏 | T1 |
+| **P2** | 搜索缓存增加上限(50) | 防止内存泄漏 | E1 |
+| **P2** | importFromFile路径解析修复 | 跨平台兼容 | E3 |
+| **P3** | importProgress类型修复 | 类型安全 | E4 |
+
+## 五、实施记录
+
+### 第一轮（Top 10 改进项）
+
+| # | 改进项 | 状态 | 修改文件 |
+|---|--------|------|---------|
+| 1 | 修复依赖安装逻辑 | ✅ | Plugins.vue |
+| 2 | 删除插件时自动应用变更 | ✅ | Plugins.vue |
+| 3 | 插件卡片显示绑定数量 | ✅ | Plugins.vue, zh-CN.ts, en.ts |
+| 4 | 更新弹窗显示插件名称 | ✅ | Plugins.vue |
+| 5 | 绑定Tab项目列表显示绑定数量 | ✅ | Plugins.vue, zh-CN.ts, en.ts |
+| 6 | 解绑操作增加确认弹窗 | ✅ | Plugins.vue, zh-CN.ts, en.ts |
+| 7 | 绑定后自动应用变更 | ✅ | Plugins.vue |
+| 8 | 绑定时Godot版本兼容性警告 | ✅ | Plugins.vue, zh-CN.ts, en.ts |
+| 9 | 已绑插件列表显示版本号 | ✅ | Plugins.vue |
+
+### 第二轮（全部改进项）
+
+| # | 改进项 | 状态 | 修改文件 |
+|---|--------|------|---------|
+| 10 | 批量绑定支持版本/单元选择 | ✅ | Plugins.vue, zh-CN.ts, en.ts |
+| 11 | 重复数量增加查看/清理入口 | ✅ | Plugins.vue, zh-CN.ts, en.ts |
+| 12 | 页面加载时主动检查绑定健康 | ✅ | Plugins.vue |
+| 13 | 批量更新改为并发 | ✅ | Plugins.vue |
+| 14 | 插件详情Git URL可点击 | ✅ | Plugins.vue |
+| 15 | 导入后引导绑定提示 | ✅ | Plugins.vue, zh-CN.ts, en.ts |
+| 16 | 更新后自动重新应用绑定 | ✅ | Plugins.vue |
+| 17 | is_healthy undefined显示未检测 | ✅ | Plugins.vue, zh-CN.ts, en.ts |
+| 18 | 搜索缓存增加上限 | ✅ | Plugins.vue |
+| 19 | importFromFile路径解析修复 | ✅ | Plugins.vue |
+| 20 | importProgress类型修复 | ✅ | stores/index.ts |
+
+### 暂缓项
+
+| # | 改进项 | 原因 |
+|---|--------|------|
+| F3 | Linker接入useBindingStore | 重构风险大，当前直接调用api功能正常 |
+| F6 | 图形视图增强 | 需要引入图形库，工作量大 |
+| F7 | 插件推荐/发现机制 | 需要后端支持 |
+| C4 | 右键上下文菜单 | 需要组件库支持 |
+| C5 | 键盘快捷键 | 需要全局快捷键管理 |
+| E2 | 虚拟滚动 | 需要引入虚拟滚动组件 |
+| E5 | 并发绑定操作锁 | 需要引入锁机制 |

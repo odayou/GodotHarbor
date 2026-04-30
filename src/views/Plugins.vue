@@ -42,6 +42,7 @@ const selectedPlugin = ref<Plugin | null>(null)
 const pluginDependencies = ref<PluginDependency[]>([])
 const pluginStorageStats = ref<PluginStorageStats | null>(null)
 const pluginBindings = ref<ProjectBinding[]>([])
+const pluginBindingCountMap = ref<Map<string, number>>(new Map())
 const showUpdatesDialog = ref(false)
 const showImportModeDialog = ref(false)
 const importMode = ref<'copy' | 'move' | 'reference'>('copy')
@@ -63,6 +64,8 @@ const showLinkerBatchBindDialog = ref(false)
 const showLinkerBatchUnbindDialog = ref(false)
 const showLinkerBatchApplyDialog = ref(false)
 const showLinkerVersionSelect = ref(false)
+const showLinkerUnbindConfirm = ref(false)
+const pendingUnbindBinding = ref<ProjectBinding | null>(null)
 const versionSelectPlugin = ref<Plugin | null>(null)
 const selectedVersionIdx = ref(0)
 const selectedUnitIdx = ref(0)
@@ -77,10 +80,12 @@ const batchApplyResults = ref<any[]>([])
 const showGraphView = ref(false)
 const linkerHasPendingChanges = ref(false)
 const linkerSearchQuery = ref('')
+const linkerProjectBindingCounts = ref<Map<string, number>>(new Map())
 
 const searchQuery = ref('')
 const filterCompatibility = ref<string>('all')
 const filterSource = ref<string>('all')
+const showOnlyDuplicates = ref(false)
 const showFavoritesOnly = ref(false)
 
 const selectedPluginIds = ref<Set<string>>(new Set())
@@ -177,7 +182,9 @@ const filteredPlugins = computed(() => {
 
     const matchesFavorite = !showFavoritesOnly.value || plugin.is_favorite === true
 
-    return matchesSearch && matchesCompatibility && matchesSource && matchesFavorite
+    const matchesDuplicate = !showOnlyDuplicates.value || plugins.value.filter(p => p.name === plugin.name && p.plugin_id !== plugin.plugin_id).length > 0
+
+    return matchesSearch && matchesCompatibility && matchesSource && matchesFavorite && matchesDuplicate
   })
 })
 
@@ -192,11 +199,32 @@ const loadPlugins = async (force = false) => {
   isLoading.value = true
   try {
     await pluginStore.loadPlugins()
+    loadPluginBindingCounts()
   } catch (error) {
     toast.error(t('common.loadFailed', { error }))
   } finally {
     isLoading.value = false
     hasLoaded.value = true
+  }
+}
+
+const loadPluginBindingCounts = async () => {
+  try {
+    const projects = await api.getProjects()
+    const countMap = new Map<string, number>()
+    for (const project of projects) {
+      try {
+        const bindings = await api.getProjectBindings(project.project_id)
+        for (const binding of bindings) {
+          countMap.set(binding.plugin_id, (countMap.get(binding.plugin_id) || 0) + 1)
+        }
+      } catch {
+        // ignore individual project binding load errors
+      }
+    }
+    pluginBindingCountMap.value = countMap
+  } catch {
+    // ignore binding count load errors
   }
 }
 
@@ -219,6 +247,7 @@ const importFromLocal = async () => {
             try {
               const result = await api.importPluginFromLocal(selected)
               toast.success(t('plugins.importPluginSuccess', { name: result.name }))
+              showPostImportGuide(result.name)
               await loadPlugins(true)
             } catch (error) {
               toast.error(t('common.addProjectFailed', { error }))
@@ -235,6 +264,7 @@ const importFromLocal = async () => {
       isLoading.value = true
       const result = await api.importPluginFromLocal(selected)
       toast.success(t('plugins.importPluginSuccess', { name: result.name }))
+      showPostImportGuide(result.name)
       await loadPlugins(true)
     }
   } catch (error) {
@@ -254,9 +284,10 @@ const importFromFile = async () => {
     })
     if (selected && typeof selected === 'string') {
       isLoading.value = true
-      const dirPath = selected.substring(0, selected.lastIndexOf(/[/\\]/.test(selected) ? (selected.includes('\\') ? '\\' : '/') : '/'))
+      const dirPath = selected.substring(0, Math.max(selected.lastIndexOf('/'), selected.lastIndexOf('\\')))
       const result = await api.importPluginFromLocal(dirPath || selected)
       toast.success(t('plugins.importPluginSuccess', { name: result.name }))
+      showPostImportGuide(result.name)
       await loadPlugins(true)
     }
   } catch (error) {
@@ -275,6 +306,7 @@ const importFromGit = async () => {
   try {
     const result = await api.importPluginFromGit(gitUrl.value)
     toast.success(t('plugins.importPluginSuccess', { name: result.name }))
+    showPostImportGuide(result.name)
     gitUrl.value = ''
     showGitDialog.value = false
     await loadPlugins(true)
@@ -374,6 +406,22 @@ const openBindDialog = async (plugin: Plugin) => {
     bindProjects.value = []
   }
   showBindDialog.value = true
+}
+
+const isCompatWarning = (plugin: Plugin, project: Project) => {
+  if (plugin.compatibility === 'Both' || plugin.compatibility === 'Unknown') return false
+  const projectMajor = project.godot_version?.startsWith('4') ? '4' : project.godot_version?.startsWith('3') ? '3' : null
+  if (!projectMajor) return false
+  if (plugin.compatibility === 'Godot4' && projectMajor !== '4') return true
+  if (plugin.compatibility === 'Godot3' && projectMajor !== '3') return true
+  return false
+}
+
+const getBindingVersion = (binding: ProjectBinding) => {
+  const plugin = plugins.value.find(p => p.plugin_id === binding.plugin_id)
+  if (!plugin) return null
+  const version = plugin.versions.find(v => v.version_id === binding.version_id)
+  return version?.version || null
 }
 
 const confirmBind = async (applyNow = false) => {
@@ -488,6 +536,12 @@ const doSearch = async () => {
     assetSearchResults.value = result.result
     assetTotalPages.value = result.pages
     assetTotalItems.value = result.total_items
+    if (searchCache.value.size > 50) {
+      const oldest = Array.from(searchCache.value.entries()).sort((a, b) => a[1].timestamp - b[1].timestamp)
+      for (let i = 0; i < oldest.length - 30; i++) {
+        searchCache.value.delete(oldest[i][0])
+      }
+    }
     searchCache.value.set(cacheKey, { data: result, timestamp: Date.now() })
   } catch (error) {
     toast.error(t('common.loadFailed', { error }))
@@ -525,6 +579,7 @@ const importAsset = async (assetId: string, assetTitle: string) => {
   try {
     await api.importFromAssetLibraryWithProgress(assetId)
     toast.success(t('plugins.importPluginSuccess', { name: assetTitle }))
+    showPostImportGuide(assetTitle)
     sendImportNotification('Godot Harbor', t('plugins.importPluginSuccess', { name: assetTitle }))
     await loadPlugins(true)
   } catch (error) {
@@ -606,8 +661,10 @@ const confirmRemovePlugin = async (pluginId: string) => {
 
 const onRemovePluginConfirm = async () => {
   try {
+    const affectedProjectIds = new Set<string>()
     if (deletePluginBindings.value.length > 0) {
       for (const binding of deletePluginBindings.value) {
+        affectedProjectIds.add(binding.project_id)
         try {
           await api.unbindPlugin(binding.project_id, deletePluginId.value)
         } catch {
@@ -616,6 +673,13 @@ const onRemovePluginConfirm = async () => {
       }
     }
     await api.removePlugin(deletePluginId.value)
+    for (const projectId of affectedProjectIds) {
+      try {
+        await api.applyChanges(projectId)
+      } catch {
+        // ignore individual apply errors
+      }
+    }
     toast.success(t('common.projectDeleted'))
     await loadPlugins(true)
   } catch (error) {
@@ -699,8 +763,23 @@ const updateGitPlugin = async (pluginId: string) => {
     const result = await api.updateGitPlugin(pluginId)
     toast.success(t('plugins.updateSuccess', { name: result.name }))
     await loadPlugins()
+    await reapplyBindingsForPlugin(pluginId)
   } catch (error) {
     toast.error(t('common.loadFailed', { error }))
+  }
+}
+
+const reapplyBindingsForPlugin = async (pluginId: string) => {
+  try {
+    const projects = await api.getProjects()
+    for (const project of projects) {
+      const bindings = await api.getProjectBindings(project.project_id)
+      if (bindings.some(b => b.plugin_id === pluginId)) {
+        await api.applyChanges(project.project_id)
+      }
+    }
+  } catch {
+    // ignore reapply errors
   }
 }
 
@@ -716,12 +795,17 @@ const batchUpdatePlugins = async () => {
   isBatchUpdating.value = true
   let successCount = 0
   let failCount = 0
-  for (const pluginId of updatablePluginIds.value) {
-    try {
-      await api.updateGitPlugin(pluginId)
-      successCount++
-    } catch {
-      failCount++
+  const ids = [...updatablePluginIds.value]
+  const concurrency = 3
+  const chunks: string[][] = []
+  for (let i = 0; i < ids.length; i += concurrency) {
+    chunks.push(ids.slice(i, i + concurrency))
+  }
+  for (const chunk of chunks) {
+    const results = await Promise.allSettled(chunk.map(id => api.updateGitPlugin(id)))
+    for (const r of results) {
+      if (r.status === 'fulfilled') successCount++
+      else failCount++
     }
   }
   isBatchUpdating.value = false
@@ -754,6 +838,20 @@ const cleanupOrphaned = async () => {
   } catch (error) {
     toast.error(t('common.loadFailed', { error }))
   }
+}
+
+const checkAndShowDuplicates = () => {
+  searchQuery.value = ''
+  filterCompatibility.value = 'all'
+  filterSource.value = 'all'
+  showFavoritesOnly.value = false
+  showOnlyDuplicates.value = true
+}
+
+const showPostImportGuide = (pluginName: string) => {
+  setTimeout(() => {
+    toast.info(t('plugins.postImportGuide', { name: pluginName }))
+  }, 800)
 }
 
 const loadPluginDependencies = async (pluginId: string) => {
@@ -854,23 +952,34 @@ const installMissingDeps = async () => {
   isInstallingDeps.value = true
   let successCount = 0
   let failCount = 0
+  let skippedCount = 0
   for (const depId of missingDepPluginIds.value) {
-    try {
-      const dep = pluginDependencies.value.find(d => d.plugin_id === depId)
-      if (dep?.version_constraint) {
-        try {
-          await api.importPluginFromGit(dep.version_constraint)
-        } catch {
-          // version_constraint may not be a valid git URL, skip
-        }
-      }
-      successCount++
-    } catch {
+    const dep = pluginDependencies.value.find(d => d.plugin_id === depId)
+    if (!dep) {
       failCount++
+      continue
+    }
+    const isGitUrl = dep.version_constraint && (
+      dep.version_constraint.startsWith('https://') ||
+      dep.version_constraint.startsWith('http://') ||
+      dep.version_constraint.startsWith('git@') ||
+      dep.version_constraint.endsWith('.git')
+    )
+    if (isGitUrl) {
+      try {
+        await api.importPluginFromGit(dep.version_constraint)
+        successCount++
+      } catch {
+        failCount++
+      }
+    } else {
+      skippedCount++
     }
   }
   isInstallingDeps.value = false
-  if (failCount > 0) {
+  if (skippedCount > 0) {
+    toast.warning(t('plugins.depDialog.partialSuccess', { success: successCount, failed: failCount + skippedCount }))
+  } else if (failCount > 0) {
     toast.warning(t('plugins.depDialog.partialSuccess', { success: successCount, failed: failCount }))
   } else {
     toast.success(t('plugins.depDialog.success', { count: successCount }))
@@ -894,6 +1003,16 @@ const loadLinkerData = async () => {
       api.getPlugins()
     ])
     linkerProjects.value = projs
+    const countMap = new Map<string, number>()
+    for (const project of projs) {
+      try {
+        const bindings = await api.getProjectBindings(project.project_id)
+        countMap.set(project.project_id, bindings.length)
+      } catch {
+        countMap.set(project.project_id, 0)
+      }
+    }
+    linkerProjectBindingCounts.value = countMap
     if (!hasLoaded.value) {
       await loadPlugins(true)
     }
@@ -905,6 +1024,19 @@ const loadLinkerData = async () => {
 const loadLinkerBindings = async (projectId: string) => {
   try {
     linkerBindings.value = await api.getProjectBindings(projectId)
+    for (const binding of linkerBindings.value) {
+      if (binding.is_healthy === undefined) {
+        try {
+          const healthBindings = await api.checkBindingHealth(binding.project_id)
+          const healthBinding = healthBindings.find(b => b.plugin_id === binding.plugin_id)
+          if (healthBinding) {
+            binding.is_healthy = healthBinding.is_healthy
+          }
+        } catch {
+          // ignore health check errors
+        }
+      }
+    }
   } catch (error) {
     linkerBindings.value = []
   }
@@ -967,10 +1099,28 @@ const doBindPlugin = async (plugin: Plugin, version: any, unit: any) => {
     for (const projectId of selectedLinkProjectIds.value) {
       await api.bindPlugin(projectId, plugin.plugin_id, version.version_id, unit.unit_id, mountPath, subdirectory)
     }
+    for (const projectId of selectedLinkProjectIds.value) {
+      try {
+        await api.applyChanges(projectId)
+      } catch {
+        // ignore individual apply errors
+      }
+    }
     toast.success(t('linker.pluginBound', { name: plugin.name, version: version.version }))
-    linkerHasPendingChanges.value = true
+    linkerHasPendingChanges.value = false
     if (selectedLinkId.value) {
       await loadLinkerBindings(selectedLinkId.value)
+    }
+    if (linkerProjectBindingCounts.value.size > 0) {
+      for (const projectId of selectedLinkProjectIds.value) {
+        try {
+          const bindings = await api.getProjectBindings(projectId)
+          linkerProjectBindingCounts.value.set(projectId, bindings.length)
+        } catch {
+          // ignore
+        }
+      }
+      linkerProjectBindingCounts.value = new Map(linkerProjectBindingCounts.value)
     }
   } catch (error) {
     toast.error(t('common.loadFailed', { error }))
@@ -987,7 +1137,15 @@ const confirmVersionSelect = async () => {
   await doBindPlugin(plugin, version, unit)
 }
 
-const unbindPluginFromProject = async (binding: ProjectBinding) => {
+const unbindPluginFromProject = (binding: ProjectBinding) => {
+  pendingUnbindBinding.value = binding
+  showLinkerUnbindConfirm.value = true
+}
+
+const confirmUnbindPlugin = async () => {
+  if (!pendingUnbindBinding.value) return
+  const binding = pendingUnbindBinding.value
+  showLinkerUnbindConfirm.value = false
   try {
     await api.unbindPlugin(binding.project_id, binding.plugin_id)
     toast.success(t('linker.pluginUnbound'))
@@ -997,6 +1155,8 @@ const unbindPluginFromProject = async (binding: ProjectBinding) => {
     }
   } catch (error) {
     toast.error(t('common.loadFailed', { error }))
+  } finally {
+    pendingUnbindBinding.value = null
   }
 }
 
@@ -1026,6 +1186,30 @@ const batchBindPlugins = async () => {
     toast.warning(t('linker.selectPlugin'))
     return
   }
+  const needsVersionSelect = Array.from(selectedLinkPluginIds.value).some(id => {
+    const plugin = plugins.value.find(p => p.plugin_id === id)
+    return plugin && (plugin.versions.length > 1 || (plugin.versions.length > 0 && plugin.versions[0].units.length > 1))
+  })
+  if (needsVersionSelect) {
+    batchVersionSelectIdx.value = 0
+    showBatchVersionSelectDialog.value = true
+    return
+  }
+  showLinkerBatchBindDialog.value = true
+}
+
+const batchVersionSelectMap = ref<Map<string, { versionIdx: number, unitIdx: number }>>(new Map())
+const batchVersionSelectIdx = ref(0)
+const showBatchVersionSelectDialog = ref(false)
+const batchVersionSelectPluginIds = computed(() => {
+  return Array.from(selectedLinkPluginIds.value).filter(id => {
+    const plugin = plugins.value.find(p => p.plugin_id === id)
+    return plugin && (plugin.versions.length > 1 || (plugin.versions.length > 0 && plugin.versions[0].units.length > 1))
+  })
+})
+
+const confirmBatchVersionSelect = () => {
+  showBatchVersionSelectDialog.value = false
   showLinkerBatchBindDialog.value = true
 }
 
@@ -1036,8 +1220,15 @@ const confirmBatchBind = async () => {
     for (const pluginId of selectedLinkPluginIds.value) {
       const plugin = plugins.value.find(p => p.plugin_id === pluginId)
       if (plugin && plugin.versions.length > 0) {
-        const version = plugin.versions[0]
-        const unit = version.units[0]
+        const custom = batchVersionSelectMap.value.get(pluginId)
+        let versionIdx = 0
+        let unitIdx = 0
+        if (custom) {
+          versionIdx = custom.versionIdx
+          unitIdx = custom.unitIdx
+        }
+        const version = plugin.versions[versionIdx]
+        const unit = version?.units[unitIdx]
         if (unit) {
           const mountPath = unit.subdirectory || `addons/${unit.name}`
           const subdirectory = unit.subdirectory || ''
@@ -1202,6 +1393,8 @@ const graphLinks = computed(() => {
 useDialogEscape(showLinkerApplyDialog)
 useDialogEscape(showLinkerBatchBindDialog)
 useDialogEscape(showLinkerBatchUnbindDialog)
+useDialogEscape(showLinkerUnbindConfirm)
+useDialogEscape(showBatchVersionSelectDialog)
 useDialogEscape(showLinkerBatchApplyDialog)
 useDialogEscape(showLinkerVersionSelect)
 useDialogEscape(showLinkerApplyResult)
@@ -1360,6 +1553,13 @@ useDialogEscape(showLinkerBatchApplyResult)
               {{ favoritePlugins }} {{ t('plugins.favorites') }}
             </span>
           </button>
+          <button
+            v-if="showOnlyDuplicates"
+            @click="showOnlyDuplicates = false"
+            class="px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
+          >
+            {{ t('plugins.showDuplicates') }} ✕
+          </button>
         </div>
       </div>
     </div>
@@ -1514,6 +1714,9 @@ useDialogEscape(showLinkerBatchApplyResult)
               </span>
               <span class="badge badge-neutral">
                 {{ plugin.source.source_type === 'Local' ? t('plugins.source.local') : plugin.source.source_type === 'Git' ? t('plugins.source.git') : t('plugins.source.assetlibrary') }}
+              </span>
+              <span v-if="pluginBindingCountMap.get(plugin.plugin_id)" class="badge bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                {{ t('plugins.bindDialog.bindingCount', { count: pluginBindingCountMap.get(plugin.plugin_id) }) }}
               </span>
             </div>
             <div class="flex items-center gap-3 mt-1">
@@ -1671,6 +1874,12 @@ useDialogEscape(showLinkerBatchApplyResult)
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                     </svg>
                   </span>
+                  <span v-else class="inline-flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01" />
+                    </svg>
+                    {{ t('plugins.bindDialog.unknown') }}
+                  </span>
                   <span class="text-xs text-gray-900 dark:text-content-primary font-medium truncate">{{ bindingProjects.get(binding.project_id) || binding.project_id }}</span>
                   <span class="font-mono text-xs text-gray-500 dark:text-content-secondary flex-shrink-0">{{ binding.mount_path }}</span>
                 </div>
@@ -1714,7 +1923,10 @@ useDialogEscape(showLinkerBatchApplyResult)
             <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">{{ t('plugins.pluginDetail.source') }}</h4>
             <p class="text-sm text-gray-600 dark:text-content-secondary bg-gray-50 dark:bg-surface-layer rounded-lg p-3">
               {{ t(`plugins.pluginDetail.sourceTypes.${selectedPlugin.source.source_type}`) }}
-              <span v-if="selectedPlugin.source.url" class="block text-xs mt-1 break-all font-mono">{{ selectedPlugin.source.url }}</span>
+              <span v-if="selectedPlugin.source.url" class="block text-xs mt-1 break-all font-mono">
+                <a v-if="selectedPlugin.source.url.startsWith('http')" :href="selectedPlugin.source.url" target="_blank" rel="noopener" class="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 underline">{{ selectedPlugin.source.url }}</a>
+                <span v-else>{{ selectedPlugin.source.url }}</span>
+              </span>
             </p>
           </div>
 
@@ -2009,7 +2221,7 @@ useDialogEscape(showLinkerBatchApplyResult)
           <div v-for="update in pluginUpdates" :key="update.plugin_id" class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
             <div class="flex items-center justify-between">
               <div>
-                <span class="font-medium text-gray-900 dark:text-gray-100">{{ update.plugin_id }}</span>
+                <span class="font-medium text-gray-900 dark:text-gray-100">{{ update.plugin_name || update.plugin_id }}</span>
                 <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">
                   {{ t('plugins.updateCheck.versionInfo', { current: update.current_version, latest: update.latest_version }) }}
                 </div>
@@ -2142,13 +2354,22 @@ useDialogEscape(showLinkerBatchApplyResult)
             | {{ t('plugins.storageStats.duplicates', { count: totalStorageStats.duplicate_hash_count }) }}
           </span>
         </div>
-        <button
-          v-if="totalStorageStats.orphaned_size_bytes > 0"
-          @click="cleanupOrphaned"
-          class="px-3 py-1 text-xs border border-orange-300 dark:border-orange-700 text-orange-600 dark:text-orange-400 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20"
-        >
-          {{ t('plugins.storageStats.cleanup') }}
-        </button>
+        <div class="flex items-center gap-2">
+          <button
+            v-if="totalStorageStats.duplicate_hash_count > 0"
+            @click="checkAndShowDuplicates"
+            class="px-3 py-1 text-xs border border-yellow-300 dark:border-yellow-700 text-yellow-600 dark:text-yellow-400 rounded-lg hover:bg-yellow-50 dark:hover:bg-yellow-900/20"
+          >
+            {{ t('plugins.storageStats.viewDuplicates') }}
+          </button>
+          <button
+            v-if="totalStorageStats.orphaned_size_bytes > 0"
+            @click="cleanupOrphaned"
+            class="px-3 py-1 text-xs border border-orange-300 dark:border-orange-700 text-orange-600 dark:text-orange-400 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20"
+          >
+            {{ t('plugins.storageStats.cleanup') }}
+          </button>
+        </div>
       </div>
     </div>
 
@@ -2213,7 +2434,10 @@ useDialogEscape(showLinkerBatchApplyResult)
               :class="['px-3 py-2.5 cursor-pointer border-b border-gray-100 dark:border-surface-border last:border-0 transition-colors', selectedLinkProjectIds.has(project.project_id) ? 'bg-primary-50 dark:bg-primary-900/20' : 'hover:bg-gray-50 dark:hover:bg-surface-layer']"
             >
               <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate">{{ project.name }}</div>
-              <div class="text-xs text-gray-500 dark:text-content-secondary truncate">{{ project.godot_version }}</div>
+              <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-content-secondary">
+                <span>{{ project.godot_version }}</span>
+                <span v-if="linkerProjectBindingCounts.get(project.project_id)" class="text-blue-500 dark:text-blue-400">{{ linkerProjectBindingCounts.get(project.project_id) }} {{ t('linker.bindingCountShort') }}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -2292,7 +2516,10 @@ useDialogEscape(showLinkerBatchApplyResult)
                     {{ item.plugin?.name || t('linker.unknownPlugin') }}
                     <span v-if="item.is_healthy === false" class="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" :title="t('plugins.bindDialog.unhealthy')"></span>
                   </div>
-                  <div class="text-xs text-gray-500 dark:text-content-secondary">{{ item.mount_path }}</div>
+                  <div class="text-xs text-gray-500 dark:text-content-secondary flex items-center gap-2">
+                    <span>{{ item.mount_path }}</span>
+                    <span v-if="getBindingVersion(item)" class="text-blue-500 dark:text-blue-400">v{{ getBindingVersion(item) }}</span>
+                  </div>
                 </div>
                 <button @click="unbindPluginFromProject(item)" class="px-2 py-1 text-red-600 dark:text-red-400 text-xs hover:bg-red-50 dark:hover:bg-red-900/20 rounded ml-2 flex-shrink-0">
                   {{ t('linker.unbind') }}
@@ -2414,6 +2641,11 @@ useDialogEscape(showLinkerBatchApplyResult)
                 <div class="min-w-0 flex-1">
                   <span class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ project.name }}</span>
                   <span class="text-xs text-gray-500 dark:text-content-secondary ml-2">{{ project.godot_version }}</span>
+                  <span
+                    v-if="bindTargetPlugin && isCompatWarning(bindTargetPlugin, project)"
+                    class="text-xs text-orange-500 dark:text-orange-400 ml-1"
+                    :title="t('plugins.bindDialog.compatWarning')"
+                  >⚠</span>
                 </div>
               </label>
             </div>
@@ -2584,6 +2816,58 @@ useDialogEscape(showLinkerBatchApplyResult)
           <button @click="confirmBatchUnbind" :disabled="isLinkerBatchUnbinding" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm disabled:opacity-50">
             {{ isLinkerBatchUnbinding ? t('linker.batchUnbinding') : t('common.confirm') }}
           </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div v-if="showLinkerUnbindConfirm && pendingUnbindBinding" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showLinkerUnbindConfirm = false; pendingUnbindBinding = null">
+      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('linker.unbindConfirm') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">
+          {{ t('linker.unbindConfirmDesc', { name: plugins.find(p => p.plugin_id === pendingUnbindBinding?.plugin_id)?.name || pendingUnbindBinding?.plugin_id || '' }) }}
+        </p>
+        <div class="flex justify-end gap-3">
+          <button @click="showLinkerUnbindConfirm = false; pendingUnbindBinding = null" class="btn-secondary">{{ t('linker.cancel') }}</button>
+          <button @click="confirmUnbindPlugin" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm">
+            {{ t('linker.unbind') }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div v-if="showBatchVersionSelectDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showBatchVersionSelectDialog = false; batchVersionSelectMap = new Map()">
+      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[80vh] flex flex-col" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('linker.batchVersionSelectTitle') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">{{ t('linker.batchVersionSelectDesc') }}</p>
+        <div class="flex-1 overflow-y-auto space-y-4">
+          <div v-for="pluginId in batchVersionSelectPluginIds" :key="pluginId" class="bg-gray-50 dark:bg-surface-layer rounded-lg p-3">
+            <h4 class="text-sm font-medium text-gray-900 dark:text-content-primary mb-2">{{ plugins.find(p => p.plugin_id === pluginId)?.name || pluginId }}</h4>
+            <div class="flex gap-3">
+              <select
+                :value="batchVersionSelectMap.get(pluginId)?.versionIdx ?? 0"
+                @change="(() => { const m = new Map(batchVersionSelectMap); m.set(pluginId, { versionIdx: Number(($event.target as HTMLSelectElement).value), unitIdx: 0 }); batchVersionSelectMap = m; })"
+                class="flex-1 px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-xs"
+              >
+                <option v-for="(v, i) in plugins.find(p => p.plugin_id === pluginId)?.versions" :key="v.version_id" :value="i">v{{ v.version }}</option>
+              </select>
+              <select
+                v-if="(plugins.find(p => p.plugin_id === pluginId)?.versions[batchVersionSelectMap.get(pluginId)?.versionIdx ?? 0]?.units?.length ?? 0) > 1"
+                :value="batchVersionSelectMap.get(pluginId)?.unitIdx ?? 0"
+                @change="(() => { const m = new Map(batchVersionSelectMap); const cur = m.get(pluginId) || { versionIdx: 0, unitIdx: 0 }; m.set(pluginId, { ...cur, unitIdx: Number(($event.target as HTMLSelectElement).value) }); batchVersionSelectMap = m; })"
+                class="flex-1 px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-xs"
+              >
+                <option v-for="(u, i) in plugins.find(p => p.plugin_id === pluginId)?.versions[batchVersionSelectMap.get(pluginId)?.versionIdx ?? 0]?.units" :key="u.unit_id" :value="i">{{ u.name }}</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="flex justify-end gap-3 mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+          <button @click="showBatchVersionSelectDialog = false; batchVersionSelectMap = new Map()" class="btn-secondary">{{ t('linker.cancel') }}</button>
+          <button @click="confirmBatchVersionSelect" class="btn-primary">{{ t('linker.confirmBind') }}</button>
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { Project, Plugin, ProjectBinding, Settings } from '@/types'
+import type { Project, Plugin, ProjectBinding, Settings, AssetImportProgress } from '@/types'
 import { api } from '@/api'
 
 export const useProjectStore = defineStore('projects', () => {
@@ -104,7 +104,7 @@ export const usePluginStore = defineStore('plugins', () => {
   const plugins = ref<Plugin[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
-  const importProgress = ref<any>(null)
+  const importProgress = ref<AssetImportProgress | null>(null)
   const isImporting = ref<string | null>(null)
 
   const loadPlugins = async () => {
