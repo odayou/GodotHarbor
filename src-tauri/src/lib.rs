@@ -13,10 +13,9 @@ pub mod watcher;
 pub mod update_scheduler;
 pub mod hot_update;
 
-use tauri::{Manager, Emitter};
+use tauri::Manager;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
-use serde_json;
 
 pub struct AppState {
     pub fs_watcher: Mutex<watcher::FsWatcher>,
@@ -145,6 +144,7 @@ pub fn run() {
                 tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                 if !WINDOW_CLOSED.load(Ordering::SeqCst) {
                     if let Some(window) = show_handle.get_webview_window("main") {
+                        let _ = window.maximize();
                         let _ = window.show();
                     }
                 }
@@ -159,8 +159,6 @@ pub fn run() {
                         WINDOW_CLOSED.store(true, Ordering::SeqCst);
                         if let Some(window) = app_clone.get_webview_window("main") {
                             let _ = window.hide();
-                            // 显示通知，提示软件继续服务中
-                            let _ = window.emit("show-notification", serde_json::json!({}));
                         }
                     }
                 });
@@ -202,9 +200,16 @@ pub fn run() {
                 .on_menu_event(move |app, event| {
                     match event.id().as_ref() {
                         "show" => {
+                            WINDOW_CLOSED.store(false, Ordering::SeqCst);
                             if let Some(window) = app.get_webview_window("main") {
                                 let _ = window.show();
                                 let _ = window.set_focus();
+                                let _ = window.set_always_on_top(true);
+                                let win = window.clone();
+                                tauri::async_runtime::spawn(async move {
+                                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                                    let _ = win.set_always_on_top(false);
+                                });
                             }
                         }
                         "check_update" => {
@@ -237,16 +242,28 @@ pub fn run() {
                             WINDOW_CLOSED.store(false, Ordering::SeqCst);
                             let app = tray.app_handle();
                             if let Some(window) = app.get_webview_window("main") {
-                                let _ = window.set_focus();
                                 let _ = window.show();
+                                let _ = window.set_focus();
+                                let _ = window.set_always_on_top(true);
+                                let win = window.clone();
+                                tauri::async_runtime::spawn(async move {
+                                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                                    let _ = win.set_always_on_top(false);
+                                });
                             }
                         }
                         TrayIconEvent::DoubleClick { button: MouseButton::Left, .. } => {
                             WINDOW_CLOSED.store(false, Ordering::SeqCst);
                             let app = tray.app_handle();
                             if let Some(window) = app.get_webview_window("main") {
-                                let _ = window.set_focus();
                                 let _ = window.show();
+                                let _ = window.set_focus();
+                                let _ = window.set_always_on_top(true);
+                                let win = window.clone();
+                                tauri::async_runtime::spawn(async move {
+                                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                                    let _ = win.set_always_on_top(false);
+                                });
                             }
                         }
                         _ => {}

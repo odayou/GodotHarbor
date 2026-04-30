@@ -9,7 +9,6 @@ import { useSidebar } from './composables/useSidebar'
 import { useCommandPalette } from './composables/useCommandPalette'
 import { usePluginStore } from './stores'
 import { useI18n } from 'vue-i18n'
-import { useToast } from './composables/useToast'
 import Sidebar from './components/layout/Sidebar.vue'
 import Header from './components/layout/Header.vue'
 import StatusBar from './components/layout/StatusBar.vue'
@@ -21,9 +20,7 @@ const { t, locale } = useI18n()
 const showLanguageDialog = ref(false)
 
 const pluginStore = usePluginStore()
-const { info: showInfoToast } = useToast()
 let unlistenProgress: any = null
-let unlistenNotification: any = null
 
 const { registerShortcut } = useKeyboardShortcuts()
 const { currentTheme, setTheme } = useTheme()
@@ -52,11 +49,6 @@ onMounted(async () => {
   unlistenProgress = await listen('asset-import-progress', (event) => {
     pluginStore.setImportProgress(event.payload)
   })
-  
-  // 监听通知事件
-  unlistenNotification = await listen('show-notification', () => {
-    showInfoToast(t('common.appMinimized'))
-  })
 })
 
 const selectLanguage = (lang: string) => {
@@ -68,9 +60,6 @@ const selectLanguage = (lang: string) => {
 onUnmounted(() => {
   if (unlistenProgress) {
     unlistenProgress()
-  }
-  if (unlistenNotification) {
-    unlistenNotification()
   }
 })
 
