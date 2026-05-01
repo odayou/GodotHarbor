@@ -1117,7 +1117,16 @@ const initCollapsedGroups = () => {
                       <div class="flex items-center gap-3 mt-1 text-xs text-gray-500 dark:text-gray-400">
                         <span>{{ formatFileSize(version.file_size) }}</span>
                         <span>{{ formatDate(version.published_at) }}</span>
-                        <span class="truncate" :title="version.file_name">{{ version.file_name }}</span>
+                        <a
+                          v-if="version.release_url"
+                          :href="version.release_url"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          class="text-primary-600 dark:text-primary-400 hover:underline inline-flex items-center gap-0.5"
+                        >
+                          {{ t('engines.download.sourceLink') }}
+                          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                        </a>
                         <button
                           v-if="version.release_notes"
                           @click="expandedReleaseVersion = expandedReleaseVersion === `${version.version}_${version.variant}` ? '' : `${version.version}_${version.variant}`"

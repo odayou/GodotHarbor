@@ -124,26 +124,10 @@ fn channel_priority(channel: &EngineReleaseChannel) -> u32 {
     }
 }
 
-fn platform_keywords() -> Vec<&'static str> {
-    if cfg!(target_os = "windows") {
-        vec!["win64", "windows", "win"]
-    } else if cfg!(target_os = "macos") {
-        vec!["macos", "mac", "darwin"]
-    } else {
-        vec!["linux", "x86_64"]
-    }
-}
-
-fn platform_extension() -> &'static str {
-    ".zip"
-}
-
 fn is_platform_asset(name: &str) -> bool {
     let lower = name.to_lowercase();
-    let keywords = platform_keywords();
-    let ext = platform_extension();
 
-    if !lower.ends_with(ext) {
+    if !lower.ends_with(".zip") {
         return false;
     }
 
@@ -155,14 +139,28 @@ fn is_platform_asset(name: &str) -> bool {
         return false;
     }
 
-    if cfg!(target_os = "windows") {
-        if lower.contains("_win32.") || lower.contains("_x86_32.") || lower.contains("_32.") {
-            return false;
-        }
+    if lower.contains("debug_symbols") || lower.contains("native_debug") {
+        return false;
     }
 
-    if cfg!(target_os = "macos") {
-        if lower.contains("_universal") {
+    if lower.contains("export_templates") || lower.contains(".tpz") {
+        return false;
+    }
+
+    if lower.contains("source") || lower.contains("web_editor") {
+        return false;
+    }
+
+    if cfg!(target_os = "windows") {
+        if lower.contains("_x86_32.") || lower.contains("_x86_32_") || lower.contains("win32") {
+            return false;
+        }
+        if lower.contains("arm64") || lower.contains("arm32") {
+            return false;
+        }
+        lower.contains("win64")
+    } else if cfg!(target_os = "macos") {
+        if lower.contains("universal") {
             return true;
         }
         if lower.contains("_arm64") && !lower.contains("_x86_64") {
@@ -171,9 +169,10 @@ fn is_platform_asset(name: &str) -> bool {
         if lower.contains("_x86_64") && !lower.contains("_arm64") {
             return true;
         }
+        lower.contains("macos")
+    } else {
+        lower.contains("linux") && (lower.contains("x86_64") || lower.contains("x86_32") || lower.contains("arm64") || lower.contains("arm32"))
     }
-
-    keywords.iter().any(|kw| lower.contains(kw))
 }
 
 pub struct EngineDownloader;
@@ -328,7 +327,7 @@ impl EngineDownloader {
             }
 
             let name_lower = name.to_lowercase();
-            let is_mono = name_lower.contains("mono") || name_lower.contains("_net") || name_lower.contains(".net");
+            let is_mono = name_lower.contains("mono");
 
             let is_preferred = if cfg!(target_os = "macos") {
                 name_lower.contains("universal")

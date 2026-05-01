@@ -495,6 +495,8 @@ export default {
     checkUpdatesFailed: 'Check updates failed: {error}',
     deleteEngine: 'Delete Engine',
     noMatchingEngines: 'No matching engines',
+    launchEngine: 'Launch Engine',
+    launchFailed: 'Failed to launch engine: {error}',
     download: {
       title: 'Download Engine',
       mirror: 'Mirror Repository',
@@ -528,7 +530,11 @@ export default {
       reDownload: 'Re-download',
       downloadInBackground: 'Downloads will continue in the background',
       launchEngine: 'Launch engine',
-      versionCount: 'versions'
+      versionCount: 'versions',
+      allVariants: 'All Variants',
+      variantStandard: 'Standard',
+      variantMono: '.NET',
+      sourceLink: 'Source'
     }
   },
   settings: {

@@ -630,6 +630,8 @@ pub struct DownloadEngineResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CachedRemoteVersions {
+    #[serde(default)]
+    pub cache_version: u32,
     pub cached_at: String,
     pub mirror_id: String,
     pub versions: Vec<RemoteEngineVersion>,

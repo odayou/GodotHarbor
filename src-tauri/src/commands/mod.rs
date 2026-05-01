@@ -223,20 +223,26 @@ pub async fn fetch_remote_engine_versions(
     }
 
     let force = force_refresh.unwrap_or(false);
+    let current_cache_version: u32 = 2;
 
-    if !force {
-        let cache_dir = get_data_dir(&app).join("cache");
-        let cache_file = cache_dir.join(format!("remote_versions_{}.json", mirror_id));
-        if cache_file.exists() {
-            if let Ok(content) = fs::read_to_string(&cache_file) {
-                if let Ok(cached) = serde_json::from_str::<crate::models::CachedRemoteVersions>(&content) {
-                    if let Ok(cached_time) = chrono::DateTime::parse_from_rfc3339(&cached.cached_at) {
-                        let elapsed = chrono::Utc::now().signed_duration_since(cached_time.with_timezone(&chrono::Utc));
-                        if elapsed.num_minutes() < 30 {
-                            log_operation(&app, "fetch_remote_engine_versions", &mirror_id,
-                                &format!("使用缓存，共 {} 个版本", cached.versions.len()));
-                            return Ok(cached.versions);
-                        }
+    let cache_dir = get_data_dir(&app).join("cache");
+    let cache_file = cache_dir.join(format!("remote_versions_{}.json", mirror_id));
+
+    if force {
+        let _ = fs::remove_file(&cache_file);
+    } else if cache_file.exists() {
+        if let Ok(content) = fs::read_to_string(&cache_file) {
+            if let Ok(cached) = serde_json::from_str::<crate::models::CachedRemoteVersions>(&content) {
+                if cached.cache_version != current_cache_version {
+                    let _ = fs::remove_file(&cache_file);
+                    log_operation(&app, "fetch_remote_engine_versions", &mirror_id,
+                        "缓存版本不匹配，已清除旧缓存");
+                } else if let Ok(cached_time) = chrono::DateTime::parse_from_rfc3339(&cached.cached_at) {
+                    let elapsed = chrono::Utc::now().signed_duration_since(cached_time.with_timezone(&chrono::Utc));
+                    if elapsed.num_minutes() < 30 {
+                        log_operation(&app, "fetch_remote_engine_versions", &mirror_id,
+                            &format!("使用缓存，共 {} 个版本", cached.versions.len()));
+                        return Ok(cached.versions);
                     }
                 }
             }
@@ -253,6 +259,7 @@ pub async fn fetch_remote_engine_versions(
     let _ = fs::create_dir_all(&cache_dir);
     let cache_file = cache_dir.join(format!("remote_versions_{}.json", mirror_id));
     let cached = crate::models::CachedRemoteVersions {
+        cache_version: current_cache_version,
         cached_at: chrono::Utc::now().to_rfc3339(),
         mirror_id: mirror_id.clone(),
         versions: versions.clone(),

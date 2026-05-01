@@ -495,6 +495,8 @@ export default {
     checkUpdatesFailed: '检查更新失败: {error}',
     deleteEngine: '删除引擎',
     noMatchingEngines: '没有匹配的引擎',
+    launchEngine: '启动引擎',
+    launchFailed: '启动引擎失败: {error}',
     download: {
       title: '下载引擎',
       mirror: '镜像仓库',
@@ -528,7 +530,11 @@ export default {
       reDownload: '重新下载',
       downloadInBackground: '下载将在后台继续',
       launchEngine: '启动引擎',
-      versionCount: '个版本'
+      versionCount: '个版本',
+      allVariants: '所有变体',
+      variantStandard: '标准版',
+      variantMono: '.NET版',
+      sourceLink: '来源'
     }
   },
   settings: {
