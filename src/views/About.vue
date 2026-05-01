@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onErrorCaptured } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { api } from '@/api'
@@ -8,6 +8,13 @@ import { useToast } from '@/composables/useToast'
 const { t } = useI18n()
 const router = useRouter()
 const toast = useToast()
+const hasError = ref(false)
+
+onErrorCaptured((err) => {
+  console.error('About page error:', err)
+  hasError.value = true
+  return false
+})
 
 const appVersion = ref('')
 const activeTab = ref<'about' | 'credits' | 'sponsor'>('about')
@@ -34,15 +41,16 @@ const checkForUpdates = async () => {
   isCheckingUpdate.value = true
   try {
     const result = await api.checkAllUpdates()
-    const hasAppUpdate = !!result.app_update || !!result.hot_update
-    const hasPluginUpdates = result.plugin_updates.length > 0
-    const hasEngineUpdates = result.engine_updates.length > 0
+    const hasAppUpdate = !!(result?.app_update || result?.hot_update)
+    const hasPluginUpdates = (result?.plugin_updates?.length ?? 0) > 0
+    const hasEngineUpdates = (result?.engine_updates?.length ?? 0) > 0
     if (hasAppUpdate || hasPluginUpdates || hasEngineUpdates) {
       router.push('/updates')
     } else {
       toast.success(t('about.upToDate'))
     }
-  } catch (error) {
+  } catch (error: any) {
+    console.error('Check update failed:', error)
     toast.error(t('about.checkUpdateFailed'))
   } finally {
     isCheckingUpdate.value = false
@@ -50,25 +58,25 @@ const checkForUpdates = async () => {
 }
 
 const rustDeps = [
-  { name: 'Tauri', version: '2.x', license: 'Apache-2.0 / MIT', url: 'https://tauri.app' },
-  { name: 'Serde', version: '1.x', license: 'Apache-2.0 / MIT', url: 'https://github.com/serde-rs/serde' },
-  { name: 'Tokio', version: '1.x', license: 'MIT', url: 'https://tokio.rs' },
-  { name: 'UUID', version: '1.x', license: 'Apache-2.0 / MIT', url: 'https://github.com/uuid-rs/uuid' },
-  { name: 'Chrono', version: '0.4', license: 'Apache-2.0 / MIT', url: 'https://github.com/chronotope/chrono' },
-  { name: 'WalkDir', version: '2.x', license: 'Unlicense / MIT', url: 'https://github.com/BurntSushi/walkdir' },
-  { name: 'Git2', version: '0.18', license: 'Apache-2.0 / MIT', url: 'https://github.com/rust-lang/git2-rs' },
-  { name: 'Anyhow', version: '1.x', license: 'Apache-2.0 / MIT', url: 'https://github.com/dtolnay/anyhow' },
-  { name: 'Reqwest', version: '0.12', license: 'Apache-2.0 / MIT', url: 'https://github.com/seanmonstar/reqwest' },
-  { name: 'Zip', version: '2.x', license: 'MIT', url: 'https://github.com/zip-rs/zip2' },
+  { name: 'Tauri', version: '2.x', url: 'https://tauri.app' },
+  { name: 'Serde', version: '1.x', url: 'https://github.com/serde-rs/serde' },
+  { name: 'Tokio', version: '1.x', url: 'https://tokio.rs' },
+  { name: 'UUID', version: '1.x', url: 'https://github.com/uuid-rs/uuid' },
+  { name: 'Chrono', version: '0.4', url: 'https://github.com/chronotope/chrono' },
+  { name: 'WalkDir', version: '2.x', url: 'https://github.com/BurntSushi/walkdir' },
+  { name: 'Git2', version: '0.18', url: 'https://github.com/rust-lang/git2-rs' },
+  { name: 'Anyhow', version: '1.x', url: 'https://github.com/dtolnay/anyhow' },
+  { name: 'Reqwest', version: '0.12', url: 'https://github.com/seanmonstar/reqwest' },
+  { name: 'Zip', version: '2.x', url: 'https://github.com/zip-rs/zip2' },
 ]
 
 const jsDeps = [
-  { name: 'Vue.js', version: '3.x', license: 'MIT', url: 'https://vuejs.org' },
-  { name: 'Vue Router', version: '4.x', license: 'MIT', url: 'https://router.vuejs.org' },
-  { name: 'Pinia', version: '2.x', license: 'MIT', url: 'https://pinia.vuejs.org' },
-  { name: 'Vite', version: '5.x', license: 'MIT', url: 'https://vitejs.dev' },
-  { name: 'TypeScript', version: '5.x', license: 'Apache-2.0', url: 'https://www.typescriptlang.org' },
-  { name: 'Tailwind CSS', version: '3.x', license: 'MIT', url: 'https://tailwindcss.com' },
+  { name: 'Vue.js', version: '3.x', url: 'https://vuejs.org' },
+  { name: 'Vue Router', version: '4.x', url: 'https://router.vuejs.org' },
+  { name: 'Pinia', version: '2.x', url: 'https://pinia.vuejs.org' },
+  { name: 'Vite', version: '5.x', url: 'https://vitejs.dev' },
+  { name: 'TypeScript', version: '5.x', url: 'https://www.typescriptlang.org' },
+  { name: 'Tailwind CSS', version: '3.x', url: 'https://tailwindcss.com' },
 ]
 
 const inspirationDeps = [
@@ -80,7 +88,14 @@ const inspirationDeps = [
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div v-if="hasError" class="flex flex-col items-center justify-center py-20">
+    <svg class="w-16 h-16 text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+    </svg>
+    <p class="text-gray-500 dark:text-gray-400 mb-3">{{ t('common.loadFailed', { error: '' }) }}</p>
+    <button @click="hasError = false" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm">{{ t('home.retry') }}</button>
+  </div>
+  <div v-else class="space-y-6">
     <div class="flex gap-2 border-b border-gray-200 dark:border-gray-700 pb-2">
       <button
         @click="activeTab = 'about'"
@@ -233,15 +248,12 @@ const inspirationDeps = [
           <div
             v-for="dep in rustDeps"
             :key="dep.name"
-            class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+            class="flex items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
           >
-            <div class="flex items-center gap-3">
-              <a :href="dep.url" target="_blank" class="text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline">
-                {{ dep.name }}
-              </a>
-              <span class="text-xs text-gray-500 dark:text-gray-400">v{{ dep.version }}</span>
-            </div>
-            <span class="text-xs text-gray-400 dark:text-gray-500">{{ dep.license }}</span>
+            <a :href="dep.url" target="_blank" class="text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline">
+              {{ dep.name }}
+            </a>
+            <span class="text-xs text-gray-500 dark:text-gray-400 ml-3">v{{ dep.version }}</span>
           </div>
         </div>
 
@@ -250,15 +262,12 @@ const inspirationDeps = [
           <div
             v-for="dep in jsDeps"
             :key="dep.name"
-            class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+            class="flex items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
           >
-            <div class="flex items-center gap-3">
-              <a :href="dep.url" target="_blank" class="text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline">
-                {{ dep.name }}
-              </a>
-              <span class="text-xs text-gray-500 dark:text-gray-400">v{{ dep.version }}</span>
-            </div>
-            <span class="text-xs text-gray-400 dark:text-gray-500">{{ dep.license }}</span>
+            <a :href="dep.url" target="_blank" class="text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline">
+              {{ dep.name }}
+            </a>
+            <span class="text-xs text-gray-500 dark:text-gray-400 ml-3">v{{ dep.version }}</span>
           </div>
         </div>
 

@@ -531,21 +531,29 @@ const toggleMirrorEnabled = (mirrorId: string) => {
         <button @click="showTeamConfigDialog = true" class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm">{{ t('settings.buttons.teamConfig') }}</button>
       </div>
     </div>
-    <div class="flex gap-2 flex-wrap">
-      <a v-for="section in [
-        { id: 'scan', label: t('settings.scan') },
-        { id: 'mount', label: t('settings.mount') },
-        { id: 'pluginRepo', label: t('settings.pluginRepo.title') },
-        { id: 'engineMirror', label: t('settings.engineMirror.title') },
-        { id: 'appearance', label: t('settings.appearance') },
-        { id: 'storage', label: t('settings.storage.title') },
-        { id: 'other', label: t('settings.other') }
-      ]" :key="section.id" :href="'#section-' + section.id"
-        class="px-3 py-1.5 text-xs font-medium rounded-full border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 hover:text-primary-600 dark:hover:text-primary-400 hover:border-primary-300 dark:hover:border-primary-700 transition-colors"
-      >{{ section.label }}</a>
-    </div>
     <div v-if="isLoading" class="flex justify-center py-12"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div></div>
-    <div v-else class="space-y-6">
+    <div v-else class="flex gap-6">
+      <nav class="w-44 shrink-0 hidden lg:block">
+        <div class="sticky top-6 space-y-1">
+          <a v-for="section in [
+            { id: 'scan', label: t('settings.scan'), icon: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z' },
+            { id: 'mount', label: t('settings.mount'), icon: 'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1' },
+            { id: 'pluginRepo', label: t('settings.pluginRepo.title'), icon: 'M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z' },
+            { id: 'engineMirror', label: t('settings.engineMirror.title'), icon: 'M13 10V3L4 14h7v7l9-11h-7z' },
+            { id: 'appearance', label: t('settings.appearance'), icon: 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01' },
+            { id: 'storage', label: t('settings.storage.title'), icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4' },
+            { id: 'other', label: t('settings.other'), icon: 'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4' }
+          ]" :key="section.id" :href="'#section-' + section.id"
+            class="flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg text-gray-600 dark:text-gray-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+          >
+            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="section.icon" />
+            </svg>
+            {{ section.label }}
+          </a>
+        </div>
+      </nav>
+      <div class="flex-1 min-w-0 space-y-6">
       <div id="section-scan" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.scan') }}</h2>
         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.scanDirs') }}</label>
@@ -807,7 +815,7 @@ const toggleMirrorEnabled = (mirrorId: string) => {
       <div class="flex justify-end">
         <button @click="saveSettingsWithMigrationCheck" :disabled="isLoading" class="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50">{{ t('settings.save') }}</button>
       </div>
-    </div>
+      </div>
     </div>
 
     <Transition
