@@ -190,8 +190,8 @@ impl EngineDownloader {
             .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
 
         let mut all_versions = Vec::new();
-        let max_pages = 3;
-        let per_page = 50;
+        let max_pages = 10;
+        let per_page = 100;
 
         let api_base = if mirror.mirror_type == "direct" {
             "https://api.github.com"
@@ -359,24 +359,25 @@ impl EngineDownloader {
             }
         }
 
+        let version_lower = version_str.trim().to_lowercase();
+        let remote_base = version_str.split('-').next().unwrap_or(version_str).trim().to_lowercase();
+
         let is_installed_standard = local_versions.iter().any(|lv| {
             let local_clean = lv.trim().to_lowercase();
-            let remote_base = version_str.split('-').next().unwrap_or(version_str).trim().to_lowercase();
             if local_clean.contains("mono") {
                 return false;
             }
-            local_clean == remote_base || local_clean == version_str.trim().to_lowercase()
-                || local_clean.starts_with(&format!("{}-", remote_base))
+            local_clean == version_lower || local_clean == remote_base
         });
 
         let is_installed_mono = local_versions.iter().any(|lv| {
             let local_clean = lv.trim().to_lowercase();
-            let remote_base = version_str.split('-').next().unwrap_or(version_str).trim().to_lowercase();
             if !local_clean.contains("mono") {
                 return false;
             }
-            local_clean == remote_base || local_clean == version_str.trim().to_lowercase()
-                || local_clean.starts_with(&format!("{}-", remote_base))
+            let expected_mono = format!("{}-mono", version_lower);
+            let expected_mono_base = format!("{}-mono", remote_base);
+            local_clean == expected_mono || local_clean == expected_mono_base
         });
 
         let mut results = Vec::new();

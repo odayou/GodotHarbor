@@ -46,6 +46,7 @@ const hideInstalled = ref(false)
 const activeDownloads = ref<Map<string, EngineDownloadProgress>>(new Map())
 const expandedReleaseVersion = ref<string>('')
 const openMenuId = ref<string>('')
+const collapsedGroups = ref<Set<string>>(new Set())
 
 useDialogEscape(showAddDialog)
 useDialogEscape(showRenameDialog)
@@ -415,6 +416,7 @@ const fetchRemoteVersions = async (forceRefresh: boolean = false) => {
   try {
     const versions = await api.fetchRemoteEngineVersions(selectedMirrorId.value, forceRefresh)
     remoteVersions.value = versions
+    initCollapsedGroups()
   } catch (error) {
     const errMsg = String(error)
     if (errMsg.includes('RATE_LIMITED')) {
@@ -508,11 +510,29 @@ const handleGlobalClick = (e: MouseEvent) => {
     openMenuId.value = ''
   }
 }
+
+const toggleGroup = (groupKey: string) => {
+  const newSet = new Set(collapsedGroups.value)
+  if (newSet.has(groupKey)) {
+    newSet.delete(groupKey)
+  } else {
+    newSet.add(groupKey)
+  }
+  collapsedGroups.value = newSet
+}
+
+const initCollapsedGroups = () => {
+  const keys = new Set<string>()
+  for (const [groupKey] of groupedRemoteVersions.value) {
+    keys.add(groupKey)
+  }
+  collapsedGroups.value = keys
+}
 </script>
 
 <template>
-  <div class="relative">
-    <div class="space-y-6">
+  <div class="relative flex flex-col h-full">
+    <div class="shrink-0 space-y-4 pb-4">
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
       <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ t('engines.title') }}</h1>
       <div class="flex flex-wrap gap-2">
@@ -622,6 +642,7 @@ const handleGlobalClick = (e: MouseEvent) => {
         </div>
       </div>
     </div>
+    </div>
 
     <div v-if="isLoading" class="flex justify-center py-12">
       <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
@@ -671,8 +692,8 @@ const handleGlobalClick = (e: MouseEvent) => {
       <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('engines.noMatchingEngines') }}</p>
     </div>
 
-    <div v-else class="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden">
-      <div class="overflow-x-auto">
+    <div v-else class="flex-1 min-h-0 bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden">
+      <div class="overflow-x-auto h-full overflow-y-auto">
         <table class="w-full min-w-[800px]">
           <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
             <template v-for="engine in filteredEngines" :key="engine.engine_id">
@@ -847,7 +868,6 @@ const handleGlobalClick = (e: MouseEvent) => {
         </table>
       </div>
     </div>
-    </div>
   </div>
 
   <Teleport to="body">
@@ -1012,11 +1032,17 @@ const handleGlobalClick = (e: MouseEvent) => {
 
           <div v-else class="space-y-4">
             <div v-for="[groupKey, versions] in groupedRemoteVersions" :key="groupKey">
-              <div class="sticky top-0 bg-white dark:bg-gray-800 py-1.5 px-3 -mx-3 border-b border-gray-200 dark:border-gray-700 mb-2 z-10">
-                <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">Godot {{ groupKey }}</span>
-                <span class="text-xs text-gray-400 ml-2">{{ versions.length }} {{ t('engines.download.versionCount') }}</span>
+              <div
+                class="sticky top-0 bg-white dark:bg-gray-800 py-1.5 px-3 -mx-3 border-b border-gray-200 dark:border-gray-700 mb-2 z-10 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                @click="toggleGroup(groupKey)"
+              >
+                <div class="flex items-center gap-2">
+                  <svg class="w-3 h-3 text-gray-400 transition-transform" :class="{ '-rotate-90': collapsedGroups.has(groupKey) }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                  <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">Godot {{ groupKey }}</span>
+                  <span class="text-xs text-gray-400 ml-2">{{ versions.length }} {{ t('engines.download.versionCount') }}</span>
+                </div>
               </div>
-              <div class="space-y-2">
+              <div v-if="!collapsedGroups.has(groupKey)" class="space-y-2">
             <div
               v-for="version in versions"
               :key="`${version.tag_name}_${version.variant}`"
