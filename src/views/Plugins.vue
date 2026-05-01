@@ -3,12 +3,14 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { api } from '@/api'
-import type { Plugin, Project, PluginUpdateInfo, PluginDependency, AssetLibrarySearchResult, AssetLibrarySearchResponse, AssetLibraryCategory, AssetLibraryAsset, PluginStorageStats, ProjectBinding, TotalStorageStats, DuplicateCheckResult, ScannedPlugin, TeamSharedConfig } from '@/types'
+import type { Plugin, Project, PluginDependency, PluginStorageStats, ProjectBinding, TotalStorageStats, DuplicateCheckResult, ScannedPlugin, TeamSharedConfig } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
-import { sendAppNotification } from '@/composables/useNotification'
 import { useToast } from '@/composables/useToast'
 import { useDialogEscape } from '@/composables/useDialogEscape'
 import { useBatchSelection } from '@/composables/useBatchSelection'
+import { usePluginFilter } from '@/composables/usePluginFilter'
+import { usePluginUpdate } from '@/composables/usePluginUpdate'
+import { useAssetLibrary } from '@/composables/useAssetLibrary'
 import { usePluginStore } from '@/stores'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
@@ -29,12 +31,9 @@ const pluginDependencies = ref<PluginDependency[]>([])
 const pluginStorageStats = ref<PluginStorageStats | null>(null)
 const pluginBindings = ref<ProjectBinding[]>([])
 const pluginBindingCountMap = ref<Map<string, number>>(new Map())
-const showUpdatesDialog = ref(false)
 const showImportModeDialog = ref(false)
 const importMode = ref<'copy' | 'move' | 'reference'>('copy')
 const totalStorageStats = ref<TotalStorageStats | null>(null)
-const pluginUpdates = ref<PluginUpdateInfo[]>([])
-const isCheckingUpdates = ref(false)
 
 const showAddMenu = ref(false)
 
@@ -101,11 +100,16 @@ const showGraphView = ref(false)
 const linkerSearchQuery = ref('')
 const linkerProjectBindingCounts = ref<Map<string, number>>(new Map())
 
-const searchQuery = ref('')
-const filterCompatibility = ref<string>('all')
-const filterSource = ref<string>('all')
-const showOnlyDuplicates = ref(false)
-const showFavoritesOnly = ref(false)
+const {
+  searchQuery,
+  filterCompatibility,
+  filterSource,
+  showOnlyDuplicates,
+  showFavoritesOnly,
+  filteredPlugins,
+  favoritePlugins,
+  checkAndShowDuplicates,
+} = usePluginFilter(plugins)
 
 const batchRemovePlugins = async () => {
   const ids = Array.from(selectedPluginIds.value)
@@ -149,27 +153,6 @@ const onBatchDeleteConfirm = async () => {
 
 const showBatchDeleteConfirm = ref(false)
 
-const filteredPlugins = computed(() => {
-  return plugins.value.filter(plugin => {
-    const matchesSearch = searchQuery.value === '' ||
-      plugin.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      plugin.description.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      plugin.author.toLowerCase().includes(searchQuery.value.toLowerCase())
-
-    const matchesCompatibility = filterCompatibility.value === 'all' ||
-      plugin.compatibility === filterCompatibility.value
-
-    const matchesSource = filterSource.value === 'all' ||
-      plugin.source.source_type === filterSource.value
-
-    const matchesFavorite = !showFavoritesOnly.value || plugin.is_favorite === true
-
-    const matchesDuplicate = !showOnlyDuplicates.value || plugins.value.filter(p => p.name === plugin.name && p.plugin_id !== plugin.plugin_id).length > 0
-
-    return matchesSearch && matchesCompatibility && matchesSource && matchesFavorite && matchesDuplicate
-  })
-})
-
 const {
   selectedIds: selectedPluginIds,
   isBatchMode,
@@ -180,10 +163,6 @@ const {
 } = useBatchSelection<Plugin>({
   items: filteredPlugins,
   getId: (p) => p.plugin_id,
-})
-
-const favoritePlugins = computed(() => {
-  return plugins.value.filter(p => p.is_favorite).length
 })
 
 const loadPlugins = async (force = false) => {
@@ -315,25 +294,6 @@ const importFromGit = async () => {
   }
 }
 
-const assetSearchQuery = ref('')
-const assetSearchResults = ref<AssetLibrarySearchResult[]>([])
-const isSearchingAssets = ref(false)
-const assetCategories = ref<AssetLibraryCategory[]>([])
-const assetFilterType = ref<string>('any')
-const assetFilterCategory = ref<string>('')
-const assetFilterGodotVersion = ref<string>('any')
-const assetFilterSupport = ref<string>('')
-const assetSortBy = ref<string>('updated')
-const assetCurrentPage = ref(0)
-const assetTotalPages = ref(0)
-const assetTotalItems = ref(0)
-const selectedAssetIds = ref<Set<string>>(new Set())
-const assetDetail = ref<AssetLibraryAsset | null>(null)
-const showAssetDetailDialog = ref(false)
-const searchCache = ref<Map<string, { data: AssetLibrarySearchResponse; timestamp: number }>>(new Map())
-const categoriesLoaded = ref(false)
-let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
-
 const addMenuRef = ref<HTMLElement | null>(null)
 
 const handleClickOutside = (event: MouseEvent) => {
@@ -376,11 +336,6 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  if (searchDebounceTimer) {
-    clearTimeout(searchDebounceTimer)
-    searchDebounceTimer = null
-  }
-  searchCache.value.clear()
   document.removeEventListener('click', handleClickOutside)
 })
 
@@ -393,8 +348,6 @@ const pendingImportAction = ref<(() => Promise<void>) | null>(null)
 
 useDialogEscape(showGitDialog)
 useDialogEscape(showPluginDetail)
-useDialogEscape(showAssetDetailDialog)
-useDialogEscape(showUpdatesDialog)
 useDialogEscape(showImportModeDialog)
 useDialogEscape(showDuplicateConfirm)
 
@@ -416,161 +369,6 @@ const getBindingVersion = (binding: ProjectBinding) => {
   if (!plugin) return null
   const version = plugin.versions.find(v => v.version_id === binding.version_id)
   return version?.version || null
-}
-
-const openAssetLibrary = async () => {
-  activeTab.value = 'assetLibrary'
-  assetSearchQuery.value = ''
-  assetSearchResults.value = []
-  selectedAssetIds.value = new Set()
-  assetCurrentPage.value = 0
-  assetTotalPages.value = 0
-  assetTotalItems.value = 0
-  await openAssetLibraryTab()
-}
-
-const getCacheKey = () => {
-  return JSON.stringify({
-    filter: assetSearchQuery.value,
-    type: assetFilterType.value,
-    category: assetFilterCategory.value,
-    support: assetFilterSupport.value,
-    godot_version: assetFilterGodotVersion.value,
-    sort: assetSortBy.value,
-    page: assetCurrentPage.value
-  })
-}
-
-const searchAssets = (immediate = false) => {
-  if (searchDebounceTimer) {
-    clearTimeout(searchDebounceTimer)
-  }
-  if (immediate) {
-    doSearch()
-  } else {
-    searchDebounceTimer = setTimeout(() => {
-      doSearch()
-    }, 400)
-  }
-}
-
-const doSearch = async () => {
-  isSearchingAssets.value = true
-  try {
-    const cacheKey = getCacheKey()
-    const cached = searchCache.value.get(cacheKey)
-    if (cached && Date.now() - cached.timestamp < 5 * 60 * 1000) {
-      assetSearchResults.value = cached.data.result
-      assetTotalPages.value = cached.data.pages
-      assetTotalItems.value = cached.data.total_items
-      isSearchingAssets.value = false
-      return
-    }
-
-    const result = await api.searchAssetLibrary({
-      filter: assetSearchQuery.value || undefined,
-      type: assetFilterType.value as 'any' | 'addon' | 'project',
-      category: assetFilterCategory.value || undefined,
-      support: assetFilterSupport.value || undefined,
-      godot_version: assetFilterGodotVersion.value !== 'any' ? assetFilterGodotVersion.value : undefined,
-      sort: assetSortBy.value as 'rating' | 'cost' | 'name' | 'updated',
-      max_results: 20,
-      page: assetCurrentPage.value || undefined
-    })
-    assetSearchResults.value = result.result
-    assetTotalPages.value = result.pages
-    assetTotalItems.value = result.total_items
-    if (searchCache.value.size > 50) {
-      const oldest = Array.from(searchCache.value.entries()).sort((a, b) => a[1].timestamp - b[1].timestamp)
-      for (let i = 0; i < oldest.length - 30; i++) {
-        searchCache.value.delete(oldest[i][0])
-      }
-    }
-    searchCache.value.set(cacheKey, { data: result, timestamp: Date.now() })
-  } catch (error) {
-    toast.error(t('common.loadFailed', { error }))
-  } finally {
-    isSearchingAssets.value = false
-  }
-}
-
-const assetPrevPage = () => {
-  if (assetCurrentPage.value > 0) {
-    assetCurrentPage.value--
-    searchAssets(true)
-  }
-}
-
-const assetNextPage = () => {
-  if (assetCurrentPage.value < assetTotalPages.value - 1) {
-    assetCurrentPage.value++
-    searchAssets(true)
-  }
-}
-
-const toggleAssetSelection = (assetId: string) => {
-  const newSet = new Set(selectedAssetIds.value)
-  if (newSet.has(assetId)) {
-    newSet.delete(assetId)
-  } else {
-    newSet.add(assetId)
-  }
-  selectedAssetIds.value = newSet
-}
-
-const importAsset = async (assetId: string, assetTitle: string) => {
-  pluginStore.setImporting(assetId)
-  try {
-    const result = await api.importFromAssetLibraryWithProgress(assetId)
-    toast.success(t('plugins.importPluginSuccess', { name: assetTitle }))
-    sendAppNotification('Godot Harbor', t('plugins.importPluginSuccess', { name: assetTitle }))
-    await loadPlugins(true)
-    showPostImportGuide(assetTitle, result)
-  } catch (error) {
-    toast.error(t('assetLibrary.importFailed') + ': ' + error)
-  } finally {
-    pluginStore.resetImportProgress()
-  }
-}
-
-const batchImportAssets = async () => {
-  const ids = Array.from(selectedAssetIds.value)
-  if (ids.length === 0) return
-
-  ids.forEach(id => pluginStore.setImporting(id))
-
-  const results = await Promise.allSettled(
-    ids.map(id => api.importFromAssetLibraryWithProgress(id))
-  )
-
-  pluginStore.resetImportProgress()
-  selectedAssetIds.value = new Set()
-
-  let successCount = 0
-  let failCount = 0
-  results.forEach(r => { if (r.status === 'fulfilled') successCount++; else failCount++ })
-
-  if (failCount > 0) {
-    toast.warning(t('plugins.depDialog.partialSuccess', { success: successCount, failed: failCount }))
-    sendAppNotification('Godot Harbor', t('plugins.depDialog.partialSuccess', { success: successCount, failed: failCount }))
-  } else {
-    toast.success(t('common.batchImportSuccess', { count: successCount }))
-    sendAppNotification('Godot Harbor', t('common.batchImportSuccess', { count: successCount }))
-  }
-  await loadPlugins(true)
-}
-
-const openAssetDetail = async (assetId: string) => {
-  try {
-    assetDetail.value = await api.getAssetDetail(assetId)
-    showAssetDetailDialog.value = true
-  } catch (error) {
-    toast.error(t('common.loadFailed', { error }))
-  }
-}
-
-const openPreviewLink = (url: string) => {
-  window.open(url, '_blank')
 }
 
 const deletePluginBindings = ref<ProjectBinding[]>([])
@@ -687,84 +485,6 @@ const doImportFromProjects = async () => {
   }
 }
 
-const checkPluginUpdates = async () => {
-  isCheckingUpdates.value = true
-  try {
-    pluginUpdates.value = await api.checkPluginUpdates()
-    showUpdatesDialog.value = true
-  } catch (error) {
-    toast.error(t('common.loadFailed', { error }))
-  } finally {
-    isCheckingUpdates.value = false
-  }
-}
-
-const updateGitPlugin = async (pluginId: string) => {
-  try {
-    const result = await api.updateGitPlugin(pluginId)
-    toast.success(t('plugins.updateSuccess', { name: result.name }))
-    await loadPlugins()
-    await reapplyBindingsForPlugin(pluginId)
-  } catch (error) {
-    toast.error(t('common.loadFailed', { error }))
-  }
-}
-
-const reapplyBindingsForPlugin = async (pluginId: string) => {
-  try {
-    const projects = await api.getProjects()
-    const bindingResults = await Promise.allSettled(
-      projects.map(p => api.getProjectBindings(p.project_id))
-    )
-    const projectIdsToApply: string[] = []
-    bindingResults.forEach((result, i) => {
-      if (result.status === 'fulfilled' && result.value.some(b => b.plugin_id === pluginId)) {
-        projectIdsToApply.push(projects[i].project_id)
-      }
-    })
-    await Promise.allSettled(
-      projectIdsToApply.map(id => api.applyChanges(id))
-    )
-  } catch {
-    // ignore reapply errors
-  }
-}
-
-const expandedReleaseNotes = ref<Set<string>>(new Set())
-
-const updatablePluginIds = computed(() =>
-  pluginUpdates.value.filter(u => u.update_available).map(u => u.plugin_id)
-)
-
-const isBatchUpdating = ref(false)
-
-const batchUpdatePlugins = async () => {
-  isBatchUpdating.value = true
-  let successCount = 0
-  let failCount = 0
-  const ids = [...updatablePluginIds.value]
-  const concurrency = 3
-  const chunks: string[][] = []
-  for (let i = 0; i < ids.length; i += concurrency) {
-    chunks.push(ids.slice(i, i + concurrency))
-  }
-  for (const chunk of chunks) {
-    const results = await Promise.allSettled(chunk.map(id => api.updateGitPlugin(id)))
-    for (const r of results) {
-      if (r.status === 'fulfilled') successCount++
-      else failCount++
-    }
-  }
-  isBatchUpdating.value = false
-  if (failCount > 0) {
-    toast.warning(t('plugins.updateCheck.batchPartial', { success: successCount, failed: failCount }))
-  } else {
-    toast.success(t('plugins.updateCheck.batchSuccess', { count: successCount }))
-  }
-  await loadPlugins()
-  pluginUpdates.value = await api.checkPluginUpdates()
-}
-
 const loadTotalStorageStats = async () => {
   try {
     totalStorageStats.value = await api.getTotalStorageStats()
@@ -787,14 +507,6 @@ const cleanupOrphaned = async () => {
   }
 }
 
-const checkAndShowDuplicates = () => {
-  searchQuery.value = ''
-  filterCompatibility.value = 'all'
-  filterSource.value = 'all'
-  showFavoritesOnly.value = false
-  showOnlyDuplicates.value = true
-}
-
 const showPostImportGuide = async (pluginName: string, plugin?: Plugin) => {
   if (plugin) {
     quickBindPlugin.value = plugin
@@ -813,6 +525,54 @@ const showPostImportGuide = async (pluginName: string, plugin?: Plugin) => {
     }, 800)
   }
 }
+
+const {
+  showUpdatesDialog,
+  pluginUpdates,
+  isCheckingUpdates,
+  isBatchUpdating,
+  expandedReleaseNotes,
+  updatablePluginIds,
+  checkPluginUpdates,
+  updateGitPlugin,
+  batchUpdatePlugins,
+} = usePluginUpdate({ loadPlugins })
+
+const {
+  assetSearchQuery,
+  assetSearchResults,
+  isSearchingAssets,
+  assetCategories,
+  assetFilterType,
+  assetFilterCategory,
+  assetFilterGodotVersion,
+  assetFilterSupport,
+  assetSortBy,
+  assetCurrentPage,
+  assetTotalPages,
+  assetTotalItems,
+  selectedAssetIds,
+  assetDetail,
+  showAssetDetailDialog,
+  importedAssetIds,
+  openAssetLibrary,
+  searchAssets,
+  assetPrevPage,
+  assetNextPage,
+  toggleAssetSelection,
+  importAsset,
+  batchImportAssets,
+  openAssetDetail,
+  openPreviewLink,
+  openAssetLibraryTab,
+} = useAssetLibrary({
+  activeTab,
+  loadPlugins,
+  showPostImportGuide,
+})
+
+useDialogEscape(showAssetDetailDialog)
+useDialogEscape(showUpdatesDialog)
 
 const loadPluginDependencies = async (pluginId: string) => {
   try {
@@ -926,17 +686,6 @@ const unbindFromDetail = async (binding: ProjectBinding) => {
 
 const installedPluginIds = computed(() => new Set(plugins.value.map(p => p.plugin_id)))
 
-const importedAssetIds = computed(() => {
-  const ids = new Set<string>()
-  for (const p of plugins.value) {
-    if (p.source.source_type === 'AssetLibrary' && p.source.url) {
-      const match = p.source.url.match(/^asset-library:\/\/(\d+)$/)
-      if (match) ids.add(match[1])
-    }
-  }
-  return ids
-})
-
 const missingDepPluginIds = computed(() => {
   return pluginDependencies.value
     .filter(d => !d.is_optional && !installedPluginIds.value.has(d.plugin_id))
@@ -1035,25 +784,6 @@ const loadLinkerData = async () => {
     } catch {}
   } catch (error) {
     toast.error(t('common.loadFailed', { error }))
-  }
-}
-
-const openAssetLibraryTab = async () => {
-  if (!categoriesLoaded.value || assetCategories.value.length === 0) {
-    try {
-      const config = await api.getAssetLibraryConfigure()
-      assetCategories.value = config.categories || []
-      categoriesLoaded.value = true
-    } catch (error) {
-      console.error('Failed to load categories:', error)
-      toast.error(t('assetLibrary.searchFailed'))
-      return
-    }
-  }
-  if (assetSearchResults.value.length === 0 && !isSearchingAssets.value) {
-    assetFilterSupport.value = 'featured'
-    await searchAssets(true)
-    assetFilterSupport.value = ''
   }
 }
 
