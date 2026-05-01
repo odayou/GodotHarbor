@@ -1,0 +1,28 @@
+name: Sync from Gitee
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    name: Sync Gitee to GitHub
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone from Gitee
+        run: |
+          git clone --bare https://gitee.com/odayou/GodotHarbor.git repo
+          cd repo
+
+      - name: Push to GitHub
+        run: |
+          cd repo
+          git remote add github https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          git push github --all --force
+          git push github --tags --force
+          cd ..
+          rm -rf repo

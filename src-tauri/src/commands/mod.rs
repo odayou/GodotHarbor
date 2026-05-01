@@ -373,6 +373,11 @@ pub fn cancel_engine_download(version: String, variant: String) -> Result<(), St
 }
 
 #[tauri::command]
+pub fn get_active_downloads() -> Vec<crate::models::EngineDownloadProgress> {
+    crate::engine_downloader::get_active_downloads()
+}
+
+#[tauri::command]
 pub fn cleanup_download_temp(app: AppHandle) -> Result<u64, String> {
     let download_dir = get_data_dir(&app).join("downloads");
     if !download_dir.exists() {

@@ -32,7 +32,8 @@ import type {
   UpdateHistoryEntry,
   StoragePaths,
   RemoteEngineVersion,
-  DownloadEngineResult
+  DownloadEngineResult,
+  EngineDownloadProgress
 } from '@/types'
 
 export const api = {
@@ -412,6 +413,10 @@ export const api = {
 
   async cancelEngineDownload(version: string, variant: string): Promise<void> {
     return await invoke('cancel_engine_download', { version, variant })
+  },
+
+  async getActiveDownloads(): Promise<EngineDownloadProgress[]> {
+    return await invoke('get_active_downloads')
   },
 
   async launchEngine(engineId: string): Promise<void> {

@@ -54,6 +54,15 @@ useDialogEscape(showDownloadDialog)
 
 onMounted(async () => {
   await loadEngines()
+  try {
+    const activeList = await api.getActiveDownloads()
+    const newMap = new Map<string, EngineDownloadProgress>()
+    for (const progress of activeList) {
+      const key = `${progress.version}_${progress.variant}`
+      newMap.set(key, progress)
+    }
+    activeDownloads.value = newMap
+  } catch {}
   unlistenDiscover = await listen('engines-discovered', () => {
     loadEngines()
   })

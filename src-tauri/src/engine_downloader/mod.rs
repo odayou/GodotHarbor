@@ -10,6 +10,17 @@ use std::sync::Mutex;
 static CANCEL_FLAGS: once_cell::sync::Lazy<Mutex<HashMap<String, AtomicBool>>> =
     once_cell::sync::Lazy::new(|| Mutex::new(HashMap::new()));
 
+static ACTIVE_DOWNLOADS: once_cell::sync::Lazy<Mutex<HashMap<String, EngineDownloadProgress>>> =
+    once_cell::sync::Lazy::new(|| Mutex::new(HashMap::new()));
+
+pub fn get_active_downloads() -> Vec<EngineDownloadProgress> {
+    if let Ok(map) = ACTIVE_DOWNLOADS.lock() {
+        map.values().cloned().collect()
+    } else {
+        vec![]
+    }
+}
+
 fn download_key(version: &str, variant: &str) -> String {
     format!("{}_{}", version, variant)
 }
@@ -43,6 +54,13 @@ fn reset_cancel(version: &str, variant: &str) {
 fn remove_cancel_flag(version: &str, variant: &str) {
     let key = download_key(version, variant);
     if let Ok(mut map) = CANCEL_FLAGS.lock() {
+        map.remove(&key);
+    }
+}
+
+fn clear_active_download(version: &str, variant: &str) {
+    let key = download_key(version, variant);
+    if let Ok(mut map) = ACTIVE_DOWNLOADS.lock() {
         map.remove(&key);
     }
 }
@@ -460,12 +478,14 @@ impl EngineDownloader {
         if let Err(e) = download_result {
             let _ = std::fs::remove_file(&archive_path);
             remove_cancel_flag(version, variant);
+            clear_active_download(version, variant);
             return Err(e);
         }
 
         if is_cancelled(version, variant) {
             let _ = std::fs::remove_file(&archive_path);
             remove_cancel_flag(version, variant);
+            clear_active_download(version, variant);
             return Err("下载已取消".to_string());
         }
 
@@ -481,6 +501,7 @@ impl EngineDownloader {
         if let Err(e) = extract_result {
             let _ = std::fs::remove_dir_all(&target_dir);
             remove_cancel_flag(version, variant);
+            clear_active_download(version, variant);
             return Err(e);
         }
 
@@ -668,6 +689,16 @@ impl EngineDownloader {
             progress,
             message: message.to_string(),
         };
+        {
+            let key = download_key(version, variant);
+            if let Ok(mut map) = ACTIVE_DOWNLOADS.lock() {
+                if stage == "complete" {
+                    map.remove(&key);
+                } else {
+                    map.insert(key, progress_info.clone());
+                }
+            }
+        }
         let _ = app.emit("engine-download-progress", &progress_info);
     }
 }

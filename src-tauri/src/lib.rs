@@ -371,6 +371,7 @@ pub fn run() {
             commands::fetch_remote_engine_versions,
             commands::download_engine,
             commands::cancel_engine_download,
+            commands::get_active_downloads,
             commands::cleanup_download_temp,
             commands::launch_engine,
             commands::get_storage_paths,
