@@ -385,29 +385,6 @@ useDialogEscape(showUpdatesDialog)
 useDialogEscape(showImportModeDialog)
 useDialogEscape(showDuplicateConfirm)
 
-const showBindDialog = ref(false)
-const bindTargetPlugin = ref<Plugin | null>(null)
-const bindProjects = ref<Project[]>([])
-const bindSelectedProjectIds = ref<Set<string>>(new Set())
-const bindSelectedVersionIdx = ref(0)
-const bindSelectedUnitIdx = ref(0)
-const isBinding = ref(false)
-
-useDialogEscape(showBindDialog)
-
-const openBindDialog = async (plugin: Plugin) => {
-  bindTargetPlugin.value = plugin
-  bindSelectedVersionIdx.value = 0
-  bindSelectedUnitIdx.value = 0
-  bindSelectedProjectIds.value = new Set()
-  try {
-    bindProjects.value = await api.getProjects()
-  } catch (e) {
-    bindProjects.value = []
-  }
-  showBindDialog.value = true
-}
-
 const isCompatWarning = (plugin: Plugin, project: Project) => {
   if (plugin.compatibility === 'Both' || plugin.compatibility === 'Unknown') return false
   const projectMajor = project.godot_version?.startsWith('4') ? '4' : project.godot_version?.startsWith('3') ? '3' : null
@@ -422,48 +399,6 @@ const getBindingVersion = (binding: ProjectBinding) => {
   if (!plugin) return null
   const version = plugin.versions.find(v => v.version_id === binding.version_id)
   return version?.version || null
-}
-
-const confirmBind = async (applyNow = false) => {
-  if (!bindTargetPlugin.value || bindSelectedProjectIds.value.size === 0) return
-  const plugin = bindTargetPlugin.value
-  const version = plugin.versions[bindSelectedVersionIdx.value]
-  const unit = version?.units[bindSelectedUnitIdx.value]
-  if (!version || !unit) {
-    toast.warning(t('plugins.bindDialog.noUnits'))
-    return
-  }
-  isBinding.value = true
-  const projectIds = Array.from(bindSelectedProjectIds.value)
-  let successCount = 0
-  let failCount = 0
-  for (const projectId of projectIds) {
-    try {
-      await api.bindPlugin(projectId, plugin.plugin_id, version.version_id, unit.unit_id, unit.subdirectory || `addons/${unit.name}`, unit.subdirectory || '')
-      successCount++
-    } catch {
-      failCount++
-    }
-  }
-  if (applyNow && successCount > 0) {
-    for (const projectId of projectIds) {
-      try {
-        await api.applyChanges(projectId)
-      } catch {
-        // ignore apply errors for individual projects
-      }
-    }
-  }
-  isBinding.value = false
-  showBindDialog.value = false
-  if (failCount > 0) {
-    toast.warning(t('plugins.bindDialog.partialSuccess', { success: successCount, failed: failCount }))
-  } else if (applyNow) {
-    toast.success(t('plugins.bindDialog.bindAndApplySuccess', { count: successCount, name: plugin.name }))
-  } else {
-    toast.success(t('plugins.bindDialog.success', { count: successCount, name: plugin.name }))
-  }
-  bindTargetPlugin.value = null
 }
 
 const openAssetLibrary = async () => {
@@ -673,14 +608,19 @@ const onRemovePluginConfirm = async () => {
       }
     }
     await api.removePlugin(deletePluginId.value)
+    let applyFailCount = 0
     for (const projectId of affectedProjectIds) {
       try {
         await api.applyChanges(projectId)
       } catch {
-        // ignore individual apply errors
+        applyFailCount++
       }
     }
-    toast.success(t('common.projectDeleted'))
+    if (applyFailCount > 0) {
+      toast.warning(t('plugins.deleteConfirm.applyPartial', { failed: applyFailCount }))
+    } else {
+      toast.success(t('common.projectDeleted'))
+    }
     await loadPlugins(true)
   } catch (error) {
     toast.error(t('common.deleteFailed', { error }))
@@ -1148,8 +1088,13 @@ const confirmUnbindPlugin = async () => {
   showLinkerUnbindConfirm.value = false
   try {
     await api.unbindPlugin(binding.project_id, binding.plugin_id)
+    try {
+      await api.applyChanges(binding.project_id)
+    } catch {
+      // ignore apply errors
+    }
     toast.success(t('linker.pluginUnbound'))
-    linkerHasPendingChanges.value = true
+    linkerHasPendingChanges.value = false
     if (selectedLinkId.value) {
       await loadLinkerBindings(selectedLinkId.value)
     }
@@ -1239,13 +1184,20 @@ const confirmBatchBind = async () => {
   }
   try {
     const result = await api.batchBindPlugins(requests)
+    for (const projectId of selectedLinkProjectIds.value) {
+      try {
+        await api.applyChanges(projectId)
+      } catch {
+        // ignore individual apply errors
+      }
+    }
     if (result.failed_count > 0) {
       toast.warning(t('common.batchDeleteComplete', { success: result.success_count, failed: result.failed_count }))
     } else {
       toast.success(t('plugins.bindDialog.bindAndApplySuccess', { count: result.success_count, name: '' }))
     }
     selectedLinkPluginIds.value = new Set()
-    linkerHasPendingChanges.value = true
+    linkerHasPendingChanges.value = false
     if (selectedLinkId.value) {
       await loadLinkerBindings(selectedLinkId.value)
     }
@@ -1278,13 +1230,18 @@ const confirmBatchUnbind = async () => {
     .map(b => b.plugin_id)
   try {
     const result = await api.batchUnbindPlugins(selectedLinkId.value, pluginIds)
+    try {
+      await api.applyChanges(selectedLinkId.value)
+    } catch {
+      // ignore apply errors
+    }
     if (result.failed_count > 0) {
       toast.warning(t('common.batchDeleteComplete', { success: result.success_count, failed: result.failed_count }))
     } else {
       toast.success(t('linker.pluginUnbound'))
     }
     selectedLinkPluginIds.value = new Set()
-    linkerHasPendingChanges.value = true
+    linkerHasPendingChanges.value = false
     await loadLinkerBindings(selectedLinkId.value)
   } catch (error) {
     toast.error(t('common.loadFailed', { error }))
@@ -1734,22 +1691,13 @@ useDialogEscape(showLinkerBatchApplyResult)
           </div>
           <div class="flex items-center gap-1">
             <button
-              @click.stop="openBindDialog(plugin)"
+              @click.stop="goToBindings(plugin)"
               class="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-1.5"
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
               </svg>
-              {{ t('plugins.bindToProject') }}
-            </button>
-            <button
-              @click.stop="goToBindings(plugin)"
-              class="px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-content-secondary text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              :title="t('plugins.goToBindings')"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-              </svg>
+              {{ t('plugins.goToBindings') }}
             </button>
             <button
               @click.stop="confirmRemovePlugin(plugin.plugin_id)"
@@ -2476,7 +2424,10 @@ useDialogEscape(showLinkerBatchApplyResult)
             >
               <div class="flex items-center justify-between">
                 <div class="min-w-0 flex-1">
-                  <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate">{{ plugin.name }}</div>
+                  <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate flex items-center gap-1">
+                    {{ plugin.name }}
+                    <span v-if="selectedLinkProjectIds.size > 0 && Array.from(selectedLinkProjectIds).some(pid => { const proj = linkerProjects.find(p => p.project_id === pid); return proj && isCompatWarning(plugin, proj); })" class="text-xs text-orange-500 dark:text-orange-400" :title="t('plugins.bindDialog.compatWarning')">⚠</span>
+                  </div>
                   <div class="text-xs text-gray-500 dark:text-content-secondary">v{{ plugin.versions[0]?.version || '1.0.0' }} · {{ plugin.author || t('linker.unknown') }}</div>
                 </div>
                 <button @click.stop="bindPluginToProject(plugin)" class="px-2 py-1 bg-primary-600 text-white text-xs rounded hover:bg-primary-700 ml-2 flex-shrink-0">
@@ -2599,107 +2550,6 @@ useDialogEscape(showLinkerBatchApplyResult)
             class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm"
           >
             {{ t('plugins.duplicate.importAnyway') }}
-          </button>
-        </div>
-      </div>
-    </div>
-  </Teleport>
-
-  <Teleport to="body">
-    <div v-if="showBindDialog && bindTargetPlugin" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showBindDialog = false; bindTargetPlugin = null">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[85vh] flex flex-col" @click.stop>
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">
-            {{ t('plugins.bindDialog.title', { name: bindTargetPlugin.name }) }}
-          </h3>
-          <button @click="showBindDialog = false; bindTargetPlugin = null" class="text-gray-500 dark:text-content-secondary hover:text-gray-700 dark:hover:text-content-primary">
-            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <div class="flex-1 overflow-y-auto space-y-4">
-          <div>
-            <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">{{ t('plugins.bindDialog.selectProjects') }}</h4>
-            <div v-if="bindProjects.length === 0" class="text-sm text-gray-500 dark:text-content-secondary py-4 text-center">
-              {{ t('plugins.bindDialog.noProjects') }}
-            </div>
-            <div v-else class="space-y-1 max-h-48 overflow-y-auto">
-              <label
-                v-for="project in bindProjects"
-                :key="project.project_id"
-                class="flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors"
-                :class="bindSelectedProjectIds.has(project.project_id) ? 'bg-primary-50 dark:bg-primary-900/20' : 'hover:bg-gray-50 dark:hover:bg-surface-layer'"
-              >
-                <input
-                  type="checkbox"
-                  :checked="bindSelectedProjectIds.has(project.project_id)"
-                  @change="(() => { const s = new Set(bindSelectedProjectIds); s.has(project.project_id) ? s.delete(project.project_id) : s.add(project.project_id); bindSelectedProjectIds = s; })"
-                  class="w-4 h-4 text-primary-600 rounded flex-shrink-0 cursor-pointer"
-                />
-                <div class="min-w-0 flex-1">
-                  <span class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ project.name }}</span>
-                  <span class="text-xs text-gray-500 dark:text-content-secondary ml-2">{{ project.godot_version }}</span>
-                  <span
-                    v-if="bindTargetPlugin && isCompatWarning(bindTargetPlugin, project)"
-                    class="text-xs text-orange-500 dark:text-orange-400 ml-1"
-                    :title="t('plugins.bindDialog.compatWarning')"
-                  >⚠</span>
-                </div>
-              </label>
-            </div>
-          </div>
-
-          <div v-if="bindTargetPlugin.versions.length > 1">
-            <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">{{ t('plugins.bindDialog.selectVersion') }}</h4>
-            <select
-              v-model="bindSelectedVersionIdx"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
-            >
-              <option v-for="(ver, idx) in bindTargetPlugin.versions" :key="ver.version_id" :value="idx">
-                v{{ ver.version }} ({{ new Date(ver.created_at).toLocaleDateString() }})
-              </option>
-            </select>
-          </div>
-
-          <div v-if="bindTargetPlugin.versions[bindSelectedVersionIdx]?.units.length > 1">
-            <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">{{ t('plugins.bindDialog.selectUnit') }}</h4>
-            <select
-              v-model="bindSelectedUnitIdx"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
-            >
-              <option v-for="(unit, idx) in bindTargetPlugin.versions[bindSelectedVersionIdx]?.units" :key="unit.unit_id" :value="idx">
-                {{ unit.name }}{{ unit.subdirectory ? ` (${unit.subdirectory})` : '' }}
-              </option>
-            </select>
-          </div>
-
-          <div class="text-xs text-gray-500 dark:text-content-secondary">
-            {{ t('plugins.bindDialog.mountPath') }}: {{ bindTargetPlugin.versions[bindSelectedVersionIdx]?.units[bindSelectedUnitIdx]?.subdirectory || `addons/${bindTargetPlugin.versions[bindSelectedVersionIdx]?.units[bindSelectedUnitIdx]?.name || '?'}` }}
-          </div>
-        </div>
-
-        <div class="flex justify-end gap-3 mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
-          <button
-            @click="showBindDialog = false; bindTargetPlugin = null"
-            class="btn-secondary"
-          >
-            {{ t('common.cancel') }}
-          </button>
-          <button
-            @click="confirmBind(false)"
-            :disabled="isBinding || bindSelectedProjectIds.size === 0"
-            class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm disabled:opacity-50"
-          >
-            {{ t('plugins.bindDialog.confirmBind', { count: bindSelectedProjectIds.size }) }}
-          </button>
-          <button
-            @click="confirmBind(true)"
-            :disabled="isBinding || bindSelectedProjectIds.size === 0"
-            class="btn-primary disabled:opacity-50"
-          >
-            {{ isBinding ? t('plugins.bindDialog.binding') : t('plugins.bindDialog.bindAndApply', { count: bindSelectedProjectIds.size }) }}
           </button>
         </div>
       </div>

@@ -248,7 +248,8 @@ export default {
       batchDesc: '确定要删除选中的 {count} 个插件吗？此操作将从仓库中移除插件，但不会影响已挂载到项目中的副本。',
       batchConfirm: '确认批量删除',
       bindingWarning: '⚠️ {name} 正被 {count} 个项目使用',
-      bindingWarningDesc: '删除后，以下项目的符号链接将断裂，插件将无法正常加载。'
+      bindingWarningDesc: '删除后，以下项目的符号链接将断裂，插件将无法正常加载。',
+      applyPartial: '插件已删除，但 {failed} 个项目应用变更失败'
     },
     batchActions: {
       selectAll: '全选',

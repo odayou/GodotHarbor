@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { api } from '@/api'
-import type { Project, Engine, ProjectEngineBinding, MovedProjectCandidate, ProjectBinding } from '@/types'
+import type { Project, Engine, ProjectEngineBinding, MovedProjectCandidate, ProjectBinding, Plugin } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
@@ -31,6 +31,19 @@ const customArgs = ref('')
 const isLaunching = ref(false)
 const projectEngineBinding = ref<ProjectEngineBinding | null>(null)
 const projectBindings = ref<ProjectBinding[]>([])
+const allPlugins = ref<Plugin[]>([])
+
+const pluginNameMap = computed(() => {
+  const map = new Map<string, string>()
+  for (const p of allPlugins.value) {
+    map.set(p.plugin_id, p.name)
+  }
+  return map
+})
+
+const getPluginName = (pluginId: string) => {
+  return pluginNameMap.value.get(pluginId) || pluginId
+}
 
 const searchQuery = ref('')
 const filterGroup = ref<string>('all')
@@ -277,6 +290,11 @@ const loadProjects = async () => {
     await loadGroups()
     await checkMovedProjects()
     await loadAllProjectBindings()
+    try {
+      allPlugins.value = await api.getPlugins()
+    } catch {
+      allPlugins.value = []
+    }
   } catch (error) {
     toast.error(t('common.loadFailed', { error }))
   } finally {
@@ -1080,12 +1098,20 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
         <div class="mb-4">
           <div class="flex items-center justify-between mb-2">
             <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('projects.pluginBindings') }}</h4>
-            <button
-              @click="goToPluginBindings(selectedProject!)"
-              class="text-xs text-primary-600 dark:text-primary-400 hover:underline"
-            >
-              {{ t('linker.goToPluginEcosystem') }}
-            </button>
+            <div class="flex items-center gap-2">
+              <button
+                @click="goToPluginBindings(selectedProject!)"
+                class="px-2.5 py-1 bg-primary-600 text-white text-xs rounded hover:bg-primary-700 transition-colors"
+              >
+                {{ t('plugins.bindToProject') }}
+              </button>
+              <button
+                @click="goToPluginBindings(selectedProject!)"
+                class="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+              >
+                {{ t('linker.goToPluginEcosystem') }}
+              </button>
+            </div>
           </div>
           <div v-if="projectBindings.length === 0" class="text-sm text-gray-500 dark:text-gray-400">
             {{ t('projects.noBindings') }}
@@ -1109,7 +1135,7 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
                   </svg>
                 </span>
                 <div class="min-w-0 flex-1">
-                  <span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ binding.plugin_id }}</span>
+                  <span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ getPluginName(binding.plugin_id) }}</span>
                   <span class="text-xs text-gray-500 dark:text-gray-400 ml-2 font-mono">{{ binding.mount_path }}</span>
                 </div>
               </div>

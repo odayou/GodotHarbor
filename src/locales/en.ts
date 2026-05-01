@@ -248,7 +248,8 @@ export default {
       batchDesc: 'Are you sure you want to delete the selected {count} plugins? This operation will remove the plugins from the repository, but will not affect copies already mounted in projects.',
       batchConfirm: 'Confirm Batch Delete',
       bindingWarning: '⚠️ {name} is used by {count} project(s)',
-      bindingWarningDesc: 'After deletion, the symlinks in the following projects will break and the plugin will not load properly.'
+      bindingWarningDesc: 'After deletion, the symlinks in the following projects will break and the plugin will not load properly.',
+      applyPartial: 'Plugin deleted, but failed to apply changes for {failed} project(s)'
     },
     batchActions: {
       selectAll: 'Select All',
