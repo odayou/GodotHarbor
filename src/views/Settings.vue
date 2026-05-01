@@ -817,6 +817,7 @@ const toggleMirrorEnabled = (mirrorId: string) => {
       </div>
       </div>
     </div>
+    </div>
 
     <Transition
       enter-active-class="transition-all duration-300"
