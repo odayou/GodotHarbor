@@ -169,6 +169,7 @@ export default {
     removedFromFavorites: '已取消收藏',
     noNewPluginsFound: '没有发现新的插件可以导入',
     versionDeleted: '版本已删除',
+    versionDeleteBindingWarning: '该版本被 {count} 个绑定引用（涉及 {projects} 个项目），删除前将自动解绑。是否继续？',
     importMode: {
       copy: '复制',
       move: '纳入',
@@ -300,6 +301,7 @@ export default {
       title: '发现重复插件',
       desc: '插件 "{name}" 已存在于仓库中，是否仍要导入？',
       importAnyway: '仍然导入',
+      replaceExisting: '替换现有版本',
       cancel: '取消'
     },
     importPluginSuccess: '插件 {name} 导入成功',
@@ -379,7 +381,9 @@ export default {
     title: 'Asset Library',
     search: '搜索',
     searching: '搜索中...',
+    searchFailed: '无法连接到 Asset Library，请检查网络连接后重试',
     noResults: '没有找到匹配的资产',
+    featuredHint: '显示精选推荐插件，输入关键词搜索更多',
     type: '资产类型',
     typeAny: '全部',
     typeAddon: '插件',
@@ -661,6 +665,11 @@ export default {
       saveHint: '修改将在保存设置后生效'
     },
     other: '其他',
+    unsavedChanges: '设置已修改但未保存',
+    unsavedTitle: '未保存的变更',
+    unsavedDesc: '您有未保存的设置变更，是否保存后再离开？',
+    discardChanges: '放弃变更',
+    saveAndLeave: '保存并离开',
     showOnboarding: '重新显示引导',
     showOnboardingDesc: '点击后立即显示新手引导',
     resetDataLabel: '重置数据',
@@ -892,7 +901,10 @@ export default {
     step3: '3. 绑定插件',
     step3Desc: '为项目选择需要的插件和版本',
     step4: '4. 应用变更',
-    step4Desc: '一键将插件挂载到项目 addons 目录'
+    step4Desc: '一键将插件挂载到项目 addons 目录',
+    retry: '重试',
+    noRecentProjects: '暂无最近项目，开始扫描或添加项目吧',
+    goToProjects: '前往项目管理'
   },
   sidebar: {
     collapse: '折叠侧边栏',
@@ -1053,7 +1065,13 @@ export default {
     contributeAction: '参与贡献',
     contributeDesc: '代码贡献、Bug 反馈、功能建议、文档完善，每一种贡献都同样宝贵。',
     contributionGuide: '贡献指南',
-    sponsorThanks: '感谢每一位支持者！您的支持是 Godot Harbor 持续发展的动力。'
+    sponsorThanks: '感谢每一位支持者！您的支持是 Godot Harbor 持续发展的动力。',
+    checkUpdates: '检查更新',
+    checking: '检查中...',
+    upToDate: '当前已是最新版本',
+    checkUpdateFailed: '检查更新失败',
+    copyVersion: '复制版本号',
+    versionCopied: '版本号已复制到剪贴板'
   },
   updates: {
     updatingApp: '正在更新应用',

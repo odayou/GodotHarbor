@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { onBeforeRouteLeave } from 'vue-router'
 import { api } from '@/api'
 import type { Settings, LogEntry, TeamSharedConfig, Project, EngineMirrorConfig, StoragePaths } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
@@ -14,7 +15,14 @@ const toast = useToast()
 const { t, locale } = useI18n()
 const { setTheme, initTheme } = useTheme()
 const settings = ref<Settings>({ scan_directories: [], mount_strategy: 'Symlink', language: 'zh-CN', theme: 'system', auto_scan_on_startup: true, auto_discover_engines: true, plugin_storage_path: '', auto_check_plugin_updates: false, auto_check_app_updates: true, auto_check_engine_updates: true, update_check_interval_hours: 4, skipped_app_version: '' })
+const originalSettings = ref<string>('')
 const isLoading = ref(false)
+const isDirty = computed(() => {
+  return JSON.stringify(settings.value) !== originalSettings.value
+})
+const showUnsavedDialog = ref(false)
+let pendingNavigation: (() => void) | null = null
+
 const logs = ref<LogEntry[]>([])
 const showLogs = ref(false)
 const logSortOrder = ref<'newest' | 'oldest'>('newest')
@@ -39,6 +47,33 @@ const isImporting = ref(false)
 
 onMounted(() => { initTheme(); loadSettings(); loadTeamConfigs(); loadProjects(); loadStoragePaths() })
 
+onBeforeRouteLeave((_to, _from, next) => {
+  if (isDirty.value) {
+    pendingNavigation = () => next(true)
+    showUnsavedDialog.value = true
+    next(false)
+  } else {
+    next(true)
+  }
+})
+
+const discardChanges = () => {
+  showUnsavedDialog.value = false
+  if (pendingNavigation) {
+    pendingNavigation()
+    pendingNavigation = null
+  }
+}
+
+const saveAndLeave = async () => {
+  await saveSettings()
+  showUnsavedDialog.value = false
+  if (pendingNavigation) {
+    pendingNavigation()
+    pendingNavigation = null
+  }
+}
+
 const loadSettings = async () => {
   isLoading.value = true
   try {
@@ -52,7 +87,7 @@ const loadSettings = async () => {
     locale.value = settings.value.language
     if (['light', 'dark', 'system', 'volcano'].includes(settings.value.theme)) setTheme(settings.value.theme as 'light' | 'dark' | 'system' | 'volcano')
   } catch (error) { toast.error(t('settings.messages.loadFailed', { error })) }
-  finally { isLoading.value = false }
+  finally { isLoading.value = false; originalSettings.value = JSON.stringify(settings.value) }
 }
 
 watch(() => settings.value.language, (lang) => {
@@ -80,6 +115,7 @@ const saveSettings = async () => {
   try {
     await api.saveSettings(settings.value)
     await loadStoragePaths()
+    originalSettings.value = JSON.stringify(settings.value)
     toast.success(t('settings.messages.saveSuccess'))
   }
   catch (error) { toast.error(t('settings.messages.saveFailed', { error })) }
@@ -495,9 +531,22 @@ const toggleMirrorEnabled = (mirrorId: string) => {
         <button @click="showTeamConfigDialog = true" class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm">{{ t('settings.buttons.teamConfig') }}</button>
       </div>
     </div>
+    <div class="flex gap-2 flex-wrap">
+      <a v-for="section in [
+        { id: 'scan', label: t('settings.scan') },
+        { id: 'mount', label: t('settings.mount') },
+        { id: 'pluginRepo', label: t('settings.pluginRepo.title') },
+        { id: 'engineMirror', label: t('settings.engineMirror.title') },
+        { id: 'appearance', label: t('settings.appearance') },
+        { id: 'storage', label: t('settings.storage.title') },
+        { id: 'other', label: t('settings.other') }
+      ]" :key="section.id" :href="'#section-' + section.id"
+        class="px-3 py-1.5 text-xs font-medium rounded-full border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 hover:text-primary-600 dark:hover:text-primary-400 hover:border-primary-300 dark:hover:border-primary-700 transition-colors"
+      >{{ section.label }}</a>
+    </div>
     <div v-if="isLoading" class="flex justify-center py-12"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div></div>
     <div v-else class="space-y-6">
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+      <div id="section-scan" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.scan') }}</h2>
         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.scanDirs') }}</label>
         <div class="space-y-2">
@@ -519,7 +568,7 @@ const toggleMirrorEnabled = (mirrorId: string) => {
           </label>
         </div>
       </div>
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+      <div id="section-mount" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.mount') }}</h2>
         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.mountStrategy') }}</label>
         <select v-model="settings.mount_strategy" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
@@ -533,7 +582,7 @@ const toggleMirrorEnabled = (mirrorId: string) => {
           <span v-else-if="settings.mount_strategy === 'Copy'">{{ t('settings.copyDesc') }}</span>
         </p>
       </div>
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+      <div id="section-pluginRepo" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.pluginRepo.title') }}</h2>
         <div class="space-y-4">
           <div>
@@ -573,7 +622,7 @@ const toggleMirrorEnabled = (mirrorId: string) => {
           </div>
         </div>
       </div>
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+      <div id="section-engineMirror" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.engineMirror.title') }}</h2>
         <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ t('settings.engineMirror.desc') }}</p>
         <div class="space-y-3">
@@ -622,7 +671,7 @@ const toggleMirrorEnabled = (mirrorId: string) => {
           </button>
         </div>
       </div>
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+      <div id="section-appearance" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.appearance') }}</h2>
         <div class="space-y-4">
           <div>
@@ -643,7 +692,7 @@ const toggleMirrorEnabled = (mirrorId: string) => {
           </div>
         </div>
       </div>
-      <div v-if="storagePaths" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+      <div v-if="storagePaths" id="section-storage" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ t('settings.storage.title') }}</h2>
         <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">{{ t('settings.storage.description') }}</p>
         <div class="mb-4 p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
@@ -726,7 +775,7 @@ const toggleMirrorEnabled = (mirrorId: string) => {
           </div>
         </div>
       </div>
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+      <div id="section-other" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.other') }}</h2>
         <div class="space-y-4">
           <div class="flex items-center justify-between">
@@ -760,6 +809,23 @@ const toggleMirrorEnabled = (mirrorId: string) => {
       </div>
     </div>
     </div>
+
+    <Transition
+      enter-active-class="transition-all duration-300"
+      enter-from-class="translate-y-full opacity-0"
+      enter-to-class="translate-y-0 opacity-100"
+      leave-active-class="transition-all duration-200"
+      leave-from-class="translate-y-0 opacity-100"
+      leave-to-class="translate-y-full opacity-0"
+    >
+      <div v-if="isDirty" class="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-primary-200 dark:border-primary-800 shadow-lg z-40 px-6 py-3 flex items-center justify-between">
+        <p class="text-sm text-gray-600 dark:text-gray-400">{{ t('settings.unsavedChanges') }}</p>
+        <div class="flex gap-3">
+          <button @click="loadSettings" class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm">{{ t('settings.discardChanges') }}</button>
+          <button @click="saveSettingsWithMigrationCheck" :disabled="isLoading" class="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 text-sm">{{ t('settings.save') }}</button>
+        </div>
+      </div>
+    </Transition>
   </div>
 
   <Teleport to="body">
@@ -1142,6 +1208,19 @@ const toggleMirrorEnabled = (mirrorId: string) => {
           >
             {{ t('common.confirm') }}
           </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div v-if="showUnsavedDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showUnsavedDialog = false">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">{{ t('settings.unsavedTitle') }}</h3>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">{{ t('settings.unsavedDesc') }}</p>
+        <div class="flex justify-end gap-3">
+          <button @click="discardChanges" class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm">{{ t('settings.discardChanges') }}</button>
+          <button @click="saveAndLeave" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm">{{ t('settings.saveAndLeave') }}</button>
         </div>
       </div>
     </div>

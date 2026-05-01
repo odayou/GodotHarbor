@@ -45,6 +45,11 @@ const getPluginName = (pluginId: string) => {
   return pluginNameMap.value.get(pluginId) || pluginId
 }
 
+const getPluginVersion = (pluginId: string) => {
+  const plugin = allPlugins.value.find(p => p.plugin_id === pluginId)
+  return plugin?.versions[0]?.version ? `v${plugin.versions[0].version}` : ''
+}
+
 const searchQuery = ref('')
 const filterGroup = ref<string>('all')
 const filterStatus = ref<string>('all')
@@ -1157,6 +1162,7 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
                 </span>
                 <div class="min-w-0 flex-1">
                   <span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ getPluginName(binding.plugin_id) }}</span>
+                  <span class="text-xs text-gray-400 dark:text-gray-500 ml-1.5">{{ getPluginVersion(binding.plugin_id) }}</span>
                   <span class="text-xs text-gray-500 dark:text-gray-400 ml-2 font-mono">{{ binding.mount_path }}</span>
                 </div>
               </div>

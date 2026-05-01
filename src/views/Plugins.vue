@@ -112,7 +112,6 @@ const showLinkerApplyResult = ref(false)
 const showLinkerBatchApplyResult = ref(false)
 const batchApplyResults = ref<any[]>([])
 const showGraphView = ref(false)
-const linkerHasPendingChanges = ref(false)
 const linkerSearchQuery = ref('')
 const linkerProjectBindingCounts = ref<Map<string, number>>(new Map())
 
@@ -186,7 +185,20 @@ const batchRemovePlugins = async () => {
 const onBatchDeleteConfirm = async () => {
   const ids = Array.from(selectedPluginIds.value)
   try {
+    const affectedProjectIds = new Set<string>()
+    for (const pluginId of ids) {
+      try {
+        const bindings = await api.getPluginBindings(pluginId)
+        for (const b of bindings) {
+          affectedProjectIds.add(b.project_id)
+          try { await api.unbindPlugin(b.project_id, pluginId) } catch {}
+        }
+      } catch {}
+    }
     const result = await api.batchRemovePlugins(ids)
+    for (const projectId of affectedProjectIds) {
+      try { await api.applyChanges(projectId) } catch {}
+    }
     if (result.failed_count > 0) {
       toast.warning(t('common.batchDeleteComplete', { success: result.success_count, failed: result.failed_count }))
     } else {
@@ -194,6 +206,7 @@ const onBatchDeleteConfirm = async () => {
     }
     clearPluginSelection()
     await loadPlugins()
+    loadPluginBindingCounts()
   } catch (error) {
     toast.error(t('common.batchDeleteFailed', { error }))
   }
@@ -355,7 +368,6 @@ const importFromGit = async () => {
   }
 }
 
-const showAssetLibraryDialog = ref(false)
 const assetSearchQuery = ref('')
 const assetSearchResults = ref<AssetLibrarySearchResult[]>([])
 const isSearchingAssets = ref(false)
@@ -434,7 +446,6 @@ const pendingImportAction = ref<(() => Promise<void>) | null>(null)
 
 useDialogEscape(showGitDialog)
 useDialogEscape(showPluginDetail)
-useDialogEscape(showAssetLibraryDialog)
 useDialogEscape(showAssetDetailDialog)
 useDialogEscape(showUpdatesDialog)
 useDialogEscape(showImportModeDialog)
@@ -895,6 +906,21 @@ const showPluginDetails = async (plugin: Plugin) => {
 
 const removePluginVersion = async (pluginId: string, versionId: string) => {
   try {
+    const bindings = await api.getPluginBindings(pluginId)
+    const affectedBindings = bindings.filter(b => b.version_id === versionId)
+    if (affectedBindings.length > 0) {
+      const projectNames = affectedBindings.map(b => b.project_id).filter((v, i, a) => a.indexOf(v) === i)
+      const confirmed = window.confirm(
+        t('plugins.versionDeleteBindingWarning', { count: affectedBindings.length, projects: projectNames.length })
+      )
+      if (!confirmed) return
+      for (const binding of affectedBindings) {
+        try {
+          await api.unbindPlugin(binding.project_id, binding.plugin_id)
+          await api.applyChanges(binding.project_id)
+        } catch {}
+      }
+    }
     await api.removePluginVersion(pluginId, versionId)
     toast.success(t('plugins.versionDeleted'))
     if (selectedPlugin.value) {
@@ -1072,7 +1098,14 @@ const openAssetLibraryTab = async () => {
       categoriesLoaded.value = true
     } catch (error) {
       console.error('Failed to load categories:', error)
+      toast.error(t('assetLibrary.searchFailed'))
+      return
     }
+  }
+  if (assetSearchResults.value.length === 0 && !isSearchingAssets.value) {
+    assetFilterSupport.value = 'featured'
+    await searchAssets(true)
+    assetFilterSupport.value = ''
   }
 }
 
@@ -1176,7 +1209,6 @@ const doBindPlugin = async (plugin: Plugin, version: any, unit: any) => {
       }
     }
     toast.success(t('linker.pluginBound', { name: plugin.name, version: version.version }))
-    linkerHasPendingChanges.value = false
     if (selectedLinkId.value) {
       await loadLinkerBindings(selectedLinkId.value)
     }
@@ -1223,7 +1255,6 @@ const confirmUnbindPlugin = async () => {
       // ignore apply errors
     }
     toast.success(t('linker.pluginUnbound'))
-    linkerHasPendingChanges.value = false
     if (selectedLinkId.value) {
       await loadLinkerBindings(selectedLinkId.value)
     }
@@ -1323,7 +1354,6 @@ const confirmBatchBind = async () => {
       toast.success(t('plugins.bindDialog.bindAndApplySuccess', { count: result.success_count, name: '' }))
     }
     selectedLinkPluginIds.value = new Set()
-    linkerHasPendingChanges.value = false
     if (selectedLinkId.value) {
       await loadLinkerBindings(selectedLinkId.value)
     }
@@ -1367,7 +1397,6 @@ const confirmBatchUnbind = async () => {
       toast.success(t('linker.pluginUnbound'))
     }
     selectedLinkPluginIds.value = new Set()
-    linkerHasPendingChanges.value = false
     await loadLinkerBindings(selectedLinkId.value)
   } catch (error) {
     toast.error(t('common.loadFailed', { error }))
@@ -1402,7 +1431,6 @@ const confirmBatchApply = async () => {
   isLinkerBatchApplying.value = false
   showLinkerBatchApplyDialog.value = false
   showLinkerBatchApplyResult.value = true
-  linkerHasPendingChanges.value = false
   if (selectedLinkId.value) {
     await loadLinkerBindings(selectedLinkId.value)
   }
@@ -1712,6 +1740,25 @@ const doSwitchVersion = async () => {
 
 const quickBindFromCard = async (plugin: Plugin) => {
   showPostImportGuide(plugin.name, plugin)
+}
+
+const removePluginAndReimport = async (pluginId: string) => {
+  try {
+    const bindings = await api.getPluginBindings(pluginId)
+    for (const b of bindings) {
+      try {
+        await api.unbindPlugin(b.project_id, b.plugin_id)
+        await api.applyChanges(b.project_id)
+      } catch {}
+    }
+    await api.removePlugin(pluginId)
+    if (pendingImportAction.value) {
+      pendingImportAction.value()
+      pendingImportAction.value = null
+    }
+  } catch (error) {
+    toast.error(t('common.loadFailed', { error }))
+  }
 }
 
 const retryBatchFailed = async () => {
@@ -2143,11 +2190,28 @@ const retryBatchFailed = async () => {
           <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">
             {{ selectedPlugin.name }}
           </h3>
-          <button @click="closePluginDetail" class="text-gray-500 dark:text-content-secondary hover:text-gray-700 dark:hover:text-content-primary">
-            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div class="flex items-center gap-2">
+            <button
+              @click="quickBindFromCard(selectedPlugin)"
+              class="px-3 py-1 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-1"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+              {{ t('plugins.bindToProject') }}
+            </button>
+            <button
+              v-if="selectedPlugin.source.source_type === 'Git'"
+              @click="updateGitPlugin(selectedPlugin.plugin_id); closePluginDetail()"
+              class="px-3 py-1 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-xs rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-1"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+              {{ t('plugins.contextMenu.updatePlugin') }}
+            </button>
+            <button @click="closePluginDetail" class="text-gray-500 dark:text-content-secondary hover:text-gray-700 dark:hover:text-content-primary">
+              <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
         <div class="mb-4 flex items-center gap-3 flex-wrap text-sm text-gray-500 dark:text-content-secondary">
           <span>{{ t('plugins.author') }}: {{ selectedPlugin.author || t('plugins.unknownAuthor') }}</span>
@@ -2322,6 +2386,10 @@ const retryBatchFailed = async () => {
         >
           {{ isSearchingAssets ? t('assetLibrary.searching') : t('assetLibrary.search') }}
         </button>
+      </div>
+
+      <div v-if="assetSearchResults.length === 0 && !isSearchingAssets && assetFilterSupport === 'featured'" class="text-center py-2">
+        <p class="text-xs text-gray-400 dark:text-gray-500">{{ t('assetLibrary.featuredHint') }}</p>
       </div>
 
       <div class="flex flex-wrap gap-2 mb-3">
@@ -2953,6 +3021,12 @@ const retryBatchFailed = async () => {
         </p>
         <div class="flex justify-end gap-3">
           <button @click="showDuplicateConfirm = false; duplicateCheckResult = null; pendingImportAction = null" class="btn-secondary">{{ t('plugins.duplicate.cancel') }}</button>
+          <button
+            @click="(() => { const dupId = duplicateCheckResult?.duplicate_plugin_id; showDuplicateConfirm = false; duplicateCheckResult = null; if (dupId) { removePluginAndReimport(dupId); } })()"
+            class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm"
+          >
+            {{ t('plugins.duplicate.replaceExisting') }}
+          </button>
           <button
             @click="showDuplicateConfirm = false; duplicateCheckResult = null; if (pendingImportAction) { pendingImportAction(); pendingImportAction = null; }"
             class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm"

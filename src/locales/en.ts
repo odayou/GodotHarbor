@@ -169,6 +169,7 @@ export default {
     removedFromFavorites: 'Removed from favorites',
     noNewPluginsFound: 'No new plugins found to import',
     versionDeleted: 'Version deleted',
+    versionDeleteBindingWarning: 'This version is referenced by {count} binding(s) across {projects} project(s). Bindings will be automatically unbound before deletion. Continue?',
     importMode: {
       copy: 'Copy',
       move: 'Move',
@@ -298,6 +299,7 @@ export default {
       title: 'Duplicate Plugin Found',
       desc: 'Plugin "{name}" already exists in the repository. Import anyway?',
       importAnyway: 'Import Anyway',
+      replaceExisting: 'Replace Existing',
       cancel: 'Cancel',
       batchVersionSelectTitle: 'Select Binding Version',
       batchVersionSelectDesc: 'The following plugins have multiple versions or units. Please select the version to bind:',
@@ -379,7 +381,9 @@ export default {
     title: 'Asset Library',
     search: 'Search',
     searching: 'Searching...',
+    searchFailed: 'Unable to connect to Asset Library. Please check your network connection and try again.',
     noResults: 'No matching assets found',
+    featuredHint: 'Showing featured plugins. Enter keywords to search for more.',
     type: 'Asset Type',
     typeAny: 'Any',
     typeAddon: 'Addon',
@@ -661,6 +665,11 @@ export default {
       saveHint: 'Changes will take effect after saving settings'
     },
     other: 'Other',
+    unsavedChanges: 'Settings modified but not saved',
+    unsavedTitle: 'Unsaved Changes',
+    unsavedDesc: 'You have unsaved settings changes. Would you like to save before leaving?',
+    discardChanges: 'Discard Changes',
+    saveAndLeave: 'Save & Leave',
     showOnboarding: 'Show Onboarding Again',
     showOnboardingDesc: 'Click to show the onboarding guide immediately',
     resetDataLabel: 'Reset Data',
@@ -878,7 +887,6 @@ export default {
   },
   home: {
     welcome: 'Welcome to Godot Harbor',
-    // Godot Harbor 帮助你管理 Godot 插件、项目和引擎。\n所有插件都可以一键挂载到任意项目。
     desc: 'Godot Harbor helps you manage Godot plugins, projects and engines. All plugins can be mounted to any project with one click.',
     projects: 'Projects',
     plugins: 'Plugins',
@@ -893,7 +901,10 @@ export default {
     step3: '3. Bind Plugins',
     step3Desc: 'Select required plugins and versions for your projects',
     step4: '4. Apply Changes',
-    step4Desc: 'One-click mount plugins to project addons directory'
+    step4Desc: 'One-click mount plugins to project addons directory',
+    retry: 'Retry',
+    noRecentProjects: 'No recent projects yet. Start scanning or adding projects',
+    goToProjects: 'Go to Projects'
   },
   sidebar: {
     collapse: 'Collapse Sidebar',
@@ -1054,7 +1065,13 @@ export default {
     contributeAction: 'Contribute',
     contributeDesc: 'Code contributions, bug reports, feature suggestions, documentation improvements — every contribution is equally valuable.',
     contributionGuide: 'Contribution Guide',
-    sponsorThanks: 'Thank you to every supporter! Your support is the driving force behind Godot Harbor\'s continuous development.'
+    sponsorThanks: 'Thank you to every supporter! Your support is the driving force behind Godot Harbor\'s continuous development.',
+    checkUpdates: 'Check for Updates',
+    checking: 'Checking...',
+    upToDate: 'You are up to date',
+    checkUpdateFailed: 'Failed to check for updates',
+    copyVersion: 'Copy version',
+    versionCopied: 'Version copied to clipboard'
   },
   updates: {
     updatingApp: 'Updating application',
