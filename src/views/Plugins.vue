@@ -343,6 +343,11 @@ onUnmounted(() => {
 const showDeletePluginConfirm = ref(false)
 const deletePluginId = ref('')
 
+const showVersionDeleteConfirm = ref(false)
+const versionDeletePluginId = ref('')
+const versionDeleteVersionId = ref('')
+const versionDeleteWarning = ref('')
+
 const showDuplicateConfirm = ref(false)
 const duplicateCheckResult = ref<DuplicateCheckResult | null>(null)
 const pendingImportAction = ref<(() => Promise<void>) | null>(null)
@@ -626,18 +631,36 @@ const removePluginVersion = async (pluginId: string, versionId: string) => {
     const affectedBindings = bindings.filter(b => b.version_id === versionId)
     if (affectedBindings.length > 0) {
       const projectNames = affectedBindings.map(b => b.project_id).filter((v, i, a) => a.indexOf(v) === i)
-      const confirmed = window.confirm(
-        t('plugins.versionDeleteBindingWarning', { count: affectedBindings.length, projects: projectNames.length })
-      )
-      if (!confirmed) return
-      await Promise.allSettled(
-        affectedBindings.map(b =>
-          api.unbindPlugin(b.project_id, b.plugin_id)
-            .then(() => api.applyChanges(b.project_id))
-            .catch(() => {})
-        )
-      )
+      versionDeletePluginId.value = pluginId
+      versionDeleteVersionId.value = versionId
+      versionDeleteWarning.value = t('plugins.versionDeleteBindingWarning', { count: affectedBindings.length, projects: projectNames.length })
+      showVersionDeleteConfirm.value = true
+      return
     }
+    await api.removePluginVersion(pluginId, versionId)
+    toast.success(t('plugins.versionDeleted'))
+    if (selectedPlugin.value) {
+      await showPluginDetails(selectedPlugin.value)
+    }
+    await loadPlugins()
+  } catch (error) {
+    toast.error(t('common.deleteFailed', { error }))
+  }
+}
+
+const onVersionDeleteConfirm = async () => {
+  const pluginId = versionDeletePluginId.value
+  const versionId = versionDeleteVersionId.value
+  try {
+    const bindings = await api.getPluginBindings(pluginId)
+    const affectedBindings = bindings.filter(b => b.version_id === versionId)
+    await Promise.allSettled(
+      affectedBindings.map(b =>
+        api.unbindPlugin(b.project_id, b.plugin_id)
+          .then(() => api.applyChanges(b.project_id))
+          .catch(() => {})
+      )
+    )
     await api.removePluginVersion(pluginId, versionId)
     toast.success(t('plugins.versionDeleted'))
     if (selectedPlugin.value) {
@@ -941,8 +964,8 @@ const confirmUnbindPlugin = async () => {
     await api.unbindPlugin(binding.project_id, binding.plugin_id)
     try {
       await api.applyChanges(binding.project_id)
-    } catch {
-      // ignore apply errors
+    } catch (applyErr) {
+      toast.warning(t('linker.bindingApplyFailed', { errors: applyErr instanceof Error ? applyErr.message : String(applyErr) }))
     }
     toast.success(t('linker.pluginUnbound'))
     if (selectedLinkId.value) {
@@ -1074,8 +1097,8 @@ const confirmBatchUnbind = async () => {
     const result = await api.batchUnbindPlugins(selectedLinkId.value, pluginIds)
     try {
       await api.applyChanges(selectedLinkId.value)
-    } catch {
-      // ignore apply errors
+    } catch (applyErr) {
+      toast.warning(t('linker.bindingApplyFailed', { errors: applyErr instanceof Error ? applyErr.message : String(applyErr) }))
     }
     if (result.failed_count > 0) {
       toast.warning(t('common.batchDeleteComplete', { success: result.success_count, failed: result.failed_count }))
@@ -1202,6 +1225,7 @@ useDialogEscape(showQuickBindDialog)
 useDialogEscape(showVersionSwitchDialog)
 useDialogEscape(showTeamConfigExportDialog)
 useDialogEscape(showTeamConfigImportDialog)
+useDialogEscape(showVersionDeleteConfirm)
 
 const doQuickBind = async () => {
   if (!quickBindPlugin.value) return
@@ -1230,7 +1254,9 @@ const doQuickBind = async () => {
       await api.bindPlugin(projectId, plugin.plugin_id, version.version_id, unit.unit_id, mountPath, subdirectory)
       try {
         await api.applyChanges(projectId)
-      } catch {}
+      } catch (applyErr) {
+        console.warn('Apply changes failed after quick bind:', applyErr)
+      }
       successCount++
     } catch {
       failCount++
@@ -2719,6 +2745,15 @@ const retryBatchFailed = async () => {
       :description="t('plugins.deleteConfirm.batchDesc', { count: selectedPluginCount })"
       :confirm-text="t('plugins.deleteConfirm.batchConfirm')"
       @confirm="onBatchDeleteConfirm"
+    />
+
+    <ConfirmDialog
+      v-model="showVersionDeleteConfirm"
+      :title="t('plugins.versionDeleted')"
+      :description="versionDeleteWarning"
+      :confirm-text="t('common.confirmDelete')"
+      confirm-color="red"
+      @confirm="onVersionDeleteConfirm"
     />
 
   </Teleport>

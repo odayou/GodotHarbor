@@ -588,6 +588,22 @@ pub fn remove_project(app: AppHandle, project_id: String) -> Result<(), String> 
 
     projects.retain(|p| p.project_id != project_id);
 
+    let mut bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
+    let had_bindings = bindings.iter().any(|b| b.project_id == project_id);
+    bindings.retain(|b| b.project_id != project_id);
+    if had_bindings {
+        storage.save("bindings.json", &bindings)
+            .map_err(|e| format!("保存绑定列表失败: {}", e))?;
+    }
+
+    let mut engine_bindings: Vec<ProjectEngineBinding> = storage.load_or_default("engine_bindings.json");
+    let had_engine_binding = engine_bindings.iter().any(|b| b.project_id == project_id);
+    engine_bindings.retain(|b| b.project_id != project_id);
+    if had_engine_binding {
+        storage.save("engine_bindings.json", &engine_bindings)
+            .map_err(|e| format!("保存引擎绑定列表失败: {}", e))?;
+    }
+
     storage.save("projects.json", &projects)
         .map_err(|e| format!("保存项目列表失败: {}", e))?;
 
@@ -2278,7 +2294,27 @@ pub fn register_engine(app: AppHandle, path: String, name: String) -> Result<Eng
 #[tauri::command]
 pub fn get_engines(app: AppHandle) -> Result<Vec<Engine>, String> {
     let storage = get_storage(&app);
-    let engines: Vec<Engine> = storage.load_or_default("engines.json");
+    let mut engines: Vec<Engine> = storage.load_or_default("engines.json");
+
+    let migrated: bool = storage.load_or_default("engine_version_migrated_v2.json");
+    if !migrated {
+        for engine in &mut engines {
+            if let Ok((_, version)) = crate::engine::EngineManager::detect_engine(&engine.path) {
+                if version != engine.version {
+                    let is_mono = version.to_lowercase().contains("mono");
+                    engine.name = if is_mono {
+                        format!("Godot {} (.NET)", version)
+                    } else {
+                        format!("Godot {}", version)
+                    };
+                    engine.version = version;
+                }
+            }
+        }
+        let _ = storage.save("engines.json", &engines);
+        let _ = storage.save("engine_version_migrated_v2.json", &true);
+    }
+
     Ok(engines)
 }
 
@@ -3443,6 +3479,8 @@ pub fn batch_remove_projects(app: AppHandle, project_ids: Vec<String>) -> Result
     let mut failed_count = 0;
     let mut errors = Vec::new();
 
+    let ids_set: std::collections::HashSet<_> = project_ids.iter().cloned().collect();
+
     for project_id in &project_ids {
         if projects.iter().any(|p| p.project_id == *project_id) {
             projects.retain(|p| p.project_id != *project_id);
@@ -3451,6 +3489,22 @@ pub fn batch_remove_projects(app: AppHandle, project_ids: Vec<String>) -> Result
             failed_count += 1;
             errors.push(format!("未找到项目: {}", project_id));
         }
+    }
+
+    let mut bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
+    let had_bindings = bindings.iter().any(|b| ids_set.contains(&b.project_id));
+    bindings.retain(|b| !ids_set.contains(&b.project_id));
+    if had_bindings {
+        storage.save("bindings.json", &bindings)
+            .map_err(|e| format!("保存绑定列表失败: {}", e))?;
+    }
+
+    let mut engine_bindings: Vec<ProjectEngineBinding> = storage.load_or_default("engine_bindings.json");
+    let had_engine_binding = engine_bindings.iter().any(|b| ids_set.contains(&b.project_id));
+    engine_bindings.retain(|b| !ids_set.contains(&b.project_id));
+    if had_engine_binding {
+        storage.save("engine_bindings.json", &engine_bindings)
+            .map_err(|e| format!("保存引擎绑定列表失败: {}", e))?;
     }
 
     storage.save("projects.json", &projects)

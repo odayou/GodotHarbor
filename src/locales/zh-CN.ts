@@ -262,8 +262,6 @@ export default {
       title: '从项目导入插件',
       modeSelect: '选择导入模式：',
       cancel: '取消',
-    batchVersionSelectTitle: '选择绑定版本',
-    batchVersionSelectDesc: '以下插件有多个版本或单元，请选择要绑定的版本：',
       startImport: '开始导入',
       scanTitle: '扫描结果预览',
       scanDesc: '在以下项目中发现 {count} 个插件：',
@@ -470,7 +468,7 @@ export default {
     noBindingsNeeded: '没有需要绑定的组合（所有选中项目已绑定选中插件）',
     noPluginUnits: '该插件版本没有可用的单元',
     noPluginVersions: '该插件没有可用版本',
-    pluginBound: '已绑定插件: {name} v{version}',
+    pluginBound: '已绑定并应用插件: {name} v{version}',
     mountConflict: '挂载路径冲突: {path} 已被插件 {plugin} 占用，请先解绑或更换挂载路径',
     pluginUnbound: '已取消绑定',
     bindingApplySuccess: '变更已成功应用',
@@ -511,7 +509,9 @@ export default {
     switchVersion: '切换版本',
     teamConfigSection: '团队配置',
     noTeamConfigs: '暂无团队配置',
-    noTeamConfigsDesc: '导出项目配置以创建团队共享配置'
+    noTeamConfigsDesc: '导出项目配置以创建团队共享配置',
+    batchVersionSelectTitle: '选择绑定版本',
+    batchVersionSelectDesc: '以下插件有多个版本或单元，请选择要绑定的版本：',
   },
   engines: {
     title: '引擎管理',

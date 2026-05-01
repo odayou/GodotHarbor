@@ -585,6 +585,20 @@ const unbindEngine = async () => {
 const launchProject = async (project: Project, engineId?: string) => {
   isLaunching.value = true
   try {
+    if (!engineId) {
+      const engineBinding = await api.getProjectEngineBinding(project.project_id)
+      if (engineBinding) {
+        engineId = engineBinding.engine_id
+      } else {
+        const defaultEngine = engines.value.find(e => e.is_default)
+        if (!defaultEngine) {
+          toast.warning(t('projects.noEngineHint'))
+          isLaunching.value = false
+          return
+        }
+        engineId = defaultEngine.engine_id
+      }
+    }
     const result = await api.launchProjectWithEngine(project.project_id, engineId)
     if (result.success) {
       toast.success(t('common.projectLaunched', { pid: result.pid }))
@@ -670,8 +684,8 @@ const unbindProjectBinding = async (binding: ProjectBinding) => {
     await api.unbindPlugin(binding.project_id, binding.plugin_id)
     try {
       await api.applyChanges(binding.project_id)
-    } catch {
-      // ignore apply errors
+    } catch (applyErr) {
+      toast.warning(t('linker.bindingApplyFailed', { errors: applyErr instanceof Error ? applyErr.message : String(applyErr) }))
     }
     toast.success(t('linker.pluginUnbound'))
     if (selectedProject.value) {

@@ -1,27 +1,35 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import type { Project, Plugin, ProjectBinding, Settings, AssetImportProgress } from '@/types'
 import { api } from '@/api'
 
+function useLoadingState() {
+  const count = ref(0)
+  const loading = computed(() => count.value > 0)
+  const start = () => { count.value++ }
+  const done = () => { count.value = Math.max(0, count.value - 1) }
+  return { loading, start, done }
+}
+
 export const useProjectStore = defineStore('projects', () => {
   const projects = ref<Project[]>([])
-  const loading = ref(false)
+  const { loading, start: startLoading, done: doneLoading } = useLoadingState()
   const error = ref<string | null>(null)
 
   const loadProjects = async () => {
-    loading.value = true
+    startLoading()
     error.value = null
     try {
       projects.value = await api.getProjects()
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to load projects'
     } finally {
-      loading.value = false
+      doneLoading()
     }
   }
 
   const scanProjects = async (rootDirs: string[]) => {
-    loading.value = true
+    startLoading()
     error.value = null
     try {
       const newProjects = await api.scanProjects(rootDirs)
@@ -29,12 +37,12 @@ export const useProjectStore = defineStore('projects', () => {
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to scan projects'
     } finally {
-      loading.value = false
+      doneLoading()
     }
   }
 
   const addProject = async (path: string) => {
-    loading.value = true
+    startLoading()
     error.value = null
     try {
       const project = await api.addProject(path)
@@ -44,12 +52,12 @@ export const useProjectStore = defineStore('projects', () => {
       error.value = e instanceof Error ? e.message : 'Failed to add project'
       throw e
     } finally {
-      loading.value = false
+      doneLoading()
     }
   }
 
   const removeProject = async (projectId: string) => {
-    loading.value = true
+    startLoading()
     error.value = null
     try {
       await api.removeProject(projectId)
@@ -57,12 +65,12 @@ export const useProjectStore = defineStore('projects', () => {
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to remove project'
     } finally {
-      loading.value = false
+      doneLoading()
     }
   }
 
   const updateGroup = async (projectId: string, group: string) => {
-    loading.value = true
+    startLoading()
     error.value = null
     try {
       await api.updateProjectGroup(projectId, group)
@@ -74,7 +82,7 @@ export const useProjectStore = defineStore('projects', () => {
       error.value = e instanceof Error ? e.message : 'Failed to update group'
       throw e
     } finally {
-      loading.value = false
+      doneLoading()
     }
   }
 
@@ -102,25 +110,25 @@ export const useProjectStore = defineStore('projects', () => {
 
 export const usePluginStore = defineStore('plugins', () => {
   const plugins = ref<Plugin[]>([])
-  const loading = ref(false)
+  const { loading, start: startLoading, done: doneLoading } = useLoadingState()
   const error = ref<string | null>(null)
   const importProgress = ref<AssetImportProgress | null>(null)
   const isImporting = ref<string | null>(null)
 
   const loadPlugins = async () => {
-    loading.value = true
+    startLoading()
     error.value = null
     try {
       plugins.value = await api.getPlugins()
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to load plugins'
     } finally {
-      loading.value = false
+      doneLoading()
     }
   }
 
   const importFromLocal = async (path: string) => {
-    loading.value = true
+    startLoading()
     error.value = null
     try {
       const plugin = await api.importPluginFromLocal(path)
@@ -130,12 +138,12 @@ export const usePluginStore = defineStore('plugins', () => {
       error.value = e instanceof Error ? e.message : 'Failed to import plugin'
       throw e
     } finally {
-      loading.value = false
+      doneLoading()
     }
   }
 
   const importFromGit = async (url: string) => {
-    loading.value = true
+    startLoading()
     error.value = null
     try {
       const plugin = await api.importPluginFromGit(url)
@@ -145,12 +153,12 @@ export const usePluginStore = defineStore('plugins', () => {
       error.value = e instanceof Error ? e.message : 'Failed to import plugin'
       throw e
     } finally {
-      loading.value = false
+      doneLoading()
     }
   }
 
   const removePlugin = async (pluginId: string) => {
-    loading.value = true
+    startLoading()
     error.value = null
     try {
       await api.removePlugin(pluginId)
@@ -158,12 +166,12 @@ export const usePluginStore = defineStore('plugins', () => {
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to remove plugin'
     } finally {
-      loading.value = false
+      doneLoading()
     }
   }
 
   const toggleFavorite = async (pluginId: string) => {
-    loading.value = true
+    startLoading()
     error.value = null
     try {
       const newState = await api.togglePluginFavorite(pluginId)
@@ -176,7 +184,7 @@ export const usePluginStore = defineStore('plugins', () => {
       error.value = e instanceof Error ? e.message : 'Failed to toggle favorite'
       throw e
     } finally {
-      loading.value = false
+      doneLoading()
     }
   }
 
@@ -212,18 +220,18 @@ export const usePluginStore = defineStore('plugins', () => {
 
 export const useBindingStore = defineStore('bindings', () => {
   const bindings = ref<ProjectBinding[]>([])
-  const loading = ref(false)
+  const { loading, start: startLoading, done: doneLoading } = useLoadingState()
   const error = ref<string | null>(null)
 
   const loadBindings = async (projectId: string) => {
-    loading.value = true
+    startLoading()
     error.value = null
     try {
       bindings.value = await api.getProjectBindings(projectId)
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to load bindings'
     } finally {
-      loading.value = false
+      doneLoading()
     }
   }
 
@@ -235,7 +243,7 @@ export const useBindingStore = defineStore('bindings', () => {
     mountPath: string,
     subdirectory: string
   ) => {
-    loading.value = true
+    startLoading()
     error.value = null
     try {
       await api.bindPlugin(projectId, pluginId, versionId, unitId, mountPath, subdirectory)
@@ -244,27 +252,25 @@ export const useBindingStore = defineStore('bindings', () => {
       error.value = e instanceof Error ? e.message : 'Failed to bind plugin'
       throw e
     } finally {
-      loading.value = false
+      doneLoading()
     }
   }
 
   const unbindPlugin = async (projectId: string, pluginId: string) => {
-    loading.value = true
+    startLoading()
     error.value = null
     try {
       await api.unbindPlugin(projectId, pluginId)
-      bindings.value = bindings.value.filter(
-        b => !(b.project_id === projectId && b.plugin_id === pluginId)
-      )
+      await loadBindings(projectId)
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to unbind plugin'
     } finally {
-      loading.value = false
+      doneLoading()
     }
   }
 
   const applyChanges = async (projectId: string) => {
-    loading.value = true
+    startLoading()
     error.value = null
     try {
       const result = await api.applyChanges(projectId)
@@ -273,7 +279,7 @@ export const useBindingStore = defineStore('bindings', () => {
       error.value = e instanceof Error ? e.message : 'Failed to apply changes'
       throw e
     } finally {
-      loading.value = false
+      doneLoading()
     }
   }
 
@@ -297,23 +303,23 @@ export const useSettingsStore = defineStore('settings', () => {
     auto_scan_on_startup: true,
     sidebar_collapsed: false
   })
-  const loading = ref(false)
+  const { loading, start: startLoading, done: doneLoading } = useLoadingState()
   const error = ref<string | null>(null)
 
   const loadSettings = async () => {
-    loading.value = true
+    startLoading()
     error.value = null
     try {
       settings.value = await api.getSettings()
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to load settings'
     } finally {
-      loading.value = false
+      doneLoading()
     }
   }
 
   const saveSettings = async () => {
-    loading.value = true
+    startLoading()
     error.value = null
     try {
       await api.saveSettings(settings.value)
@@ -321,7 +327,7 @@ export const useSettingsStore = defineStore('settings', () => {
       error.value = e instanceof Error ? e.message : 'Failed to save settings'
       throw e
     } finally {
-      loading.value = false
+      doneLoading()
     }
   }
 

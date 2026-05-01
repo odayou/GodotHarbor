@@ -97,21 +97,29 @@ export const useUpdateStore = defineStore('updates', () => {
         try {
           const appUpd = await api.checkAppUpdate()
           appUpdate.value = appUpd
-        } catch {}
+        } catch (e) {
+          console.warn('App update check failed:', e)
+        }
       }
 
       try {
         const hotUpd = await api.checkHotUpdate()
         hotUpdate.value = hotUpd
-      } catch {}
+      } catch (e) {
+        console.warn('Hot update check failed:', e)
+      }
 
       try {
         currentHotUpdateVersion.value = await api.getCurrentHotUpdateVersion()
-      } catch {}
+      } catch (e) {
+        console.warn('Get current hot update version failed:', e)
+      }
 
       try {
         updateHistory.value = await api.getUpdateHistory()
-      } catch {}
+      } catch (e) {
+        console.warn('Load update history failed:', e)
+      }
     } catch (error) {
       console.error('Check updates failed:', error)
     } finally {
@@ -151,9 +159,8 @@ export const useUpdateStore = defineStore('updates', () => {
     try {
       const ids = pluginUpdates.value.map(u => u.plugin_id)
       const result = await api.batchUpdatePlugins(ids)
-      if (result.success_count > 0) {
-        pluginUpdates.value = []
-      }
+      const failedIds = new Set(result.errors.map((_: any, i: number) => ids[i]))
+      pluginUpdates.value = pluginUpdates.value.filter(u => failedIds.has(u.plugin_id))
     } finally {
       isUpdatingPlugins.value = false
     }

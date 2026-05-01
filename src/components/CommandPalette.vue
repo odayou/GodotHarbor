@@ -64,17 +64,27 @@ function getFlatIndex(item: SearchItem): number {
   return filteredItems.value.indexOf(item)
 }
 
-function highlightMatch(text: string, searchQuery: string): string {
-  if (!searchQuery.trim()) return text
+function getHighlightSegments(text: string, searchQuery: string): Array<{ text: string; highlight: boolean }> {
+  if (!searchQuery.trim()) return [{ text, highlight: false }]
   const lowerText = text.toLowerCase()
   const lowerQuery = searchQuery.toLowerCase()
-
-  if (lowerText.includes(lowerQuery)) {
-    const idx = lowerText.indexOf(lowerQuery)
-    return text.slice(0, idx) + '<mark>' + text.slice(idx, idx + searchQuery.length) + '</mark>' + text.slice(idx + searchQuery.length)
+  const segments: Array<{ text: string; highlight: boolean }> = []
+  let lastIndex = 0
+  let searchFrom = 0
+  while (searchFrom < lowerText.length) {
+    const idx = lowerText.indexOf(lowerQuery, searchFrom)
+    if (idx === -1) break
+    if (idx > lastIndex) {
+      segments.push({ text: text.slice(lastIndex, idx), highlight: false })
+    }
+    segments.push({ text: text.slice(idx, idx + searchQuery.length), highlight: true })
+    lastIndex = idx + searchQuery.length
+    searchFrom = lastIndex
   }
-
-  return text
+  if (lastIndex < text.length) {
+    segments.push({ text: text.slice(lastIndex), highlight: false })
+  }
+  return segments.length > 0 ? segments : [{ text, highlight: false }]
 }
 </script>
 
@@ -167,10 +177,12 @@ function highlightMatch(text: string, searchQuery: string): string {
                   </svg>
                 </div>
                 <div class="flex-1 min-w-0">
-                  <span
-                    class="text-sm font-medium truncate block"
-                    v-html="highlightMatch(item.label, query)"
-                  />
+                  <span class="text-sm font-medium truncate block">
+                    <template v-for="(segment, idx) in getHighlightSegments(item.label, query)" :key="idx">
+                      <mark v-if="segment.highlight" class="bg-yellow-200 dark:bg-yellow-800 text-inherit rounded px-0.5">{{ segment.text }}</mark>
+                      <span v-else>{{ segment.text }}</span>
+                    </template>
+                  </span>
                 </div>
                 <svg
                   v-if="getFlatIndex(item) === selectedIndex"

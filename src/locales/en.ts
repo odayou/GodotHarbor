@@ -301,8 +301,6 @@ export default {
       importAnyway: 'Import Anyway',
       replaceExisting: 'Replace Existing',
       cancel: 'Cancel',
-      batchVersionSelectTitle: 'Select Binding Version',
-      batchVersionSelectDesc: 'The following plugins have multiple versions or units. Please select the version to bind:',
     },
     importPluginSuccess: 'Plugin {name} imported successfully',
     postImportGuide: 'Plugin {name} is ready. Go to "Project Bindings" tab to bind it to a project',
@@ -470,7 +468,7 @@ export default {
     noBindingsNeeded: 'No bindings needed (all selected projects already have the selected plugins bound)',
     noPluginUnits: 'This plugin version has no available units',
     noPluginVersions: 'This plugin has no available versions',
-    pluginBound: 'Plugin bound: {name} v{version}',
+    pluginBound: 'Plugin bound and applied: {name} v{version}',
     mountConflict: 'Mount path conflict: {path} is already used by plugin {plugin}. Please unbind first or change the mount path.',
     pluginUnbound: 'Unbound successfully',
     bindingApplySuccess: 'Changes applied successfully',
@@ -511,7 +509,9 @@ export default {
     switchVersion: 'Switch Version',
     teamConfigSection: 'Team Config',
     noTeamConfigs: 'No team configurations',
-    noTeamConfigsDesc: 'Export project configuration to create a team shared config'
+    noTeamConfigsDesc: 'Export project configuration to create a team shared config',
+    batchVersionSelectTitle: 'Select Binding Version',
+    batchVersionSelectDesc: 'The following plugins have multiple versions or units. Please select the version to bind:',
   },
   engines: {
     title: 'Engine Management',

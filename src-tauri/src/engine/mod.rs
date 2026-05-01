@@ -186,11 +186,23 @@ impl EngineManager {
                 "rc".to_string()
             }
         } else if lower.contains("beta") {
-            "beta".to_string()
+            if let Some(caps) = Regex::new(r"beta(\d+)").unwrap().captures(&lower) {
+                caps.get(1).map_or("beta".to_string(), |m| format!("beta{}", m.as_str()))
+            } else {
+                "beta".to_string()
+            }
         } else if lower.contains("alpha") {
-            "alpha".to_string()
+            if let Some(caps) = Regex::new(r"alpha(\d+)").unwrap().captures(&lower) {
+                caps.get(1).map_or("alpha".to_string(), |m| format!("alpha{}", m.as_str()))
+            } else {
+                "alpha".to_string()
+            }
         } else if lower.contains("dev") {
-            "dev".to_string()
+            if let Some(caps) = Regex::new(r"dev(\d+)").unwrap().captures(&lower) {
+                caps.get(1).map_or("dev".to_string(), |m| format!("dev{}", m.as_str()))
+            } else {
+                "dev".to_string()
+            }
         } else {
             String::new()
         };
