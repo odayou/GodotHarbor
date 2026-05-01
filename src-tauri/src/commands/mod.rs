@@ -3951,22 +3951,8 @@ pub fn check_engine_health(app: AppHandle, engine_id: String) -> Result<bool, St
         .find(|e| e.engine_id == engine_id)
         .ok_or("未找到指定引擎".to_string())?;
 
-    let exe_name = if cfg!(windows) { "godot.exe" } else { "godot" };
-    let exe_path = std::path::Path::new(&engine.path).join(exe_name);
-    let actual_exe = if exe_path.exists() {
-        exe_path
-    } else if cfg!(target_os = "macos") {
-        let macos_exe = std::path::Path::new(&engine.path).join("Contents/MacOS/godot");
-        if macos_exe.exists() {
-            macos_exe
-        } else {
-            std::path::Path::new(&engine.path).join(format!("bin/{}", exe_name))
-        }
-    } else {
-        std::path::Path::new(&engine.path).join(format!("bin/{}", exe_name))
-    };
-
-    Ok(actual_exe.exists())
+    let exe_path = crate::engine::EngineManager::find_executable_in_dir(std::path::Path::new(&engine.path));
+    Ok(exe_path.is_some())
 }
 
 #[tauri::command]
