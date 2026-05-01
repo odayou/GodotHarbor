@@ -34,16 +34,42 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const { data } = await github.rest.repos.createRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              tag_name: '${{ github.event.inputs.version }}',
-              name: 'Godot Harbor ${{ github.event.inputs.version }}',
-              body: `**Version:** ${{ github.event.inputs.version }}\n**Build Reason:** ${{ github.event.inputs.reason || 'Manual build' }}`,
-              draft: true,
-              prerelease: false
-            });
-            core.setOutput('id', data.id);
+            const tagName = '${{ github.event.inputs.version }}';
+            let releaseId;
+
+            try {
+              const { data: existing } = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag: tagName,
+              });
+              core.info(`Release already exists for tag ${tagName}, id=${existing.id}`);
+              if (existing.draft) {
+                core.info('Existing release is draft, reusing it');
+                releaseId = existing.id;
+              } else {
+                core.setFailed(`Release for tag ${tagName} already published (not draft). Delete it first or use a new version.`);
+                return;
+              }
+            } catch (err) {
+              if (err.status === 404) {
+                core.info(`No existing release for tag ${tagName}, creating new one`);
+                const { data } = await github.rest.repos.createRelease({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  tag_name: tagName,
+                  name: `Godot Harbor ${tagName}`,
+                  body: `**Version:** ${tagName}\n**Build Reason:** ${{ github.event.inputs.reason || 'Manual build' }}`,
+                  draft: true,
+                  prerelease: false
+                });
+                releaseId = data.id;
+              } else {
+                throw err;
+              }
+            }
+
+            core.setOutput('id', releaseId);
 
   build:
     name: Build ${{ matrix.platform.name }}

@@ -45,7 +45,11 @@ const selectedProjectIds = ref<string[]>([])
 const isExporting = ref(false)
 const isImporting = ref(false)
 
-onMounted(() => { initTheme(); loadSettings(); loadTeamConfigs(); loadProjects(); loadStoragePaths() })
+const activeSection = ref('scan')
+
+onMounted(() => {
+  initTheme(); loadSettings(); loadTeamConfigs(); loadProjects(); loadStoragePaths()
+})
 
 onBeforeRouteLeave((_to, _from, next) => {
   if (isDirty.value) {
@@ -535,7 +539,7 @@ const toggleMirrorEnabled = (mirrorId: string) => {
     <div v-else class="flex gap-6">
       <nav class="w-44 shrink-0 hidden lg:block">
         <div class="sticky top-6 space-y-1">
-          <a v-for="section in [
+          <button v-for="section in [
             { id: 'scan', label: t('settings.scan'), icon: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z' },
             { id: 'mount', label: t('settings.mount'), icon: 'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1' },
             { id: 'pluginRepo', label: t('settings.pluginRepo.title'), icon: 'M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z' },
@@ -543,18 +547,23 @@ const toggleMirrorEnabled = (mirrorId: string) => {
             { id: 'appearance', label: t('settings.appearance'), icon: 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01' },
             { id: 'storage', label: t('settings.storage.title'), icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4' },
             { id: 'other', label: t('settings.other'), icon: 'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4' }
-          ]" :key="section.id" :href="'#section-' + section.id"
-            class="flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg text-gray-600 dark:text-gray-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+          ]" :key="section.id" @click="activeSection = section.id"
+            :class="[
+              'flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors w-full text-left',
+              activeSection === section.id
+                ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 font-medium'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 hover:text-primary-600 dark:hover:text-primary-400'
+            ]"
           >
             <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="section.icon" />
             </svg>
             {{ section.label }}
-          </a>
+          </button>
         </div>
       </nav>
       <div class="flex-1 min-w-0 space-y-6">
-      <div id="section-scan" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+      <div v-show="activeSection === 'scan'" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.scan') }}</h2>
         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.scanDirs') }}</label>
         <div class="space-y-2">
@@ -576,7 +585,7 @@ const toggleMirrorEnabled = (mirrorId: string) => {
           </label>
         </div>
       </div>
-      <div id="section-mount" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+      <div v-show="activeSection === 'mount'" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.mount') }}</h2>
         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.mountStrategy') }}</label>
         <select v-model="settings.mount_strategy" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
@@ -590,7 +599,7 @@ const toggleMirrorEnabled = (mirrorId: string) => {
           <span v-else-if="settings.mount_strategy === 'Copy'">{{ t('settings.copyDesc') }}</span>
         </p>
       </div>
-      <div id="section-pluginRepo" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+      <div v-show="activeSection === 'pluginRepo'" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.pluginRepo.title') }}</h2>
         <div class="space-y-4">
           <div>
@@ -630,7 +639,7 @@ const toggleMirrorEnabled = (mirrorId: string) => {
           </div>
         </div>
       </div>
-      <div id="section-engineMirror" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+      <div v-show="activeSection === 'engineMirror'" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.engineMirror.title') }}</h2>
         <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ t('settings.engineMirror.desc') }}</p>
         <div class="space-y-3">
@@ -679,7 +688,7 @@ const toggleMirrorEnabled = (mirrorId: string) => {
           </button>
         </div>
       </div>
-      <div id="section-appearance" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+      <div v-show="activeSection === 'appearance'" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.appearance') }}</h2>
         <div class="space-y-4">
           <div>
@@ -700,7 +709,7 @@ const toggleMirrorEnabled = (mirrorId: string) => {
           </div>
         </div>
       </div>
-      <div v-if="storagePaths" id="section-storage" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+      <div v-if="storagePaths" v-show="activeSection === 'storage'" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ t('settings.storage.title') }}</h2>
         <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">{{ t('settings.storage.description') }}</p>
         <div class="mb-4 p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
@@ -783,7 +792,7 @@ const toggleMirrorEnabled = (mirrorId: string) => {
           </div>
         </div>
       </div>
-      <div id="section-other" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+      <div v-show="activeSection === 'other'" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.other') }}</h2>
         <div class="space-y-4">
           <div class="flex items-center justify-between">
