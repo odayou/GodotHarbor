@@ -29,7 +29,12 @@ Read all relevant source files for the target module:
 7. **Type definitions** (`src/types/`, `src-tauri/src/models/`): Data model design
 8. **Utility files** (`src/utils/`, `src-tauri/src/*/utils.rs`): Shared helpers
 
-Output: A dependency map showing module relationships, data flow, and call chains.
+Output: A cross-module dependency map showing:
+- Which modules call which other modules (call graph)
+- Which modules share state or events
+- Which modules depend on the same types/interfaces
+- Which backend commands are called by which frontend components
+- Potential cross-module impact zones for any change
 
 ### Step 2: 7-Dimension Analysis (七维度分析)
 
@@ -158,6 +163,47 @@ Structure the analysis as:
 4. **Conservative**: Don't over-engineer; prefer simple, incremental improvements over architectural rewrites
 5. **Context-aware**: Consider the project's scale and stage — not every code needs to be enterprise-grade
 6. **Side-effect-aware**: Document potential risks of each refactoring (what could break)
+
+## Global Impact Analysis (全局影响分析)
+
+**This is the most critical principle and must be applied BEFORE implementing any fix.**
+
+When analyzing a module, a local optimization may appear beneficial in isolation but can break functionality in dependent modules. Every proposed change must be evaluated across the entire codebase, not just the target module.
+
+### Mandatory Pre-Change Checklist
+
+Before implementing ANY optimization, answer these questions:
+
+1. **Callers**: Who calls this function/method/component? Search the entire codebase for all call sites. A change to a function signature, return type, or behavior will affect ALL callers.
+2. **Callees**: What does this function depend on? Changing a dependency's behavior may cascade upward.
+3. **State consumers**: If the change affects shared state (store, global ref, cache, static variable), who reads this state? A state shape change will break all consumers.
+4. **Event listeners**: If the change affects emitted events or event payloads, who listens to these events?
+5. **Type contracts**: If the change modifies a type/interface, who imports and uses this type? Type changes propagate through the dependency graph.
+6. **API contracts**: If the change modifies a Tauri command signature or return value, both the frontend API layer and all calling components must be updated simultaneously.
+7. **Data persistence**: If the change affects data format (JSON schema, cache structure, config format), existing persisted data must remain compatible or be migrated.
+8. **Ordering assumptions**: If the change modifies execution order (e.g., making async what was sync, parallelizing sequential operations), verify no downstream code depends on the original order.
+
+### Impact Assessment Process
+
+For each proposed fix:
+
+1. **Trace all references**: Use search tools to find every file that imports, calls, or references the code being changed
+2. **Map the blast radius**: Categorize affected code into:
+   - 🔴 **Direct impact**: Code that will definitely break without changes (must fix simultaneously)
+   - 🟡 **Indirect impact**: Code that may behave differently after the change (must verify)
+   - 🟢 **No impact**: Code that is unaffected (safe to ignore)
+3. **Batch related changes**: If a change requires updates in multiple files, make ALL updates in the same step — never leave the codebase in a broken intermediate state
+4. **Verify after each change**: After implementing a fix, check that all identified impact points still compile and function correctly
+
+### Anti-Patterns to Avoid
+
+- ❌ Optimizing a function's return type without updating all callers
+- ❌ Changing a shared state structure without migrating existing data
+- ❌ Making a synchronous function async without updating all call sites (forgotten await)
+- ❌ Removing a "redundant" parameter that a downstream consumer relies on
+- ❌ Parallelizing operations that have hidden ordering dependencies
+- ❌ Extracting shared logic into a utility without preserving edge-case behavior
+- ❌ Changing error handling in a way that swallows errors a caller was expecting to catch
 
 ## Create Optimization Plan and Execute It
 

@@ -1070,6 +1070,7 @@ export default {
     checking: 'Checking...',
     upToDate: 'You are up to date',
     checkUpdateFailed: 'Failed to check for updates',
+    checkUpdateTimeout: 'Update check timed out, please check your network connection and try again',
     copyVersion: 'Copy version',
     versionCopied: 'Version copied to clipboard'
   },

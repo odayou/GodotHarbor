@@ -4,10 +4,12 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { api } from '@/api'
 import { useToast } from '@/composables/useToast'
+import { useUpdateStore } from '@/stores'
 
 const { t } = useI18n()
 const router = useRouter()
 const toast = useToast()
+const updateStore = useUpdateStore()
 const hasError = ref(false)
 
 onErrorCaptured((err) => {
@@ -37,21 +39,33 @@ const copyVersion = async () => {
   }
 }
 
+const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timeout')), ms)
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v) },
+      (e) => { clearTimeout(timer); reject(e) }
+    )
+  })
+}
+
 const checkForUpdates = async () => {
+  if (isCheckingUpdate.value) return
   isCheckingUpdate.value = true
   try {
-    const result = await api.checkAllUpdates()
-    const hasAppUpdate = !!(result?.app_update || result?.hot_update)
-    const hasPluginUpdates = (result?.plugin_updates?.length ?? 0) > 0
-    const hasEngineUpdates = (result?.engine_updates?.length ?? 0) > 0
-    if (hasAppUpdate || hasPluginUpdates || hasEngineUpdates) {
+    await withTimeout(updateStore.checkAll(), 30000)
+    if (updateStore.hasAnyUpdate) {
       router.push('/updates')
     } else {
       toast.success(t('about.upToDate'))
     }
   } catch (error: any) {
     console.error('Check update failed:', error)
-    toast.error(t('about.checkUpdateFailed'))
+    if (error?.message === 'timeout') {
+      toast.warning(t('about.checkUpdateTimeout'))
+    } else {
+      toast.error(t('about.checkUpdateFailed'))
+    }
   } finally {
     isCheckingUpdate.value = false
   }

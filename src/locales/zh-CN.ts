@@ -1070,6 +1070,7 @@ export default {
     checking: '检查中...',
     upToDate: '当前已是最新版本',
     checkUpdateFailed: '检查更新失败',
+    checkUpdateTimeout: '检查更新超时，请检查网络连接后重试',
     copyVersion: '复制版本号',
     versionCopied: '版本号已复制到剪贴板'
   },
