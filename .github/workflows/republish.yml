@@ -1,0 +1,43 @@
+name: Republish Releases
+
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  republish:
+    name: Republish Draft Releases
+    runs-on: ubuntu-latest
+    steps:
+      - name: Republish draft releases
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: releases } = await github.rest.repos.listReleases({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+
+            for (const release of releases) {
+              if (release.draft) {
+                const assets = release.assets || [];
+                if (assets.length > 0) {
+                  core.info(`Republishing release: ${release.tag_name} (${assets.length} assets)`);
+                  await github.rest.repos.updateRelease({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    release_id: release.id,
+                    draft: false,
+                  });
+                } else {
+                  core.info(`Skipping release: ${release.tag_name} (no assets, likely in-progress build)`);
+                }
+              } else {
+                core.info(`Release ${release.tag_name} is already published`);
+              }
+            }

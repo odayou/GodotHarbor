@@ -313,18 +313,18 @@ pub async fn download_engine(
 
     let path_str = installed_path.to_string_lossy().to_string();
 
-    if let Err(detail) = crate::engine::EngineManager::validate_engine_path_detail(&path_str) {
-        let _ = std::fs::remove_dir_all(&installed_path);
-        return Ok(crate::models::DownloadEngineResult {
-            success: false,
-            cancelled: false,
-            engine: None,
-            error: Some(format!("下载的引擎文件无效: {}", detail)),
-        });
-    }
-
-    let engine = crate::engine::EngineManager::get_engine_info(&path_str)
-        .map_err(|e| format!("获取引擎信息失败: {}", e))?;
+    let engine = match crate::engine::EngineManager::get_engine_info(&path_str) {
+        Ok(e) => e,
+        Err(detail) => {
+            let _ = std::fs::remove_dir_all(&installed_path);
+            return Ok(crate::models::DownloadEngineResult {
+                success: false,
+                cancelled: false,
+                engine: None,
+                error: Some(format!("下载的引擎文件无效: {}", detail)),
+            });
+        }
+    };
 
     let mut registered_engine = engine;
     registered_engine.name = if remote_version.variant == "mono" {

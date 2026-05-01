@@ -84,6 +84,9 @@ impl EngineManager {
             stem == "godot"
                 || stem == "godot3"
                 || stem == "godot4"
+                || stem == "godot_mono"
+                || stem == "godot3_mono"
+                || stem == "godot4_mono"
                 || stem.starts_with("godot_v")
                 || stem.starts_with("godot4.")
                 || stem.starts_with("godot3.")
@@ -96,6 +99,9 @@ impl EngineManager {
             lower == "godot"
                 || lower == "godot3"
                 || lower == "godot4"
+                || lower == "godot_mono"
+                || lower == "godot3_mono"
+                || lower == "godot4_mono"
                 || lower.starts_with("godot_v")
                 || lower.starts_with("godot4.")
                 || lower.starts_with("godot3.")
@@ -155,19 +161,50 @@ impl EngineManager {
             return "Unknown".to_string();
         }
 
+        let lower = version_str.to_lowercase();
+        let is_mono = lower.contains("mono") || lower.contains(".net");
+
         let re = Regex::new(r"(\d+\.\d+[\.\d]*)").unwrap();
-        if let Some(caps) = re.captures(version_str) {
+        let numeric_part = if let Some(caps) = re.captures(version_str) {
             if let Some(m) = caps.get(1) {
-                return m.as_str().to_string();
+                m.as_str().to_string()
+            } else {
+                let parts: Vec<&str> = version_str.split('.').collect();
+                parts.first().unwrap_or(&"Unknown").to_string()
             }
+        } else {
+            let parts: Vec<&str> = version_str.split_whitespace().collect();
+            parts.first().unwrap_or(&"Unknown").to_string()
+        };
+
+        let channel = if lower.contains("stable") {
+            "stable".to_string()
+        } else if lower.contains("rc") {
+            if let Some(caps) = Regex::new(r"rc(\d+)").unwrap().captures(&lower) {
+                caps.get(1).map_or("rc".to_string(), |m| format!("rc{}", m.as_str()))
+            } else {
+                "rc".to_string()
+            }
+        } else if lower.contains("beta") {
+            "beta".to_string()
+        } else if lower.contains("alpha") {
+            "alpha".to_string()
+        } else if lower.contains("dev") {
+            "dev".to_string()
+        } else {
+            String::new()
+        };
+
+        let mut result = numeric_part;
+        if !channel.is_empty() {
+            result.push('-');
+            result.push_str(&channel);
+        }
+        if is_mono {
+            result.push_str("-mono");
         }
 
-        let parts: Vec<&str> = version_str.split_whitespace().collect();
-        if !parts.is_empty() {
-            return parts[0].to_string();
-        }
-
-        "Unknown".to_string()
+        result
     }
 
     pub fn validate_engine_path(path: &str) -> bool {

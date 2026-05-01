@@ -45,6 +45,7 @@ const downloadSearchQuery = ref('')
 const hideInstalled = ref(false)
 const activeDownloads = ref<Map<string, EngineDownloadProgress>>(new Map())
 const expandedReleaseVersion = ref<string>('')
+const openMenuId = ref<string>('')
 
 useDialogEscape(showAddDialog)
 useDialogEscape(showRenameDialog)
@@ -493,6 +494,10 @@ const handleLaunchEngine = async (engineId: string) => {
     toast.error(t('engines.launchFailed', { error }))
   }
 }
+
+const toggleEngineMenu = (engineId: string) => {
+  openMenuId.value = openMenuId.value === engineId ? '' : engineId
+}
 </script>
 
 <template>
@@ -695,6 +700,12 @@ const handleLaunchEngine = async (engineId: string) => {
                       </span>
                     </div>
                     <span class="text-xs text-gray-500 dark:text-gray-400">v{{ engine.version }}</span>
+                    <span
+                      v-if="engine.version.toLowerCase().includes('mono')"
+                      class="px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400"
+                    >
+                      .NET
+                    </span>
                   </div>
                 </div>
               </td>
@@ -757,24 +768,6 @@ const handleLaunchEngine = async (engineId: string) => {
                     </svg>
                   </button>
                   <button
-                    @click="openRenameDialog(engine)"
-                    class="text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-                    :title="t('engines.rename')"
-                  >
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                  </button>
-                  <button
-                    @click="openInFileManager(engine.path)"
-                    class="text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-                    :title="t('engines.openInFileManager')"
-                  >
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                    </svg>
-                  </button>
-                  <button
                     v-if="!engine.is_default"
                     @click="setDefault(engine.engine_id)"
                     class="text-primary-600 hover:text-primary-800 dark:text-primary-400 p-2 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
@@ -784,15 +777,41 @@ const handleLaunchEngine = async (engineId: string) => {
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                     </svg>
                   </button>
-                  <button
-                    @click="confirmRemoveEngine(engine.engine_id)"
-                    class="text-red-500 hover:text-red-700 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                    :title="t('engines.deleteEngine')"
-                  >
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
+                  <div class="relative" style="display: inline-block">
+                    <button
+                      @click="toggleEngineMenu(engine.engine_id)"
+                      class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                      :title="t('engines.moreActions')"
+                    >
+                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                      </svg>
+                    </button>
+                    <div
+                      v-if="openMenuId === engine.engine_id"
+                      class="absolute right-0 top-full mt-1 bg-white dark:bg-gray-700 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 py-1 z-20 min-w-[140px]"
+                    >
+                      <button
+                        @click="openRenameDialog(engine); openMenuId = ''"
+                        class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+                      >
+                        {{ t('engines.rename') }}
+                      </button>
+                      <button
+                        @click="openInFileManager(engine.path); openMenuId = ''"
+                        class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+                      >
+                        {{ t('engines.openInFileManager') }}
+                      </button>
+                      <hr class="my-1 border-gray-200 dark:border-gray-600" />
+                      <button
+                        @click="confirmRemoveEngine(engine.engine_id); openMenuId = ''"
+                        class="w-full text-left px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                      >
+                        {{ t('engines.deleteEngine') }}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </td>
             </tr>
