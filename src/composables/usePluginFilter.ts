@@ -1,12 +1,39 @@
-import { ref, computed, type ComputedRef } from 'vue'
+import { ref, computed, watch, type ComputedRef } from 'vue'
 import type { Plugin } from '@/types'
 
+const STORAGE_KEY = 'godot-harbor-plugin-filter'
+
+function loadFilterState() {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch {}
+  return null
+}
+
+function saveFilterState(state: Record<string, any>) {
+  try {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+  } catch {}
+}
+
 export function usePluginFilter(plugins: ComputedRef<Plugin[]>) {
-  const searchQuery = ref('')
-  const filterCompatibility = ref<string>('all')
-  const filterSource = ref<string>('all')
+  const saved = loadFilterState()
+
+  const searchQuery = ref(saved?.searchQuery ?? '')
+  const filterCompatibility = ref<string>(saved?.filterCompatibility ?? 'all')
+  const filterSource = ref<string>(saved?.filterSource ?? 'all')
   const showOnlyDuplicates = ref(false)
-  const showFavoritesOnly = ref(false)
+  const showFavoritesOnly = ref(saved?.showFavoritesOnly ?? false)
+
+  watch([searchQuery, filterCompatibility, filterSource, showFavoritesOnly], () => {
+    saveFilterState({
+      searchQuery: searchQuery.value,
+      filterCompatibility: filterCompatibility.value,
+      filterSource: filterSource.value,
+      showFavoritesOnly: showFavoritesOnly.value,
+    })
+  })
 
   const filteredPlugins = computed(() => {
     return plugins.value.filter(plugin => {

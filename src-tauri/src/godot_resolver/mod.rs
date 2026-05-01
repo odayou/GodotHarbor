@@ -46,7 +46,7 @@ impl GodotResourceResolver {
         let import_dir = self.project_root.join(".godot").join("imported");
 
         if import_dir.exists() {
-            for entry in WalkDir::new(&import_dir)
+            for entry in WalkDir::new(&self.project_root)
                 .follow_links(false)
                 .max_depth(UID_CACHE_MAX_DEPTH)
                 .into_iter()

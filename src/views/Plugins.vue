@@ -43,6 +43,7 @@ const showQuickBindDialog = ref(false)
 const quickBindPlugin = ref<Plugin | null>(null)
 const quickBindProjects = ref<Project[]>([])
 const quickBindSelectedProjectIds = ref<Set<string>>(new Set())
+const quickBindBoundProjectIds = ref<Set<string>>(new Set())
 const quickBindVersionIdx = ref(0)
 const quickBindUnitIdx = ref(0)
 const isQuickBinding = ref(false)
@@ -517,6 +518,12 @@ const showPostImportGuide = async (pluginName: string, plugin?: Plugin) => {
       quickBindProjects.value = await api.getProjects()
     } catch {
       quickBindProjects.value = []
+    }
+    try {
+      const bindings = await api.getPluginBindings(plugin.plugin_id)
+      quickBindBoundProjectIds.value = new Set(bindings.map(b => b.project_id))
+    } catch {
+      quickBindBoundProjectIds.value = new Set()
     }
     showQuickBindDialog.value = true
   } else {
@@ -1775,12 +1782,15 @@ const retryBatchFailed = async () => {
               @click.stop="togglePluginSelection(plugin, $event)"
               class="w-4 h-4 text-primary-600 rounded flex-shrink-0 cursor-pointer mt-1"
             />
+            <div class="w-10 h-10 rounded-lg overflow-hidden bg-primary-50 dark:bg-primary-900/30 flex items-center justify-center flex-shrink-0">
+              <span class="text-primary-600 dark:text-primary-400 font-semibold text-sm">{{ plugin.name.charAt(0).toUpperCase() }}</span>
+            </div>
             <div class="min-w-0 flex-1 cursor-pointer" @click="showPluginDetails(plugin)">
               <div class="flex items-center gap-2 flex-wrap">
                 <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary">
                   {{ plugin.name }}
                 </h3>
-                <span class="badge badge-neutral text-xs">
+                <span :class="['badge text-xs', plugin.compatibility === 'Godot4' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : plugin.compatibility === 'Godot3' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : plugin.compatibility === 'Both' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400']">
                   {{ plugin.compatibility === 'Godot4' ? '4.x' : plugin.compatibility === 'Godot3' ? '3.x' : plugin.compatibility === 'Both' ? '3/4' : '?' }}
                 </span>
                 <span class="badge badge-neutral text-xs">
@@ -1800,15 +1810,29 @@ const retryBatchFailed = async () => {
             </div>
           </div>
           <div class="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 dark:border-gray-700/50">
-            <button
-              @click.stop="toggleFavorite(plugin)"
-              :class="['p-1 rounded transition-colors', plugin.is_favorite ? 'text-yellow-500 hover:text-yellow-600' : 'text-gray-400 dark:text-content-secondary hover:text-yellow-500']"
-            >
-              <svg class="w-4 h-4" :fill="plugin.is_favorite ? 'currentColor' : 'none'" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-              </svg>
-            </button>
+            <div class="flex items-center gap-1">
+              <button
+                @click.stop="toggleFavorite(plugin)"
+                :class="['p-1 rounded transition-colors', plugin.is_favorite ? 'text-yellow-500 hover:text-yellow-600' : 'text-gray-400 dark:text-content-secondary hover:text-yellow-500']"
+              >
+                <svg class="w-4 h-4" :fill="plugin.is_favorite ? 'currentColor' : 'none'" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                </svg>
+              </button>
+              <span v-if="plugin.versions.length > 1" class="text-xs text-gray-400 dark:text-gray-500" :title="t('plugins.version')">{{ plugin.versions.length }}v</span>
+              <span v-if="plugin.versions[0]?.units.length > 1" class="text-xs text-gray-400 dark:text-gray-500" :title="t('plugins.pluginDetail.unitCount', { count: plugin.versions[0].units.length })">{{ plugin.versions[0].units.length }}u</span>
+            </div>
             <div class="flex items-center gap-2">
+              <button
+                v-if="plugin.source.source_type === 'Git'"
+                @click.stop="updateGitPlugin(plugin.plugin_id)"
+                class="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 p-1.5 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
+                :title="t('plugins.contextMenu.updatePlugin')"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
               <button
                 @click.stop="quickBindFromCard(plugin)"
                 class="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-1.5"
@@ -2447,9 +2471,14 @@ const retryBatchFailed = async () => {
             {{ t('plugins.storageStats.viewDuplicates') }}
           </button>
           <button
-            v-if="totalStorageStats.orphaned_size_bytes > 0"
             @click="cleanupOrphaned"
-            class="px-3 py-1 text-xs border border-orange-300 dark:border-orange-700 text-orange-600 dark:text-orange-400 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20"
+            :class="[
+              'px-3 py-1 text-xs rounded-lg transition-colors',
+              totalStorageStats.orphaned_size_bytes > 0
+                ? 'border border-orange-300 dark:border-orange-700 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20'
+                : 'border border-gray-200 dark:border-gray-600 text-gray-400 dark:text-gray-500 cursor-default'
+            ]"
+            :disabled="totalStorageStats.orphaned_size_bytes === 0"
           >
             {{ t('plugins.storageStats.cleanup') }}
           </button>
@@ -2993,6 +3022,7 @@ const retryBatchFailed = async () => {
               <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate">{{ project.name }}</div>
               <div class="text-xs text-gray-500 dark:text-content-secondary">{{ project.godot_version }}</div>
             </div>
+            <span v-if="quickBindBoundProjectIds.has(project.project_id)" class="text-xs text-green-600 dark:text-green-400 flex-shrink-0 font-medium">✓ {{ t('projects.bound') }}</span>
             <span v-if="isCompatWarning(quickBindPlugin, project)" class="text-xs text-orange-500 dark:text-orange-400 flex-shrink-0" :title="t('plugins.quickBind.compatWarning')">⚠</span>
           </div>
         </div>

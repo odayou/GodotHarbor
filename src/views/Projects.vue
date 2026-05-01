@@ -883,6 +883,18 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
               @click.stop="toggleProjectSelection(project, $event)"
               class="w-4 h-4 text-primary-600 rounded flex-shrink-0 cursor-pointer"
             />
+            <div class="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
+              <img
+                v-if="project.icon_path"
+                :src="getIconUrl(project.icon_path)"
+                :alt="project.name"
+                class="w-10 h-10 object-contain"
+                @error="($event.target as HTMLImageElement).style.display = 'none'"
+              />
+              <svg v-else class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              </svg>
+            </div>
             <div 
               class="min-w-0 flex-1 cursor-pointer hover:text-primary-600 dark:hover:text-primary-400"
               @click="showProjectDetails(project)"
