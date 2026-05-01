@@ -436,10 +436,12 @@ export interface RemoteEngineVersion {
   version: string
   tag_name: string
   channel: EngineReleaseChannel
+  channel_number: number
   major: number
   minor: number
   patch: number
   is_stable: boolean
+  is_lts: boolean
   published_at: string
   release_url: string
   release_notes: string

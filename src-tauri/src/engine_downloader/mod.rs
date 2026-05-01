@@ -47,18 +47,57 @@ fn remove_cancel_flag(version: &str, variant: &str) {
     }
 }
 
-fn classify_channel(version: &str) -> EngineReleaseChannel {
-    let lower = version.to_lowercase();
-    if lower.contains("dev") {
-        EngineReleaseChannel::Dev
-    } else if lower.contains("alpha") {
-        EngineReleaseChannel::Alpha
-    } else if lower.contains("beta") {
-        EngineReleaseChannel::Beta
-    } else if lower.contains("rc") {
-        EngineReleaseChannel::Rc
+struct TagInfo {
+    channel: EngineReleaseChannel,
+    channel_number: u32,
+    is_stable: bool,
+    is_lts: bool,
+}
+
+fn parse_tag(tag: &str) -> TagInfo {
+    let version_str = tag.trim_start_matches('v');
+    let parts: Vec<&str> = version_str.splitn(2, '-').collect();
+
+    let (channel, channel_number, is_stable) = if parts.len() > 1 {
+        let suffix = parts[1];
+        let lower = suffix.to_lowercase();
+
+        let (prefix, num) = if let Some(rest) = lower.strip_prefix("stable") {
+            ("stable", rest.parse().unwrap_or(0))
+        } else if let Some(rest) = lower.strip_prefix("rc") {
+            ("rc", rest.parse().unwrap_or(0))
+        } else if let Some(rest) = lower.strip_prefix("beta") {
+            ("beta", rest.parse().unwrap_or(0))
+        } else if let Some(rest) = lower.strip_prefix("alpha") {
+            ("alpha", rest.parse().unwrap_or(0))
+        } else if let Some(rest) = lower.strip_prefix("dev") {
+            ("dev", rest.parse().unwrap_or(0))
+        } else {
+            ("unknown", 0)
+        };
+
+        let channel = match prefix {
+            "stable" => EngineReleaseChannel::Stable,
+            "rc" => EngineReleaseChannel::Rc,
+            "beta" => EngineReleaseChannel::Beta,
+            "alpha" => EngineReleaseChannel::Alpha,
+            "dev" => EngineReleaseChannel::Dev,
+            _ => EngineReleaseChannel::Dev,
+        };
+
+        (channel, num, prefix == "stable")
     } else {
-        EngineReleaseChannel::Stable
+        (EngineReleaseChannel::Stable, 0, true)
+    };
+
+    let major: u32 = parts[0].split('.').next().and_then(|s| s.parse().ok()).unwrap_or(0);
+    let is_lts = major == 3;
+
+    TagInfo {
+        channel,
+        channel_number,
+        is_stable,
+        is_lts,
     }
 }
 
@@ -73,6 +112,16 @@ fn parse_version(version: &str) -> (u32, u32, u32) {
     let minor = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(0);
     let patch = parts.get(2).and_then(|s| s.parse().ok()).unwrap_or(0);
     (major, minor, patch)
+}
+
+fn channel_priority(channel: &EngineReleaseChannel) -> u32 {
+    match channel {
+        EngineReleaseChannel::Stable => 5,
+        EngineReleaseChannel::Rc => 4,
+        EngineReleaseChannel::Beta => 3,
+        EngineReleaseChannel::Alpha => 2,
+        EngineReleaseChannel::Dev => 1,
+    }
 }
 
 fn platform_keywords() -> Vec<&'static str> {
@@ -150,7 +199,7 @@ impl EngineDownloader {
             mirror.base_url.trim_end_matches('/')
         };
 
-        for repo in &["godotengine/godot", "godotengine/godot-builds"] {
+        for repo in &["godotengine/godot-builds"] {
             for page in 1..=max_pages {
                 let url = format!(
                     "{}/repos/{}/releases?per_page={}&page={}",
@@ -199,7 +248,17 @@ impl EngineDownloader {
         all_versions.sort_by(|a, b| {
             match b.major.cmp(&a.major) {
                 std::cmp::Ordering::Equal => match b.minor.cmp(&a.minor) {
-                    std::cmp::Ordering::Equal => b.patch.cmp(&a.patch),
+                    std::cmp::Ordering::Equal => match b.patch.cmp(&a.patch) {
+                        std::cmp::Ordering::Equal => {
+                            let pa = channel_priority(&a.channel);
+                            let pb = channel_priority(&b.channel);
+                            match pb.cmp(&pa) {
+                                std::cmp::Ordering::Equal => b.channel_number.cmp(&a.channel_number),
+                                other => other,
+                            }
+                        }
+                        other => other,
+                    },
                     other => other,
                 },
                 other => other,
@@ -234,10 +293,6 @@ impl EngineDownloader {
             .unwrap_or("")
             .to_string();
 
-        let prerelease = release.get("prerelease")
-            .and_then(|p| p.as_bool())
-            .unwrap_or(true);
-
         let draft = release.get("draft")
             .and_then(|d| d.as_bool())
             .unwrap_or(false);
@@ -247,13 +302,8 @@ impl EngineDownloader {
         }
 
         let version_str = tag_name.trim_start_matches('v');
+        let tag_info = parse_tag(&tag_name);
         let (major, minor, patch) = parse_version(version_str);
-        let channel = classify_channel(version_str);
-        let is_stable = !prerelease
-            && !version_str.contains("dev")
-            && !version_str.contains("beta")
-            && !version_str.contains("rc")
-            && !version_str.contains("alpha");
 
         let assets = release.get("assets")
             .and_then(|a| a.as_array())
@@ -323,10 +373,9 @@ impl EngineDownloader {
         for (variant, asset_opt) in &[("standard", &standard_asset), ("mono", &mono_asset)] {
             if let Some((file_name, download_url, file_size)) = asset_opt {
                 let final_download_url = if mirror.mirror_type == "direct" {
-                    let version_dir = version_str.replace('.', "_");
                     format!("{}/{}/{}",
                         mirror.base_url.trim_end_matches('/'),
-                        version_dir,
+                        version_str,
                         file_name
                     )
                 } else {
@@ -336,11 +385,13 @@ impl EngineDownloader {
                 results.push(RemoteEngineVersion {
                     version: version_str.to_string(),
                     tag_name: tag_name.clone(),
-                    channel: channel.clone(),
+                    channel: tag_info.channel.clone(),
+                    channel_number: tag_info.channel_number,
                     major,
                     minor,
                     patch,
-                    is_stable,
+                    is_stable: tag_info.is_stable,
+                    is_lts: tag_info.is_lts,
                     published_at: published_at.clone(),
                     release_url: html_url.clone(),
                     release_notes: body.chars().take(500).collect(),
@@ -366,9 +417,9 @@ impl EngineDownloader {
         reset_cancel(version, variant);
 
         let version_dir_name = if variant == "mono" {
-            format!("godot_{}_dotnet", version.replace('.', "_"))
+            format!("godot_{}_dotnet", version.replace('.', "_").replace('-', "_"))
         } else {
-            format!("godot_{}", version.replace('.', "_"))
+            format!("godot_{}", version.replace('.', "_").replace('-', "_"))
         };
         let target_dir = engines_dir.join(&version_dir_name);
 

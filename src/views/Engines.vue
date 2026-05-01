@@ -118,15 +118,21 @@ const channelBadgeClass = (channel: EngineReleaseChannel) => {
   }
 }
 
-const channelLabel = (channel: EngineReleaseChannel) => {
-  switch (channel) {
-    case 'Stable': return t('engines.download.channelStable')
-    case 'Rc': return t('engines.download.channelRc')
-    case 'Beta': return t('engines.download.channelBeta')
-    case 'Alpha': return t('engines.download.channelAlpha')
-    case 'Dev': return t('engines.download.channelDev')
-    default: return channel
+const channelLabel = (channel: EngineReleaseChannel, channelNumber?: number) => {
+  const base = (() => {
+    switch (channel) {
+      case 'Stable': return t('engines.download.channelStable')
+      case 'Rc': return t('engines.download.channelRc')
+      case 'Beta': return t('engines.download.channelBeta')
+      case 'Alpha': return t('engines.download.channelAlpha')
+      case 'Dev': return t('engines.download.channelDev')
+      default: return channel
+    }
+  })()
+  if (channelNumber && channelNumber > 0 && channel !== 'Stable') {
+    return `${base} ${channelNumber}`
   }
+  return base
 }
 
 const formatFileSize = (bytes: number) => {
@@ -927,7 +933,7 @@ const cancelDownload = async (version: string, variant: string) => {
           <div v-else class="space-y-2">
             <div
               v-for="version in filteredRemoteVersions"
-              :key="version.tag_name"
+              :key="`${version.tag_name}_${version.variant}`"
               :class="[
                 'p-3 rounded-lg border transition-colors',
                 version.is_installed
@@ -940,7 +946,13 @@ const cancelDownload = async (version: string, variant: string) => {
                   <div class="flex items-center gap-2">
                     <span class="font-medium text-sm text-gray-900 dark:text-gray-100">v{{ version.version }}</span>
                     <span :class="['px-1.5 py-0.5 rounded text-xs font-medium', channelBadgeClass(version.channel)]">
-                      {{ channelLabel(version.channel) }}
+                      {{ channelLabel(version.channel, version.channel_number) }}
+                    </span>
+                    <span
+                      v-if="version.is_lts"
+                      class="px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
+                    >
+                      LTS
                     </span>
                     <span
                       v-if="version.variant === 'mono'"

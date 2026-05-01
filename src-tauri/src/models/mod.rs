@@ -586,10 +586,14 @@ pub struct RemoteEngineVersion {
     pub version: String,
     pub tag_name: String,
     pub channel: EngineReleaseChannel,
+    #[serde(default)]
+    pub channel_number: u32,
     pub major: u32,
     pub minor: u32,
     pub patch: u32,
     pub is_stable: bool,
+    #[serde(default)]
+    pub is_lts: bool,
     pub published_at: String,
     pub release_url: String,
     pub release_notes: String,
