@@ -69,6 +69,7 @@ export default {
     projectCount: 'projects',
     openInFileManager: 'Open in File Manager',
     openInFileManagerFailed: 'Failed to open in file manager: {error}',
+    launchEngine: 'Launch Engine',
     syncProject: 'Sync Project',
     syncSuccess: 'Project {name} synced',
     syncFailed: 'Sync project failed: {error}',
@@ -521,7 +522,10 @@ export default {
       hideNotes: 'Hide Notes',
       rateLimitError: 'GitHub API rate limit exceeded. Please try again later or switch to a different mirror',
       networkError: 'Network connection failed. Please check your network or switch to a different mirror',
-      hideInstalled: 'Hide installed'
+      hideInstalled: 'Hide installed',
+      reDownload: 'Re-download',
+      downloadInBackground: 'Downloads will continue in the background',
+      launchEngine: 'Launch engine'
     }
   },
   settings: {

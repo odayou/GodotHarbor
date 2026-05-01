@@ -372,6 +372,7 @@ pub fn run() {
             commands::download_engine,
             commands::cancel_engine_download,
             commands::cleanup_download_temp,
+            commands::launch_engine,
             commands::get_storage_paths,
             commands::migrate_data_dir,
         ))

@@ -279,9 +279,20 @@ const confirmRemoveEngine = async (engineId: string) => {
 
 const onRemoveEngineConfirm = async () => {
   try {
+    const removedEngine = engines.value.find(e => e.engine_id === deleteTargetId.value)
     await api.removeEngine(deleteTargetId.value, deleteAlsoFiles.value)
     toast.success(t('engines.deleteSuccess'))
     await loadEngines()
+    if (removedEngine) {
+      const localVersion = removedEngine.version.trim().toLowerCase()
+      remoteVersions.value = remoteVersions.value.map(v => {
+        const remoteVersion = v.version.trim().toLowerCase()
+        if (remoteVersion === localVersion || remoteVersion.startsWith(localVersion) || localVersion.startsWith(remoteVersion)) {
+          return { ...v, is_installed: false }
+        }
+        return v
+      })
+    }
   } catch (error) {
     toast.error(t('common.deleteFailed', { error }))
   }
@@ -402,10 +413,6 @@ const fetchRemoteVersions = async (forceRefresh: boolean = false) => {
 }
 
 const startDownload = async (version: RemoteEngineVersion) => {
-  if (version.is_installed) {
-    toast.info(t('engines.download.alreadyInstalled'))
-    return
-  }
   const dlKey = `${version.version}_${version.variant}`
   if (activeDownloads.value.has(dlKey)) {
     toast.info(t('engines.download.alreadyDownloading'))
@@ -453,6 +460,13 @@ const cancelDownload = async (version: string, variant: string) => {
   } catch {
     // ignore
   }
+}
+
+const handleDownloadDialogClose = () => {
+  if (activeDownloads.value.size > 0) {
+    toast.info(t('engines.download.downloadInBackground'))
+  }
+  showDownloadDialog.value = false
 }
 </script>
 
@@ -648,8 +662,9 @@ const cancelDownload = async (version: string, variant: string) => {
                       </span>
                       <span
                         v-if="engineHealthMap.get(engine.engine_id) === false"
-                        class="px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                        class="px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 cursor-pointer hover:underline"
                         :title="t('engines.exeNotFound')"
+                        @click="confirmRemoveEngine(engine.engine_id)"
                       >
                         ⚠️
                       </span>
@@ -705,6 +720,17 @@ const cancelDownload = async (version: string, variant: string) => {
               </td>
               <td class="px-4 py-4 whitespace-nowrap">
                 <div class="flex items-center justify-end gap-1">
+                  <button
+                    v-if="engineHealthMap.get(engine.engine_id) === true"
+                    @click="api.launchEngine(engine.engine_id)"
+                    class="text-green-600 hover:text-green-800 dark:text-green-400 p-2 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+                    :title="t('engines.launchEngine')"
+                  >
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </button>
                   <button
                     @click="openRenameDialog(engine)"
                     class="text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
@@ -826,11 +852,11 @@ const cancelDownload = async (version: string, variant: string) => {
   </Teleport>
 
   <Teleport to="body">
-    <div v-if="showDownloadDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showDownloadDialog = false">
+    <div v-if="showDownloadDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="handleDownloadDialogClose">
       <div class="bg-white dark:bg-gray-800 rounded-lg w-full max-w-3xl shadow-xl max-h-[85vh] flex flex-col" @click.stop>
         <div class="flex justify-between items-center p-6 pb-4">
           <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ t('engines.download.title') }}</h3>
-          <button @click="showDownloadDialog = false" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+          <button @click="handleDownloadDialogClose" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
             <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
@@ -973,20 +999,20 @@ const cancelDownload = async (version: string, variant: string) => {
                     <span class="truncate" :title="version.file_name">{{ version.file_name }}</span>
                     <button
                       v-if="version.release_notes"
-                      @click="expandedReleaseVersion = expandedReleaseVersion === version.version ? '' : version.version"
+                      @click="expandedReleaseVersion = expandedReleaseVersion === `${version.version}_${version.variant}` ? '' : `${version.version}_${version.variant}`"
                       class="text-primary-600 dark:text-primary-400 hover:underline"
                     >
-                      {{ expandedReleaseVersion === version.version ? t('engines.download.hideNotes') : t('engines.download.showNotes') }}
+                      {{ expandedReleaseVersion === `${version.version}_${version.variant}` ? t('engines.download.hideNotes') : t('engines.download.showNotes') }}
                     </button>
                   </div>
                 </div>
                 <button
                   @click="startDownload(version)"
-                  :disabled="version.is_installed || activeDownloads.has(`${version.version}_${version.variant}`)"
+                  :disabled="activeDownloads.has(`${version.version}_${version.variant}`)"
                   :class="[
                     'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap',
                     version.is_installed
-                      ? 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500 cursor-not-allowed'
+                      ? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
                       : activeDownloads.has(`${version.version}_${version.variant}`)
                         ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
                         : 'bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50'
@@ -996,7 +1022,7 @@ const cancelDownload = async (version: string, variant: string) => {
                     {{ t('engines.download.downloading') }}
                   </template>
                   <template v-else-if="version.is_installed">
-                    {{ t('engines.download.installed') }}
+                    {{ t('engines.download.reDownload') }}
                   </template>
                   <template v-else>
                     {{ t('engines.download.downloadAction') }}
@@ -1004,7 +1030,7 @@ const cancelDownload = async (version: string, variant: string) => {
                 </button>
               </div>
               <div
-                v-if="expandedReleaseVersion === version.version && version.release_notes"
+                v-if="expandedReleaseVersion === `${version.version}_${version.variant}` && version.release_notes"
                 class="mt-2 p-2 bg-gray-50 dark:bg-gray-700/50 rounded text-xs text-gray-600 dark:text-gray-300 whitespace-pre-wrap max-h-40 overflow-y-auto"
               >{{ version.release_notes }}</div>
             </div>

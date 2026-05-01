@@ -424,7 +424,10 @@ impl EngineDownloader {
         let target_dir = engines_dir.join(&version_dir_name);
 
         if target_dir.exists() {
-            return Ok(target_dir);
+            if crate::engine::EngineManager::find_executable_in_dir(&target_dir).is_some() {
+                return Ok(target_dir);
+            }
+            let _ = std::fs::remove_dir_all(&target_dir);
         }
 
         let download_dir = app.path().app_data_dir()

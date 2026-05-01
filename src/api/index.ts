@@ -414,6 +414,10 @@ export const api = {
     return await invoke('cancel_engine_download', { version, variant })
   },
 
+  async launchEngine(engineId: string): Promise<void> {
+    return await invoke('launch_engine', { engineId })
+  },
+
   async cleanupDownloadTemp(): Promise<number> {
     return await invoke('cleanup_download_temp')
   }

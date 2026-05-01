@@ -69,6 +69,7 @@ export default {
     projectCount: '个项目',
     openInFileManager: '在文件管理器中打开',
     openInFileManagerFailed: '打开文件管理器失败: {error}',
+    launchEngine: '启动引擎',
     syncProject: '同步项目',
     syncSuccess: '项目 {name} 已同步',
     syncFailed: '同步项目失败: {error}',
@@ -521,7 +522,10 @@ export default {
       hideNotes: '收起说明',
       rateLimitError: 'GitHub API 请求频率受限，请稍后重试或更换镜像源',
       networkError: '网络连接失败，请检查网络或更换镜像源',
-      hideInstalled: '隐藏已安装'
+      hideInstalled: '隐藏已安装',
+      reDownload: '重新下载',
+      downloadInBackground: '下载将在后台继续',
+      launchEngine: '启动引擎'
     }
   },
   settings: {

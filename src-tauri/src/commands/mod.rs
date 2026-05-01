@@ -298,7 +298,7 @@ pub async fn download_engine(
     ).await {
         Ok(path) => path,
         Err(e) => {
-            let is_cancelled = e.contains("取消");
+            let is_cancelled = e == "下载已取消";
             if is_cancelled {
                 return Ok(crate::models::DownloadEngineResult {
                     success: false,
@@ -396,6 +396,25 @@ pub fn cleanup_download_temp(app: AppHandle) -> Result<u64, String> {
         }
     }
     Ok(cleaned)
+}
+
+#[tauri::command]
+pub fn launch_engine(app: AppHandle, engine_id: String) -> Result<(), String> {
+    let storage = get_storage(&app);
+    let engines: Vec<Engine> = storage.load_or_default("engines.json");
+    let engine = engines.iter().find(|e| e.engine_id == engine_id)
+        .ok_or("未找到指定的引擎".to_string())?;
+
+    let engine_path = Path::new(&engine.path);
+    let exe_path = crate::engine::EngineManager::find_executable_in_dir(engine_path)
+        .ok_or("未找到引擎可执行文件".to_string())?;
+
+    std::process::Command::new(&exe_path)
+        .spawn()
+        .map_err(|e| format!("启动引擎失败: {}", e))?;
+
+    log_operation(&app, "launch_engine", &engine.name, "已启动引擎");
+    Ok(())
 }
 
 #[tauri::command]
