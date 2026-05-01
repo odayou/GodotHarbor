@@ -3,6 +3,7 @@ import { useUpdateStore } from '@/stores/update'
 import { useSettingsStore } from '@/stores'
 import { api } from '@/api'
 import { useI18n } from 'vue-i18n'
+import { sendAppNotification } from '@/composables/useNotification'
 
 export function useUpdate() {
   const store = useUpdateStore()
@@ -15,23 +16,6 @@ export function useUpdate() {
       appVersion.value = await api.getAppVersion()
     } catch {
       appVersion.value = '0.1.0'
-    }
-  }
-
-  async function sendSystemNotification(title: string, body: string) {
-    try {
-      const { isPermissionGranted, requestPermission } = await import('@tauri-apps/plugin-notification')
-      let permitted = await isPermissionGranted()
-      if (!permitted) {
-        const permission = await requestPermission()
-        permitted = permission === 'granted'
-      }
-      if (permitted) {
-        const { sendNotification } = await import('@tauri-apps/plugin-notification')
-        sendNotification({ title, body })
-      }
-    } catch (e) {
-      console.error('Failed to send notification:', e)
     }
   }
 
@@ -51,7 +35,7 @@ export function useUpdate() {
       if (store.hotUpdate) {
         parts.push(`${t('statusbar.hotUpdate')}: ${store.hotUpdate.version}`)
       }
-      await sendSystemNotification(
+      await sendAppNotification(
         t('statusbar.updateAvailable'),
         `${t('statusbar.updateAvailable')}: ${parts.join(', ')}`
       )
@@ -86,7 +70,6 @@ export function useUpdate() {
     store,
     appVersion,
     checkAndNotify,
-    sendSystemNotification,
     loadAppVersion
   }
 }

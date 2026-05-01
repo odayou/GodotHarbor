@@ -1,19 +1,7 @@
-import { ref } from 'vue'
+import { useVisibility } from '@/composables/useVisibility'
 
-const isVisible = ref(false)
+const { isVisible, show: showOnboarding, hide: hideOnboarding } = useVisibility('onboarding')
 
 export function useOnboarding() {
-  const showOnboarding = () => {
-    isVisible.value = true
-  }
-
-  const hideOnboarding = () => {
-    isVisible.value = false
-  }
-
-  return {
-    isVisible,
-    showOnboarding,
-    hideOnboarding
-  }
+  return { isVisible, showOnboarding, hideOnboarding }
 }

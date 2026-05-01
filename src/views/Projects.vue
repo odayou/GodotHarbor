@@ -8,6 +8,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
+import { useBatchSelection } from '@/composables/useBatchSelection'
 import { useDialogEscape } from '@/composables/useDialogEscape'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
@@ -56,66 +57,11 @@ const filterStatus = ref<string>('all')
 const availableGroups = ref<string[]>([])
 let unlisten: UnlistenFn | null = null
 
-const selectedProjectIds = ref<Set<string>>(new Set())
-const lastClickedIndex = ref<number>(-1)
-const isBatchMode = ref(false)
-
 const sortBy = ref<string>('name')
 const sortOrder = ref<string>('asc')
 
 const showBatchGroupDialog = ref(false)
 const batchGroupInput = ref('')
-
-const toggleProjectSelection = (project: Project, event: MouseEvent | Event) => {
-  const mouseEvent = event as MouseEvent
-  const projectId = project.project_id
-  const currentList = filteredProjects.value
-  const currentIndex = currentList.findIndex(p => p.project_id === projectId)
-
-  if (mouseEvent.shiftKey && lastClickedIndex.value >= 0) {
-    const start = Math.min(lastClickedIndex.value, currentIndex)
-    const end = Math.max(lastClickedIndex.value, currentIndex)
-    for (let i = start; i <= end; i++) {
-      selectedProjectIds.value.add(currentList[i].project_id)
-    }
-  } else if (mouseEvent.ctrlKey || mouseEvent.metaKey) {
-    if (selectedProjectIds.value.has(projectId)) {
-      selectedProjectIds.value.delete(projectId)
-    } else {
-      selectedProjectIds.value.add(projectId)
-    }
-  } else {
-    if (selectedProjectIds.value.has(projectId)) {
-      selectedProjectIds.value.delete(projectId)
-      if (selectedProjectIds.value.size === 0) {
-        isBatchMode.value = false
-      }
-    } else {
-      selectedProjectIds.value.add(projectId)
-      isBatchMode.value = true
-    }
-  }
-
-  lastClickedIndex.value = currentIndex
-  selectedProjectIds.value = new Set(selectedProjectIds.value)
-}
-
-const selectAllProjects = () => {
-  for (const p of filteredProjects.value) {
-    selectedProjectIds.value.add(p.project_id)
-  }
-  selectedProjectIds.value = new Set(selectedProjectIds.value)
-  isBatchMode.value = true
-}
-
-const clearSelection = () => {
-  selectedProjectIds.value.clear()
-  selectedProjectIds.value = new Set(selectedProjectIds.value)
-  isBatchMode.value = false
-  lastClickedIndex.value = -1
-}
-
-const selectedCount = computed(() => selectedProjectIds.value.size)
 
 const batchRemoveProjects = async () => {
   const ids = Array.from(selectedProjectIds.value)
@@ -254,6 +200,18 @@ const filteredProjects = computed(() => {
   })
 
   return result
+})
+
+const {
+  selectedIds: selectedProjectIds,
+  isBatchMode,
+  selectedCount,
+  toggleSelection: toggleProjectSelection,
+  selectAll: selectAllProjects,
+  clearSelection,
+} = useBatchSelection<Project>({
+  items: filteredProjects,
+  getId: (p) => p.project_id,
 })
 
 const loadGroups = async () => {
@@ -475,32 +433,26 @@ const onDrop = async (e: DragEvent) => {
   const files = e.dataTransfer?.files
   if (!files || files.length === 0) return
 
-  let addedCount = 0
-  let skippedCount = 0
-  let duplicateCount = 0
-
+  const paths: string[] = []
   for (let i = 0; i < files.length; i++) {
-    const file = files[i]
-    const path = (file as any).path
-    if (!path) continue
-
-    const existing = projects.value.find(p => p.path === path)
-    if (existing) {
-      duplicateCount++
-      continue
-    }
-
-    try {
-      isLoading.value = true
-      await api.addProject(path)
-      addedCount++
-    } catch (error: any) {
-      skippedCount++
-    } finally {
-      isLoading.value = false
+    const path = (files[i] as any).path
+    if (path && !projects.value.find(p => p.path === path)) {
+      paths.push(path)
     }
   }
+
+  const duplicateCount = files.length - paths.length
+  isLoading.value = true
+
+  const results = await Promise.allSettled(
+    paths.map(path => api.addProject(path))
+  )
+
+  isLoading.value = false
   await loadProjects()
+
+  const addedCount = results.filter(r => r.status === 'fulfilled').length
+  const skippedCount = results.filter(r => r.status === 'rejected').length
 
   if (duplicateCount > 0 && addedCount > 0) {
     toast.info(t('projects.dragDropResult', { added: addedCount, skipped: skippedCount + duplicateCount }))

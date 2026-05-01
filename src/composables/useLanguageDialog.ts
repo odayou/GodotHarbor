@@ -1,19 +1,7 @@
-import { ref } from 'vue'
+import { useVisibility } from '@/composables/useVisibility'
 
-const isVisible = ref(false)
+const { isVisible, show: showLanguageDialog, hide: hideLanguageDialog } = useVisibility('languageDialog')
 
 export function useLanguageDialog() {
-  const showLanguageDialog = () => {
-    isVisible.value = true
-  }
-
-  const hideLanguageDialog = () => {
-    isVisible.value = false
-  }
-
-  return {
-    isVisible,
-    showLanguageDialog,
-    hideLanguageDialog
-  }
+  return { isVisible, showLanguageDialog, hideLanguageDialog }
 }

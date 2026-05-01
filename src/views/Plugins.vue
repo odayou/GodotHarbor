@@ -5,9 +5,10 @@ import { useRoute } from 'vue-router'
 import { api } from '@/api'
 import type { Plugin, Project, PluginUpdateInfo, PluginDependency, AssetLibrarySearchResult, AssetLibrarySearchResponse, AssetLibraryCategory, AssetLibraryAsset, PluginStorageStats, ProjectBinding, TotalStorageStats, DuplicateCheckResult, ScannedPlugin, TeamSharedConfig } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
-import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
+import { sendAppNotification } from '@/composables/useNotification'
 import { useToast } from '@/composables/useToast'
 import { useDialogEscape } from '@/composables/useDialogEscape'
+import { useBatchSelection } from '@/composables/useBatchSelection'
 import { usePluginStore } from '@/stores'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
@@ -16,21 +17,6 @@ const route = useRoute()
 
 const toast = useToast()
 const { t } = useI18n()
-
-const sendImportNotification = async (title: string, body: string) => {
-  try {
-    let permissionGranted = await isPermissionGranted()
-    if (!permissionGranted) {
-      const permission = await requestPermission()
-      permissionGranted = permission === 'granted'
-    }
-    if (permissionGranted) {
-      sendNotification({ title, body })
-    }
-  } catch (e) {
-    console.error('Notification error:', e)
-  }
-}
 
 const plugins = computed(() => pluginStore.plugins)
 const isLoading = ref(false)
@@ -121,61 +107,6 @@ const filterSource = ref<string>('all')
 const showOnlyDuplicates = ref(false)
 const showFavoritesOnly = ref(false)
 
-const selectedPluginIds = ref<Set<string>>(new Set())
-const lastClickedPluginIndex = ref<number>(-1)
-const isBatchMode = ref(false)
-
-const togglePluginSelection = (plugin: Plugin, event: MouseEvent | Event) => {
-  const mouseEvent = event as MouseEvent
-  const pluginId = plugin.plugin_id
-  const currentList = filteredPlugins.value
-  const currentIndex = currentList.findIndex(p => p.plugin_id === pluginId)
-
-  if (mouseEvent.shiftKey && lastClickedPluginIndex.value >= 0) {
-    const start = Math.min(lastClickedPluginIndex.value, currentIndex)
-    const end = Math.max(lastClickedPluginIndex.value, currentIndex)
-    for (let i = start; i <= end; i++) {
-      selectedPluginIds.value.add(currentList[i].plugin_id)
-    }
-  } else if (mouseEvent.ctrlKey || mouseEvent.metaKey) {
-    if (selectedPluginIds.value.has(pluginId)) {
-      selectedPluginIds.value.delete(pluginId)
-    } else {
-      selectedPluginIds.value.add(pluginId)
-    }
-  } else {
-    if (selectedPluginIds.value.has(pluginId)) {
-      selectedPluginIds.value.delete(pluginId)
-      if (selectedPluginIds.value.size === 0) {
-        isBatchMode.value = false
-      }
-    } else {
-      selectedPluginIds.value.add(pluginId)
-      isBatchMode.value = true
-    }
-  }
-
-  lastClickedPluginIndex.value = currentIndex
-  selectedPluginIds.value = new Set(selectedPluginIds.value)
-}
-
-const selectAllPlugins = () => {
-  for (const p of filteredPlugins.value) {
-    selectedPluginIds.value.add(p.plugin_id)
-  }
-  selectedPluginIds.value = new Set(selectedPluginIds.value)
-  isBatchMode.value = true
-}
-
-const clearPluginSelection = () => {
-  selectedPluginIds.value.clear()
-  selectedPluginIds.value = new Set(selectedPluginIds.value)
-  isBatchMode.value = false
-  lastClickedPluginIndex.value = -1
-}
-
-const selectedPluginCount = computed(() => selectedPluginIds.value.size)
-
 const batchRemovePlugins = async () => {
   const ids = Array.from(selectedPluginIds.value)
   if (ids.length === 0) return
@@ -237,6 +168,18 @@ const filteredPlugins = computed(() => {
 
     return matchesSearch && matchesCompatibility && matchesSource && matchesFavorite && matchesDuplicate
   })
+})
+
+const {
+  selectedIds: selectedPluginIds,
+  isBatchMode,
+  selectedCount: selectedPluginCount,
+  toggleSelection: togglePluginSelection,
+  selectAll: selectAllPlugins,
+  clearSelection: clearPluginSelection,
+} = useBatchSelection<Plugin>({
+  items: filteredPlugins,
+  getId: (p) => p.plugin_id,
 })
 
 const favoritePlugins = computed(() => {
@@ -580,7 +523,7 @@ const importAsset = async (assetId: string, assetTitle: string) => {
   try {
     const result = await api.importFromAssetLibraryWithProgress(assetId)
     toast.success(t('plugins.importPluginSuccess', { name: assetTitle }))
-    sendImportNotification('Godot Harbor', t('plugins.importPluginSuccess', { name: assetTitle }))
+    sendAppNotification('Godot Harbor', t('plugins.importPluginSuccess', { name: assetTitle }))
     await loadPlugins(true)
     showPostImportGuide(assetTitle, result)
   } catch (error) {
@@ -594,29 +537,25 @@ const batchImportAssets = async () => {
   const ids = Array.from(selectedAssetIds.value)
   if (ids.length === 0) return
 
+  ids.forEach(id => pluginStore.setImporting(id))
+
+  const results = await Promise.allSettled(
+    ids.map(id => api.importFromAssetLibraryWithProgress(id))
+  )
+
+  pluginStore.resetImportProgress()
+  selectedAssetIds.value = new Set()
+
   let successCount = 0
   let failCount = 0
-  for (let i = 0; i < ids.length; i++) {
-    const assetId = ids[i]
-    pluginStore.setImporting(assetId)
-    try {
-      await api.importFromAssetLibraryWithProgress(assetId)
-      successCount++
-    } catch {
-      failCount++
-    } finally {
-      if (i === ids.length - 1) {
-        pluginStore.resetImportProgress()
-      }
-    }
-  }
-  selectedAssetIds.value = new Set()
+  results.forEach(r => { if (r.status === 'fulfilled') successCount++; else failCount++ })
+
   if (failCount > 0) {
     toast.warning(t('plugins.depDialog.partialSuccess', { success: successCount, failed: failCount }))
-    sendImportNotification('Godot Harbor', t('plugins.depDialog.partialSuccess', { success: successCount, failed: failCount }))
+    sendAppNotification('Godot Harbor', t('plugins.depDialog.partialSuccess', { success: successCount, failed: failCount }))
   } else {
     toast.success(t('common.batchImportSuccess', { count: successCount }))
-    sendImportNotification('Godot Harbor', t('common.batchImportSuccess', { count: successCount }))
+    sendAppNotification('Godot Harbor', t('common.batchImportSuccess', { count: successCount }))
   }
   await loadPlugins(true)
 }
@@ -1353,13 +1292,9 @@ const confirmBatchBind = async () => {
     batchProgress.value = { current: 0, total: requests.length, message: t('plugins.batchProgress.binding') }
     const result = await api.batchBindPlugins(requests)
     batchProgress.value = { current: requests.length, total: requests.length, message: t('plugins.batchProgress.applying') }
-    for (const projectId of selectedLinkProjectIds.value) {
-      try {
-        await api.applyChanges(projectId)
-      } catch {
-        // ignore individual apply errors
-      }
-    }
+    await Promise.allSettled(
+      Array.from(selectedLinkProjectIds.value).map(projectId => api.applyChanges(projectId))
+    )
     batchProgress.value = null
     if (result.failed_count > 0) {
       batchFailedItems.value = result.errors.map((e: string, i: number) => ({ id: String(i), name: String(i), error: e }))

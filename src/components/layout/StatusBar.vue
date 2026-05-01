@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
+import { sendAppNotification } from '@/composables/useNotification'
 import { useUpdateStore } from '@/stores/update'
 import type { VersionUpdateInfo, GodotVersionCheckResult, ChannelLatestVersions, LocalEngineVersion } from '@/types'
 
@@ -118,23 +119,6 @@ const formatTime = (isoStr: string) => {
   }
 }
 
-const sendSystemNotification = async (title: string, body: string) => {
-  try {
-    const { isPermissionGranted, requestPermission } = await import('@tauri-apps/plugin-notification')
-    let permitted = await isPermissionGranted()
-    if (!permitted) {
-      const permission = await requestPermission()
-      permitted = permission === 'granted'
-    }
-    if (permitted) {
-      const { sendNotification } = await import('@tauri-apps/plugin-notification')
-      sendNotification({ title, body })
-    }
-  } catch (e) {
-    console.error('Failed to send notification:', e)
-  }
-}
-
 const toggleUpdatePanel = () => {
   showUpdatePanel.value = !showUpdatePanel.value
 }
@@ -225,7 +209,7 @@ onMounted(async () => {
       if (updateStore.pluginUpdates.length > 0) parts.push(`${updateStore.pluginUpdates.length} ${t('statusbar.plugins')}`)
       if (engineUpdatesAvailable.value.length > 0) parts.push(`${engineUpdatesAvailable.value.length} ${t('statusbar.engine')}`)
       if (updateStore.hotUpdate) parts.push(t('statusbar.hotUpdate'))
-      await sendSystemNotification(
+      await sendAppNotification(
         t('statusbar.updateAvailable'),
         `${t('statusbar.updateAvailable')}: ${parts.join(', ')}`
       )

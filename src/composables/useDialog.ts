@@ -1,25 +1,17 @@
-import { ref, onUnmounted } from 'vue'
+import { ref } from 'vue'
+import { useDialogEscape } from '@/composables/useDialogEscape'
 
 export function useDialog() {
   const isOpen = ref(false)
-  let escapeHandler: ((e: KeyboardEvent) => void) | null = null
+
+  useDialogEscape(isOpen)
 
   const openDialog = () => {
     isOpen.value = true
-    escapeHandler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        closeDialog()
-      }
-    }
-    document.addEventListener('keydown', escapeHandler)
   }
 
   const closeDialog = () => {
     isOpen.value = false
-    if (escapeHandler) {
-      document.removeEventListener('keydown', escapeHandler)
-      escapeHandler = null
-    }
   }
 
   const onOverlayClick = (e: MouseEvent) => {
@@ -27,13 +19,6 @@ export function useDialog() {
       closeDialog()
     }
   }
-
-  onUnmounted(() => {
-    if (escapeHandler) {
-      document.removeEventListener('keydown', escapeHandler)
-      escapeHandler = null
-    }
-  })
 
   return {
     isOpen,
