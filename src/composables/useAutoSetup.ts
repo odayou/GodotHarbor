@@ -6,6 +6,16 @@ import { useI18n } from 'vue-i18n'
 
 export type AutoSetupStep = 'idle' | 'scanning-plugins' | 'importing-plugins' | 'binding-plugins' | 'applying-changes' | 'discovering-engines' | 'done'
 
+function normalizePath(p: string): string {
+  return p.replace(/\\/g, '/').toLowerCase()
+}
+
+function getPluginDirName(pluginPath: string): string {
+  const normalized = normalizePath(pluginPath)
+  const segments = normalized.split('/')
+  return segments[segments.length - 1] || ''
+}
+
 export function useAutoSetup() {
   const toast = useToast()
   const { t } = useI18n()
@@ -36,36 +46,43 @@ export function useAutoSetup() {
       const scannedPlugins = await api.scanProjectPlugins()
 
       if (scannedPlugins.length === 0) {
-        currentStep.value = 'done'
-        stepMessage.value = t('autoSetup.noPluginsFound')
-        lastResult.value = { pluginsImported: 0, bindingsCreated: 0, enginesDiscovered: 0, projectsAffected: [] }
-        return
-      }
+        currentStep.value = 'discovering-engines'
+      } else {
+        currentStep.value = 'importing-plugins'
+        stepMessage.value = t('autoSetup.importingPlugins', { count: scannedPlugins.length })
+        const importedPlugins = await api.importPluginsFromProjects('copy')
+        pluginsImported = importedPlugins.length
 
-      currentStep.value = 'importing-plugins'
-      stepMessage.value = t('autoSetup.importingPlugins', { count: scannedPlugins.length })
-      const importedPlugins = await api.importPluginsFromProjects('copy')
-      pluginsImported = importedPlugins.length
-
-      if (importedPlugins.length > 0) {
         currentStep.value = 'binding-plugins'
         stepMessage.value = t('autoSetup.bindingPlugins')
 
         const allProjects = targetProjects || await api.getProjects()
+        const allPlugins = await api.getPlugins()
         const bindings: BatchBindingRequest[] = []
 
         for (const project of allProjects) {
-          const projectScanned = scannedPlugins.filter(sp => sp.path.startsWith(project.path))
+          const normProjectPath = normalizePath(project.path)
+          const projectScanned = scannedPlugins.filter(sp =>
+            normalizePath(sp.path).startsWith(normProjectPath + '/addons/') ||
+            normalizePath(sp.path).startsWith(normProjectPath + '\\addons\\')
+          )
           if (projectScanned.length === 0) continue
 
-          const existingBindings = await api.getProjectBindings(project.project_id)
+          let existingBindings: any[] = []
+          try {
+            existingBindings = await api.getProjectBindings(project.project_id)
+          } catch {}
           const existingPluginIds = new Set(existingBindings.map(b => b.plugin_id))
 
           for (const scanned of projectScanned) {
-            const matchedPlugin = importedPlugins.find(ip => {
-              const pluginDirName = scanned.path.split('/').pop()?.toLowerCase() || ''
-              return ip.name.toLowerCase() === scanned.plugin_name.toLowerCase() ||
-                ip.source.url.toLowerCase().includes(pluginDirName)
+            const matchedPlugin = allPlugins.find(ip => {
+              if (ip.name.toLowerCase() === scanned.plugin_name.toLowerCase()) return true
+              const dirName = getPluginDirName(scanned.path)
+              if (dirName && normalizePath(ip.source.url).includes(dirName)) return true
+              const normPluginPath = normalizePath(scanned.path)
+              const normSourceUrl = normalizePath(ip.source.url)
+              if (normSourceUrl && normPluginPath.includes(normSourceUrl)) return true
+              return false
             })
 
             if (!matchedPlugin || existingPluginIds.has(matchedPlugin.plugin_id)) continue
@@ -76,10 +93,13 @@ export function useAutoSetup() {
             const unit = version.units[0]
             if (!unit) continue
 
-            const addonsPrefix = project.path.replace(/\\/g, '/') + '/addons/'
-            let mountPath = scanned.path.replace(/\\/g, '/').replace(addonsPrefix, '')
-            if (!mountPath || mountPath === scanned.path.replace(/\\/g, '/')) {
-              mountPath = unit.subdirectory || scanned.plugin_name
+            const normScannedPath = normalizePath(scanned.path)
+            const addonsIdx = normScannedPath.indexOf('/addons/')
+            let mountPath: string
+            if (addonsIdx !== -1) {
+              mountPath = normScannedPath.substring(addonsIdx + '/addons/'.length)
+            } else {
+              mountPath = unit.subdirectory || getPluginDirName(scanned.path) || scanned.plugin_name
             }
 
             bindings.push({
@@ -116,12 +136,14 @@ export function useAutoSetup() {
           const newEngines = await api.autoDiscoverEngines()
           enginesDiscovered = newEngines.length
 
-          if (newEngines.length > 0) {
+          const allEngines = await api.getEngines()
+          if (allEngines.length > 0) {
             const allProjects2 = targetProjects || await api.getProjects()
-            const allEngines = await api.getEngines()
             for (const project of allProjects2) {
-              const existingBinding = await api.getProjectEngineBinding(project.project_id)
-              if (existingBinding) continue
+              try {
+                const existingBinding = await api.getProjectEngineBinding(project.project_id)
+                if (existingBinding) continue
+              } catch { continue }
 
               const matchedEngine = findMatchingEngine(project, allEngines)
               if (matchedEngine) {
@@ -170,15 +192,15 @@ function findMatchingEngine(project: Project, engines: { engine_id: string; engi
   const defaultEngine = engines.find(e => e.is_default)
   const projectMajor = project.godot_version?.split('.')[0]
 
-  const versionMatch = engines.find(e => {
-    const engineMajor = e.version?.split('.')[0]
-    return engineMajor && projectMajor && engineMajor === projectMajor
-  })
-
   const typeMatch = engines.find(e => {
     if (projectMajor === '4') return e.engine_type === 'Godot4'
     if (projectMajor === '3') return e.engine_type === 'Godot3'
     return false
+  })
+
+  const versionMatch = engines.find(e => {
+    const engineMajor = e.version?.split('.')[0]
+    return engineMajor && projectMajor && engineMajor === projectMajor
   })
 
   return typeMatch || versionMatch || defaultEngine || engines[0]

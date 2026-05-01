@@ -134,10 +134,10 @@ impl EngineManager {
         let stem = exe_path.file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("godot");
-        let re = Regex::new(r"(\d+\.\d+[\.\d]*)").unwrap();
+        let re = Regex::new(r"(\d+\.\d+(?:\.\d+)*)").unwrap();
         if let Some(caps) = re.captures(stem) {
             if let Some(m) = caps.get(1) {
-                return Ok(m.as_str().to_string());
+                return Ok(m.as_str().trim_end_matches('.').to_string());
             }
         }
 
@@ -164,10 +164,10 @@ impl EngineManager {
         let lower = version_str.to_lowercase();
         let is_mono = lower.contains("mono") || lower.contains(".net");
 
-        let re = Regex::new(r"(\d+\.\d+[\.\d]*)").unwrap();
+        let re = Regex::new(r"(\d+\.\d+(?:\.\d+)*)").unwrap();
         let numeric_part = if let Some(caps) = re.captures(version_str) {
             if let Some(m) = caps.get(1) {
-                m.as_str().to_string()
+                m.as_str().trim_end_matches('.').to_string()
             } else {
                 let parts: Vec<&str> = version_str.split('.').collect();
                 parts.first().unwrap_or(&"Unknown").to_string()

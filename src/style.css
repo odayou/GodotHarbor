@@ -99,7 +99,7 @@ input, textarea, select, [contenteditable="true"], .selectable {
 .theme-volcano {
   --brand-primary: #4a6cf7;
   --brand-secondary: #6c8eff;
-  --brand-gradient: linear-gradient(135deg, #4a6cf7, #6c8eff);
+  --brand-gradient: linear-gradient(135deg, #2563eb, #3b82f6);
   --surface-base: #f8faff;
   --surface-layer: #ffffff;
   --surface-card: #e8f0fe;

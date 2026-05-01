@@ -45,9 +45,9 @@ export default {
         },
       },
       backgroundImage: {
-        'brand-gradient': 'linear-gradient(135deg, #3766be 0%, #7d4ed2 50%, #33b5dc 100%)',
-        'brand-gradient-short': 'linear-gradient(135deg, #3766be 0%, #7d4ed2 100%)',
-        'brand-gradient-accent': 'linear-gradient(135deg, #7d4ed2 0%, #33b5dc 100%)',
+        'brand-gradient': 'linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%)',
+        'brand-gradient-short': 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)',
+        'brand-gradient-accent': 'linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%)',
       },
       boxShadow: {
         'card': '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
