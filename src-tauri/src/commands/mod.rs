@@ -336,14 +336,7 @@ pub async fn download_engine(
     let storage = get_storage(&app);
     let mut engines: Vec<Engine> = storage.load_or_default("engines.json");
 
-    if engines.iter().any(|e| e.path == registered_engine.path) {
-        return Ok(crate::models::DownloadEngineResult {
-            success: false,
-            cancelled: false,
-            engine: None,
-            error: Some("该引擎已被注册".to_string()),
-        });
-    }
+    engines.retain(|e| e.path != registered_engine.path);
 
     if engines.is_empty() {
         registered_engine.is_default = true;
@@ -2346,9 +2339,7 @@ pub fn register_engine(app: AppHandle, path: String, name: String) -> Result<Eng
     let storage = get_storage(&app);
     let mut engines: Vec<Engine> = storage.load_or_default("engines.json");
 
-    if engines.iter().any(|e| e.path == registered_engine.path) {
-        return Err("该引擎已被注册".to_string());
-    }
+    engines.retain(|e| e.path != registered_engine.path);
 
     if engines.is_empty() {
         registered_engine.is_default = true;

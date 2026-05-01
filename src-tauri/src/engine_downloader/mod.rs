@@ -199,12 +199,12 @@ impl EngineDownloader {
             mirror.base_url.trim_end_matches('/')
         };
 
-        for repo in &["godotengine/godot-builds"] {
-            for page in 1..=max_pages {
-                let url = format!(
-                    "{}/repos/{}/releases?per_page={}&page={}",
-                    api_base, repo, per_page, page
-                );
+        let repo = "godotengine/godot-builds";
+        for page in 1..=max_pages {
+            let url = format!(
+                "{}/repos/{}/releases?per_page={}&page={}",
+                api_base, repo, per_page, page
+            );
 
                 let resp = client.get(&url).send().await;
                 match resp {
@@ -242,7 +242,6 @@ impl EngineDownloader {
                         break;
                     }
                 }
-            }
         }
 
         all_versions.sort_by(|a, b| {
@@ -422,7 +421,8 @@ impl EngineDownloader {
         let target_dir = engines_dir.join(&version_dir_name);
 
         if target_dir.exists() {
-            let _ = std::fs::remove_dir_all(&target_dir);
+            std::fs::remove_dir_all(&target_dir)
+                .map_err(|e| format!("删除旧引擎目录失败: {}", e))?;
         }
 
         let download_dir = app.path().app_data_dir()

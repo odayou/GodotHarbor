@@ -167,8 +167,7 @@ const loadEngines = async () => {
   try {
     const result = await api.getEngines()
     engines.value = result
-    await checkAllEngineHealth()
-    await loadAllBoundProjects()
+    await Promise.allSettled([checkAllEngineHealth(), loadAllBoundProjects()])
   } catch (error) {
     toast.error(t('common.loadFailed', { error }))
   } finally {
@@ -298,8 +297,8 @@ const onRemoveEngineConfirm = async () => {
     if (removedEngine) {
       const localVersion = removedEngine.version.trim().toLowerCase()
       remoteVersions.value = remoteVersions.value.map(v => {
-        const remoteVersion = v.version.trim().toLowerCase()
-        if (remoteVersion === localVersion || remoteVersion.startsWith(localVersion) || localVersion.startsWith(remoteVersion)) {
+        const remoteBase = v.version.split('-')[0].trim().toLowerCase()
+        if (localVersion === remoteBase || localVersion === v.version.trim().toLowerCase()) {
           return { ...v, is_installed: false }
         }
         return v
@@ -369,7 +368,9 @@ const toggleBoundProjects = (engineId: string) => {
 const openDownloadDialog = async () => {
   showDownloadDialog.value = true
   downloadChannelFilter.value = 'all'
+  downloadVariantFilter.value = 'all'
   downloadSearchQuery.value = ''
+  hideInstalled.value = false
   expandedReleaseVersion.value = ''
 
   try {
@@ -984,7 +985,7 @@ const handleLaunchEngine = async (engineId: string) => {
             <div v-for="[groupKey, versions] in groupedRemoteVersions" :key="groupKey">
               <div class="sticky top-0 bg-white dark:bg-gray-800 py-1.5 px-3 -mx-3 border-b border-gray-200 dark:border-gray-700 mb-2 z-10">
                 <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">Godot {{ groupKey }}</span>
-                <span class="text-xs text-gray-400 ml-2">{{ versions.length }} versions</span>
+                <span class="text-xs text-gray-400 ml-2">{{ versions.length }} {{ t('engines.download.versionCount') }}</span>
               </div>
               <div class="space-y-2">
             <div

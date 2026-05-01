@@ -526,7 +526,8 @@ export default {
       hideInstalled: 'Hide installed',
       reDownload: 'Re-download',
       downloadInBackground: 'Downloads will continue in the background',
-      launchEngine: 'Launch engine'
+      launchEngine: 'Launch engine',
+      versionCount: 'versions'
     }
   },
   settings: {

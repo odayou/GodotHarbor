@@ -526,7 +526,8 @@ export default {
       hideInstalled: '隐藏已安装',
       reDownload: '重新下载',
       downloadInBackground: '下载将在后台继续',
-      launchEngine: '启动引擎'
+      launchEngine: '启动引擎',
+      versionCount: '个版本'
     }
   },
   settings: {
