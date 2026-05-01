@@ -4,13 +4,9 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use anyhow::{Result, Context};
 use walkdir::WalkDir;
+use crate::utils::should_skip_dir;
 
 const UID_CACHE_MAX_DEPTH: usize = 4;
-const SKIP_DIRS: &[&str] = &[
-    ".git", ".svn", ".hg",
-    "node_modules", "__pycache__",
-    "build", "dist", ".cache",
-];
 
 type SharedUidCache = Arc<Mutex<HashMap<String, HashMap<String, String>>>>;
 
@@ -56,9 +52,7 @@ impl GodotResourceResolver {
                 .into_iter()
                 .filter_entry(|e| {
                     if e.file_type().is_dir() {
-                        let name = e.file_name().to_string_lossy();
-                        let lower = name.to_lowercase();
-                        return !SKIP_DIRS.iter().any(|skip| lower == *skip);
+                        return !should_skip_dir(&e.file_name().to_string_lossy());
                     }
                     true
                 })
@@ -92,9 +86,7 @@ impl GodotResourceResolver {
             .into_iter()
             .filter_entry(|e| {
                 if e.file_type().is_dir() {
-                    let name = e.file_name().to_string_lossy();
-                    let lower = name.to_lowercase();
-                    return !SKIP_DIRS.iter().any(|skip| lower == *skip);
+                    return !should_skip_dir(&e.file_name().to_string_lossy());
                 }
                 true
             })

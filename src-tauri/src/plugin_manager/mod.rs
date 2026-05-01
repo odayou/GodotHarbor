@@ -113,34 +113,39 @@ impl PluginManager {
             return Err(e.context("Failed to copy plugin files, cleaned up partial import"));
         }
 
-        let units = match self.parse_plugin_units(&payload_dir) {
+        self.finalize_import(&mut plugin, &payload_dir, &version_id, &plugin_name)?;
+
+        Ok(plugin)
+    }
+
+    fn finalize_import(&self, plugin: &mut Plugin, payload_dir: &Path, version_id: &str, plugin_name: &str) -> Result<()> {
+        let units = match self.parse_plugin_units(payload_dir) {
             Ok(u) => u,
             Err(e) => {
-                let _ = fs::remove_dir_all(&version_dir);
+                let version_dir = payload_dir.parent().unwrap_or(payload_dir);
+                let _ = fs::remove_dir_all(version_dir);
                 return Err(e.context("Failed to parse plugin units, cleaned up partial import"));
             }
         };
 
-        let compatibility = self.detect_compatibility(&payload_dir);
-
-        self.write_harbor_marker(&payload_dir);
-
-        let content_hash = compute_dir_hash(&payload_dir).unwrap_or_default();
+        let compatibility = self.detect_compatibility(payload_dir);
+        self.write_harbor_marker(payload_dir);
+        let content_hash = compute_dir_hash(payload_dir).unwrap_or_default();
 
         let (unit_version, unit_name, unit_description, unit_author) =
             if let Some(first_unit) = units.first() {
                 (
                     if first_unit.version.is_empty() { "1.0.0".to_string() } else { first_unit.version.clone() },
-                    if first_unit.name.is_empty() { plugin_name.clone() } else { first_unit.name.clone() },
+                    if first_unit.name.is_empty() { plugin_name.to_string() } else { first_unit.name.clone() },
                     first_unit.description.clone(),
                     first_unit.author.clone(),
                 )
             } else {
-                ("1.0.0".to_string(), plugin_name.clone(), String::new(), String::new())
+                ("1.0.0".to_string(), plugin_name.to_string(), String::new(), String::new())
             };
 
         let plugin_version = PluginVersion {
-            version_id: version_id.clone(),
+            version_id: version_id.to_string(),
             version: unit_version,
             path: payload_dir.to_string_lossy().to_string(),
             created_at: chrono::Utc::now(),
@@ -154,7 +159,7 @@ impl PluginManager {
         plugin.author = unit_author;
         plugin.content_hash = content_hash;
 
-        Ok(plugin)
+        Ok(())
     }
 
     pub fn import_from_git(&self, git_url: &str, app_handle: &AppHandle) -> Result<Plugin> {
@@ -221,46 +226,7 @@ impl PluginManager {
             fs::remove_dir_all(&git_dir).ok();
         }
 
-        let units = match self.parse_plugin_units(&payload_dir) {
-            Ok(u) => u,
-            Err(e) => {
-                let _ = fs::remove_dir_all(&version_dir);
-                return Err(e.context("Failed to parse plugin units, cleaned up partial import"));
-            }
-        };
-
-        let compatibility = self.detect_compatibility(&payload_dir);
-
-        self.write_harbor_marker(&payload_dir);
-
-        let content_hash = compute_dir_hash(&payload_dir).unwrap_or_default();
-
-        let (unit_version, unit_name, unit_description, unit_author) =
-            if let Some(first_unit) = units.first() {
-                (
-                    if first_unit.version.is_empty() { "1.0.0".to_string() } else { first_unit.version.clone() },
-                    if first_unit.name.is_empty() { plugin_name.clone() } else { first_unit.name.clone() },
-                    first_unit.description.clone(),
-                    first_unit.author.clone(),
-                )
-            } else {
-                ("1.0.0".to_string(), plugin_name.clone(), String::new(), String::new())
-            };
-
-        let plugin_version = PluginVersion {
-            version_id: version_id.clone(),
-            version: unit_version,
-            path: payload_dir.to_string_lossy().to_string(),
-            created_at: chrono::Utc::now(),
-            units,
-        };
-
-        plugin.versions.push(plugin_version);
-        plugin.compatibility = compatibility;
-        plugin.name = unit_name;
-        plugin.description = unit_description;
-        plugin.author = unit_author;
-        plugin.content_hash = content_hash;
+        self.finalize_import(&mut plugin, &payload_dir, &version_id, &plugin_name)?;
 
         Ok(plugin)
     }

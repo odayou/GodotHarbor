@@ -25,6 +25,14 @@ pub struct HotUpdateFileEntry {
     pub size: u64,
 }
 
+fn emit_hot_update_progress(app: &AppHandle, stage: &str, progress: u32, message: &str) {
+    let _ = app.emit("hot-update-progress", serde_json::json!({
+        "stage": stage,
+        "progress": progress,
+        "message": message
+    }));
+}
+
 pub struct HotUpdateManager {
     data_dir: PathBuf,
 }
@@ -99,11 +107,7 @@ impl HotUpdateManager {
     pub async fn download_and_apply(&self, app: &AppHandle, manifest_url: &str) -> Result<(), String> {
         let client = create_http_client(Some(std::time::Duration::from_secs(120)))?;
 
-        let _ = app.emit("hot-update-progress", serde_json::json!({
-            "stage": "downloading",
-            "progress": 0,
-            "message": "正在下载热更新清单..."
-        }));
+        emit_hot_update_progress(app, "downloading", 0, "正在下载热更新清单...");
 
         let resp = client.get(manifest_url).send().await
             .map_err(|e| format!("请求热更新清单失败: {}", e))?;
@@ -119,11 +123,7 @@ impl HotUpdateManager {
         fs::create_dir_all(&staging)
             .map_err(|e| format!("创建暂存目录失败: {}", e))?;
 
-        let _ = app.emit("hot-update-progress", serde_json::json!({
-            "stage": "downloading",
-            "progress": 20,
-            "message": "正在下载更新包..."
-        }));
+        emit_hot_update_progress(app, "downloading", 20, "正在下载更新包...");
 
         let archive_resp = client.get(&manifest.download_url).send().await
             .map_err(|e| format!("下载更新包失败: {}", e))?;
@@ -131,11 +131,7 @@ impl HotUpdateManager {
         let archive_data = archive_resp.bytes().await
             .map_err(|e| format!("读取更新包数据失败: {}", e))?;
 
-        let _ = app.emit("hot-update-progress", serde_json::json!({
-            "stage": "extracting",
-            "progress": 60,
-            "message": "正在解压更新包..."
-        }));
+        emit_hot_update_progress(app, "extracting", 60, "正在解压更新包...");
 
         let archive_path = staging.join("update.zip");
         fs::write(&archive_path, &archive_data)
@@ -147,11 +143,7 @@ impl HotUpdateManager {
 
         self.extract_zip(&archive_path, &extract_dir)?;
 
-        let _ = app.emit("hot-update-progress", serde_json::json!({
-            "stage": "applying",
-            "progress": 80,
-            "message": "正在应用更新..."
-        }));
+        emit_hot_update_progress(app, "applying", 80, "正在应用更新...");
 
         let backup = self.backup_dir();
         if backup.exists() {
@@ -165,11 +157,7 @@ impl HotUpdateManager {
 
         self.save_current_version(&manifest.version)?;
 
-        let _ = app.emit("hot-update-progress", serde_json::json!({
-            "stage": "complete",
-            "progress": 100,
-            "message": "热更新完成，部分更改将在重启后生效"
-        }));
+        emit_hot_update_progress(app, "complete", 100, "热更新完成，部分更改将在重启后生效");
 
         Ok(())
     }

@@ -5,6 +5,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
 use std::fs;
+use crate::utils::should_skip_dir;
 
 pub fn compute_dir_hash(dir: &Path) -> Result<String, String> {
     let mut hasher = DefaultHasher::new();
@@ -28,9 +29,7 @@ fn compute_dir_hash_recursive(dir: &Path, hasher: &mut DefaultHasher) -> Result<
         file_name.to_string_lossy().hash(hasher);
 
         if path.is_dir() {
-            let name_lower = file_name.to_string_lossy().to_lowercase();
-            if [".git", ".svn", ".hg", "node_modules", "__pycache__", ".godot", ".import", "build", "dist", ".cache"]
-                .iter().any(|s| name_lower == *s) {
+            if should_skip_dir(&file_name.to_string_lossy()) {
                 continue;
             }
             compute_dir_hash_recursive(&path, hasher)?;

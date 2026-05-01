@@ -66,6 +66,16 @@ fn clear_active_download(version: &str, variant: &str) {
     }
 }
 
+fn cleanup_on_error(path_to_remove: &Path, is_dir: bool, version: &str, variant: &str) {
+    if is_dir {
+        let _ = std::fs::remove_dir_all(path_to_remove);
+    } else {
+        let _ = std::fs::remove_file(path_to_remove);
+    }
+    remove_cancel_flag(version, variant);
+    clear_active_download(version, variant);
+}
+
 struct TagInfo {
     channel: EngineReleaseChannel,
     channel_number: u32,
@@ -460,16 +470,12 @@ impl EngineDownloader {
         let download_result = Self::download_file(app, &remote_version.download_url, &archive_path, version, variant, remote_version.file_size).await;
 
         if let Err(e) = download_result {
-            let _ = std::fs::remove_file(&archive_path);
-            remove_cancel_flag(version, variant);
-            clear_active_download(version, variant);
+            cleanup_on_error(&archive_path, false, version, variant);
             return Err(e);
         }
 
         if is_cancelled(version, variant) {
-            let _ = std::fs::remove_file(&archive_path);
-            remove_cancel_flag(version, variant);
-            clear_active_download(version, variant);
+            cleanup_on_error(&archive_path, false, version, variant);
             return Err("下载已取消".to_string());
         }
 
@@ -483,9 +489,7 @@ impl EngineDownloader {
         let _ = std::fs::remove_file(&archive_path);
 
         if let Err(e) = extract_result {
-            let _ = std::fs::remove_dir_all(&target_dir);
-            remove_cancel_flag(version, variant);
-            clear_active_download(version, variant);
+            cleanup_on_error(&target_dir, true, version, variant);
             return Err(e);
         }
 
