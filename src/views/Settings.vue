@@ -821,9 +821,6 @@ const toggleMirrorEnabled = (mirrorId: string) => {
           </div>
         </div>
       </div>
-      <div class="flex justify-end">
-        <button @click="saveSettingsWithMigrationCheck" :disabled="isLoading" class="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50">{{ t('settings.save') }}</button>
-      </div>
       </div>
     </div>
     </div>
