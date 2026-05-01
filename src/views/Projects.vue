@@ -145,16 +145,11 @@ const batchSetGroup = async () => {
 
 const saveBatchGroup = async () => {
   const ids = Array.from(selectedProjectIds.value)
-  let successCount = 0
-  let failCount = 0
-  for (const id of ids) {
-    try {
-      await api.updateProjectGroup(id, batchGroupInput.value)
-      successCount++
-    } catch {
-      failCount++
-    }
-  }
+  const results = await Promise.allSettled(
+    ids.map(id => api.updateProjectGroup(id, batchGroupInput.value))
+  )
+  const successCount = results.filter(r => r.status === 'fulfilled').length
+  const failCount = results.filter(r => r.status === 'rejected').length
   if (failCount === 0) {
     toast.success(t('projects.batchGroupSuccess', { count: successCount }))
   } else {
@@ -309,14 +304,12 @@ const loadProjects = async () => {
 
 const loadAllProjectBindings = async () => {
   const map = new Map<string, ProjectBinding[]>()
-  for (const project of projects.value) {
-    try {
-      const bindings = await api.getProjectBindings(project.project_id)
-      map.set(project.project_id, bindings)
-    } catch {
-      map.set(project.project_id, [])
-    }
-  }
+  const results = await Promise.allSettled(
+    projects.value.map(p => api.getProjectBindings(p.project_id))
+  )
+  results.forEach((result, i) => {
+    map.set(projects.value[i].project_id, result.status === 'fulfilled' ? result.value : [])
+  })
   projectBindingMap.value = map
 }
 

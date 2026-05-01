@@ -185,20 +185,24 @@ const batchRemovePlugins = async () => {
 const onBatchDeleteConfirm = async () => {
   const ids = Array.from(selectedPluginIds.value)
   try {
+    const bindingResults = await Promise.allSettled(
+      ids.map(id => api.getPluginBindings(id))
+    )
     const affectedProjectIds = new Set<string>()
-    for (const pluginId of ids) {
-      try {
-        const bindings = await api.getPluginBindings(pluginId)
-        for (const b of bindings) {
+    const unbindPromises: Promise<void>[] = []
+    bindingResults.forEach((result, i) => {
+      if (result.status === 'fulfilled') {
+        for (const b of result.value) {
           affectedProjectIds.add(b.project_id)
-          try { await api.unbindPlugin(b.project_id, pluginId) } catch {}
+          unbindPromises.push(api.unbindPlugin(b.project_id, ids[i]).catch(() => {}))
         }
-      } catch {}
-    }
+      }
+    })
+    await Promise.allSettled(unbindPromises)
     const result = await api.batchRemovePlugins(ids)
-    for (const projectId of affectedProjectIds) {
-      try { await api.applyChanges(projectId) } catch {}
-    }
+    await Promise.allSettled(
+      Array.from(affectedProjectIds).map(id => api.applyChanges(id))
+    )
     if (result.failed_count > 0) {
       toast.warning(t('common.batchDeleteComplete', { success: result.success_count, failed: result.failed_count }))
     } else {
@@ -451,6 +455,10 @@ useDialogEscape(showUpdatesDialog)
 useDialogEscape(showImportModeDialog)
 useDialogEscape(showDuplicateConfirm)
 
+const getMountPath = (unit: { subdirectory?: string; name: string }) => {
+  return unit.subdirectory || `addons/${unit.name}`
+}
+
 const isCompatWarning = (plugin: Plugin, project: Project) => {
   if (plugin.compatibility === 'Both' || plugin.compatibility === 'Unknown') return false
   const projectMajor = project.godot_version?.startsWith('4') ? '4' : project.godot_version?.startsWith('3') ? '3' : null
@@ -658,22 +666,18 @@ const onRemovePluginConfirm = async () => {
     if (deletePluginBindings.value.length > 0) {
       for (const binding of deletePluginBindings.value) {
         affectedProjectIds.add(binding.project_id)
-        try {
-          await api.unbindPlugin(binding.project_id, deletePluginId.value)
-        } catch {
-          // ignore individual unbind errors
-        }
       }
+      await Promise.allSettled(
+        deletePluginBindings.value.map(binding =>
+          api.unbindPlugin(binding.project_id, deletePluginId.value)
+        )
+      )
     }
     await api.removePlugin(deletePluginId.value)
-    let applyFailCount = 0
-    for (const projectId of affectedProjectIds) {
-      try {
-        await api.applyChanges(projectId)
-      } catch {
-        applyFailCount++
-      }
-    }
+    const applyResults = await Promise.allSettled(
+      Array.from(affectedProjectIds).map(id => api.applyChanges(id))
+    )
+    const applyFailCount = applyResults.filter(r => r.status === 'rejected').length
     if (applyFailCount > 0) {
       toast.warning(t('plugins.deleteConfirm.applyPartial', { failed: applyFailCount }))
     } else {
@@ -770,12 +774,18 @@ const updateGitPlugin = async (pluginId: string) => {
 const reapplyBindingsForPlugin = async (pluginId: string) => {
   try {
     const projects = await api.getProjects()
-    for (const project of projects) {
-      const bindings = await api.getProjectBindings(project.project_id)
-      if (bindings.some(b => b.plugin_id === pluginId)) {
-        await api.applyChanges(project.project_id)
+    const bindingResults = await Promise.allSettled(
+      projects.map(p => api.getProjectBindings(p.project_id))
+    )
+    const projectIdsToApply: string[] = []
+    bindingResults.forEach((result, i) => {
+      if (result.status === 'fulfilled' && result.value.some(b => b.plugin_id === pluginId)) {
+        projectIdsToApply.push(projects[i].project_id)
       }
-    }
+    })
+    await Promise.allSettled(
+      projectIdsToApply.map(id => api.applyChanges(id))
+    )
   } catch {
     // ignore reapply errors
   }
@@ -914,12 +924,13 @@ const removePluginVersion = async (pluginId: string, versionId: string) => {
         t('plugins.versionDeleteBindingWarning', { count: affectedBindings.length, projects: projectNames.length })
       )
       if (!confirmed) return
-      for (const binding of affectedBindings) {
-        try {
-          await api.unbindPlugin(binding.project_id, binding.plugin_id)
-          await api.applyChanges(binding.project_id)
-        } catch {}
-      }
+      await Promise.allSettled(
+        affectedBindings.map(b =>
+          api.unbindPlugin(b.project_id, b.plugin_id)
+            .then(() => api.applyChanges(b.project_id))
+            .catch(() => {})
+        )
+      )
     }
     await api.removePluginVersion(pluginId, versionId)
     toast.success(t('plugins.versionDeleted'))
@@ -1068,14 +1079,12 @@ const loadLinkerData = async () => {
     ])
     linkerProjects.value = projs
     const countMap = new Map<string, number>()
-    for (const project of projs) {
-      try {
-        const bindings = await api.getProjectBindings(project.project_id)
-        countMap.set(project.project_id, bindings.length)
-      } catch {
-        countMap.set(project.project_id, 0)
-      }
-    }
+    const bindingResults = await Promise.allSettled(
+      projs.map(project => api.getProjectBindings(project.project_id))
+    )
+    bindingResults.forEach((result, i) => {
+      countMap.set(projs[i].project_id, result.status === 'fulfilled' ? result.value.length : 0)
+    })
     linkerProjectBindingCounts.value = countMap
     if (!hasLoaded.value) {
       await loadPlugins(true)
@@ -1112,18 +1121,19 @@ const openAssetLibraryTab = async () => {
 const loadLinkerBindings = async (projectId: string) => {
   try {
     linkerBindings.value = await api.getProjectBindings(projectId)
-    for (const binding of linkerBindings.value) {
-      if (binding.is_healthy === undefined) {
-        try {
-          const healthBindings = await api.checkBindingHealth(binding.project_id)
-          const healthBinding = healthBindings.find(b => b.plugin_id === binding.plugin_id)
+    const unchecked = linkerBindings.value.filter(b => b.is_healthy === undefined)
+    if (unchecked.length > 0) {
+      const healthResults = await Promise.allSettled(
+        unchecked.map(b => api.checkBindingHealth(b.project_id))
+      )
+      healthResults.forEach((result, i) => {
+        if (result.status === 'fulfilled') {
+          const healthBinding = result.value.find((hb: ProjectBinding) => hb.plugin_id === unchecked[i].plugin_id)
           if (healthBinding) {
-            binding.is_healthy = healthBinding.is_healthy
+            unchecked[i].is_healthy = healthBinding.is_healthy
           }
-        } catch {
-          // ignore health check errors
         }
-      }
+      })
     }
   } catch (error) {
     linkerBindings.value = []
@@ -1147,15 +1157,16 @@ const selectLinkProject = async (project: Project, event: MouseEvent) => {
 }
 
 const loadAllSelectedBindings = async () => {
+  const projectIds = Array.from(selectedLinkProjectIds.value)
+  const results = await Promise.allSettled(
+    projectIds.map(id => api.getProjectBindings(id))
+  )
   const allBindings: ProjectBinding[] = []
-  for (const projectId of selectedLinkProjectIds.value) {
-    try {
-      const bindings = await api.getProjectBindings(projectId)
-      allBindings.push(...bindings)
-    } catch {
-      // ignore
+  results.forEach(result => {
+    if (result.status === 'fulfilled') {
+      allBindings.push(...result.value)
     }
-  }
+  })
   linkerBindings.value = allBindings
 }
 
@@ -1185,7 +1196,7 @@ const bindPluginToProject = async (plugin: Plugin) => {
 }
 
 const doBindPlugin = async (plugin: Plugin, version: any, unit: any) => {
-  const mountPath = unit.subdirectory || `addons/${unit.name}`
+  const mountPath = getMountPath(unit)
   const subdirectory = unit.subdirectory || ''
   for (const projectId of selectedLinkProjectIds.value) {
     const existingBinding = linkerBindings.value.find(
@@ -1198,29 +1209,32 @@ const doBindPlugin = async (plugin: Plugin, version: any, unit: any) => {
     }
   }
   try {
-    for (const projectId of selectedLinkProjectIds.value) {
-      await api.bindPlugin(projectId, plugin.plugin_id, version.version_id, unit.unit_id, mountPath, subdirectory)
-    }
-    for (const projectId of selectedLinkProjectIds.value) {
-      try {
-        await api.applyChanges(projectId)
-      } catch {
-        // ignore individual apply errors
-      }
-    }
+    await Promise.allSettled(
+      Array.from(selectedLinkProjectIds.value).map(projectId =>
+        api.bindPlugin(projectId, plugin.plugin_id, version.version_id, unit.unit_id, mountPath, subdirectory)
+      )
+    )
+    await Promise.allSettled(
+      Array.from(selectedLinkProjectIds.value).map(projectId =>
+        api.applyChanges(projectId)
+      )
+    )
     toast.success(t('linker.pluginBound', { name: plugin.name, version: version.version }))
     if (selectedLinkId.value) {
       await loadLinkerBindings(selectedLinkId.value)
     }
     if (linkerProjectBindingCounts.value.size > 0) {
-      for (const projectId of selectedLinkProjectIds.value) {
-        try {
-          const bindings = await api.getProjectBindings(projectId)
-          linkerProjectBindingCounts.value.set(projectId, bindings.length)
-        } catch {
-          // ignore
+      const countResults = await Promise.allSettled(
+        Array.from(selectedLinkProjectIds.value).map(projectId =>
+          api.getProjectBindings(projectId)
+        )
+      )
+      countResults.forEach((result, i) => {
+        const projectId = Array.from(selectedLinkProjectIds.value)[i]
+        if (result.status === 'fulfilled') {
+          linkerProjectBindingCounts.value.set(projectId, result.value.length)
         }
-      }
+      })
       linkerProjectBindingCounts.value = new Map(linkerProjectBindingCounts.value)
     }
   } catch (error) {
@@ -1318,7 +1332,7 @@ const confirmBatchBind = async () => {
         const version = plugin.versions[versionIdx]
         const unit = version?.units[unitIdx]
         if (unit) {
-          const mountPath = unit.subdirectory || `addons/${unit.name}`
+          const mountPath = getMountPath(unit)
           const subdirectory = unit.subdirectory || ''
           requests.push({ project_id: projectId, plugin_id: pluginId, version_id: version.version_id, unit_id: unit.unit_id, mount_path: mountPath, subdirectory })
         }
@@ -1418,16 +1432,18 @@ const confirmBatchApply = async () => {
   isLinkerBatchApplying.value = true
   batchApplyResults.value = []
   const projectIds = Array.from(selectedLinkProjectIds.value)
-  for (const projectId of projectIds) {
-    try {
-      const result = await api.applyChanges(projectId)
-      const project = linkerProjects.value.find(p => p.project_id === projectId)
-      batchApplyResults.value.push({ project_id: projectId, project_name: project?.name || projectId, ...result })
-    } catch (error) {
-      const project = linkerProjects.value.find(p => p.project_id === projectId)
-      batchApplyResults.value.push({ project_id: projectId, project_name: project?.name || projectId, success: false, errors: [String(error)], created: [], removed: [] })
+  const applyResults = await Promise.allSettled(
+    projectIds.map(id => api.applyChanges(id))
+  )
+  applyResults.forEach((result, i) => {
+    const projectId = projectIds[i]
+    const project = linkerProjects.value.find(p => p.project_id === projectId)
+    if (result.status === 'fulfilled') {
+      batchApplyResults.value.push({ project_id: projectId, project_name: project?.name || projectId, ...result.value })
+    } else {
+      batchApplyResults.value.push({ project_id: projectId, project_name: project?.name || projectId, success: false, errors: [String(result.reason)], created: [], removed: [] })
     }
-  }
+  })
   isLinkerBatchApplying.value = false
   showLinkerBatchApplyDialog.value = false
   showLinkerBatchApplyResult.value = true
@@ -1533,7 +1549,7 @@ const doQuickBind = async () => {
     return
   }
   isQuickBinding.value = true
-  const mountPath = unit.subdirectory || `addons/${unit.name}`
+  const mountPath = getMountPath(unit)
   const subdirectory = unit.subdirectory || ''
   let successCount = 0
   let failCount = 0
@@ -1720,7 +1736,7 @@ const doSwitchVersion = async () => {
   isSwitchingVersion.value = true
   try {
     await api.unbindPlugin(binding.project_id, binding.plugin_id)
-    const mountPath = unit.subdirectory || `addons/${unit.name}`
+    const mountPath = getMountPath(unit)
     const subdirectory = unit.subdirectory || ''
     await api.bindPlugin(binding.project_id, plugin.plugin_id, version.version_id, unit.unit_id, mountPath, subdirectory)
     try {
@@ -1745,12 +1761,13 @@ const quickBindFromCard = async (plugin: Plugin) => {
 const removePluginAndReimport = async (pluginId: string) => {
   try {
     const bindings = await api.getPluginBindings(pluginId)
-    for (const b of bindings) {
-      try {
-        await api.unbindPlugin(b.project_id, b.plugin_id)
-        await api.applyChanges(b.project_id)
-      } catch {}
-    }
+    await Promise.allSettled(
+      bindings.map(b =>
+        api.unbindPlugin(b.project_id, b.plugin_id)
+          .then(() => api.applyChanges(b.project_id))
+          .catch(() => {})
+      )
+    )
     await api.removePlugin(pluginId)
     if (pendingImportAction.value) {
       pendingImportAction.value()
@@ -1772,7 +1789,7 @@ const retryBatchFailed = async () => {
         const version = plugin.versions[0]
         const unit = version.units[0]
         if (unit) {
-          const mountPath = unit.subdirectory || `addons/${unit.name}`
+          const mountPath = getMountPath(unit)
           const subdirectory = unit.subdirectory || ''
           for (const projectId of selectedLinkProjectIds.value) {
             await api.bindPlugin(projectId, plugin.plugin_id, version.version_id, unit.unit_id, mountPath, subdirectory)
