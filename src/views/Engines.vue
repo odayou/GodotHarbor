@@ -124,6 +124,19 @@ const groupedRemoteVersions = computed(() => {
   return groups
 })
 
+const subGroupedVersions = (versions: RemoteEngineVersion[]) => {
+  const subGroups = new Map<string, RemoteEngineVersion[]>()
+  for (const v of versions) {
+    const baseVersion = v.version.split('-')[0]
+    const key = `${baseVersion}-${v.channel}`
+    if (!subGroups.has(key)) {
+      subGroups.set(key, [])
+    }
+    subGroups.get(key)!.push(v)
+  }
+  return subGroups
+}
+
 const channelBadgeClass = (channel: EngineReleaseChannel) => {
   switch (channel) {
     case 'Stable': return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
@@ -506,7 +519,7 @@ const toggleEngineMenu = (engineId: string) => {
 
 const handleGlobalClick = (e: MouseEvent) => {
   const target = e.target as HTMLElement
-  if (!target.closest('.relative')) {
+  if (!target.closest('.engine-menu-wrapper')) {
     openMenuId.value = ''
   }
 }
@@ -523,7 +536,12 @@ const toggleGroup = (groupKey: string) => {
 
 const initCollapsedGroups = () => {
   const keys = new Set<string>()
+  let first = true
   for (const [groupKey] of groupedRemoteVersions.value) {
+    if (first) {
+      first = false
+      continue
+    }
     keys.add(groupKey)
   }
   collapsedGroups.value = keys
@@ -531,7 +549,7 @@ const initCollapsedGroups = () => {
 </script>
 
 <template>
-  <div class="relative flex flex-col h-full">
+  <div class="flex flex-col h-full">
     <div class="shrink-0 space-y-4 pb-4">
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
       <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ t('engines.title') }}</h1>
@@ -693,7 +711,7 @@ const initCollapsedGroups = () => {
     </div>
 
     <div v-else class="flex-1 min-h-0 bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden">
-      <div class="overflow-x-auto h-full overflow-y-auto">
+      <div class="overflow-x-hidden h-full overflow-y-auto">
         <table class="w-full min-w-[800px]">
           <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
             <template v-for="engine in filteredEngines" :key="engine.engine_id">
@@ -808,7 +826,7 @@ const initCollapsedGroups = () => {
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                     </svg>
                   </button>
-                  <div class="relative" style="display: inline-block">
+                  <div class="engine-menu-wrapper" style="position: relative; display: inline-block">
                     <button
                       @click="toggleEngineMenu(engine.engine_id)"
                       class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
@@ -822,6 +840,14 @@ const initCollapsedGroups = () => {
                       v-if="openMenuId === engine.engine_id"
                       class="absolute right-0 top-full mt-1 bg-white dark:bg-gray-700 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 py-1 z-20 min-w-[140px]"
                     >
+                      <button
+                        v-if="engineHealthMap.get(engine.engine_id) === true"
+                        @click="handleLaunchEngine(engine.engine_id); openMenuId = ''"
+                        class="w-full text-left px-3 py-1.5 text-sm text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 flex items-center gap-2"
+                      >
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        {{ t('engines.launchEngine') }}
+                      </button>
                       <button
                         @click="openRenameDialog(engine); openMenuId = ''"
                         class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
@@ -1043,82 +1069,92 @@ const initCollapsedGroups = () => {
                 </div>
               </div>
               <div v-if="!collapsedGroups.has(groupKey)" class="space-y-2">
-            <div
-              v-for="version in versions"
-              :key="`${version.tag_name}_${version.variant}`"
-              :class="[
-                'p-3 rounded-lg border transition-colors',
-                version.is_installed
-                  ? 'bg-gray-50 dark:bg-gray-700/30 border-gray-200 dark:border-gray-600'
-                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-primary-300 dark:hover:border-primary-600'
-              ]"
-            >
-              <div class="flex items-center gap-3">
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center gap-2">
-                    <span class="font-medium text-sm text-gray-900 dark:text-gray-100">v{{ version.version }}</span>
-                    <span :class="['px-1.5 py-0.5 rounded text-xs font-medium', channelBadgeClass(version.channel)]">
-                      {{ channelLabel(version.channel, version.channel_number) }}
-                    </span>
-                    <span
-                      v-if="version.is_lts"
-                      class="px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
-                    >
-                      LTS
-                    </span>
-                    <span
-                      v-if="version.variant === 'mono'"
-                      class="px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400"
-                    >
-                      .NET
-                    </span>
-                    <span
-                      v-if="version.is_installed"
-                      class="px-1.5 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-400"
-                    >
-                      {{ t('engines.download.installed') }}
-                    </span>
-                  </div>
-                  <div class="flex items-center gap-3 mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    <span>{{ formatFileSize(version.file_size) }}</span>
-                    <span>{{ formatDate(version.published_at) }}</span>
-                    <span class="truncate" :title="version.file_name">{{ version.file_name }}</span>
-                    <button
-                      v-if="version.release_notes"
-                      @click="expandedReleaseVersion = expandedReleaseVersion === `${version.version}_${version.variant}` ? '' : `${version.version}_${version.variant}`"
-                      class="text-primary-600 dark:text-primary-400 hover:underline"
-                    >
-                      {{ expandedReleaseVersion === `${version.version}_${version.variant}` ? t('engines.download.hideNotes') : t('engines.download.showNotes') }}
-                    </button>
-                  </div>
-                </div>
-                <button
-                  @click="startDownload(version)"
-                  :disabled="activeDownloads.has(`${version.version}_${version.variant}`)"
+            <div v-for="[subKey, subVersions] in subGroupedVersions(versions)" :key="subKey">
+              <div
+                :class="[
+                  'rounded-lg border transition-colors',
+                  subVersions.every(v => v.is_installed)
+                    ? 'bg-gray-50 dark:bg-gray-700/30 border-gray-200 dark:border-gray-600'
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+                ]"
+              >
+                <div
+                  v-for="(version, vIdx) in subVersions"
+                  :key="`${version.tag_name}_${version.variant}`"
                   :class="[
-                    'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap',
-                    version.is_installed
-                      ? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      : activeDownloads.has(`${version.version}_${version.variant}`)
-                        ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
-                        : 'bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50'
+                    vIdx > 0 ? 'border-t border-gray-100 dark:border-gray-700' : ''
                   ]"
                 >
-                  <template v-if="activeDownloads.has(`${version.version}_${version.variant}`)">
-                    {{ t('engines.download.downloading') }}
-                  </template>
-                  <template v-else-if="version.is_installed">
-                    {{ t('engines.download.reDownload') }}
-                  </template>
-                  <template v-else>
-                    {{ t('engines.download.downloadAction') }}
-                  </template>
-                </button>
+                  <div class="flex items-center gap-3 p-3">
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2">
+                        <span class="font-medium text-sm text-gray-900 dark:text-gray-100">v{{ version.version }}</span>
+                        <span :class="['px-1.5 py-0.5 rounded text-xs font-medium', channelBadgeClass(version.channel)]">
+                          {{ channelLabel(version.channel, version.channel_number) }}
+                        </span>
+                        <span
+                          v-if="version.is_lts"
+                          class="px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
+                        >
+                          LTS
+                        </span>
+                        <span
+                          v-if="version.variant === 'mono'"
+                          class="px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400"
+                        >
+                          .NET
+                        </span>
+                        <span
+                          v-if="version.is_installed"
+                          class="px-1.5 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-400"
+                        >
+                          {{ t('engines.download.installed') }}
+                        </span>
+                      </div>
+                      <div class="flex items-center gap-3 mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        <span>{{ formatFileSize(version.file_size) }}</span>
+                        <span>{{ formatDate(version.published_at) }}</span>
+                        <span class="truncate" :title="version.file_name">{{ version.file_name }}</span>
+                        <button
+                          v-if="version.release_notes"
+                          @click="expandedReleaseVersion = expandedReleaseVersion === `${version.version}_${version.variant}` ? '' : `${version.version}_${version.variant}`"
+                          class="text-primary-600 dark:text-primary-400 hover:underline"
+                        >
+                          {{ expandedReleaseVersion === `${version.version}_${version.variant}` ? t('engines.download.hideNotes') : t('engines.download.showNotes') }}
+                        </button>
+                      </div>
+                    </div>
+                    <button
+                      @click="startDownload(version)"
+                      :disabled="activeDownloads.has(`${version.version}_${version.variant}`)"
+                      :class="[
+                        'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap',
+                        version.is_installed
+                          ? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                          : activeDownloads.has(`${version.version}_${version.variant}`)
+                            ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
+                            : 'bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50'
+                      ]"
+                    >
+                      <template v-if="activeDownloads.has(`${version.version}_${version.variant}`)">
+                        {{ t('engines.download.downloading') }}
+                      </template>
+                      <template v-else-if="version.is_installed">
+                        {{ t('engines.download.reDownload') }}
+                      </template>
+                      <template v-else>
+                        {{ t('engines.download.downloadAction') }}
+                      </template>
+                    </button>
+                  </div>
+                  <div
+                    v-if="expandedReleaseVersion === `${version.version}_${version.variant}` && version.release_notes"
+                    class="px-3 pb-3"
+                  >
+                    <div class="p-2 bg-gray-50 dark:bg-gray-700/50 rounded text-xs text-gray-600 dark:text-gray-300 whitespace-pre-wrap max-h-40 overflow-y-auto">{{ version.release_notes }}</div>
+                  </div>
+                </div>
               </div>
-              <div
-                v-if="expandedReleaseVersion === `${version.version}_${version.variant}` && version.release_notes"
-                class="mt-2 p-2 bg-gray-50 dark:bg-gray-700/50 rounded text-xs text-gray-600 dark:text-gray-300 whitespace-pre-wrap max-h-40 overflow-y-auto"
-              >{{ version.release_notes }}</div>
             </div>
               </div>
             </div>
