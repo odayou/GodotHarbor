@@ -1,6 +1,7 @@
 use crate::models::{
     EngineMirrorConfig, EngineReleaseChannel, RemoteEngineVersion, EngineDownloadProgress,
 };
+use crate::utils::{create_http_client, parse_version};
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter, Manager};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -119,19 +120,6 @@ fn parse_tag(tag: &str) -> TagInfo {
     }
 }
 
-fn parse_version(version: &str) -> (u32, u32, u32) {
-    let clean = version
-        .split('-')
-        .next()
-        .unwrap_or(version)
-        .trim();
-    let parts: Vec<&str> = clean.split('.').collect();
-    let major = parts.first().and_then(|s| s.parse().ok()).unwrap_or(0);
-    let minor = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(0);
-    let patch = parts.get(2).and_then(|s| s.parse().ok()).unwrap_or(0);
-    (major, minor, patch)
-}
-
 fn channel_priority(channel: &EngineReleaseChannel) -> u32 {
     match channel {
         EngineReleaseChannel::Stable => 5,
@@ -200,11 +188,7 @@ impl EngineDownloader {
         mirror: &EngineMirrorConfig,
         local_versions: &[String],
     ) -> Result<Vec<RemoteEngineVersion>, String> {
-        let client = reqwest::Client::builder()
-            .user_agent("GodotHarbor")
-            .timeout(std::time::Duration::from_secs(30))
-            .build()
-            .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+        let client = create_http_client(Some(std::time::Duration::from_secs(30)))?;
 
         let mut all_versions = Vec::new();
         let max_pages = 10;
@@ -522,11 +506,7 @@ impl EngineDownloader {
     ) -> Result<(), String> {
         Self::emit_progress(app, version, variant, "downloading", 0.0, "正在下载引擎...", 0, total_size);
 
-        let client = reqwest::Client::builder()
-            .user_agent("GodotHarbor")
-            .timeout(std::time::Duration::from_secs(300))
-            .build()
-            .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+        let client = create_http_client(Some(std::time::Duration::from_secs(300)))?;
 
         let max_retries = 3;
         let mut attempt = 0;

@@ -12,6 +12,7 @@ use crate::operation_log::{OperationLogger, LogEntry};
 use crate::AppState;
 use uuid::Uuid;
 use futures::future::join_all;
+use crate::utils::{copy_dir_all, create_http_client};
 
 fn get_config_dir(app: &AppHandle) -> PathBuf {
     app.path().app_data_dir()
@@ -89,14 +90,6 @@ fn upsert_plugin(app: &AppHandle, new_plugin: &crate::models::Plugin, operation:
         log_operation(app, operation, source_desc, &format!("已导入插件: {}", plugin_name));
         Ok(new_plugin.clone())
     }
-}
-
-fn create_http_client(timeout: Option<std::time::Duration>) -> Result<reqwest::Client, String> {
-    let mut builder = reqwest::Client::builder().user_agent("GodotHarbor");
-    if let Some(d) = timeout {
-        builder = builder.timeout(d);
-    }
-    builder.build().map_err(|e| format!("创建 HTTP 客户端失败: {}", e))
 }
 
 pub fn get_default_scan_dirs() -> Vec<String> {
@@ -2048,28 +2041,6 @@ pub fn get_project_groups(app: AppHandle) -> Result<Vec<String>, String> {
     groups.dedup();
 
     Ok(groups)
-}
-
-fn copy_dir_all(src: impl AsRef<std::path::Path>, dst: impl AsRef<std::path::Path>) -> Result<(), String> {
-    let src = src.as_ref();
-    let dst = dst.as_ref();
-
-    std::fs::create_dir_all(dst)
-        .map_err(|e| format!("创建目录失败: {}", e))?;
-
-    for entry in std::fs::read_dir(src)
-        .map_err(|e| format!("读取目录失败: {}", e))?
-    {
-        let entry = entry.map_err(|e| format!("读取目录条目失败: {}", e))?;
-        let ty = entry.file_type().map_err(|e| format!("获取文件类型失败: {}", e))?;
-        if ty.is_dir() {
-            copy_dir_all(entry.path(), dst.join(entry.file_name()))?;
-        } else {
-            std::fs::copy(entry.path(), dst.join(entry.file_name()))
-                .map_err(|e| format!("复制文件失败: {}", e))?;
-        }
-    }
-    Ok(())
 }
 
 #[tauri::command]

@@ -2,6 +2,7 @@ use std::fs;
 use std::path::Path;
 use anyhow::{Result, Context};
 use crate::models::{ProjectBinding, MountStrategy, ApplyResult, ConflictInfo};
+use crate::utils::copy_dir_all;
 
 #[derive(Clone)]
 pub struct Linker {
@@ -336,7 +337,8 @@ impl Linker {
                 }
             }
             MountStrategy::Copy => {
-                self.copy_dir_recursive(&source_path, &target_path)
+                copy_dir_all(&source_path, &target_path)
+                    .map_err(|e| anyhow::anyhow!(e))
                     .with_context(|| format!("Failed to copy plugin from {} to {}", source_path.to_string_lossy(), target_path.to_string_lossy()))?;
             }
         }
@@ -487,35 +489,6 @@ impl Linker {
 
         if !output.status.success() {
             anyhow::bail!("Failed to create junction: {}", String::from_utf8_lossy(&output.stderr));
-        }
-
-        Ok(())
-    }
-
-    fn copy_dir_recursive(&self, src: &Path, dst: &Path) -> Result<()> {
-        if !src.exists() {
-            anyhow::bail!("Source directory does not exist: {}", src.to_string_lossy());
-        }
-
-        if !dst.exists() {
-            fs::create_dir_all(dst)
-                .with_context(|| format!("Failed to create destination directory: {}", dst.to_string_lossy()))?;
-        }
-
-        for entry in fs::read_dir(src)
-            .with_context(|| format!("Failed to read source directory: {}", src.to_string_lossy()))? {
-            let entry = entry
-                .with_context(|| format!("Failed to read directory entry in: {}", src.to_string_lossy()))?;
-            let src_path = entry.path();
-            let dst_path = dst.join(entry.file_name());
-
-            if src_path.is_dir() {
-                self.copy_dir_recursive(&src_path, &dst_path)
-                    .with_context(|| format!("Failed to copy directory: {} to {}", src_path.to_string_lossy(), dst_path.to_string_lossy()))?;
-            } else {
-                fs::copy(&src_path, &dst_path)
-                    .with_context(|| format!("Failed to copy file: {} to {}", src_path.to_string_lossy(), dst_path.to_string_lossy()))?;
-            }
         }
 
         Ok(())

@@ -3,18 +3,13 @@ use std::path::{Path, PathBuf};
 use anyhow::{Result, Context};
 use uuid::Uuid;
 use walkdir::WalkDir;
+use crate::utils::{copy_dir_all, should_skip_dir};
 use rayon::prelude::*;
 use tauri::{AppHandle, Emitter};
 use crate::models::{Plugin, PluginSource, PluginVersion, PluginUnit, SourceType, Compatibility, Project, compute_dir_hash, ScannedPlugin};
 
 const PLUGIN_SCAN_MAX_DEPTH: usize = 5;
 const COMPAT_SCAN_MAX_DEPTH: usize = 5;
-const SKIP_DIRS: &[&str] = &[
-    ".git", ".svn", ".hg",
-    "node_modules", "__pycache__",
-    ".godot", ".import",
-    "build", "dist", ".cache",
-];
 
 pub struct PluginManager {
     plugins_dir: PathBuf,
@@ -113,7 +108,7 @@ impl PluginManager {
         fs::create_dir_all(&payload_dir)
             .context("Failed to create version directory")?;
 
-        if let Err(e) = self.copy_dir_recursive(source, &payload_dir) {
+        if let Err(e) = copy_dir_all(source, &payload_dir).map_err(|e| anyhow::anyhow!(e)) {
             let _ = fs::remove_dir_all(&version_dir);
             return Err(e.context("Failed to copy plugin files, cleaned up partial import"));
         }
@@ -220,7 +215,7 @@ impl PluginManager {
             if !git_store_dir.exists() {
                 fs::create_dir_all(&git_store_dir).ok();
             }
-            if let Err(e) = self.copy_dir_recursive(&git_dir, &git_store_dir) {
+            if let Err(e) = copy_dir_all(&git_dir, &git_store_dir) {
                 eprintln!("Warning: failed to backup .git directory: {}", e);
             }
             fs::remove_dir_all(&git_dir).ok();
@@ -279,9 +274,7 @@ impl PluginManager {
             .into_iter()
             .filter_entry(|e| {
                 if e.file_type().is_dir() {
-                    let name = e.file_name().to_string_lossy();
-                    let lower = name.to_lowercase();
-                    return !SKIP_DIRS.iter().any(|skip| lower == *skip);
+                    return !should_skip_dir(&e.file_name().to_string_lossy());
                 }
                 true
             })
@@ -349,9 +342,7 @@ impl PluginManager {
             .into_iter()
             .filter_entry(|e| {
                 if e.file_type().is_dir() {
-                    let name = e.file_name().to_string_lossy();
-                    let lower = name.to_lowercase();
-                    return !SKIP_DIRS.iter().any(|skip| lower == *skip);
+                    return !should_skip_dir(&e.file_name().to_string_lossy());
                 }
                 true
             })
@@ -409,26 +400,6 @@ impl PluginManager {
         } else {
             Compatibility::Unknown
         }
-    }
-
-    fn copy_dir_recursive(&self, src: &Path, dst: &Path) -> Result<()> {
-        if !dst.exists() {
-            fs::create_dir_all(dst)?;
-        }
-
-        for entry in fs::read_dir(src)? {
-            let entry = entry?;
-            let src_path = entry.path();
-            let dst_path = dst.join(entry.file_name());
-
-            if src_path.is_dir() {
-                self.copy_dir_recursive(&src_path, &dst_path)?;
-            } else {
-                fs::copy(&src_path, &dst_path)?;
-            }
-        }
-
-        Ok(())
     }
 
     fn write_harbor_marker(&self, payload_dir: &Path) {

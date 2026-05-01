@@ -12,6 +12,7 @@ pub mod version_checker;
 pub mod watcher;
 pub mod update_scheduler;
 pub mod hot_update;
+pub mod utils;
 
 use tauri::Manager;
 use std::sync::Mutex;

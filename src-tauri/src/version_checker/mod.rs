@@ -1,5 +1,6 @@
 use serde::{Serialize, Deserialize};
 use std::time::{SystemTime, UNIX_EPOCH};
+use crate::utils::{create_http_client, parse_version};
 
 const GODOT4_API_URL: &str = "https://api.github.com/repos/godotengine/godot/releases?per_page=20";
 const GODOT3_API_URL: &str = "https://api.github.com/repos/godotengine/godot/releases?per_page=50";
@@ -106,12 +107,12 @@ impl VersionChecker {
         engines
             .iter()
             .filter(|e| {
-                let (m, _, _) = Self::parse_version(&e.version);
+                let (m, _, _) = parse_version(&e.version);
                 m == major && Self::classify_channel(&e.version) == channel
             })
             .max_by(|a, b| {
-                let (_, min_a, patch_a) = Self::parse_version(&a.version);
-                let (_, min_b, patch_b) = Self::parse_version(&b.version);
+                let (_, min_a, patch_a) = parse_version(&a.version);
+                let (_, min_b, patch_b) = parse_version(&b.version);
                 (min_a, patch_a).cmp(&(min_b, patch_b))
             })
     }
@@ -174,7 +175,7 @@ impl VersionChecker {
             ] {
                 if let Some(latest) = latest_release {
                     if let Some(local) = Self::find_local_latest_by_channel(&local_engines, *major, channel) {
-                        let (cur_major, cur_minor, cur_patch) = Self::parse_version(&local.version);
+                        let (cur_major, cur_minor, cur_patch) = parse_version(&local.version);
                         if Self::is_newer(cur_major, cur_minor, cur_patch, latest.major, latest.minor, latest.patch) {
                             let is_major_update = latest.major > cur_major;
                             let channel_str = match channel {
@@ -210,11 +211,7 @@ impl VersionChecker {
     }
 
     async fn fetch_releases(&self) -> Result<Vec<GodotReleaseInfo>, String> {
-        let client = reqwest::Client::builder()
-            .user_agent("GodotHarbor")
-            .timeout(std::time::Duration::from_secs(15))
-            .build()
-            .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+        let client = create_http_client(Some(std::time::Duration::from_secs(15)))?;
 
         let mut all_releases = Vec::new();
 
@@ -269,7 +266,7 @@ impl VersionChecker {
         }
 
         let version_str = tag_name.trim_start_matches('v');
-        let (major, minor, patch) = Self::parse_version(version_str);
+        let (major, minor, patch) = parse_version(version_str);
 
         let is_stable = !prerelease
             && !version_str.contains("dev")
@@ -288,20 +285,6 @@ impl VersionChecker {
             minor,
             patch,
         })
-    }
-
-    fn parse_version(version: &str) -> (u32, u32, u32) {
-        let clean = version
-            .split('-')
-            .next()
-            .unwrap_or(version)
-            .trim();
-
-        let parts: Vec<&str> = clean.split('.').collect();
-        let major = parts.first().and_then(|s| s.parse().ok()).unwrap_or(0);
-        let minor = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(0);
-        let patch = parts.get(2).and_then(|s| s.parse().ok()).unwrap_or(0);
-        (major, minor, patch)
     }
 
     fn is_newer(cur_major: u32, cur_minor: u32, cur_patch: u32, new_major: u32, new_minor: u32, new_patch: u32) -> bool {

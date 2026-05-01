@@ -3,18 +3,12 @@ use std::path::Path;
 use std::collections::HashSet;
 use walkdir::WalkDir;
 use rayon::prelude::*;
+use crate::utils::should_skip_dir;
 use anyhow::{Result, Context};
 use crate::models::{Project, ProjectStatus};
 use crate::godot_resolver::extract_icon_path_advanced;
 
 const MAX_SCAN_DEPTH: usize = 5;
-const SKIP_DIRS: &[&str] = &[
-    ".git", ".svn", ".hg",
-    "node_modules", "__pycache__",
-    ".godot", ".import",
-    "build", "dist", ".cache",
-    "Library", "Temp",
-];
 
 pub struct ProjectScanner;
 
@@ -36,9 +30,7 @@ impl ProjectScanner {
             .into_iter()
             .filter_entry(|e| {
                 if e.file_type().is_dir() {
-                    let name = e.file_name().to_string_lossy();
-                    let lower = name.to_lowercase();
-                    return !SKIP_DIRS.iter().any(|skip| lower == *skip);
+                    return !should_skip_dir(&e.file_name().to_string_lossy());
                 }
                 true
             })

@@ -1,4 +1,5 @@
 use crate::models::HotUpdateInfo;
+use crate::utils::{copy_dir_all, create_http_client};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -56,11 +57,7 @@ impl HotUpdateManager {
     }
 
     pub async fn check_for_hot_update(&self, manifest_url: &str, current_app_version: &str) -> Result<Option<HotUpdateInfo>, String> {
-        let client = reqwest::Client::builder()
-            .user_agent("GodotHarbor")
-            .timeout(std::time::Duration::from_secs(15))
-            .build()
-            .map_err(|e| format!("创建HTTP客户端失败: {}", e))?;
+        let client = create_http_client(Some(std::time::Duration::from_secs(15)))?;
 
         let resp = client.get(manifest_url).send().await
             .map_err(|e| format!("请求热更新清单失败: {}", e))?;
@@ -100,11 +97,7 @@ impl HotUpdateManager {
     }
 
     pub async fn download_and_apply(&self, app: &AppHandle, manifest_url: &str) -> Result<(), String> {
-        let client = reqwest::Client::builder()
-            .user_agent("GodotHarbor")
-            .timeout(std::time::Duration::from_secs(120))
-            .build()
-            .map_err(|e| format!("创建HTTP客户端失败: {}", e))?;
+        let client = create_http_client(Some(std::time::Duration::from_secs(120)))?;
 
         let _ = app.emit("hot-update-progress", serde_json::json!({
             "stage": "downloading",
@@ -245,7 +238,7 @@ impl HotUpdateManager {
         let web_assets = resource_dir.join("web");
         if web_assets.exists() {
             let dest = backup.join("web");
-            self.copy_dir_recursive(&web_assets, &dest)?;
+            copy_dir_all(&web_assets, &dest)?;
         }
 
         Ok(())
@@ -280,30 +273,6 @@ impl HotUpdateManager {
                 }
                 fs::copy(entry.path(), &overlay_target)
                     .map_err(|e| format!("复制到overlay失败: {}", e))?;
-            }
-        }
-
-        Ok(())
-    }
-
-    fn copy_dir_recursive(&self, src: &Path, dst: &Path) -> Result<(), String> {
-        if !dst.exists() {
-            fs::create_dir_all(dst)
-                .map_err(|e| format!("创建目录失败: {}", e))?;
-        }
-
-        for entry in fs::read_dir(src)
-            .map_err(|e| format!("读取目录失败: {}", e))?
-        {
-            let entry = entry.map_err(|e| format!("读取目录条目失败: {}", e))?;
-            let src_path = entry.path();
-            let dst_path = dst.join(entry.file_name());
-
-            if src_path.is_dir() {
-                self.copy_dir_recursive(&src_path, &dst_path)?;
-            } else {
-                fs::copy(&src_path, &dst_path)
-                    .map_err(|e| format!("复制文件失败: {}", e))?;
             }
         }
 
