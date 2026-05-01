@@ -1,11 +1,11 @@
 ---
 name: "module-ux-analysis"
-description: "Analyzes a module's UX completeness across 6 dimensions (simplification, convenience, feature completeness, flow completeness, conflict tolerance, edge cases). Invoke when user asks to review/analyze a module's UX or find improvement opportunities."
+description: "Analyzes a module's UX completeness across 7 dimensions (simplification, convenience, feature completeness, flow completeness, conflict tolerance, edge cases, reverse flow). Invoke when user asks to review/analyze a module's UX or find improvement opportunities."
 ---
 
 # Module UX Analysis Skill
 
-Systematically analyze a software module's user experience across 6 dimensions to identify improvement opportunities and prioritize fixes.
+Systematically analyze a software module's user experience across 7 dimensions to identify improvement opportunities and prioritize fixes.
 
 ## When to Invoke
 
@@ -29,7 +29,7 @@ Read all relevant source files for the target module:
 
 Output: A complete flow diagram showing all user-facing operations and their connections.
 
-### Step 2: 6-Dimension Analysis (六维度分析)
+### Step 2: 7-Dimension Analysis (七维度分析)
 
 Analyze each dimension below. For every issue found, assign severity:
 - 🔴 High: Blocks core workflow or causes data loss/confusion
@@ -96,9 +96,25 @@ Check:
 - [ ] Are there performance concerns at scale (virtual scrolling, pagination)?
 - [ ] What happens when external resources become unavailable?
 
+#### Dimension 7: Reverse Flow Analysis (逆向流程分析)
+
+Traverse every forward operation in reverse — for each "create/add/bind" action, verify the corresponding "delete/remove/unbind" action exists and is complete. This dimension catches asymmetries where setup flows are well-designed but teardown flows are neglected.
+
+Check:
+- [ ] For every "add" operation, is there a corresponding "remove" that fully cleans up?
+- [ ] For every "bind/link" operation, is there a corresponding "unbind/unlink" that restores the original state?
+- [ ] For every "create" operation, is "delete" accessible from the same context (not buried in settings)?
+- [ ] Does the reverse operation clean up ALL side effects (files, symlinks, cache, registry, references)?
+- [ ] Are reverse operations discoverable from the same UI location as forward operations?
+- [ ] Do reverse operations provide adequate warnings about what will be lost?
+- [ ] Can users undo a reverse operation (e.g., re-create after delete, re-bind after unbind)?
+- [ ] Are there forward operations that have NO reverse path (one-way doors)?
+- [ ] Does the reverse flow have the same quality of feedback as the forward flow?
+- [ ] Are batch reverse operations supported where batch forward operations exist?
+
 ### Step 3: Priority Ranking (优先级排序)
 
-Select the Top N improvements using this framework:
+Rank ALL discovered improvements using this framework:
 
 | Priority | Criteria |
 |----------|----------|
@@ -106,6 +122,8 @@ Select the Top N improvements using this framework:
 | **P1** | Significantly degrades experience, causes confusion, or creates risk of errors |
 | **P2** | Improves efficiency, reduces friction, or enhances discoverability |
 | **P3** | Polish, nice-to-have, or optimization for edge cases |
+
+**IMPORTANT**: ALL discovered issues must be ranked and addressed, not just the top N. Every issue found across all 6 dimensions must have a corresponding fix in the implementation plan.
 
 ### Step 4: Output Format (输出格式)
 
@@ -120,10 +138,10 @@ Structure the analysis as:
 ### 二、各环节详细梳理
 (Table: 环节 | 已实现功能 | 涉及文件)
 
-### 三、六维度问题分析
-(6 tables, one per dimension, with columns: 问题 | 严重度 | 说明)
+### 三、七维度问题分析
+(7 tables, one per dimension, with columns: 问题 | 严重度 | 说明)
 
-### 四、优先级排序（Top 10 改进项）
+### 四、优先级排序（全部改进项）
 (Table: 优先级 | 改进项 | 预期收益)
 ```
 
@@ -136,7 +154,15 @@ Structure the analysis as:
 5. **Holistic**: Consider the full lifecycle, not just individual features
 6. **Comparative**: Reference similar tools (e.g., for Godot Harbor: gd-plug, GodotEnv, godam) when evaluating completeness
 
-##  create optimization plan and execute it
+## Create Optimization Plan and Execute It
 
-    do it step by step , and check the result after each step 
-to ensure the optimization is effective and efficient
+- Fix ALL discovered issues, not just the top N
+- Do it step by step, and check the result after each step to ensure the optimization is effective and efficient
+- Every issue from the 7-dimension analysis must have a corresponding fix in the implementation plan
+- P0 and P1 issues must be fixed; P2 and P3 issues should be fixed unless technically infeasible
+
+### Execution Rules
+
+1. **Auto-fix without asking**: After completing the analysis and priority ranking, immediately create a todo list and start implementing fixes. Do NOT ask the user "是否按计划执行" or wait for confirmation — proceed directly.
+2. **Auto-commit on success**: After all fixes are implemented, run build verification (frontend typecheck + backend cargo check). If both pass, automatically commit to git with a descriptive commit message. Do NOT ask the user for permission to commit.
+3. **Build failure handling**: If the build fails, fix the errors and retry. Only ask the user if the error cannot be resolved after 2 attempts.

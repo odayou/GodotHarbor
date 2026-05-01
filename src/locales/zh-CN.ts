@@ -359,6 +359,16 @@ export default {
       success: '版本切换成功',
       failed: '版本切换失败: {error}'
     },
+    batchProgress: {
+      binding: '正在绑定插件...',
+      applying: '正在应用变更...',
+      unbinding: '正在解绑插件...',
+      updating: '正在更新插件...'
+    },
+    mountStrategyLabel: '挂载策略',
+    retryFailed: '重试失败项',
+    retrySuccess: '重试成功: {count} 项',
+    retryFailedAgain: '重试仍有 {count} 项失败',
     deleteWithBindings: '删除插件并解绑',
     deleteWithBindingsDesc: '该插件正被 {count} 个项目使用，删除后所有绑定将被移除。确定删除？',
     description: '描述',
@@ -610,6 +620,9 @@ export default {
     symlink: '符号链接（推荐）',
     junction: 'Junction（Windows 推荐）',
     copy: '复制',
+    symlinkDesc: '创建符号链接，零磁盘占用，一改全改。Windows 下可能需要管理员权限，将自动回退到 Junction。',
+    junctionDesc: 'Windows 目录联接，无需管理员权限，零磁盘占用。仅 Windows 可用。',
+    copyDesc: '复制文件到项目目录，兼容性最好但占用额外磁盘空间，修改不会自动同步。',
     appearance: '外观',
     languageLabel: '语言',
     theme: '主题',
@@ -956,6 +969,10 @@ export default {
     link: {
       title: '绑定插件到项目',
       desc: '为项目选择需要的插件和版本，\n一键应用变更，插件自动挂载到 addons 目录。'
+    },
+    assetLibrary: {
+      title: '浏览 Asset Library',
+      desc: '直接搜索和浏览 Godot 官方 Asset Library，\n一键下载安装社区插件到你的仓库。'
     },
     shortcuts: {
       title: '快捷键',

@@ -64,6 +64,12 @@ const steps = computed(() => [
     action: '/plugins'
   },
   {
+    title: t('onboarding.assetLibrary.title'),
+    desc: t('onboarding.assetLibrary.desc'),
+    icon: 'asset',
+    action: '/plugins'
+  },
+  {
     title: t('onboarding.shortcuts.title'),
     desc: t('onboarding.shortcuts.desc'),
     icon: 'shortcuts',
@@ -139,6 +145,11 @@ const finish = async () => {
           <div v-else-if="currentStepData.icon === 'link'" class="w-20 h-20 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
             <svg class="w-10 h-10 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+            </svg>
+          </div>
+          <div v-else-if="currentStepData.icon === 'asset'" class="w-20 h-20 rounded-full bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center">
+            <svg class="w-10 h-10 text-teal-600 dark:text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
             </svg>
           </div>
           <div v-else-if="currentStepData.icon === 'shortcuts'" class="w-20 h-20 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">

@@ -230,14 +230,48 @@ impl Linker {
             let target_path = project.join(&binding.mount_path);
 
             if target_path.exists() && !self.is_managed_link(&target_path)? {
-                conflicts.push(ConflictInfo {
-                    conflict_type: "path_exists".to_string(),
-                    path: target_path.to_string_lossy().to_string(),
-                    message: format!(
+                let has_plugin_cfg = target_path.join("plugin.cfg").exists();
+                let message = if has_plugin_cfg {
+                    format!(
+                        "目标路径已存在且包含插件 (非 Harbor 管理): {}，继续操作将覆盖该目录",
+                        binding.mount_path
+                    )
+                } else {
+                    format!(
                         "目标路径已存在且非 Harbor 管理: {}，继续操作将覆盖该目录",
                         binding.mount_path
-                    ),
+                    )
+                };
+                conflicts.push(ConflictInfo {
+                    conflict_type: if has_plugin_cfg { "existing_plugin" } else { "path_exists" }.to_string(),
+                    path: target_path.to_string_lossy().to_string(),
+                    message,
                 });
+            }
+        }
+
+        let addons_dir = project.join("addons");
+        if addons_dir.exists() {
+            if let Ok(entries) = fs::read_dir(&addons_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_dir() && path.join("plugin.cfg").exists() {
+                        let mount_path = format!("addons/{}", path.file_name().unwrap_or_default().to_string_lossy());
+                        let is_managed = self.is_managed_link(&path).unwrap_or(false);
+                        let is_in_bindings = to_add.iter().any(|b| b.mount_path == mount_path)
+                            || to_keep.iter().any(|b| b.mount_path == mount_path);
+                        if !is_managed && !is_in_bindings {
+                            conflicts.push(ConflictInfo {
+                                conflict_type: "unmanaged_addon".to_string(),
+                                path: path.to_string_lossy().to_string(),
+                                message: format!(
+                                    "发现非 Harbor 管理的插件: {}，建议先导入到 Harbor 管理",
+                                    mount_path
+                                ),
+                            });
+                        }
+                    }
+                }
             }
         }
 

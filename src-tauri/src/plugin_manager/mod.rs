@@ -210,8 +210,10 @@ impl PluginManager {
         let mut builder = git2::build::RepoBuilder::new();
         builder.fetch_options(fetch_options);
 
-        builder.clone(git_url, &payload_dir)
-            .context("Failed to clone git repository")?;
+        if let Err(e) = builder.clone(git_url, &payload_dir) {
+            let _ = fs::remove_dir_all(&version_dir);
+            return Err(anyhow::anyhow!("Failed to clone git repository, cleaned up partial clone: {}", e));
+        }
 
         let git_dir = payload_dir.join(".git");
         if git_dir.exists() {

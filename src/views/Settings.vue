@@ -527,6 +527,11 @@ const toggleMirrorEnabled = (mirrorId: string) => {
           <option value="Junction">{{ t('settings.junction') }}</option>
           <option value="Copy">{{ t('settings.copy') }}</option>
         </select>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+          <span v-if="settings.mount_strategy === 'Symlink'">{{ t('settings.symlinkDesc') }}</span>
+          <span v-else-if="settings.mount_strategy === 'Junction'">{{ t('settings.junctionDesc') }}</span>
+          <span v-else-if="settings.mount_strategy === 'Copy'">{{ t('settings.copyDesc') }}</span>
+        </p>
       </div>
       <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.pluginRepo.title') }}</h2>

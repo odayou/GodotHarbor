@@ -359,6 +359,16 @@ export default {
       success: 'Version switched successfully',
       failed: 'Version switch failed: {error}'
     },
+    batchProgress: {
+      binding: 'Binding plugins...',
+      applying: 'Applying changes...',
+      unbinding: 'Unbinding plugins...',
+      updating: 'Updating plugins...'
+    },
+    mountStrategyLabel: 'Mount Strategy',
+    retryFailed: 'Retry Failed',
+    retrySuccess: 'Retry succeeded: {count} item(s)',
+    retryFailedAgain: 'Retry still has {count} failed item(s)',
     deleteWithBindings: 'Delete Plugin & Unbind',
     deleteWithBindingsDesc: 'This plugin is used by {count} project(s). All bindings will be removed after deletion. Confirm?',
     description: 'Description',
@@ -610,6 +620,9 @@ export default {
     symlink: 'Symbolic Link (Recommended)',
     junction: 'Junction (Windows Recommended)',
     copy: 'Copy',
+    symlinkDesc: 'Creates symbolic links, zero disk usage, changes sync instantly. May require admin privileges on Windows, will auto-fallback to Junction.',
+    junctionDesc: 'Windows directory junction, no admin privileges needed, zero disk usage. Windows only.',
+    copyDesc: 'Copies files to project directory, best compatibility but uses extra disk space, changes do not auto-sync.',
     appearance: 'Appearance',
     languageLabel: 'Language',
     theme: 'Theme',
@@ -957,6 +970,10 @@ export default {
     link: {
       title: 'Bind Plugins to Projects',
       desc: 'Select required plugins and versions for your projects,\none-click apply changes, plugins are automatically mounted to addons directory.'
+    },
+    assetLibrary: {
+      title: 'Browse Asset Library',
+      desc: 'Search and browse the official Godot Asset Library directly,\none-click download and install community plugins to your vault.'
     },
     shortcuts: {
       title: 'Keyboard Shortcuts',

@@ -52,7 +52,7 @@ const isCheckingUpdates = ref(false)
 
 const showAddMenu = ref(false)
 
-const activeTab = ref<'repository' | 'bindings'>('repository')
+const activeTab = ref<'repository' | 'bindings' | 'assetLibrary'>('repository')
 
 const showQuickBindDialog = ref(false)
 const quickBindPlugin = ref<Plugin | null>(null)
@@ -85,6 +85,10 @@ const versionSwitchVersionIdx = ref(0)
 const versionSwitchUnitIdx = ref(0)
 const isSwitchingVersion = ref(false)
 
+const batchProgress = ref<{ current: number; total: number; message: string } | null>(null)
+const batchFailedItems = ref<{ id: string; name: string; error: string }[]>([])
+const mountStrategyDisplay = ref<string>('')
+
 const linkerProjects = ref<Project[]>([])
 const linkerBindings = ref<ProjectBinding[]>([])
 const selectedLinkId = ref<string | null>(null)
@@ -100,7 +104,6 @@ const pendingUnbindBinding = ref<ProjectBinding | null>(null)
 const versionSelectPlugin = ref<Plugin | null>(null)
 const selectedVersionIdx = ref(0)
 const selectedUnitIdx = ref(0)
-const isLinkerApplying = ref(false)
 const isLinkerBatchBinding = ref(false)
 const isLinkerBatchUnbinding = ref(false)
 const isLinkerBatchApplying = ref(false)
@@ -394,6 +397,23 @@ onMounted(async () => {
       await loadLinkerBindings(route.query.project)
     }
   }
+
+  if (route.query.bindProject && typeof route.query.bindProject === 'string') {
+    const projectId = route.query.bindProject
+    if (plugins.value.length > 0) {
+      const firstPlugin = plugins.value[0]
+      quickBindPlugin.value = firstPlugin
+      quickBindVersionIdx.value = 0
+      quickBindUnitIdx.value = 0
+      quickBindSelectedProjectIds.value = new Set([projectId])
+      try {
+        quickBindProjects.value = await api.getProjects()
+      } catch {
+        quickBindProjects.value = []
+      }
+      showQuickBindDialog.value = true
+    }
+  }
 })
 
 onUnmounted(() => {
@@ -437,22 +457,14 @@ const getBindingVersion = (binding: ProjectBinding) => {
 }
 
 const openAssetLibrary = async () => {
-  showAssetLibraryDialog.value = true
+  activeTab.value = 'assetLibrary'
   assetSearchQuery.value = ''
   assetSearchResults.value = []
   selectedAssetIds.value = new Set()
   assetCurrentPage.value = 0
   assetTotalPages.value = 0
   assetTotalItems.value = 0
-  if (!categoriesLoaded.value || assetCategories.value.length === 0) {
-    try {
-      const config = await api.getAssetLibraryConfigure()
-      assetCategories.value = config.categories || []
-      categoriesLoaded.value = true
-    } catch (error) {
-      console.error('Failed to load categories:', error)
-    }
-  }
+  await openAssetLibraryTab()
 }
 
 const getCacheKey = () => {
@@ -982,6 +994,22 @@ const installMissingDeps = async () => {
       } catch {
         failCount++
       }
+    } else if (dep.version_constraint) {
+      try {
+        const searchResult = await api.searchAssetLibrary({ filter: dep.version_constraint, page: 0, max_results: 5 })
+        const matchAsset = searchResult.result?.find((a: any) =>
+          a.title.toLowerCase() === dep.plugin_id.toLowerCase() ||
+          a.title.toLowerCase().includes(dep.plugin_id.toLowerCase())
+        )
+        if (matchAsset) {
+          await api.importFromAssetLibraryWithProgress(String(matchAsset.asset_id))
+          successCount++
+        } else {
+          skippedCount++
+        }
+      } catch {
+        skippedCount++
+      }
     } else {
       skippedCount++
     }
@@ -1027,8 +1055,24 @@ const loadLinkerData = async () => {
       await loadPlugins(true)
     }
     await loadTeamConfigs()
+    try {
+      const settings = await api.getSettings()
+      mountStrategyDisplay.value = settings.mount_strategy || 'Symlink'
+    } catch {}
   } catch (error) {
     toast.error(t('common.loadFailed', { error }))
+  }
+}
+
+const openAssetLibraryTab = async () => {
+  if (!categoriesLoaded.value || assetCategories.value.length === 0) {
+    try {
+      const config = await api.getAssetLibraryConfigure()
+      assetCategories.value = config.categories || []
+      categoriesLoaded.value = true
+    } catch (error) {
+      console.error('Failed to load categories:', error)
+    }
   }
 }
 
@@ -1190,23 +1234,6 @@ const confirmUnbindPlugin = async () => {
   }
 }
 
-const confirmLinkerApply = async () => {
-  if (!selectedLinkId.value) return
-  isLinkerApplying.value = true
-  try {
-    linkerApplyResult.value = await api.applyChanges(selectedLinkId.value)
-    showLinkerApplyResult.value = true
-    linkerHasPendingChanges.value = false
-    if (selectedLinkId.value) {
-      await loadLinkerBindings(selectedLinkId.value)
-    }
-  } catch (error) {
-    toast.error(t('common.loadFailed', { error }))
-  } finally {
-    isLinkerApplying.value = false
-  }
-}
-
 const batchBindPlugins = async () => {
   if (selectedLinkProjectIds.value.size === 0) {
     toast.warning(t('linker.selectProject'))
@@ -1278,7 +1305,9 @@ const confirmBatchBind = async () => {
     }
   }
   try {
+    batchProgress.value = { current: 0, total: requests.length, message: t('plugins.batchProgress.binding') }
     const result = await api.batchBindPlugins(requests)
+    batchProgress.value = { current: requests.length, total: requests.length, message: t('plugins.batchProgress.applying') }
     for (const projectId of selectedLinkProjectIds.value) {
       try {
         await api.applyChanges(projectId)
@@ -1286,7 +1315,9 @@ const confirmBatchBind = async () => {
         // ignore individual apply errors
       }
     }
+    batchProgress.value = null
     if (result.failed_count > 0) {
+      batchFailedItems.value = result.errors.map((e: string, i: number) => ({ id: String(i), name: String(i), error: e }))
       toast.warning(t('common.batchDeleteComplete', { success: result.success_count, failed: result.failed_count }))
     } else {
       toast.success(t('plugins.bindDialog.bindAndApplySuccess', { count: result.success_count, name: '' }))
@@ -1683,6 +1714,41 @@ const quickBindFromCard = async (plugin: Plugin) => {
   showPostImportGuide(plugin.name, plugin)
 }
 
+const retryBatchFailed = async () => {
+  if (batchFailedItems.value.length === 0) return
+  let successCount = 0
+  let failCount = 0
+  for (const item of batchFailedItems.value) {
+    try {
+      const plugin = plugins.value.find(p => p.plugin_id === item.id)
+      if (plugin && plugin.versions.length > 0) {
+        const version = plugin.versions[0]
+        const unit = version.units[0]
+        if (unit) {
+          const mountPath = unit.subdirectory || `addons/${unit.name}`
+          const subdirectory = unit.subdirectory || ''
+          for (const projectId of selectedLinkProjectIds.value) {
+            await api.bindPlugin(projectId, plugin.plugin_id, version.version_id, unit.unit_id, mountPath, subdirectory)
+            try { await api.applyChanges(projectId) } catch {}
+          }
+          successCount++
+        }
+      }
+    } catch {
+      failCount++
+    }
+  }
+  if (failCount === 0) {
+    toast.success(t('plugins.retrySuccess', { count: successCount }))
+    batchFailedItems.value = []
+  } else {
+    toast.warning(t('plugins.retryFailedAgain', { count: failCount }))
+  }
+  if (selectedLinkId.value) {
+    await loadLinkerBindings(selectedLinkId.value)
+  }
+}
+
 </script>
 
 <template>
@@ -1700,6 +1766,10 @@ const quickBindFromCard = async (plugin: Plugin) => {
             @click="activeTab = 'bindings'; loadLinkerData()"
             :class="['px-3 py-1.5 rounded-md text-sm font-medium transition-colors', activeTab === 'bindings' ? 'bg-white dark:bg-surface-card text-primary-600 dark:text-primary-400 shadow-sm' : 'text-gray-600 dark:text-content-secondary hover:text-gray-900 dark:hover:text-content-primary']"
           >{{ t('plugins.tabBindings') }}</button>
+          <button
+            @click="activeTab = 'assetLibrary'; openAssetLibraryTab()"
+            :class="['px-3 py-1.5 rounded-md text-sm font-medium transition-colors', activeTab === 'assetLibrary' ? 'bg-white dark:bg-surface-card text-primary-600 dark:text-primary-400 shadow-sm' : 'text-gray-600 dark:text-content-secondary hover:text-gray-900 dark:hover:text-content-primary']"
+          >{{ t('assetLibrary.title') }}</button>
         </div>
       </div>
       <div v-if="activeTab === 'repository'" class="flex flex-wrap gap-2">
@@ -1964,76 +2034,70 @@ const quickBindFromCard = async (plugin: Plugin) => {
           v-for="plugin in filteredPlugins"
           :key="plugin.plugin_id"
           :class="[
-            'bg-white dark:bg-surface-card rounded-xl shadow hover:shadow-md transition-shadow p-4 flex items-center gap-4',
+            'bg-white dark:bg-surface-card rounded-xl shadow hover:shadow-md transition-all p-4',
             selectedPluginIds.has(plugin.plugin_id) ? 'ring-2 ring-primary-500' : ''
           ]"
           @contextmenu="openContextMenu(plugin, $event)"
         >
-          <input
-            type="checkbox"
-            :checked="selectedPluginIds.has(plugin.plugin_id)"
-            @click.stop="togglePluginSelection(plugin, $event)"
-            class="w-4 h-4 text-primary-600 rounded flex-shrink-0 cursor-pointer"
-          />
-          <div class="min-w-0 flex-1 cursor-pointer" @click="showPluginDetails(plugin)">
-            <div class="flex items-center gap-2">
-              <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary">
-                {{ plugin.name }}
-              </h3>
-              <button
-                @click.stop="toggleFavorite(plugin)"
-                :class="[
-                  'p-1 rounded transition-colors',
-                  plugin.is_favorite
-                    ? 'text-yellow-500 hover:text-yellow-600'
-                    : 'text-gray-400 dark:text-content-secondary hover:text-yellow-500'
-                ]"
-              >
-                <svg class="w-4 h-4" :fill="plugin.is_favorite ? 'currentColor' : 'none'" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                </svg>
-              </button>
-              <span class="badge badge-neutral">
-                {{ plugin.compatibility === 'Godot4' ? 'Godot 4' : plugin.compatibility === 'Godot3' ? 'Godot 3' : plugin.compatibility === 'Both' ? t('plugins.compat.both') : t('plugins.compat.unknown') }}
-              </span>
-              <span class="badge badge-neutral">
-                {{ plugin.source.source_type === 'Local' ? t('plugins.source.local') : plugin.source.source_type === 'Git' ? t('plugins.source.git') : t('plugins.source.assetlibrary') }}
-              </span>
-              <span v-if="pluginBindingCountMap.get(plugin.plugin_id)" class="badge bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                {{ t('plugins.bindDialog.bindingCount', { count: pluginBindingCountMap.get(plugin.plugin_id) }) }}
-              </span>
-            </div>
-            <div class="flex items-center gap-3 mt-1">
-              <p 
-                class="text-sm text-gray-500 dark:text-content-secondary"
-                :title="plugin.description || t('plugins.noDescription')"
-              >
-                {{ plugin.description || t('plugins.noDescription') }}
-              </p>
-              <span class="text-sm text-gray-400">|</span>
-              <span class="text-sm text-gray-500 dark:text-content-secondary">v{{ plugin.versions[0]?.version || '1.0.0' }}</span>
-              <span class="text-sm text-gray-400">|</span>
-              <span class="text-sm text-gray-500 dark:text-content-secondary">{{ plugin.author || t('plugins.unknownAuthor') }}</span>
+          <div class="flex items-start gap-3">
+            <input
+              type="checkbox"
+              :checked="selectedPluginIds.has(plugin.plugin_id)"
+              @click.stop="togglePluginSelection(plugin, $event)"
+              class="w-4 h-4 text-primary-600 rounded flex-shrink-0 cursor-pointer mt-1"
+            />
+            <div class="min-w-0 flex-1 cursor-pointer" @click="showPluginDetails(plugin)">
+              <div class="flex items-center gap-2 flex-wrap">
+                <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary">
+                  {{ plugin.name }}
+                </h3>
+                <span class="badge badge-neutral text-xs">
+                  {{ plugin.compatibility === 'Godot4' ? '4.x' : plugin.compatibility === 'Godot3' ? '3.x' : plugin.compatibility === 'Both' ? '3/4' : '?' }}
+                </span>
+                <span class="badge badge-neutral text-xs">
+                  {{ plugin.source.source_type === 'Local' ? t('plugins.source.local') : plugin.source.source_type === 'Git' ? t('plugins.source.git') : t('plugins.source.assetlibrary') }}
+                </span>
+                <span v-if="pluginBindingCountMap.get(plugin.plugin_id)" class="badge bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-xs">
+                  {{ pluginBindingCountMap.get(plugin.plugin_id) }} {{ t('linker.projects') }}
+                </span>
+                <span class="text-xs text-gray-400 ml-auto flex-shrink-0">v{{ plugin.versions[0]?.version || '1.0.0' }}</span>
+              </div>
+              <div class="flex items-center gap-2 mt-1">
+                <p class="text-sm text-gray-500 dark:text-content-secondary truncate" :title="plugin.description || t('plugins.noDescription')">
+                  {{ plugin.description || t('plugins.noDescription') }}
+                </p>
+                <span v-if="plugin.author" class="text-xs text-gray-400 flex-shrink-0">{{ plugin.author }}</span>
+              </div>
             </div>
           </div>
-          <div class="flex items-center gap-1">
+          <div class="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 dark:border-gray-700/50">
             <button
-              @click.stop="quickBindFromCard(plugin)"
-              class="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-1.5"
+              @click.stop="toggleFavorite(plugin)"
+              :class="['p-1 rounded transition-colors', plugin.is_favorite ? 'text-yellow-500 hover:text-yellow-600' : 'text-gray-400 dark:text-content-secondary hover:text-yellow-500']"
             >
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-              </svg>
-              {{ t('plugins.bindToProject') }}
-            </button>
-            <button
-              @click.stop="confirmRemovePlugin(plugin.plugin_id)"
-              class="text-red-600 hover:text-red-800 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
-            >
-              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              <svg class="w-4 h-4" :fill="plugin.is_favorite ? 'currentColor' : 'none'" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
               </svg>
             </button>
+            <div class="flex items-center gap-2">
+              <button
+                @click.stop="quickBindFromCard(plugin)"
+                class="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-1.5"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+                {{ t('plugins.bindToProject') }}
+              </button>
+              <button
+                @click.stop="confirmRemovePlugin(plugin.plugin_id)"
+                class="text-red-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              >
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -2241,175 +2305,162 @@ const quickBindFromCard = async (plugin: Plugin) => {
     </div>
   </Teleport>
 
-  <Teleport to="body">
-    <div v-if="showAssetLibraryDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showAssetLibraryDialog = false">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-2xl shadow-xl max-h-[85vh] flex flex-col" @click.stop>
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('assetLibrary.title') }}</h3>
-          <button @click="showAssetLibraryDialog = false" class="text-gray-500 dark:text-content-secondary hover:text-gray-700 dark:hover:text-content-primary">
-            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+    <div v-if="activeTab === 'assetLibrary'" class="space-y-4">
+      <div class="flex gap-2 mb-3">
+        <input
+          v-model="assetSearchQuery"
+          type="text"
+          :placeholder="t('assetLibrary.searchPlaceholder')"
+          class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
+          @input="searchAssets()"
+          @keyup.enter="searchAssets(true)"
+        />
+        <button
+          @click="searchAssets(true)"
+          :disabled="isSearchingAssets"
+          class="btn-primary disabled:opacity-50 text-sm"
+        >
+          {{ isSearchingAssets ? t('assetLibrary.searching') : t('assetLibrary.search') }}
+        </button>
+      </div>
 
-        <div class="flex gap-2 mb-3">
-          <input
-            v-model="assetSearchQuery"
-            type="text"
-            :placeholder="t('assetLibrary.searchPlaceholder')"
-            class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
-            @input="searchAssets()"
-            @keyup.enter="searchAssets(true)"
-          />
-          <button
-            @click="searchAssets(true)"
-            :disabled="isSearchingAssets"
-            class="btn-primary disabled:opacity-50 text-sm"
-          >
-            {{ isSearchingAssets ? t('assetLibrary.searching') : t('assetLibrary.search') }}
-          </button>
-        </div>
+      <div class="flex flex-wrap gap-2 mb-3">
+        <select v-model="assetFilterType" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
+          <option value="any">{{ t('assetLibrary.typeAny') }}</option>
+          <option value="addon">{{ t('assetLibrary.typeAddon') }}</option>
+          <option value="project">{{ t('assetLibrary.typeProject') }}</option>
+        </select>
+        <select v-model="assetFilterCategory" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
+          <option value="">{{ t('assetLibrary.categoryAll') }}</option>
+          <option v-for="cat in assetCategories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+        </select>
+        <select v-model="assetFilterGodotVersion" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
+          <option value="any">{{ t('assetLibrary.godotVersionAny') }}</option>
+          <option value="4.0">{{ t('assetLibrary.godot4x') }}</option>
+          <option value="3.0">{{ t('assetLibrary.godot3x') }}</option>
+        </select>
+        <select v-model="assetFilterSupport" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
+          <option value="">{{ t('assetLibrary.supportAll') }}</option>
+          <option value="official">{{ t('assetLibrary.supportOfficial') }}</option>
+          <option value="featured">{{ t('assetLibrary.supportFeatured') }}</option>
+          <option value="community">{{ t('assetLibrary.supportCommunity') }}</option>
+          <option value="testing">{{ t('assetLibrary.supportTesting') }}</option>
+        </select>
+        <select v-model="assetSortBy" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
+          <option value="updated">{{ t('assetLibrary.sortUpdated') }}</option>
+          <option value="rating">{{ t('assetLibrary.sortRating') }}</option>
+          <option value="name">{{ t('assetLibrary.sortName') }}</option>
+          <option value="cost">{{ t('assetLibrary.sortCost') }}</option>
+        </select>
+      </div>
 
-        <div class="flex flex-wrap gap-2 mb-3">
-          <select v-model="assetFilterType" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
-            <option value="any">{{ t('assetLibrary.typeAny') }}</option>
-            <option value="addon">{{ t('assetLibrary.typeAddon') }}</option>
-            <option value="project">{{ t('assetLibrary.typeProject') }}</option>
-          </select>
-          <select v-model="assetFilterCategory" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
-            <option value="">{{ t('assetLibrary.categoryAll') }}</option>
-            <option v-for="cat in assetCategories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
-          </select>
-          <select v-model="assetFilterGodotVersion" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
-            <option value="any">{{ t('assetLibrary.godotVersionAny') }}</option>
-            <option value="4.0">{{ t('assetLibrary.godot4x') }}</option>
-            <option value="3.0">{{ t('assetLibrary.godot3x') }}</option>
-          </select>
-          <select v-model="assetFilterSupport" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
-            <option value="">{{ t('assetLibrary.supportAll') }}</option>
-            <option value="official">{{ t('assetLibrary.supportOfficial') }}</option>
-            <option value="featured">{{ t('assetLibrary.supportFeatured') }}</option>
-            <option value="community">{{ t('assetLibrary.supportCommunity') }}</option>
-            <option value="testing">{{ t('assetLibrary.supportTesting') }}</option>
-          </select>
-          <select v-model="assetSortBy" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
-            <option value="updated">{{ t('assetLibrary.sortUpdated') }}</option>
-            <option value="rating">{{ t('assetLibrary.sortRating') }}</option>
-            <option value="name">{{ t('assetLibrary.sortName') }}</option>
-            <option value="cost">{{ t('assetLibrary.sortCost') }}</option>
-          </select>
-        </div>
+      <div v-if="selectedAssetIds.size > 0" class="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-2 mb-3 flex items-center justify-between">
+        <span class="text-xs font-medium text-primary-700 dark:text-primary-300">{{ t('assetLibrary.selectedCount', { count: selectedAssetIds.size }) }}</span>
+        <button
+          @click="batchImportAssets"
+          :disabled="!!pluginStore.isImporting"
+          class="px-3 py-1 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700 disabled:opacity-50"
+        >
+          {{ t('assetLibrary.batchImport') }} ({{ selectedAssetIds.size }})
+        </button>
+      </div>
 
-        <div v-if="selectedAssetIds.size > 0" class="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-2 mb-3 flex items-center justify-between">
-          <span class="text-xs font-medium text-primary-700 dark:text-primary-300">{{ t('assetLibrary.selectedCount', { count: selectedAssetIds.size }) }}</span>
-          <button
-            @click="batchImportAssets"
-            :disabled="!!pluginStore.isImporting"
-            class="px-3 py-1 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700 disabled:opacity-50"
-          >
-            {{ t('assetLibrary.batchImport') }} ({{ selectedAssetIds.size }})
-          </button>
+      <div v-if="pluginStore.importProgress && pluginStore.isImporting" class="mb-3">
+        <div class="flex items-center justify-between text-xs text-gray-600 dark:text-content-secondary mb-1">
+          <span>{{ pluginStore.importProgress.message }}</span>
+          <span>{{ Math.round(pluginStore.importProgress.progress * 100) }}%</span>
         </div>
-
-        <div v-if="pluginStore.importProgress && pluginStore.isImporting" class="mb-3">
-          <div class="flex items-center justify-between text-xs text-gray-600 dark:text-content-secondary mb-1">
-            <span>{{ pluginStore.importProgress.message }}</span>
-            <span>{{ Math.round(pluginStore.importProgress.progress * 100) }}%</span>
-          </div>
-          <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-            <div
-              class="bg-primary-600 h-2 rounded-full transition-all duration-300"
-              :style="{ width: `${pluginStore.importProgress.progress * 100}%` }"
-            ></div>
-          </div>
-        </div>
-
-        <div class="flex-1 overflow-y-auto space-y-2">
-          <div v-if="assetSearchResults.length === 0 && !isSearchingAssets" class="text-center py-8 text-gray-500 dark:text-content-secondary">
-            {{ t('assetLibrary.noResults') }}
-          </div>
-          <div v-if="isSearchingAssets" class="flex justify-center py-8">
-            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-          </div>
+        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
           <div
-            v-for="asset in assetSearchResults"
-            :key="asset.asset_id"
-            :class="[
-              'bg-gray-50 dark:bg-surface-layer rounded-lg p-3 transition-colors',
-              selectedAssetIds.has(asset.asset_id) ? 'ring-2 ring-primary-500' : ''
-            ]"
-          >
-            <div class="flex items-center gap-3">
-              <input
-                type="checkbox"
-                :checked="selectedAssetIds.has(asset.asset_id)"
-                @change="toggleAssetSelection(asset.asset_id)"
-                class="w-4 h-4 text-primary-600 rounded flex-shrink-0 cursor-pointer"
-              />
-              <img
-                v-if="asset.icon_url"
-                :src="asset.icon_url"
-                :alt="asset.title"
-                class="w-10 h-10 rounded object-cover flex-shrink-0"
-                loading="lazy"
-                @error="($event.target as HTMLImageElement).style.display = 'none'"
-              />
-              <div v-else class="w-10 h-10 rounded bg-gray-200 dark:bg-gray-600 flex items-center justify-center flex-shrink-0">
-                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
-                </svg>
-              </div>
-              <div class="flex-1 min-w-0 cursor-pointer" @click="openAssetDetail(asset.asset_id)">
-                <div class="flex items-center gap-2">
-                  <span class="font-medium text-gray-900 dark:text-content-primary text-sm truncate">{{ asset.title }}</span>
-                  <span v-if="asset.support_level === 'official'" class="px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">{{ t('assetLibrary.supportOfficial') }}</span>
-                  <span v-else-if="asset.support_level === 'featured'" class="px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">{{ t('assetLibrary.supportFeatured') }}</span>
-                </div>
-                <div class="text-xs text-gray-500 dark:text-content-secondary mt-0.5">
-                  {{ asset.author }} · {{ asset.category }} · {{ asset.cost }}
-                </div>
-              </div>
-              <button
-                v-if="!importedAssetIds.has(asset.asset_id)"
-                @click="importAsset(asset.asset_id, asset.title)"
-                :disabled="pluginStore.isImporting === asset.asset_id"
-                class="btn-primary disabled:opacity-50 text-xs px-3 py-1.5 flex-shrink-0"
-              >
-                {{ pluginStore.isImporting === asset.asset_id ? t('assetLibrary.importing') : t('assetLibrary.import') }}
-              </button>
-              <span v-else class="text-xs px-3 py-1.5 text-green-600 dark:text-green-400 flex-shrink-0 font-medium">✓ {{ t('assetLibrary.alreadyImported') }}</span>
-            </div>
-          </div>
+            class="bg-primary-600 h-2 rounded-full transition-all duration-300"
+            :style="{ width: `${pluginStore.importProgress.progress * 100}%` }"
+          ></div>
         </div>
+      </div>
 
-        <div v-if="assetTotalPages > 0" class="flex items-center justify-between mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
-          <span class="text-xs text-gray-500 dark:text-content-secondary">
-            {{ t('assetLibrary.totalItems', { count: assetTotalItems }) }}
-          </span>
-          <div class="flex items-center gap-2">
+      <div class="space-y-2">
+        <div v-if="assetSearchResults.length === 0 && !isSearchingAssets" class="text-center py-8 text-gray-500 dark:text-content-secondary">
+          {{ t('assetLibrary.noResults') }}
+        </div>
+        <div v-if="isSearchingAssets" class="flex justify-center py-8">
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+        </div>
+        <div
+          v-for="asset in assetSearchResults"
+          :key="asset.asset_id"
+          :class="[
+            'bg-white dark:bg-surface-card rounded-lg shadow hover:shadow-md p-3 transition-colors',
+            selectedAssetIds.has(asset.asset_id) ? 'ring-2 ring-primary-500' : ''
+          ]"
+        >
+          <div class="flex items-center gap-3">
+            <input
+              type="checkbox"
+              :checked="selectedAssetIds.has(asset.asset_id)"
+              @change="toggleAssetSelection(asset.asset_id)"
+              class="w-4 h-4 text-primary-600 rounded flex-shrink-0 cursor-pointer"
+            />
+            <img
+              v-if="asset.icon_url"
+              :src="asset.icon_url"
+              :alt="asset.title"
+              class="w-10 h-10 rounded object-cover flex-shrink-0"
+              loading="lazy"
+              @error="($event.target as HTMLImageElement).style.display = 'none'"
+            />
+            <div v-else class="w-10 h-10 rounded bg-gray-200 dark:bg-gray-600 flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0 cursor-pointer" @click="openAssetDetail(asset.asset_id)">
+              <div class="flex items-center gap-2">
+                <span class="font-medium text-gray-900 dark:text-content-primary text-sm truncate">{{ asset.title }}</span>
+                <span v-if="asset.support_level === 'official'" class="px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">{{ t('assetLibrary.supportOfficial') }}</span>
+                <span v-else-if="asset.support_level === 'featured'" class="px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">{{ t('assetLibrary.supportFeatured') }}</span>
+              </div>
+              <div class="text-xs text-gray-500 dark:text-content-secondary mt-0.5">
+                {{ asset.author }} · {{ asset.category }} · {{ asset.cost }}
+              </div>
+            </div>
             <button
-              @click="assetPrevPage"
-              :disabled="assetCurrentPage === 0"
-              class="px-3 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-surface-layer text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-card disabled:opacity-50"
+              v-if="!importedAssetIds.has(asset.asset_id)"
+              @click="importAsset(asset.asset_id, asset.title)"
+              :disabled="pluginStore.isImporting === asset.asset_id"
+              class="btn-primary disabled:opacity-50 text-xs px-3 py-1.5 flex-shrink-0"
             >
-              {{ t('assetLibrary.prevPage') }}
+              {{ pluginStore.isImporting === asset.asset_id ? t('assetLibrary.importing') : t('assetLibrary.import') }}
             </button>
-            <span class="text-xs text-gray-600 dark:text-content-secondary">
-              {{ t('assetLibrary.page', { current: assetCurrentPage + 1, total: assetTotalPages }) }}
-            </span>
-            <button
-              @click="assetNextPage"
-              :disabled="assetCurrentPage >= assetTotalPages - 1"
-              class="px-3 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-surface-layer text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-card disabled:opacity-50"
-            >
-              {{ t('assetLibrary.nextPage') }}
-            </button>
+            <span v-else class="text-xs px-3 py-1.5 text-green-600 dark:text-green-400 flex-shrink-0 font-medium">✓ {{ t('assetLibrary.alreadyImported') }}</span>
           </div>
         </div>
       </div>
+
+      <div v-if="assetTotalPages > 0" class="flex items-center justify-between mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+        <span class="text-xs text-gray-500 dark:text-content-secondary">
+          {{ t('assetLibrary.totalItems', { count: assetTotalItems }) }}
+        </span>
+        <div class="flex items-center gap-2">
+          <button
+            @click="assetPrevPage"
+            :disabled="assetCurrentPage === 0"
+            class="px-3 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-surface-layer text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-card disabled:opacity-50"
+          >
+            {{ t('assetLibrary.prevPage') }}
+          </button>
+          <span class="text-xs text-gray-600 dark:text-content-secondary">
+            {{ t('assetLibrary.page', { current: assetCurrentPage + 1, total: assetTotalPages }) }}
+          </span>
+          <button
+            @click="assetNextPage"
+            :disabled="assetCurrentPage >= assetTotalPages - 1"
+            class="px-3 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-surface-layer text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-card disabled:opacity-50"
+          >
+            {{ t('assetLibrary.nextPage') }}
+          </button>
+        </div>
+      </div>
     </div>
-  </Teleport>
 
   <Teleport to="body">
     <div v-if="showAssetDetailDialog && assetDetail" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showAssetDetailDialog = false; assetDetail = null">
@@ -2671,14 +2722,9 @@ const quickBindFromCard = async (plugin: Plugin) => {
         >
           {{ t('linker.batchApplyTitle') }}
         </button>
-        <button
-          v-if="selectedLinkId"
-          @click="confirmLinkerApply"
-          :disabled="isLinkerApplying"
-          class="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 disabled:opacity-50"
-        >
-          {{ isLinkerApplying ? t('linker.applying') : t('linker.apply') }}
-        </button>
+        <span v-if="mountStrategyDisplay" class="text-xs text-gray-500 dark:text-content-secondary px-2 py-1 bg-gray-100 dark:bg-surface-layer rounded-lg">
+          {{ t('plugins.mountStrategyLabel') }}: {{ mountStrategyDisplay }}
+        </span>
       </div>
 
       <div v-if="!showGraphView" class="grid grid-cols-12 gap-4">
@@ -2865,14 +2911,19 @@ const quickBindFromCard = async (plugin: Plugin) => {
         <p class="text-sm text-gray-500 dark:text-content-secondary mb-3">
           {{ t('plugins.deleteConfirm.singleDesc') }}
         </p>
-        <div v-if="deletePluginBindings.length > 0" class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-          <p class="text-sm font-medium text-red-700 dark:text-red-400 mb-2">
-            {{ t('plugins.deleteConfirm.bindingWarning', { count: new Set(deletePluginBindings.map(b => b.project_id)).size, name: deletePluginName }) }}
-          </p>
+        <div v-if="deletePluginBindings.length > 0" class="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-lg">
+          <div class="flex items-center gap-2 mb-2">
+            <svg class="w-5 h-5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+            <p class="text-sm font-bold text-red-700 dark:text-red-400">
+              {{ t('plugins.deleteConfirm.bindingWarning', { count: new Set(deletePluginBindings.map(b => b.project_id)).size, name: deletePluginName }) }}
+            </p>
+          </div>
           <div class="space-y-2 max-h-40 overflow-y-auto">
             <div v-for="projectId in [...new Set(deletePluginBindings.map(b => b.project_id))]" :key="projectId" class="text-xs"><div class="font-medium text-red-700 dark:text-red-400">{{ deletePluginProjects.get(projectId) || projectId }}</div><div v-for="binding in deletePluginBindings.filter(b => b.project_id === projectId)" :key="binding.mount_path" class="text-red-600 dark:text-red-400 pl-3">{{ binding.mount_path }}</div></div>
           </div>
-          <p class="text-xs text-red-500 dark:text-red-400 mt-2">
+          <p class="text-xs text-red-500 dark:text-red-400 mt-2 font-medium">
             {{ t('plugins.deleteConfirm.bindingWarningDesc') }}
           </p>
         </div>
@@ -2978,6 +3029,15 @@ const quickBindFromCard = async (plugin: Plugin) => {
         <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">
           {{ t('linker.batchBindDesc', { projectCount: selectedLinkProjectCount, pluginCount: selectedLinkPluginCount }) }}
         </p>
+        <div v-if="batchProgress" class="mb-4">
+          <div class="flex items-center justify-between text-xs text-gray-600 dark:text-content-secondary mb-1">
+            <span>{{ batchProgress.message }}</span>
+            <span>{{ Math.round((batchProgress.current / batchProgress.total) * 100) }}%</span>
+          </div>
+          <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+            <div class="bg-primary-600 h-2 rounded-full transition-all duration-300" :style="{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }"></div>
+          </div>
+        </div>
         <div class="mb-4">
           <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ t('linker.targetProjects') }}：</p>
           <div class="flex flex-wrap gap-1">
@@ -2993,6 +3053,10 @@ const quickBindFromCard = async (plugin: Plugin) => {
               {{ plugins.find(p => p.plugin_id === id)?.name || t('linker.unknownPlugin') }}
             </span>
           </div>
+        </div>
+        <div v-if="batchFailedItems.length > 0" class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+          <p class="text-xs font-medium text-red-600 dark:text-red-400 mb-2">{{ batchFailedItems.length }} {{ t('plugins.retryFailed') }}</p>
+          <button @click="retryBatchFailed" class="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700">{{ t('plugins.retryFailed') }}</button>
         </div>
         <div class="flex justify-end gap-3">
           <button @click="showLinkerBatchBindDialog = false" class="btn-secondary">{{ t('linker.cancel') }}</button>
