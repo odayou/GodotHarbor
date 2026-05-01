@@ -11,6 +11,7 @@ use crate::linker::Linker;
 use crate::operation_log::{OperationLogger, LogEntry};
 use crate::AppState;
 use uuid::Uuid;
+use futures::future::join_all;
 
 fn get_config_dir(app: &AppHandle) -> PathBuf {
     app.path().app_data_dir()
@@ -59,6 +60,78 @@ fn get_logger(app: &AppHandle) -> OperationLogger {
     let data_dir = get_data_dir(app);
     OperationLogger::new(data_dir)
 }
+
+fn upsert_plugin(app: &AppHandle, new_plugin: &crate::models::Plugin, operation: &str, source_desc: &str) -> Result<crate::models::Plugin, String> {
+    let storage = get_storage(app);
+    let mut plugins: Vec<crate::models::Plugin> = storage.load_or_default("plugins.json");
+    let plugin_name = new_plugin.name.clone();
+    let existing_idx = plugins.iter().position(|p| p.source.url == new_plugin.source.url);
+    if let Some(idx) = existing_idx {
+        plugins[idx].versions.extend(new_plugin.versions.clone());
+        if !new_plugin.content_hash.is_empty() {
+            plugins[idx].content_hash = new_plugin.content_hash.clone();
+        }
+        let result = plugins[idx].clone();
+        storage.save("plugins.json", &plugins)
+            .map_err(|e| format!("保存插件列表失败: {}", e))?;
+        log_operation(app, operation, source_desc, &format!("已为插件 {} 添加新版本", plugin_name));
+        Ok(result)
+    } else {
+        if !new_plugin.content_hash.is_empty() {
+            if let Some(dup) = plugins.iter().find(|p| !p.content_hash.is_empty() && p.content_hash == new_plugin.content_hash) {
+                log_operation(app, operation, source_desc,
+                    &format!("插件 {} 与已有插件 {} 内容相同(hash匹配)", plugin_name, dup.name));
+            }
+        }
+        plugins.push(new_plugin.clone());
+        storage.save("plugins.json", &plugins)
+            .map_err(|e| format!("保存插件列表失败: {}", e))?;
+        log_operation(app, operation, source_desc, &format!("已导入插件: {}", plugin_name));
+        Ok(new_plugin.clone())
+    }
+}
+
+fn create_http_client(timeout: Option<std::time::Duration>) -> Result<reqwest::Client, String> {
+    let mut builder = reqwest::Client::builder().user_agent("GodotHarbor");
+    if let Some(d) = timeout {
+        builder = builder.timeout(d);
+    }
+    builder.build().map_err(|e| format!("创建 HTTP 客户端失败: {}", e))
+}
+
+pub fn get_default_scan_dirs() -> Vec<String> {
+    let mut dirs = Vec::new();
+    if cfg!(windows) {
+        if let Some(userprofile) = std::env::var("USERPROFILE").ok() {
+            dirs.push(format!("{}\\Documents", userprofile));
+            dirs.push(format!("{}\\Desktop", userprofile));
+        }
+        for drive in ['D', 'E', 'F'] {
+            let drive_path = format!("{}:\\", drive);
+            if std::path::Path::new(&drive_path).exists() {
+                dirs.push(drive_path);
+            }
+        }
+    } else {
+        if let Some(home) = std::env::var("HOME").ok() {
+            dirs.push(format!("{}/Documents", home));
+            dirs.push(format!("{}/projects", home));
+        }
+    }
+    dirs
+}
+
+const DATA_FILES: &[&str] = &[
+    "settings.json",
+    "projects.json",
+    "plugins.json",
+    "bindings.json",
+    "engines.json",
+    "engine_bindings.json",
+    "team_configs.json",
+    "operation_logs.json",
+    "update_logs.json"
+];
 
 fn get_backup_search_paths(app: &AppHandle) -> Vec<PathBuf> {
     let mut paths = Vec::new();
@@ -129,8 +202,7 @@ pub fn migrate_data_dir(app: AppHandle, new_data_dir: String) -> Result<(), Stri
     for dir_name in &dirs_to_migrate {
         let src = old_data_dir.join(dir_name);
         if src.exists() {
-            copy_dir_recursive(&src, &new_path.join(dir_name))
-                .map_err(|e| format!("复制 {} 目录失败: {}", dir_name, e))?;
+            copy_dir_all(&src, &new_path.join(dir_name))?;
         }
     }
 
@@ -539,35 +611,7 @@ pub fn import_plugin_from_local(app: AppHandle, path: String) -> Result<Plugin, 
     let manager = get_plugin_manager(&app);
     let new_plugin = manager.import_from_local(&path)
         .map_err(|e| format!("导入本地插件失败: {}", e))?;
-
-    let storage = get_storage(&app);
-    let mut plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
-
-    let plugin_name = new_plugin.name.clone();
-    let existing_idx = plugins.iter().position(|p| p.source.url == new_plugin.source.url);
-    if let Some(idx) = existing_idx {
-        plugins[idx].versions.extend(new_plugin.versions);
-        if !new_plugin.content_hash.is_empty() {
-            plugins[idx].content_hash = new_plugin.content_hash.clone();
-        }
-        let result = plugins[idx].clone();
-        storage.save("plugins.json", &plugins)
-            .map_err(|e| format!("保存插件列表失败: {}", e))?;
-        log_operation(&app, "import_plugin", &path, &format!("已为插件 {} 添加新版本", plugin_name));
-        Ok(result)
-    } else {
-        if !new_plugin.content_hash.is_empty() {
-            if let Some(dup) = plugins.iter().find(|p| !p.content_hash.is_empty() && p.content_hash == new_plugin.content_hash) {
-                log_operation(&app, "import_plugin", &path, 
-                    &format!("插件 {} 与已有插件 {} 内容相同(hash匹配)", plugin_name, dup.name));
-            }
-        }
-        plugins.push(new_plugin.clone());
-        storage.save("plugins.json", &plugins)
-            .map_err(|e| format!("保存插件列表失败: {}", e))?;
-        log_operation(&app, "import_plugin", &path, &format!("已导入插件: {}", plugin_name));
-        Ok(new_plugin)
-    }
+    upsert_plugin(&app, &new_plugin, "import_plugin", &path)
 }
 
 #[tauri::command]
@@ -579,35 +623,7 @@ pub fn import_plugin_from_git(app: AppHandle, url: String) -> Result<Plugin, Str
     let manager = get_plugin_manager(&app);
     let new_plugin = manager.import_from_git(&url, &app)
         .map_err(|e| format!("从 Git 导入插件失败: {}，请检查仓库地址是否正确", e))?;
-
-    let storage = get_storage(&app);
-    let mut plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
-
-    let plugin_name = new_plugin.name.clone();
-    let existing_idx = plugins.iter().position(|p| p.source.url == new_plugin.source.url);
-    if let Some(idx) = existing_idx {
-        plugins[idx].versions.extend(new_plugin.versions);
-        if !new_plugin.content_hash.is_empty() {
-            plugins[idx].content_hash = new_plugin.content_hash.clone();
-        }
-        let result = plugins[idx].clone();
-        storage.save("plugins.json", &plugins)
-            .map_err(|e| format!("保存插件列表失败: {}", e))?;
-        log_operation(&app, "import_plugin_git", &url, &format!("已为插件 {} 添加新版本", plugin_name));
-        Ok(result)
-    } else {
-        if !new_plugin.content_hash.is_empty() {
-            if let Some(dup) = plugins.iter().find(|p| !p.content_hash.is_empty() && p.content_hash == new_plugin.content_hash) {
-                log_operation(&app, "import_plugin_git", &url, 
-                    &format!("插件 {} 与已有插件 {} 内容相同(hash匹配)", plugin_name, dup.name));
-            }
-        }
-        plugins.push(new_plugin.clone());
-        storage.save("plugins.json", &plugins)
-            .map_err(|e| format!("保存插件列表失败: {}", e))?;
-        log_operation(&app, "import_plugin_git", &url, &format!("已从 Git 导入插件: {}", plugin_name));
-        Ok(new_plugin)
-    }
+    upsert_plugin(&app, &new_plugin, "import_plugin_git", &url)
 }
 
 #[tauri::command]
@@ -797,25 +813,7 @@ pub fn restart_fs_watcher(app: AppHandle, state: State<'_, AppState>) -> Result<
     let settings = load_settings(&app);
 
     let dirs = if settings.scan_directories.is_empty() {
-        let mut default_dirs = Vec::new();
-        if cfg!(windows) {
-            if let Some(userprofile) = std::env::var("USERPROFILE").ok() {
-                default_dirs.push(format!("{}\\Documents", userprofile));
-                default_dirs.push(format!("{}\\Desktop", userprofile));
-            }
-            for drive in ['D', 'E', 'F'] {
-                let drive_path = format!("{}:\\", drive);
-                if std::path::Path::new(&drive_path).exists() {
-                    default_dirs.push(drive_path);
-                }
-            }
-        } else {
-            if let Some(home) = std::env::var("HOME").ok() {
-                default_dirs.push(format!("{}/Documents", home));
-                default_dirs.push(format!("{}/projects", home));
-            }
-        }
-        default_dirs
+        get_default_scan_dirs()
     } else {
         settings.scan_directories
     };
@@ -1307,8 +1305,7 @@ pub fn migrate_plugin_storage(app: AppHandle, old_path: String, new_path: String
         let dst = new.join(&file_name);
 
         if src.is_dir() {
-            copy_dir_recursive(&src, &dst)
-                .map_err(|e| format!("复制目录失败: {}", e))?;
+            copy_dir_all(&src, &dst)?;
         } else {
             fs::copy(&src, &dst)
                 .map_err(|e| format!("复制文件失败: {}", e))?;
@@ -1330,23 +1327,6 @@ pub fn migrate_plugin_storage(app: AppHandle, old_path: String, new_path: String
     log_operation(&app, "migrate_plugin_storage", "",
         &format!("已将插件存储从 {} 迁移到 {}", old_path, new_path));
 
-    Ok(())
-}
-
-fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
-    if !dst.exists() {
-        fs::create_dir_all(dst)?;
-    }
-    for entry in fs::read_dir(src)? {
-        let entry = entry?;
-        let src_path = entry.path();
-        let dst_path = dst.join(entry.file_name());
-        if src_path.is_dir() {
-            copy_dir_recursive(&src_path, &dst_path)?;
-        } else {
-            fs::copy(&src_path, &dst_path)?;
-        }
-    }
     Ok(())
 }
 
@@ -1532,11 +1512,7 @@ pub async fn check_app_update(app: AppHandle) -> Result<Option<AppUpdateInfo>, S
         }
     }
 
-    let client = reqwest::Client::builder()
-        .user_agent("GodotHarbor")
-        .timeout(std::time::Duration::from_secs(15))
-        .build()
-        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+    let client = create_http_client(Some(std::time::Duration::from_secs(15)))?;
 
     let api_url = format!(
         "https://api.github.com/repos/{}/{}/releases/latest",
@@ -1625,10 +1601,7 @@ pub async fn install_app_update(app: AppHandle) -> Result<(), String> {
     let download_url = update_info.download_url
         .ok_or("未找到下载链接".to_string())?;
 
-    let client = reqwest::Client::builder()
-        .user_agent("GodotHarbor")
-        .build()
-        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+    let client = create_http_client(None)?;
 
     let _ = app.emit("app-update-progress", serde_json::json!({
         "stage": "downloading",
@@ -1765,12 +1738,13 @@ fn open_file_in_os(path: &Path) -> Result<(), String> {
 #[tauri::command]
 pub fn batch_update_plugins(app: AppHandle, plugin_ids: Vec<String>) -> Result<BatchResult, String> {
     let storage = get_storage(&app);
-    let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+    let mut plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
     let manager = get_plugin_manager(&app);
 
     let mut success_count = 0usize;
     let mut failed_count = 0usize;
     let mut errors = Vec::new();
+    let mut dirty = false;
 
     for plugin_id in &plugin_ids {
         let plugin = match plugins.iter().find(|p| p.plugin_id == *plugin_id) {
@@ -1791,15 +1765,13 @@ pub fn batch_update_plugins(app: AppHandle, plugin_ids: Vec<String>) -> Result<B
         let git_url = plugin.source.url.clone();
         match manager.import_from_git(&git_url, &app) {
             Ok(updated) => {
-                let mut all_plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
-                if let Some(idx) = all_plugins.iter().position(|p| p.plugin_id == *plugin_id) {
-                    all_plugins[idx].versions.extend(updated.versions);
+                if let Some(idx) = plugins.iter().position(|p| p.plugin_id == *plugin_id) {
+                    plugins[idx].versions.extend(updated.versions);
                     if !updated.content_hash.is_empty() {
-                        all_plugins[idx].content_hash = updated.content_hash;
+                        plugins[idx].content_hash = updated.content_hash;
                     }
-                    all_plugins[idx].updated_at = chrono::Utc::now();
-                    storage.save("plugins.json", &all_plugins)
-                        .map_err(|e| format!("保存插件列表失败: {}", e))?;
+                    plugins[idx].updated_at = chrono::Utc::now();
+                    dirty = true;
                 }
                 success_count += 1;
                 let _ = app.emit("plugin-update-progress", serde_json::json!({
@@ -1820,6 +1792,11 @@ pub fn batch_update_plugins(app: AppHandle, plugin_ids: Vec<String>) -> Result<B
                 }));
             }
         }
+    }
+
+    if dirty {
+        storage.save("plugins.json", &plugins)
+            .map_err(|e| format!("保存插件列表失败: {}", e))?;
     }
 
     log_operation(&app, "batch_update_plugins", "", 
@@ -1847,11 +1824,7 @@ pub async fn check_all_updates(app: AppHandle) -> Result<UpdateCheckResult, Stri
         .filter(|p| p.source.source_type == SourceType::Git)
         .collect();
 
-    let client = reqwest::Client::builder()
-        .user_agent("GodotHarbor")
-        .timeout(std::time::Duration::from_secs(10))
-        .build()
-        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+    let client = create_http_client(Some(std::time::Duration::from_secs(10)))?;
 
     let futures = git_plugins.iter().map(|plugin| {
         let client = client.clone();
@@ -2117,20 +2090,10 @@ pub fn backup_data(app: AppHandle, backup_path: String) -> Result<String, String
     std::fs::create_dir_all(&backup_dir)
         .map_err(|e| format!("创建备份目录失败: {}", e))?;
 
-    let files = [
-        "settings.json", 
-        "projects.json", 
-        "plugins.json", 
-        "bindings.json", 
-        "engines.json", 
-        "engine_bindings.json", 
-        "team_configs.json",
-        "operation_logs.json",
-        "update_logs.json"
-    ];
+    let files = DATA_FILES;
     let mut backup_files = Vec::new();
 
-    for filename in &files {
+    for filename in files {
         let src = data_dir.join(filename);
         if src.exists() {
             let dst = backup_dir.join(filename);
@@ -2188,20 +2151,10 @@ pub fn restore_data(app: AppHandle, backup_path: String) -> Result<String, Strin
         return Err("无效的备份目录，缺少 backup_info.json".to_string());
     }
 
-    let files = [
-        "settings.json", 
-        "projects.json", 
-        "plugins.json", 
-        "bindings.json", 
-        "engines.json", 
-        "engine_bindings.json", 
-        "team_configs.json",
-        "operation_logs.json",
-        "update_logs.json"
-    ];
+    let files = DATA_FILES;
     let mut restore_info = Vec::new();
 
-    for filename in &files {
+    for filename in files {
         let src = backup_dir.join(filename);
         if src.exists() {
             let dst = data_dir.join(filename);
@@ -2244,20 +2197,10 @@ pub fn reset_data(app: AppHandle, backup_path: String) -> Result<String, String>
     std::fs::create_dir_all(&backup_dir)
         .map_err(|e| format!("创建备份目录失败: {}", e))?;
 
-    let files = [
-        "settings.json", 
-        "projects.json", 
-        "plugins.json", 
-        "bindings.json", 
-        "engines.json", 
-        "engine_bindings.json", 
-        "team_configs.json",
-        "operation_logs.json",
-        "update_logs.json"
-    ];
+    let files = DATA_FILES;
     let mut backup_files = Vec::new();
 
-    for filename in &files {
+    for filename in files {
         let src = data_dir.join(filename);
         if src.exists() {
             let dst = backup_dir.join(filename);
@@ -2299,19 +2242,9 @@ pub fn reset_data(app: AppHandle, backup_path: String) -> Result<String, String>
 
     log_operation(&app, "backup_data", &backup_path, &format!("数据备份成功，共备份 {} 个文件", backup_files.len()));
 
-    let files_to_delete = [
-        "settings.json",
-        "projects.json",
-        "plugins.json",
-        "bindings.json",
-        "engines.json",
-        "engine_bindings.json",
-        "team_configs.json",
-        "operation_logs.json",
-        "update_logs.json"
-    ];
+    let files_to_delete = DATA_FILES;
 
-    for filename in &files_to_delete {
+    for filename in files_to_delete {
         let file_path = data_dir.join(filename);
         if file_path.exists() {
             std::fs::remove_file(&file_path)
@@ -2583,11 +2516,7 @@ pub async fn check_plugin_updates(app: AppHandle) -> Result<Vec<PluginUpdateInfo
     let storage = get_storage(&app);
     let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
 
-    let client = reqwest::Client::builder()
-        .user_agent("GodotHarbor")
-        .timeout(std::time::Duration::from_secs(10))
-        .build()
-        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+    let client = create_http_client(Some(std::time::Duration::from_secs(10)))?;
 
     let futures = plugins.iter().map(|plugin| {
         let client = client.clone();
@@ -2888,10 +2817,7 @@ pub async fn search_asset_library(app: AppHandle, params: AssetLibrarySearchPara
 
     let url = format!("https://godotengine.org/asset-library/api/asset?{}", url_params.join("&"));
 
-    let client = reqwest::Client::builder()
-        .user_agent("GodotHarbor")
-        .build()
-        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+    let client = create_http_client(None)?;
 
     let resp = client.get(&url).send().await
         .map_err(|e| format!("请求 Asset Library 失败: {}", e))?;
@@ -2915,10 +2841,7 @@ pub async fn search_asset_library(app: AppHandle, params: AssetLibrarySearchPara
 pub async fn get_asset_library_configure(app: AppHandle) -> Result<serde_json::Value, String> {
     let url = "https://godotengine.org/asset-library/api/configure?type=any";
 
-    let client = reqwest::Client::builder()
-        .user_agent("GodotHarbor")
-        .build()
-        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+    let client = create_http_client(None)?;
 
     let resp = client.get(url).send().await
         .map_err(|e| format!("请求 Asset Library 配置失败: {}", e))?;
@@ -2941,10 +2864,7 @@ pub async fn get_asset_detail(app: AppHandle, asset_id: String) -> Result<serde_
         asset_id
     );
 
-    let client = reqwest::Client::builder()
-        .user_agent("GodotHarbor")
-        .build()
-        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+    let client = create_http_client(None)?;
 
     let resp = client.get(&url).send().await
         .map_err(|e| format!("请求 Asset Library 失败: {}", e))?;
@@ -2967,10 +2887,7 @@ pub async fn import_from_asset_library(app: AppHandle, asset_id: String) -> Resu
         asset_id
     );
 
-    let client = reqwest::Client::builder()
-        .user_agent("GodotHarbor")
-        .build()
-        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+    let client = create_http_client(None)?;
 
     let resp = client.get(&url).send().await
         .map_err(|e| format!("请求 Asset Library 失败: {}", e))?;
@@ -3087,24 +3004,7 @@ pub async fn import_from_asset_library(app: AppHandle, asset_id: String) -> Resu
     plugin.name = unit_name;
     plugin.content_hash = content_hash;
 
-    let storage = get_storage(&app);
-    let mut plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
-
-    let existing_idx = plugins.iter().position(|p| p.source.url == plugin.source.url);
-    if let Some(idx) = existing_idx {
-        plugins[idx].versions.extend(plugin.versions);
-        let result = plugins[idx].clone();
-        storage.save("plugins.json", &plugins)
-            .map_err(|e| format!("保存插件列表失败: {}", e))?;
-        log_operation(&app, "import_asset_library", &asset_id.to_string(), &format!("已为插件 {} 添加新版本", result.name));
-        Ok(result)
-    } else {
-        plugins.push(plugin.clone());
-        storage.save("plugins.json", &plugins)
-            .map_err(|e| format!("保存插件列表失败: {}", e))?;
-        log_operation(&app, "import_asset_library", &asset_id.to_string(), &format!("已从 Asset Library 导入插件: {}", plugin.name));
-        Ok(plugin)
-    }
+    upsert_plugin(&app, &plugin, "import_asset_library", &asset_id.to_string())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -3129,10 +3029,7 @@ pub async fn import_from_asset_library_with_progress(app: AppHandle, asset_id: S
         asset_id
     );
 
-    let client = reqwest::Client::builder()
-        .user_agent("GodotHarbor")
-        .build()
-        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+    let client = create_http_client(None)?;
 
     let resp = client.get(&url).send().await
         .map_err(|e| format!("请求 Asset Library 失败: {}", e))?;
@@ -3295,24 +3192,7 @@ pub async fn import_from_asset_library_with_progress(app: AppHandle, asset_id: S
     plugin.name = unit_name;
     plugin.content_hash = content_hash;
 
-    let storage = get_storage(&app);
-    let mut plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
-
-    let existing_idx = plugins.iter().position(|p| p.source.url == plugin.source.url);
-    let result = if let Some(idx) = existing_idx {
-        plugins[idx].versions.extend(plugin.versions);
-        let result = plugins[idx].clone();
-        storage.save("plugins.json", &plugins)
-            .map_err(|e| format!("保存插件列表失败: {}", e))?;
-        log_operation(&app, "import_asset_library", &asset_id.to_string(), &format!("已为插件 {} 添加新版本", result.name));
-        result
-    } else {
-        plugins.push(plugin.clone());
-        storage.save("plugins.json", &plugins)
-            .map_err(|e| format!("保存插件列表失败: {}", e))?;
-        log_operation(&app, "import_asset_library", &asset_id.to_string(), &format!("已从 Asset Library 导入插件: {}", plugin.name));
-        plugin
-    };
+    let result = upsert_plugin(&app, &plugin, "import_asset_library", &asset_id.to_string())?;
 
     let _ = app.emit("asset-import-progress", AssetImportProgressPayload {
         asset_id: asset_id.clone(),
@@ -3364,28 +3244,13 @@ pub async fn auto_scan_projects(app: AppHandle) -> Result<Vec<Project>, String> 
     }
 
     let scan_dirs = if settings.scan_directories.is_empty() {
-        let mut default_dirs = Vec::new();
-
-        if cfg!(windows) {
-            if let Some(userprofile) = std::env::var("USERPROFILE").ok() {
-                default_dirs.push(format!("{}\\Documents", userprofile));
-                default_dirs.push(format!("{}\\Desktop", userprofile));
-            }
-            for drive in ['D', 'E', 'F'] {
-                let drive_path = format!("{}:\\", drive);
-                if std::path::Path::new(&drive_path).exists() {
-                    default_dirs.push(drive_path);
-                }
-            }
-        } else {
+        let mut dirs = get_default_scan_dirs();
+        if !cfg!(windows) {
             if let Some(home) = std::env::var("HOME").ok() {
-                default_dirs.push(format!("{}/Documents", home));
-                default_dirs.push(format!("{}/projects", home));
-                default_dirs.push(format!("{}/Documents/godot", home));
+                dirs.push(format!("{}/Documents/godot", home));
             }
         }
-
-        default_dirs
+        dirs
     } else {
         settings.scan_directories
     };
@@ -3481,19 +3346,7 @@ pub fn detect_moved_projects(app: AppHandle) -> Result<Vec<MovedProjectCandidate
 
     let settings = load_settings(&app);
     let scan_dirs = if settings.scan_directories.is_empty() {
-        let mut default_dirs = Vec::new();
-        if cfg!(windows) {
-            if let Some(userprofile) = std::env::var("USERPROFILE").ok() {
-                default_dirs.push(format!("{}\\Documents", userprofile));
-                default_dirs.push(format!("{}\\Desktop", userprofile));
-            }
-        } else {
-            if let Some(home) = std::env::var("HOME").ok() {
-                default_dirs.push(format!("{}/Documents", home));
-                default_dirs.push(format!("{}/projects", home));
-            }
-        }
-        default_dirs
+        get_default_scan_dirs()
     } else {
         settings.scan_directories
     };
@@ -3790,7 +3643,7 @@ pub fn batch_unbind_plugins(app: AppHandle, project_id: String, plugin_ids: Vec<
 }
 
 #[tauri::command]
-pub fn batch_apply_changes(app: AppHandle, project_ids: Vec<String>) -> Result<BatchApplyResult, String> {
+pub async fn batch_apply_changes(app: AppHandle, project_ids: Vec<String>) -> Result<BatchApplyResult, String> {
     let storage = get_storage(&app);
     let projects: Vec<Project> = storage.load_or_default("projects.json");
     let all_bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
@@ -3799,71 +3652,81 @@ pub fn batch_apply_changes(app: AppHandle, project_ids: Vec<String>) -> Result<B
     let data_dir = get_data_dir(&app);
     let plugin_base_path = data_dir.join("plugins");
 
-    let mut results = Vec::new();
+    let futures: Vec<_> = project_ids.iter().map(|project_id| {
+        let project_id = project_id.clone();
+        let projects = projects.clone();
+        let all_bindings = all_bindings.clone();
+        let linker = linker.clone();
+        let plugin_base_path = plugin_base_path.clone();
 
-    for project_id in &project_ids {
-        let project = match projects.iter().find(|p| p.project_id == *project_id) {
-            Some(p) => p,
-            None => {
-                results.push(ProjectApplyResult {
-                    project_id: project_id.clone(),
-                    project_name: String::new(),
-                    success: false,
-                    created: Vec::new(),
-                    removed: Vec::new(),
-                    errors: vec![format!("未找到项目: {}", project_id)],
-                });
-                continue;
-            }
-        };
+        tokio::task::spawn_blocking(move || {
+            let project = match projects.iter().find(|p| p.project_id == project_id) {
+                Some(p) => p,
+                None => {
+                    return ProjectApplyResult {
+                        project_id: project_id.clone(),
+                        project_name: String::new(),
+                        success: false,
+                        created: Vec::new(),
+                        removed: Vec::new(),
+                        errors: vec![format!("未找到项目: {}", project_id)],
+                    };
+                }
+            };
 
-        let desired_bindings: Vec<ProjectBinding> = all_bindings.iter()
-            .filter(|b| b.project_id == *project_id)
-            .cloned()
-            .collect();
+            let desired_bindings: Vec<ProjectBinding> = all_bindings.iter()
+                .filter(|b| b.project_id == project_id)
+                .cloned()
+                .collect();
 
-        if desired_bindings.is_empty() {
-            results.push(ProjectApplyResult {
-                project_id: project_id.clone(),
-                project_name: project.name.clone(),
-                success: true,
-                created: Vec::new(),
-                removed: Vec::new(),
-                errors: Vec::new(),
-            });
-            continue;
-        }
-
-        let current_bindings: Vec<ProjectBinding> = Vec::new();
-
-        match linker.apply_bindings(
-            &project.path,
-            &current_bindings,
-            &desired_bindings,
-            &plugin_base_path.to_string_lossy()
-        ) {
-            Ok(apply_result) => {
-                results.push(ProjectApplyResult {
+            if desired_bindings.is_empty() {
+                return ProjectApplyResult {
                     project_id: project_id.clone(),
                     project_name: project.name.clone(),
-                    success: apply_result.success,
-                    created: apply_result.created,
-                    removed: apply_result.removed,
-                    errors: apply_result.errors,
-                });
-            }
-            Err(e) => {
-                results.push(ProjectApplyResult {
-                    project_id: project_id.clone(),
-                    project_name: project.name.clone(),
-                    success: false,
+                    success: true,
                     created: Vec::new(),
                     removed: Vec::new(),
-                    errors: vec![format!("应用变更失败: {}", e)],
-                });
+                    errors: Vec::new(),
+                };
             }
-        }
-    }
+
+            let current_bindings: Vec<ProjectBinding> = Vec::new();
+
+            match linker.apply_bindings(
+                &project.path,
+                &current_bindings,
+                &desired_bindings,
+                &plugin_base_path.to_string_lossy()
+            ) {
+                Ok(apply_result) => {
+                    ProjectApplyResult {
+                        project_id: project_id.clone(),
+                        project_name: project.name.clone(),
+                        success: apply_result.success,
+                        created: apply_result.created,
+                        removed: apply_result.removed,
+                        errors: apply_result.errors,
+                    }
+                }
+                Err(e) => {
+                    ProjectApplyResult {
+                        project_id: project_id.clone(),
+                        project_name: project.name.clone(),
+                        success: false,
+                        created: Vec::new(),
+                        removed: Vec::new(),
+                        errors: vec![format!("应用变更失败: {}", e)],
+                    }
+                }
+            }
+        })
+    }).collect();
+
+    let results: Vec<ProjectApplyResult> = join_all(futures)
+        .await
+        .into_iter()
+        .filter_map(|r| r.ok())
+        .collect();
 
     log_operation(&app, "batch_apply_changes", "",
         &format!("批量应用变更完成，共处理 {} 个项目", results.len()));

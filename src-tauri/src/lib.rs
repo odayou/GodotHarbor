@@ -115,25 +115,7 @@ pub fn run() {
                 };
                 let settings: models::Settings = storage.load_or_default("settings.json");
                 let dirs = if settings.scan_directories.is_empty() {
-                    let mut default_dirs = Vec::new();
-                    if cfg!(windows) {
-                        if let Some(userprofile) = std::env::var("USERPROFILE").ok() {
-                            default_dirs.push(format!(r"{}\Documents", userprofile));
-                            default_dirs.push(format!(r"{}\Desktop", userprofile));
-                        }
-                        for drive in ['D', 'E', 'F'] {
-                            let drive_path = format!(r"{}:", drive);
-                            if std::path::Path::new(&drive_path).exists() {
-                                default_dirs.push(drive_path);
-                            }
-                        }
-                    } else {
-                        if let Some(home) = std::env::var("HOME").ok() {
-                            default_dirs.push(format!("{}/Documents", home));
-                            default_dirs.push(format!("{}/projects", home));
-                        }
-                    }
-                    default_dirs
+                    commands::get_default_scan_dirs()
                 } else {
                     settings.scan_directories
                 };

@@ -3,6 +3,7 @@ use std::path::Path;
 use anyhow::{Result, Context};
 use crate::models::{ProjectBinding, MountStrategy, ApplyResult, ConflictInfo};
 
+#[derive(Clone)]
 pub struct Linker {
     mount_strategy: MountStrategy,
 }
