@@ -1093,5 +1093,16 @@ export default {
     installFailed: '更新失败: {error}',
     preparingHotUpdate: '准备下载热更新...',
     hotUpdateFailed: '热更新失败: {error}'
+  },
+  autoSetup: {
+    scanningPlugins: '正在扫描项目插件...',
+    noPluginsFound: '未发现项目插件',
+    importingPlugins: '正在导入 {count} 个插件到仓库...',
+    bindingPlugins: '正在建立插件绑定关系...',
+    applyingChanges: '正在应用变更到项目...',
+    discoveringEngines: '正在发现引擎...',
+    complete: '自动设置完成：导入 {plugins} 个插件，建立 {bindings} 个绑定，发现 {engines} 个引擎',
+    nothingToDo: '项目已是最新状态，无需额外操作',
+    failed: '自动设置失败: {error}'
   }
 }

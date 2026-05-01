@@ -1093,5 +1093,16 @@ export default {
     installFailed: 'Update failed: {error}',
     preparingHotUpdate: 'Preparing to download hot update...',
     hotUpdateFailed: 'Hot update failed: {error}'
+  },
+  autoSetup: {
+    scanningPlugins: 'Scanning project plugins...',
+    noPluginsFound: 'No plugins found in projects',
+    importingPlugins: 'Importing {count} plugins to vault...',
+    bindingPlugins: 'Creating plugin bindings...',
+    applyingChanges: 'Applying changes to projects...',
+    discoveringEngines: 'Discovering engines...',
+    complete: 'Auto setup complete: imported {plugins} plugins, created {bindings} bindings, discovered {engines} engines',
+    nothingToDo: 'Projects are up to date, no actions needed',
+    failed: 'Auto setup failed: {error}'
   }
 }

@@ -10,11 +10,13 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
 import { useBatchSelection } from '@/composables/useBatchSelection'
 import { useDialogEscape } from '@/composables/useDialogEscape'
+import { useAutoSetup } from '@/composables/useAutoSetup'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const router = useRouter()
 const toast = useToast()
 const { t } = useI18n()
+const { isRunning: isAutoSetupRunning, stepMessage: autoSetupMessage, runAutoSetup } = useAutoSetup()
 const projects = ref<Project[]>([])
 const engines = ref<Engine[]>([])
 const projectBindingMap = ref<Map<string, ProjectBinding[]>>(new Map())
@@ -334,6 +336,9 @@ const startScan = async () => {
     projects.value = result
     toast.success(t('common.scanComplete', { count: result.length }))
     await loadProjects()
+    if (result.length > 0) {
+      runAutoSetup(result)
+    }
   } catch (error) {
     toast.error(t('common.scanFailed', { error }))
   } finally {
@@ -356,6 +361,9 @@ const quickScan = async () => {
     projects.value = result
     toast.success(t('common.scanComplete', { count: result.length }))
     await loadProjects()
+    if (result.length > 0) {
+      runAutoSetup(result)
+    }
   } catch (error) {
     toast.error(t('common.scanFailed', { error }))
   } finally {
@@ -380,6 +388,7 @@ const addProject = async () => {
       const result = await api.addProject(selected)
       toast.success(t('common.addProjectSuccess', { name: result.name }))
       await loadProjects()
+      runAutoSetup([result])
     }
   } catch (error) {
     toast.error(t('common.addProjectFailed', { error }))
@@ -702,6 +711,21 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ t('projects.dragDesc') }}</p>
       </div>
     </div>
+    <Transition
+      enter-active-class="transition-all duration-300"
+      enter-from-class="translate-y-full opacity-0"
+      enter-to-class="translate-y-0 opacity-100"
+      leave-active-class="transition-all duration-200"
+      leave-from-class="translate-y-0 opacity-100"
+      leave-to-class="translate-y-full opacity-0"
+    >
+      <div v-if="isAutoSetupRunning" class="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-primary-200 dark:border-primary-800 shadow-lg z-40 px-6 py-3 flex items-center gap-4">
+        <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-600"></div>
+        <div class="flex-1">
+          <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ autoSetupMessage }}</p>
+        </div>
+      </div>
+    </Transition>
     <div
       class="space-y-6"
       @dragenter="onDragEnter"
