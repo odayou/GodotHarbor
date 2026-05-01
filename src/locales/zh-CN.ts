@@ -70,6 +70,7 @@ export default {
     openInFileManager: '在文件管理器中打开',
     openInFileManagerFailed: '打开文件管理器失败: {error}',
     launchEngine: '启动引擎',
+    launchFailed: '启动引擎失败: {error}',
     syncProject: '同步项目',
     syncSuccess: '项目 {name} 已同步',
     syncFailed: '同步项目失败: {error}',

@@ -362,10 +362,8 @@ impl EngineDownloader {
 
         let is_installed = local_versions.iter().any(|lv| {
             let local_clean = lv.trim().to_lowercase();
-            let remote_clean = version_str.trim().to_lowercase();
-            local_clean == remote_clean
-                || local_clean.starts_with(&remote_clean)
-                || remote_clean.starts_with(&local_clean)
+            let remote_base = version_str.split('-').next().unwrap_or(version_str).trim().to_lowercase();
+            local_clean == remote_base || local_clean == version_str.trim().to_lowercase()
         });
 
         let mut results = Vec::new();
@@ -424,9 +422,6 @@ impl EngineDownloader {
         let target_dir = engines_dir.join(&version_dir_name);
 
         if target_dir.exists() {
-            if crate::engine::EngineManager::find_executable_in_dir(&target_dir).is_some() {
-                return Ok(target_dir);
-            }
             let _ = std::fs::remove_dir_all(&target_dir);
         }
 
@@ -436,7 +431,12 @@ impl EngineDownloader {
         std::fs::create_dir_all(&download_dir)
             .map_err(|e| format!("创建下载目录失败: {}", e))?;
 
-        let archive_path = download_dir.join(&remote_version.file_name);
+        let archive_name = if variant == "mono" {
+            format!("{}_dotnet_{}", version.replace('.', "_").replace('-', "_"), remote_version.file_name)
+        } else {
+            format!("{}_{}", version.replace('.', "_").replace('-', "_"), remote_version.file_name)
+        };
+        let archive_path = download_dir.join(&archive_name);
 
         let download_result = Self::download_file(app, &remote_version.download_url, &archive_path, version, variant, remote_version.file_size).await;
 

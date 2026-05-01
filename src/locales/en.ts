@@ -70,6 +70,7 @@ export default {
     openInFileManager: 'Open in File Manager',
     openInFileManagerFailed: 'Failed to open in file manager: {error}',
     launchEngine: 'Launch Engine',
+    launchFailed: 'Failed to launch engine: {error}',
     syncProject: 'Sync Project',
     syncSuccess: 'Project {name} synced',
     syncFailed: 'Sync project failed: {error}',

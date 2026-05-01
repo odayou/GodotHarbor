@@ -107,6 +107,18 @@ const filteredRemoteVersions = computed(() => {
   })
 })
 
+const groupedRemoteVersions = computed(() => {
+  const groups = new Map<string, RemoteEngineVersion[]>()
+  for (const v of filteredRemoteVersions.value) {
+    const key = `${v.major}.${v.minor}`
+    if (!groups.has(key)) {
+      groups.set(key, [])
+    }
+    groups.get(key)!.push(v)
+  }
+  return groups
+})
+
 const channelBadgeClass = (channel: EngineReleaseChannel) => {
   switch (channel) {
     case 'Stable': return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
@@ -435,7 +447,6 @@ const startDownload = async (version: RemoteEngineVersion) => {
       toast.info(t('engines.download.downloadCancelled'))
     } else if (result.success && result.engine) {
       toast.success(t('engines.download.downloadSuccess', { name: result.engine.name }))
-      await loadEngines()
       remoteVersions.value = remoteVersions.value.map(v => {
         if (v.version === version.version && v.variant === version.variant) {
           return { ...v, is_installed: true }
@@ -467,6 +478,19 @@ const handleDownloadDialogClose = () => {
     toast.info(t('engines.download.downloadInBackground'))
   }
   showDownloadDialog.value = false
+}
+
+const onMirrorChange = () => {
+  remoteVersions.value = []
+  fetchRemoteVersions(false)
+}
+
+const handleLaunchEngine = async (engineId: string) => {
+  try {
+    await api.launchEngine(engineId)
+  } catch (error) {
+    toast.error(t('engines.launchFailed', { error }))
+  }
 }
 </script>
 
@@ -722,7 +746,7 @@ const handleDownloadDialogClose = () => {
                 <div class="flex items-center justify-end gap-1">
                   <button
                     v-if="engineHealthMap.get(engine.engine_id) === true"
-                    @click="api.launchEngine(engine.engine_id)"
+                    @click="handleLaunchEngine(engine.engine_id)"
                     class="text-green-600 hover:text-green-800 dark:text-green-400 p-2 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
                     :title="t('engines.launchEngine')"
                   >
@@ -867,7 +891,7 @@ const handleDownloadDialogClose = () => {
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ t('engines.download.mirror') }}</label>
               <select
                 v-model="selectedMirrorId"
-                @change="fetchRemoteVersions(false)"
+                @change="onMirrorChange"
                 :disabled="isFetchingVersions"
                 class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
               >
@@ -956,9 +980,15 @@ const handleDownloadDialogClose = () => {
             <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('engines.download.noMatchingVersions') }}</p>
           </div>
 
-          <div v-else class="space-y-2">
+          <div v-else class="space-y-4">
+            <div v-for="[groupKey, versions] in groupedRemoteVersions" :key="groupKey">
+              <div class="sticky top-0 bg-white dark:bg-gray-800 py-1.5 px-3 -mx-3 border-b border-gray-200 dark:border-gray-700 mb-2 z-10">
+                <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">Godot {{ groupKey }}</span>
+                <span class="text-xs text-gray-400 ml-2">{{ versions.length }} versions</span>
+              </div>
+              <div class="space-y-2">
             <div
-              v-for="version in filteredRemoteVersions"
+              v-for="version in versions"
               :key="`${version.tag_name}_${version.variant}`"
               :class="[
                 'p-3 rounded-lg border transition-colors',
@@ -1033,6 +1063,8 @@ const handleDownloadDialogClose = () => {
                 v-if="expandedReleaseVersion === `${version.version}_${version.variant}` && version.release_notes"
                 class="mt-2 p-2 bg-gray-50 dark:bg-gray-700/50 rounded text-xs text-gray-600 dark:text-gray-300 whitespace-pre-wrap max-h-40 overflow-y-auto"
               >{{ version.release_notes }}</div>
+            </div>
+              </div>
             </div>
           </div>
         </div>
