@@ -457,6 +457,7 @@ export default {
     errors: '错误：',
     selectVersion: '选择版本',
     selectVersionLabel: '选择版本',
+    selectUnit: '选择单元',
     selectUnitLabel: '选择单元',
     mountPath: '挂载路径',
     confirmBind: '确认绑定',

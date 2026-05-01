@@ -457,6 +457,7 @@ export default {
     errors: 'Errors:',
     selectVersion: 'Select Version',
     selectVersionLabel: 'Select Version',
+    selectUnit: 'Select Unit',
     selectUnitLabel: 'Select Unit',
     mountPath: 'Mount Path',
     confirmBind: 'Confirm Bind',
