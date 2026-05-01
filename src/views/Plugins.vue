@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { api } from '@/api'
-import type { Plugin, Project, PluginUpdateInfo, PluginDependency, AssetLibrarySearchResult, AssetLibrarySearchResponse, AssetLibraryCategory, AssetLibraryAsset, PluginStorageStats, ProjectBinding, TotalStorageStats, DuplicateCheckResult, ScannedPlugin } from '@/types'
+import type { Plugin, Project, PluginUpdateInfo, PluginDependency, AssetLibrarySearchResult, AssetLibrarySearchResponse, AssetLibraryCategory, AssetLibraryAsset, PluginStorageStats, ProjectBinding, TotalStorageStats, DuplicateCheckResult, ScannedPlugin, TeamSharedConfig } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { useToast } from '@/composables/useToast'
@@ -53,6 +53,37 @@ const isCheckingUpdates = ref(false)
 const showAddMenu = ref(false)
 
 const activeTab = ref<'repository' | 'bindings'>('repository')
+
+const showQuickBindDialog = ref(false)
+const quickBindPlugin = ref<Plugin | null>(null)
+const quickBindProjects = ref<Project[]>([])
+const quickBindSelectedProjectIds = ref<Set<string>>(new Set())
+const quickBindVersionIdx = ref(0)
+const quickBindUnitIdx = ref(0)
+const isQuickBinding = ref(false)
+
+const showContextMenu = ref(false)
+const contextMenuX = ref(0)
+const contextMenuY = ref(0)
+const contextMenuPlugin = ref<Plugin | null>(null)
+
+const showTeamConfigExportDialog = ref(false)
+const showTeamConfigImportDialog = ref(false)
+const teamConfigs = ref<TeamSharedConfig[]>([])
+const teamConfigName = ref('')
+const teamConfigDescription = ref('')
+const teamConfigSelectedProjectIds = ref<Set<string>>(new Set())
+const teamConfigImportTargetIds = ref<Set<string>>(new Set())
+const selectedTeamConfigId = ref('')
+const isExportingConfig = ref(false)
+const isImportingConfig = ref(false)
+
+const showVersionSwitchDialog = ref(false)
+const versionSwitchBinding = ref<ProjectBinding | null>(null)
+const versionSwitchPlugin = ref<Plugin | null>(null)
+const versionSwitchVersionIdx = ref(0)
+const versionSwitchUnitIdx = ref(0)
+const isSwitchingVersion = ref(false)
 
 const linkerProjects = ref<Project[]>([])
 const linkerBindings = ref<ProjectBinding[]>([])
@@ -212,15 +243,19 @@ const loadPluginBindingCounts = async () => {
   try {
     const projects = await api.getProjects()
     const countMap = new Map<string, number>()
-    for (const project of projects) {
-      try {
-        const bindings = await api.getProjectBindings(project.project_id)
-        for (const binding of bindings) {
-          countMap.set(binding.plugin_id, (countMap.get(binding.plugin_id) || 0) + 1)
+    const batchSize = 5
+    for (let i = 0; i < projects.length; i += batchSize) {
+      const batch = projects.slice(i, i + batchSize)
+      const results = await Promise.allSettled(
+        batch.map(project => api.getProjectBindings(project.project_id))
+      )
+      results.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          for (const binding of result.value) {
+            countMap.set(binding.plugin_id, (countMap.get(binding.plugin_id) || 0) + 1)
+          }
         }
-      } catch {
-        // ignore individual project binding load errors
-      }
+      })
     }
     pluginBindingCountMap.value = countMap
   } catch {
@@ -247,8 +282,8 @@ const importFromLocal = async () => {
             try {
               const result = await api.importPluginFromLocal(selected)
               toast.success(t('plugins.importPluginSuccess', { name: result.name }))
-              showPostImportGuide(result.name)
               await loadPlugins(true)
+              showPostImportGuide(result.name, result)
             } catch (error) {
               toast.error(t('common.addProjectFailed', { error }))
             } finally {
@@ -264,8 +299,8 @@ const importFromLocal = async () => {
       isLoading.value = true
       const result = await api.importPluginFromLocal(selected)
       toast.success(t('plugins.importPluginSuccess', { name: result.name }))
-      showPostImportGuide(result.name)
       await loadPlugins(true)
+      showPostImportGuide(result.name, result)
     }
   } catch (error) {
     toast.error(t('common.addProjectFailed', { error }))
@@ -287,8 +322,8 @@ const importFromFile = async () => {
       const dirPath = selected.substring(0, Math.max(selected.lastIndexOf('/'), selected.lastIndexOf('\\')))
       const result = await api.importPluginFromLocal(dirPath || selected)
       toast.success(t('plugins.importPluginSuccess', { name: result.name }))
-      showPostImportGuide(result.name)
       await loadPlugins(true)
+      showPostImportGuide(result.name, result)
     }
   } catch (error) {
     toast.error(t('common.addProjectFailed', { error }))
@@ -306,10 +341,10 @@ const importFromGit = async () => {
   try {
     const result = await api.importPluginFromGit(gitUrl.value)
     toast.success(t('plugins.importPluginSuccess', { name: result.name }))
-    showPostImportGuide(result.name)
     gitUrl.value = ''
     showGitDialog.value = false
     await loadPlugins(true)
+    showPostImportGuide(result.name, result)
   } catch (error) {
     toast.error(t('common.addProjectFailed', { error }))
   } finally {
@@ -512,11 +547,11 @@ const toggleAssetSelection = (assetId: string) => {
 const importAsset = async (assetId: string, assetTitle: string) => {
   pluginStore.setImporting(assetId)
   try {
-    await api.importFromAssetLibraryWithProgress(assetId)
+    const result = await api.importFromAssetLibraryWithProgress(assetId)
     toast.success(t('plugins.importPluginSuccess', { name: assetTitle }))
-    showPostImportGuide(assetTitle)
     sendImportNotification('Godot Harbor', t('plugins.importPluginSuccess', { name: assetTitle }))
     await loadPlugins(true)
+    showPostImportGuide(assetTitle, result)
   } catch (error) {
     toast.error(t('assetLibrary.importFailed') + ': ' + error)
   } finally {
@@ -788,10 +823,23 @@ const checkAndShowDuplicates = () => {
   showOnlyDuplicates.value = true
 }
 
-const showPostImportGuide = (pluginName: string) => {
-  setTimeout(() => {
-    toast.info(t('plugins.postImportGuide', { name: pluginName }))
-  }, 800)
+const showPostImportGuide = async (pluginName: string, plugin?: Plugin) => {
+  if (plugin) {
+    quickBindPlugin.value = plugin
+    quickBindVersionIdx.value = 0
+    quickBindUnitIdx.value = 0
+    quickBindSelectedProjectIds.value = new Set()
+    try {
+      quickBindProjects.value = await api.getProjects()
+    } catch {
+      quickBindProjects.value = []
+    }
+    showQuickBindDialog.value = true
+  } else {
+    setTimeout(() => {
+      toast.info(t('plugins.postImportGuide', { name: pluginName }))
+    }, 800)
+  }
 }
 
 const loadPluginDependencies = async (pluginId: string) => {
@@ -978,6 +1026,7 @@ const loadLinkerData = async () => {
     if (!hasLoaded.value) {
       await loadPlugins(true)
     }
+    await loadTeamConfigs()
   } catch (error) {
     toast.error(t('common.loadFailed', { error }))
   }
@@ -1402,6 +1451,237 @@ useDialogEscape(showLinkerBatchApplyDialog)
 useDialogEscape(showLinkerVersionSelect)
 useDialogEscape(showLinkerApplyResult)
 useDialogEscape(showLinkerBatchApplyResult)
+useDialogEscape(showQuickBindDialog)
+useDialogEscape(showVersionSwitchDialog)
+useDialogEscape(showTeamConfigExportDialog)
+useDialogEscape(showTeamConfigImportDialog)
+
+const doQuickBind = async () => {
+  if (!quickBindPlugin.value) return
+  if (quickBindSelectedProjectIds.value.size === 0) {
+    toast.warning(t('plugins.quickBind.noSelection'))
+    return
+  }
+  const plugin = quickBindPlugin.value
+  if (plugin.versions.length === 0) {
+    toast.warning(t('linker.noPluginVersions'))
+    return
+  }
+  const version = plugin.versions[quickBindVersionIdx.value]
+  const unit = version?.units[quickBindUnitIdx.value]
+  if (!version || !unit) {
+    toast.warning(t('linker.noPluginUnits'))
+    return
+  }
+  isQuickBinding.value = true
+  const mountPath = unit.subdirectory || `addons/${unit.name}`
+  const subdirectory = unit.subdirectory || ''
+  let successCount = 0
+  let failCount = 0
+  for (const projectId of quickBindSelectedProjectIds.value) {
+    try {
+      await api.bindPlugin(projectId, plugin.plugin_id, version.version_id, unit.unit_id, mountPath, subdirectory)
+      try {
+        await api.applyChanges(projectId)
+      } catch {}
+      successCount++
+    } catch {
+      failCount++
+    }
+  }
+  isQuickBinding.value = false
+  showQuickBindDialog.value = false
+  if (failCount > 0) {
+    toast.warning(t('plugins.bindDialog.partialSuccess', { success: successCount, failed: failCount }))
+  } else {
+    toast.success(t('plugins.quickBind.bindSuccess', { name: plugin.name, count: successCount }))
+  }
+  await loadPlugins(true)
+  loadPluginBindingCounts()
+}
+
+const closeQuickBind = () => {
+  showQuickBindDialog.value = false
+  quickBindPlugin.value = null
+  quickBindSelectedProjectIds.value = new Set()
+}
+
+const toggleQuickBindProject = (projectId: string) => {
+  const newSet = new Set(quickBindSelectedProjectIds.value)
+  if (newSet.has(projectId)) {
+    newSet.delete(projectId)
+  } else {
+    newSet.add(projectId)
+  }
+  quickBindSelectedProjectIds.value = newSet
+}
+
+const openContextMenu = (plugin: Plugin, event: MouseEvent) => {
+  event.preventDefault()
+  event.stopPropagation()
+  contextMenuPlugin.value = plugin
+  contextMenuX.value = event.clientX
+  contextMenuY.value = event.clientY
+  showContextMenu.value = true
+}
+
+const closeContextMenu = () => {
+  showContextMenu.value = false
+  contextMenuPlugin.value = null
+}
+
+const handleContextMenuAction = async (action: string) => {
+  const plugin = contextMenuPlugin.value
+  closeContextMenu()
+  if (!plugin) return
+  switch (action) {
+    case 'bindToProject':
+      showPostImportGuide(plugin.name, plugin)
+      break
+    case 'viewDetails':
+      showPluginDetails(plugin)
+      break
+    case 'toggleFavorite':
+      await toggleFavorite(plugin)
+      break
+    case 'checkUpdate':
+      await checkPluginUpdates()
+      break
+    case 'updatePlugin':
+      if (plugin.source.source_type === 'Git') {
+        await updateGitPlugin(plugin.plugin_id)
+      }
+      break
+    case 'delete':
+      await confirmRemovePlugin(plugin.plugin_id)
+      break
+    case 'goToBindings':
+      await goToBindings(plugin)
+      break
+  }
+}
+
+const loadTeamConfigs = async () => {
+  try {
+    teamConfigs.value = await api.getTeamConfigs()
+  } catch {
+    teamConfigs.value = []
+  }
+}
+
+const openTeamConfigExport = async () => {
+  teamConfigName.value = ''
+  teamConfigDescription.value = ''
+  teamConfigSelectedProjectIds.value = new Set()
+  try {
+    const projects = await api.getProjects()
+    linkerProjects.value = projects
+  } catch {}
+  showTeamConfigExportDialog.value = true
+}
+
+const doExportTeamConfig = async () => {
+  if (!teamConfigName.value.trim()) {
+    toast.warning(t('plugins.teamConfig.configName'))
+    return
+  }
+  isExportingConfig.value = true
+  try {
+    await api.exportTeamConfig(
+      teamConfigName.value.trim(),
+      teamConfigDescription.value.trim(),
+      Array.from(teamConfigSelectedProjectIds.value)
+    )
+    toast.success(t('plugins.teamConfig.exportSuccess'))
+    showTeamConfigExportDialog.value = false
+    await loadTeamConfigs()
+  } catch (error) {
+    toast.error(t('common.loadFailed', { error }))
+  } finally {
+    isExportingConfig.value = false
+  }
+}
+
+const openTeamConfigImport = async (configId: string) => {
+  selectedTeamConfigId.value = configId
+  teamConfigImportTargetIds.value = new Set()
+  try {
+    const projects = await api.getProjects()
+    linkerProjects.value = projects
+  } catch {}
+  showTeamConfigImportDialog.value = true
+}
+
+const doImportTeamConfig = async () => {
+  if (teamConfigImportTargetIds.value.size === 0) {
+    toast.warning(t('plugins.teamConfig.selectTargetProjects'))
+    return
+  }
+  isImportingConfig.value = true
+  try {
+    await api.importTeamConfig(selectedTeamConfigId.value, Array.from(teamConfigImportTargetIds.value))
+    toast.success(t('plugins.teamConfig.importSuccess', { count: teamConfigImportTargetIds.value.size }))
+    showTeamConfigImportDialog.value = false
+    await loadLinkerData()
+  } catch (error) {
+    toast.error(t('common.loadFailed', { error }))
+  } finally {
+    isImportingConfig.value = false
+  }
+}
+
+const deleteTeamConfig = async (configId: string) => {
+  try {
+    await api.deleteTeamConfig(configId)
+    toast.success(t('common.projectDeleted'))
+    await loadTeamConfigs()
+  } catch (error) {
+    toast.error(t('common.deleteFailed', { error }))
+  }
+}
+
+const openVersionSwitch = (binding: ProjectBinding) => {
+  const plugin = plugins.value.find(p => p.plugin_id === binding.plugin_id)
+  if (!plugin) return
+  versionSwitchBinding.value = binding
+  versionSwitchPlugin.value = plugin
+  const currentVersionIdx = plugin.versions.findIndex(v => v.version_id === binding.version_id)
+  versionSwitchVersionIdx.value = currentVersionIdx >= 0 ? currentVersionIdx : 0
+  versionSwitchUnitIdx.value = 0
+  showVersionSwitchDialog.value = true
+}
+
+const doSwitchVersion = async () => {
+  if (!versionSwitchBinding.value || !versionSwitchPlugin.value) return
+  const binding = versionSwitchBinding.value
+  const plugin = versionSwitchPlugin.value
+  const version = plugin.versions[versionSwitchVersionIdx.value]
+  const unit = version?.units[versionSwitchUnitIdx.value]
+  if (!version || !unit) return
+  isSwitchingVersion.value = true
+  try {
+    await api.unbindPlugin(binding.project_id, binding.plugin_id)
+    const mountPath = unit.subdirectory || `addons/${unit.name}`
+    const subdirectory = unit.subdirectory || ''
+    await api.bindPlugin(binding.project_id, plugin.plugin_id, version.version_id, unit.unit_id, mountPath, subdirectory)
+    try {
+      await api.applyChanges(binding.project_id)
+    } catch {}
+    toast.success(t('plugins.versionSwitch.success'))
+    showVersionSwitchDialog.value = false
+    if (selectedLinkId.value) {
+      await loadLinkerBindings(selectedLinkId.value)
+    }
+  } catch (error) {
+    toast.error(t('plugins.versionSwitch.failed', { error }))
+  } finally {
+    isSwitchingVersion.value = false
+  }
+}
+
+const quickBindFromCard = async (plugin: Plugin) => {
+  showPostImportGuide(plugin.name, plugin)
+}
 
 </script>
 
@@ -1687,6 +1967,7 @@ useDialogEscape(showLinkerBatchApplyResult)
             'bg-white dark:bg-surface-card rounded-xl shadow hover:shadow-md transition-shadow p-4 flex items-center gap-4',
             selectedPluginIds.has(plugin.plugin_id) ? 'ring-2 ring-primary-500' : ''
           ]"
+          @contextmenu="openContextMenu(plugin, $event)"
         >
           <input
             type="checkbox"
@@ -1737,13 +2018,13 @@ useDialogEscape(showLinkerBatchApplyResult)
           </div>
           <div class="flex items-center gap-1">
             <button
-              @click.stop="goToBindings(plugin)"
+              @click.stop="quickBindFromCard(plugin)"
               class="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-1.5"
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
               </svg>
-              {{ t('plugins.goToBindings') }}
+              {{ t('plugins.bindToProject') }}
             </button>
             <button
               @click.stop="confirmRemovePlugin(plugin.plugin_id)"
@@ -2511,6 +2792,11 @@ useDialogEscape(showLinkerBatchApplyResult)
                 <button @click="unbindPluginFromProject(item)" class="px-2 py-1 text-red-600 dark:text-red-400 text-xs hover:bg-red-50 dark:hover:bg-red-900/20 rounded ml-2 flex-shrink-0">
                   {{ t('linker.unbind') }}
                 </button>
+                <button @click="openVersionSwitch(item)" class="px-2 py-1 text-primary-600 dark:text-primary-400 text-xs hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded ml-1 flex-shrink-0" :title="t('linker.switchVersion')">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
               </div>
             </div>
           </div>
@@ -2532,6 +2818,41 @@ useDialogEscape(showLinkerBatchApplyResult)
           </g>
           <line v-for="link in graphLinks" :key="link.projectId + '-' + link.pluginId" :x1="150" :y1="graphNodes.find(n => n.id === link.projectId)?.y" :x2="490" :y2="graphNodes.find(n => n.id === link.pluginId)?.y" class="stroke-gray-400 dark:stroke-gray-500" stroke-width="1" stroke-dasharray="4"/>
         </svg>
+      </div>
+
+      <div class="card">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-gray-900 dark:text-content-primary">{{ t('linker.teamConfigSection') }}</h3>
+          <button
+            @click="openTeamConfigExport"
+            class="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors"
+          >
+            {{ t('plugins.teamConfig.export') }}
+          </button>
+        </div>
+        <div v-if="teamConfigs.length === 0" class="text-center py-6">
+          <p class="text-sm text-gray-500 dark:text-content-secondary">{{ t('linker.noTeamConfigs') }}</p>
+          <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">{{ t('linker.noTeamConfigsDesc') }}</p>
+        </div>
+        <div v-else class="space-y-2">
+          <div v-for="config in teamConfigs" :key="config.config_id" class="flex items-center justify-between p-3 bg-gray-50 dark:bg-surface-layer rounded-lg">
+            <div class="min-w-0 flex-1">
+              <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate">{{ config.name }}</div>
+              <div class="text-xs text-gray-500 dark:text-content-secondary mt-0.5">
+                {{ config.description || '' }}
+                <span v-if="config.bindings?.length" class="ml-2">{{ new Set(config.bindings.map(b => b.project_id)).size }} {{ t('linker.projects') }}</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1 ml-2 flex-shrink-0">
+              <button @click="openTeamConfigImport(config.config_id)" class="px-2 py-1 text-primary-600 dark:text-primary-400 text-xs hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded">
+                {{ t('plugins.teamConfig.import') }}
+              </button>
+              <button @click="deleteTeamConfig(config.config_id)" class="px-2 py-1 text-red-600 dark:text-red-400 text-xs hover:bg-red-50 dark:hover:bg-red-900/20 rounded">
+                {{ t('plugins.teamConfig.delete') }}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
     </div>
@@ -2797,6 +3118,204 @@ useDialogEscape(showLinkerBatchApplyResult)
         </div>
         <div class="flex justify-end mt-4">
           <button @click="showLinkerBatchApplyResult = false" class="btn-primary">{{ t('linker.close') }}</button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div v-if="showQuickBindDialog && quickBindPlugin" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="closeQuickBind">
+      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl max-h-[85vh] flex flex-col" @click.stop>
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('plugins.quickBind.title') }}</h3>
+          <button @click="closeQuickBind" class="text-gray-500 dark:text-content-secondary hover:text-gray-700 dark:hover:text-content-primary">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">
+          {{ t('plugins.quickBind.desc', { name: quickBindPlugin.name }) }}
+        </p>
+
+        <div v-if="quickBindPlugin.versions.length > 1 || (quickBindPlugin.versions.length > 0 && quickBindPlugin.versions[0].units.length > 1)" class="mb-4 space-y-3 p-3 bg-gray-50 dark:bg-surface-layer rounded-lg">
+          <div v-if="quickBindPlugin.versions.length > 1">
+            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ t('linker.selectVersion') }}</label>
+            <select v-model="quickBindVersionIdx" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-sm">
+              <option v-for="(v, i) in quickBindPlugin.versions" :key="v.version_id" :value="i">v{{ v.version }}</option>
+            </select>
+          </div>
+          <div v-if="quickBindPlugin.versions[quickBindVersionIdx]?.units.length > 1">
+            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ t('linker.selectUnitLabel') }}</label>
+            <select v-model="quickBindUnitIdx" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-sm">
+              <option v-for="(u, i) in quickBindPlugin.versions[quickBindVersionIdx]?.units" :key="u.unit_id" :value="i">{{ u.name }}</option>
+            </select>
+          </div>
+        </div>
+
+        <div v-if="quickBindProjects.length === 0" class="text-center py-6">
+          <p class="text-sm text-gray-500 dark:text-content-secondary">{{ t('plugins.quickBind.noProjects') }}</p>
+        </div>
+        <div v-else class="flex-1 overflow-y-auto space-y-1 mb-4">
+          <div class="text-xs font-medium text-gray-500 dark:text-content-secondary mb-2">{{ t('plugins.quickBind.selectProjects') }}</div>
+          <div
+            v-for="project in quickBindProjects"
+            :key="project.project_id"
+            @click="toggleQuickBindProject(project.project_id)"
+            :class="['flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-colors', quickBindSelectedProjectIds.has(project.project_id) ? 'bg-primary-50 dark:bg-primary-900/20 ring-1 ring-primary-300 dark:ring-primary-700' : 'hover:bg-gray-50 dark:hover:bg-surface-layer']"
+          >
+            <div class="w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center" :class="quickBindSelectedProjectIds.has(project.project_id) ? 'bg-primary-600 border-primary-600' : 'border-gray-300 dark:border-gray-600'">
+              <svg v-if="quickBindSelectedProjectIds.has(project.project_id)" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate">{{ project.name }}</div>
+              <div class="text-xs text-gray-500 dark:text-content-secondary">{{ project.godot_version }}</div>
+            </div>
+            <span v-if="isCompatWarning(quickBindPlugin, project)" class="text-xs text-orange-500 dark:text-orange-400 flex-shrink-0" :title="t('plugins.quickBind.compatWarning')">⚠</span>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+          <button @click="closeQuickBind" class="btn-secondary">{{ t('plugins.quickBind.bindLater') }}</button>
+          <button
+            @click="doQuickBind"
+            :disabled="isQuickBinding || quickBindSelectedProjectIds.size === 0"
+            class="btn-primary disabled:opacity-50"
+          >
+            {{ isQuickBinding ? t('plugins.quickBind.binding') : t('plugins.quickBind.bindSelected') }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div v-if="showContextMenu" class="fixed inset-0 z-50" @click="closeContextMenu" @contextmenu.prevent="closeContextMenu">
+      <div
+        class="fixed bg-white dark:bg-surface-card rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 min-w-48"
+        :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
+        @click.stop
+      >
+        <button @click="handleContextMenuAction('bindToProject')" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
+          <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+          {{ t('plugins.contextMenu.bindToProject') }}
+        </button>
+        <button @click="handleContextMenuAction('viewDetails')" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
+          <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+          {{ t('plugins.contextMenu.viewDetails') }}
+        </button>
+        <button @click="handleContextMenuAction('toggleFavorite')" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
+          <svg class="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 24 24"><path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
+          {{ t('plugins.contextMenu.toggleFavorite') }}
+        </button>
+        <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+        <button v-if="contextMenuPlugin?.source.source_type === 'Git'" @click="handleContextMenuAction('updatePlugin')" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
+          <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+          {{ t('plugins.contextMenu.updatePlugin') }}
+        </button>
+        <button @click="handleContextMenuAction('goToBindings')" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
+          <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+          {{ t('plugins.contextMenu.goToBindings') }}
+        </button>
+        <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+        <button @click="handleContextMenuAction('delete')" class="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+          {{ t('plugins.contextMenu.delete') }}
+        </button>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div v-if="showVersionSwitchDialog && versionSwitchPlugin && versionSwitchBinding" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showVersionSwitchDialog = false">
+      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('plugins.versionSwitch.title') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">
+          {{ t('plugins.versionSwitch.desc', { plugin: versionSwitchPlugin.name, project: linkerProjects.find(p => p.project_id === versionSwitchBinding?.project_id)?.name || versionSwitchBinding?.project_id }) }}
+        </p>
+        <div class="space-y-3 mb-6">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ t('plugins.versionSwitch.selectVersion') }}</label>
+            <select v-model="versionSwitchVersionIdx" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-sm">
+              <option v-for="(v, i) in versionSwitchPlugin.versions" :key="v.version_id" :value="i">v{{ v.version }}</option>
+            </select>
+          </div>
+          <div v-if="versionSwitchPlugin.versions[versionSwitchVersionIdx]?.units.length > 1">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ t('plugins.versionSwitch.selectUnit') }}</label>
+            <select v-model="versionSwitchUnitIdx" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-sm">
+              <option v-for="(u, i) in versionSwitchPlugin.versions[versionSwitchVersionIdx]?.units" :key="u.unit_id" :value="i">{{ u.name }}</option>
+            </select>
+          </div>
+        </div>
+        <div class="flex justify-end gap-3">
+          <button @click="showVersionSwitchDialog = false" class="btn-secondary">{{ t('common.cancel') }}</button>
+          <button @click="doSwitchVersion" :disabled="isSwitchingVersion" class="btn-primary disabled:opacity-50">
+            {{ isSwitchingVersion ? t('plugins.versionSwitch.switching') : t('plugins.versionSwitch.switchVersion') }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div v-if="showTeamConfigExportDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showTeamConfigExportDialog = false">
+      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl max-h-[85vh] flex flex-col" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('plugins.teamConfig.exportTitle') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">{{ t('plugins.teamConfig.exportDesc') }}</p>
+        <div class="space-y-3 mb-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ t('plugins.teamConfig.configName') }}</label>
+            <input v-model="teamConfigName" type="text" :placeholder="t('plugins.teamConfig.configNamePlaceholder')" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ t('plugins.teamConfig.configDesc') }}</label>
+            <input v-model="teamConfigDescription" type="text" :placeholder="t('plugins.teamConfig.configDescPlaceholder')" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ t('plugins.teamConfig.selectProjects') }}</label>
+            <div class="max-h-48 overflow-y-auto space-y-1 border border-gray-200 dark:border-gray-700 rounded-lg p-2">
+              <div v-for="project in linkerProjects" :key="project.project_id" @click="(() => { const s = new Set(teamConfigSelectedProjectIds); s.has(project.project_id) ? s.delete(project.project_id) : s.add(project.project_id); teamConfigSelectedProjectIds = s; })()" :class="['flex items-center gap-2 p-2 rounded cursor-pointer transition-colors', teamConfigSelectedProjectIds.has(project.project_id) ? 'bg-primary-50 dark:bg-primary-900/20' : 'hover:bg-gray-50 dark:hover:bg-surface-layer']">
+                <div class="w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center" :class="teamConfigSelectedProjectIds.has(project.project_id) ? 'bg-primary-600 border-primary-600' : 'border-gray-300 dark:border-gray-600'">
+                  <svg v-if="teamConfigSelectedProjectIds.has(project.project_id)" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                </div>
+                <span class="text-sm text-gray-900 dark:text-content-primary">{{ project.name }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="flex justify-end gap-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+          <button @click="showTeamConfigExportDialog = false" class="btn-secondary">{{ t('common.cancel') }}</button>
+          <button @click="doExportTeamConfig" :disabled="isExportingConfig || !teamConfigName.trim()" class="btn-primary disabled:opacity-50">
+            {{ isExportingConfig ? t('common.save') + '...' : t('plugins.teamConfig.export') }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div v-if="showTeamConfigImportDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showTeamConfigImportDialog = false">
+      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl max-h-[85vh] flex flex-col" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('plugins.teamConfig.importTitle') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">{{ t('plugins.teamConfig.importDesc') }}</p>
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ t('plugins.teamConfig.selectTargetProjects') }}</label>
+          <div class="max-h-48 overflow-y-auto space-y-1 border border-gray-200 dark:border-gray-700 rounded-lg p-2">
+            <div v-for="project in linkerProjects" :key="project.project_id" @click="(() => { const s = new Set(teamConfigImportTargetIds); s.has(project.project_id) ? s.delete(project.project_id) : s.add(project.project_id); teamConfigImportTargetIds = s; })()" :class="['flex items-center gap-2 p-2 rounded cursor-pointer transition-colors', teamConfigImportTargetIds.has(project.project_id) ? 'bg-primary-50 dark:bg-primary-900/20' : 'hover:bg-gray-50 dark:hover:bg-surface-layer']">
+              <div class="w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center" :class="teamConfigImportTargetIds.has(project.project_id) ? 'bg-primary-600 border-primary-600' : 'border-gray-300 dark:border-gray-600'">
+                <svg v-if="teamConfigImportTargetIds.has(project.project_id)" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+              </div>
+              <span class="text-sm text-gray-900 dark:text-content-primary">{{ project.name }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="flex justify-end gap-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+          <button @click="showTeamConfigImportDialog = false" class="btn-secondary">{{ t('common.cancel') }}</button>
+          <button @click="doImportTeamConfig" :disabled="isImportingConfig || teamConfigImportTargetIds.size === 0" class="btn-primary disabled:opacity-50">
+            {{ isImportingConfig ? t('common.confirm') + '...' : t('plugins.teamConfig.import') }}
+          </button>
         </div>
       </div>
     </div>
