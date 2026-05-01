@@ -248,11 +248,12 @@ impl EngineManager {
     pub fn get_engine_info(path: &str) -> Result<Engine> {
         let (engine_type, version) = Self::detect_engine(path)?;
 
-        let name = Path::new(path)
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("Godot")
-            .to_string();
+        let is_mono = version.to_lowercase().contains("mono");
+        let name = if is_mono {
+            format!("Godot {} (.NET)", version)
+        } else {
+            format!("Godot {}", version)
+        };
 
         Ok(Engine::new(name, path.to_string(), engine_type, version))
     }

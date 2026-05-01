@@ -359,15 +359,32 @@ impl EngineDownloader {
             }
         }
 
-        let is_installed = local_versions.iter().any(|lv| {
+        let is_installed_standard = local_versions.iter().any(|lv| {
             let local_clean = lv.trim().to_lowercase();
             let remote_base = version_str.split('-').next().unwrap_or(version_str).trim().to_lowercase();
+            if local_clean.contains("mono") {
+                return false;
+            }
             local_clean == remote_base || local_clean == version_str.trim().to_lowercase()
+                || local_clean.starts_with(&format!("{}-", remote_base))
+        });
+
+        let is_installed_mono = local_versions.iter().any(|lv| {
+            let local_clean = lv.trim().to_lowercase();
+            let remote_base = version_str.split('-').next().unwrap_or(version_str).trim().to_lowercase();
+            if !local_clean.contains("mono") {
+                return false;
+            }
+            local_clean == remote_base || local_clean == version_str.trim().to_lowercase()
+                || local_clean.starts_with(&format!("{}-", remote_base))
         });
 
         let mut results = Vec::new();
 
-        for (variant, asset_opt) in &[("standard", &standard_asset), ("mono", &mono_asset)] {
+        for (variant, asset_opt, is_installed) in &[
+            ("standard", &standard_asset, is_installed_standard),
+            ("mono", &mono_asset, is_installed_mono),
+        ] {
             if let Some((file_name, download_url, file_size)) = asset_opt {
                 let final_download_url = if mirror.mirror_type == "direct" {
                     format!("{}/{}/{}",
@@ -395,7 +412,7 @@ impl EngineDownloader {
                     download_url: final_download_url,
                     file_name: file_name.clone(),
                     file_size: *file_size,
-                    is_installed,
+                    is_installed: *is_installed,
                     variant: variant.to_string(),
                 });
             }

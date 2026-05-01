@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - '**'
+  workflow_run:
+    workflows:
+      - 'Build Godot Harbor'
+    types:
+      - completed
   workflow_dispatch:
 
 permissions:

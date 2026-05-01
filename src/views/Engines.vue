@@ -67,6 +67,7 @@ onMounted(async () => {
     }
     activeDownloads.value = newMap
   })
+  document.addEventListener('click', handleGlobalClick)
 })
 
 onUnmounted(() => {
@@ -76,6 +77,7 @@ onUnmounted(() => {
   if (unlistenDownloadProgress) {
     unlistenDownloadProgress()
   }
+  document.removeEventListener('click', handleGlobalClick)
 })
 
 const defaultEngine = computed(() => {
@@ -102,7 +104,8 @@ const filteredRemoteVersions = computed(() => {
     const matchesVariant = downloadVariantFilter.value === 'all' || v.variant === downloadVariantFilter.value
     const matchesSearch = downloadSearchQuery.value === '' ||
       v.version.toLowerCase().includes(downloadSearchQuery.value.toLowerCase()) ||
-      v.tag_name.toLowerCase().includes(downloadSearchQuery.value.toLowerCase())
+      v.tag_name.toLowerCase().includes(downloadSearchQuery.value.toLowerCase()) ||
+      v.channel.toLowerCase().includes(downloadSearchQuery.value.toLowerCase())
     const matchesInstalled = !hideInstalled.value || !v.is_installed
     return matchesChannel && matchesVariant && matchesSearch && matchesInstalled
   })
@@ -497,6 +500,13 @@ const handleLaunchEngine = async (engineId: string) => {
 
 const toggleEngineMenu = (engineId: string) => {
   openMenuId.value = openMenuId.value === engineId ? '' : engineId
+}
+
+const handleGlobalClick = (e: MouseEvent) => {
+  const target = e.target as HTMLElement
+  if (!target.closest('.relative')) {
+    openMenuId.value = ''
+  }
 }
 </script>
 
