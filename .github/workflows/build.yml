@@ -20,8 +20,34 @@ permissions:
   contents: write
 
 jobs:
+  create-release:
+    name: Create Draft Release
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create-release.outputs.id }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create Draft Release
+        id: create-release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: '${{ github.event.inputs.version }}',
+              name: 'Godot Harbor ${{ github.event.inputs.version }}',
+              body: `**Version:** ${{ github.event.inputs.version }}\n**Build Reason:** ${{ github.event.inputs.reason || 'Manual build' }}`,
+              draft: true,
+              prerelease: false
+            });
+            core.setOutput('id', data.id);
+
   build:
     name: Build ${{ matrix.platform.name }}
+    needs: create-release
     runs-on: ${{ matrix.platform.os }}
     strategy:
       fail-fast: false
@@ -93,12 +119,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          releaseId: ${{ needs.create-release.outputs.release_id }}
           tagName: ${{ github.event.inputs.version }}
-          releaseName: 'Godot Harbor ${{ github.event.inputs.version }}'
-          releaseBody: |
-            **Version:** ${{ github.event.inputs.version }}
-            **Build Reason:** ${{ github.event.inputs.reason || 'Manual build' }}
-          releaseDraft: false
+          releaseDraft: true
           prerelease: false
           args: '--target ${{ matrix.platform.target }} --bundles ${{ matrix.platform.bundle }}'
 
@@ -109,3 +132,31 @@ jobs:
           path: |
             src-tauri/target/${{ matrix.platform.target }}/release/bundle/**/*
           if-no-files-found: warn
+
+  publish-release:
+    name: Publish Release
+    needs: [create-release, build]
+    runs-on: ubuntu-latest
+    if: ${{ always() && needs.build.result != 'cancelled' }}
+    steps:
+      - name: Publish Release
+        uses: actions/github-script@v7
+        env:
+          RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+        with:
+          script: |
+            const releaseId = parseInt(process.env.RELEASE_ID, 10);
+            const failedJobs = '${{ needs.build.result }}';
+
+            if (failedJobs === 'failure') {
+              core.info('Some build jobs failed, keeping release as draft');
+              return;
+            }
+
+            await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId,
+              draft: false
+            });
+            core.info('Release published successfully');
