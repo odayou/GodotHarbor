@@ -760,8 +760,14 @@ pub fn apply_changes(app: AppHandle, project_id: String) -> Result<ApplyResult, 
         .collect();
 
     if desired_bindings.is_empty() {
-        log_error(&app, "apply_changes", &project_id, "该项目没有绑定任何插件");
-        return Err("该项目没有绑定任何插件".to_string());
+        let result = ApplyResult {
+            success: true,
+            created: vec![],
+            removed: vec![],
+            errors: vec![],
+        };
+        log_operation(&app, "apply_changes", &project_id, "无绑定，跳过应用");
+        return Ok(result);
     }
 
     let settings = load_settings(&app);

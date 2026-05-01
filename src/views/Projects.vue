@@ -704,6 +704,11 @@ const goToPluginBindings = (project: Project) => {
 const unbindProjectBinding = async (binding: ProjectBinding) => {
   try {
     await api.unbindPlugin(binding.project_id, binding.plugin_id)
+    try {
+      await api.applyChanges(binding.project_id)
+    } catch {
+      // ignore apply errors
+    }
     toast.success(t('linker.pluginUnbound'))
     if (selectedProject.value) {
       projectBindings.value = await api.getProjectBindings(selectedProject.value.project_id)
@@ -716,6 +721,11 @@ const unbindProjectBinding = async (binding: ProjectBinding) => {
 const repairProjectBinding = async (binding: ProjectBinding) => {
   try {
     await api.repairBinding(binding.project_id, binding.plugin_id)
+    try {
+      await api.applyChanges(binding.project_id)
+    } catch {
+      // ignore apply errors
+    }
     toast.success(t('linker.repairSuccess'))
     if (selectedProject.value) {
       projectBindings.value = await api.getProjectBindings(selectedProject.value.project_id)
@@ -1098,20 +1108,15 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
         <div class="mb-4">
           <div class="flex items-center justify-between mb-2">
             <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('projects.pluginBindings') }}</h4>
-            <div class="flex items-center gap-2">
-              <button
-                @click="goToPluginBindings(selectedProject!)"
-                class="px-2.5 py-1 bg-primary-600 text-white text-xs rounded hover:bg-primary-700 transition-colors"
-              >
-                {{ t('plugins.bindToProject') }}
-              </button>
-              <button
-                @click="goToPluginBindings(selectedProject!)"
-                class="text-xs text-primary-600 dark:text-primary-400 hover:underline"
-              >
-                {{ t('linker.goToPluginEcosystem') }}
-              </button>
-            </div>
+            <button
+              @click="goToPluginBindings(selectedProject!)"
+              class="px-2.5 py-1 bg-primary-600 text-white text-xs rounded hover:bg-primary-700 transition-colors flex items-center gap-1"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+              {{ t('linker.goToPluginEcosystem') }}
+            </button>
           </div>
           <div v-if="projectBindings.length === 0" class="text-sm text-gray-500 dark:text-gray-400">
             {{ t('projects.noBindings') }}

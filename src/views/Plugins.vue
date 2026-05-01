@@ -857,7 +857,29 @@ const closePluginDetail = () => {
 const repairBinding = async (projectId: string, pluginId: string) => {
   try {
     await api.repairBinding(projectId, pluginId)
+    try {
+      await api.applyChanges(projectId)
+    } catch {
+      // ignore apply errors
+    }
     toast.success(t('plugins.bindDialog.repairSuccess'))
+    if (selectedPlugin.value) {
+      pluginBindings.value = await api.getPluginBindings(selectedPlugin.value.plugin_id)
+    }
+  } catch (error) {
+    toast.error(t('common.loadFailed', { error }))
+  }
+}
+
+const unbindFromDetail = async (binding: ProjectBinding) => {
+  try {
+    await api.unbindPlugin(binding.project_id, binding.plugin_id)
+    try {
+      await api.applyChanges(binding.project_id)
+    } catch {
+      // ignore apply errors
+    }
+    toast.success(t('linker.pluginUnbound'))
     if (selectedPlugin.value) {
       pluginBindings.value = await api.getPluginBindings(selectedPlugin.value.plugin_id)
     }
@@ -990,11 +1012,25 @@ const selectLinkProject = async (project: Project, event: MouseEvent) => {
       selectedLinkProjectIds.value.add(project.project_id)
     }
     selectedLinkProjectIds.value = new Set(selectedLinkProjectIds.value)
+    await loadAllSelectedBindings()
   } else {
     selectedLinkId.value = project.project_id
     selectedLinkProjectIds.value = new Set([project.project_id])
     await loadLinkerBindings(project.project_id)
   }
+}
+
+const loadAllSelectedBindings = async () => {
+  const allBindings: ProjectBinding[] = []
+  for (const projectId of selectedLinkProjectIds.value) {
+    try {
+      const bindings = await api.getProjectBindings(projectId)
+      allBindings.push(...bindings)
+    } catch {
+      // ignore
+    }
+  }
+  linkerBindings.value = allBindings
 }
 
 const bindPluginToProject = async (plugin: Plugin) => {
@@ -1180,6 +1216,16 @@ const confirmBatchBind = async () => {
           requests.push({ project_id: projectId, plugin_id: pluginId, version_id: version.version_id, unit_id: unit.unit_id, mount_path: mountPath, subdirectory })
         }
       }
+    }
+  }
+  for (const req of requests) {
+    const conflict = linkerBindings.value.find(b => b.project_id === req.project_id && b.mount_path === req.mount_path && b.plugin_id !== req.plugin_id)
+    if (conflict) {
+      const conflictPlugin = plugins.value.find(p => p.plugin_id === conflict.plugin_id)
+      const conflictProject = linkerProjects.value.find(p => p.project_id === req.project_id)
+      toast.warning(t('linker.mountConflict', { path: req.mount_path, plugin: `${conflictPlugin?.name || conflict.plugin_id} (${conflictProject?.name || req.project_id})` }))
+      isLinkerBatchBinding.value = false
+      return
     }
   }
   try {
@@ -1831,13 +1877,21 @@ useDialogEscape(showLinkerBatchApplyResult)
                   <span class="text-xs text-gray-900 dark:text-content-primary font-medium truncate">{{ bindingProjects.get(binding.project_id) || binding.project_id }}</span>
                   <span class="font-mono text-xs text-gray-500 dark:text-content-secondary flex-shrink-0">{{ binding.mount_path }}</span>
                 </div>
-                <button
-                  v-if="binding.is_healthy === false"
-                  @click="repairBinding(binding.project_id, binding.plugin_id)"
-                  class="text-xs text-primary-600 dark:text-primary-400 hover:underline flex-shrink-0 ml-2"
-                >
-                  {{ t('plugins.bindDialog.repair') }}
-                </button>
+                <div class="flex items-center gap-1 ml-2 flex-shrink-0">
+                  <button
+                    v-if="binding.is_healthy === false"
+                    @click="repairBinding(binding.project_id, binding.plugin_id)"
+                    class="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+                  >
+                    {{ t('plugins.bindDialog.repair') }}
+                  </button>
+                  <button
+                    @click="unbindFromDetail(binding)"
+                    class="text-xs text-red-500 hover:text-red-700 hover:underline"
+                  >
+                    {{ t('linker.unbind') }}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1857,7 +1911,7 @@ useDialogEscape(showLinkerBatchApplyResult)
             <div class="space-y-2 bg-gray-50 dark:bg-surface-layer rounded-lg p-3">
               <div v-for="dep in pluginDependencies" :key="dep.plugin_id" class="flex items-center justify-between text-sm">
                 <div class="text-gray-600 dark:text-content-secondary">
-                  <span class="font-medium">{{ dep.plugin_id }}</span>
+                  <span class="font-medium">{{ plugins.find(p => p.plugin_id === dep.plugin_id)?.name || dep.plugin_id }}</span>
                   <span v-if="dep.version_constraint"> ({{ dep.version_constraint }})</span>
                   <span v-if="dep.is_optional" class="ml-2 text-xs text-gray-500 dark:text-content-secondary">({{ t('plugins.pluginDetail.optional') }})</span>
                 </div>
@@ -2340,28 +2394,9 @@ useDialogEscape(showLinkerBatchApplyResult)
           v-if="selectedLinkId"
           @click="confirmLinkerApply"
           :disabled="isLinkerApplying"
-          class="relative px-3 py-1.5 text-sm rounded-lg hover:bg-primary-700 disabled:opacity-50"
-          :class="linkerHasPendingChanges ? 'bg-orange-500 text-white animate-pulse' : 'bg-primary-600 text-white'"
+          class="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 disabled:opacity-50"
         >
           {{ isLinkerApplying ? t('linker.applying') : t('linker.apply') }}
-          <span v-if="linkerHasPendingChanges" class="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white dark:border-gray-900"></span>
-        </button>
-      </div>
-
-      <div v-if="linkerHasPendingChanges" class="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-2.5 flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <svg class="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-          </svg>
-          <span class="text-sm text-orange-700 dark:text-orange-300">{{ t('linker.pendingChanges') }}</span>
-        </div>
-        <button
-          v-if="selectedLinkId"
-          @click="confirmLinkerApply"
-          :disabled="isLinkerApplying"
-          class="px-3 py-1 bg-orange-500 text-white text-xs rounded-lg hover:bg-orange-600 disabled:opacity-50"
-        >
-          {{ isLinkerApplying ? t('linker.applying') : t('linker.applyNow') }}
         </button>
       </div>
 
@@ -2468,6 +2503,7 @@ useDialogEscape(showLinkerBatchApplyResult)
                     <span v-if="item.is_healthy === false" class="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" :title="t('plugins.bindDialog.unhealthy')"></span>
                   </div>
                   <div class="text-xs text-gray-500 dark:text-content-secondary flex items-center gap-2">
+                    <span v-if="selectedLinkProjectIds.size > 1" class="text-blue-500 dark:text-blue-400">{{ linkerProjects.find(p => p.project_id === item.project_id)?.name || item.project_id }}</span>
                     <span>{{ item.mount_path }}</span>
                     <span v-if="getBindingVersion(item)" class="text-blue-500 dark:text-blue-400">v{{ getBindingVersion(item) }}</span>
                   </div>
