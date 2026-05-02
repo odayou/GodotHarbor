@@ -234,7 +234,7 @@ const showRollbackConfirm = ref(false)
 const showClearHistoryConfirm = ref(false)
 const showSkipVersionConfirm = ref(false)
 
-const githubReleaseUrl = 'https://github.com/little-flute/GodotHarbor/releases'
+const githubReleaseUrl = 'https://github.com/odayou/GodotHarbor/releases'
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return bytes + ' B'

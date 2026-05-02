@@ -130,9 +130,7 @@ registerShortcut({
     <div class="flex-1 flex flex-col overflow-hidden">
       <Header />
       <main class="flex-1 overflow-x-hidden overflow-y-auto bg-white dark:bg-surface-layer p-4 md:p-6">
-        <Transition name="page" mode="out-in">
-          <RouterView />
-        </Transition>
+        <RouterView />
       </main>
       <StatusBar />
     </div>

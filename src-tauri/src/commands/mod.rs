@@ -1502,7 +1502,7 @@ pub fn update_git_plugin(app: AppHandle, plugin_id: String) -> Result<Plugin, St
     Ok(result)
 }
 
-const APP_GITHUB_OWNER: &str = "little-flute";
+const APP_GITHUB_OWNER: &str = "odayou";
 const APP_GITHUB_REPO: &str = "GodotHarbor";
 
 #[tauri::command]

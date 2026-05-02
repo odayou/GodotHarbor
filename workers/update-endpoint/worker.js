@@ -1,4 +1,4 @@
-const GITHUB_REPO = 'little-flute/GodotHarbor';
+const GITHUB_REPO = 'odayou/GodotHarbor';
 const HOTUPDATE_MANIFEST_ASSET = 'hotupdate-manifest.json';
 
 export default {

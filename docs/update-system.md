@@ -9,7 +9,7 @@
 | 插件更新 | 在线（GitHub API） | git pull | 无 | Git来源插件版本更新 |
 | 引擎更新 | 在线（Godot官方API） | 跳转下载页 | 无 | Godot引擎新版本发布 |
 
-**离线更新**：用户可从 [GitHub Releases](https://github.com/little-flute/GodotHarbor/releases) 手动下载安装包替换。
+**离线更新**：用户可从 [GitHub Releases](https://github.com/odayou/GodotHarbor/releases) 手动下载安装包替换。
 
 ---
 
@@ -51,7 +51,7 @@
 ### 3.1 应用更新
 
 **检测流程**：
-1. 调用 `check_app_update` → GitHub API `repos/little-flute/GodotHarbor/releases/latest`
+1. 调用 `check_app_update` → GitHub API `repos/odayou/GodotHarbor/releases/latest`
 2. 比对 semver，跳过已跳过版本
 3. 匹配当前平台安装包（Windows: `.nsis.zip`）
 
@@ -95,7 +95,7 @@
   "max_compatible_app_version": "0.2.0",
   "release_notes": "修复了xxx问题",
   "pub_date": "2025-01-01T00:00:00Z",
-  "download_url": "https://github.com/little-flute/GodotHarbor/releases/download/v0.1.0/hotupdate-0.1.1.zip",
+  "download_url": "https://github.com/odayou/GodotHarbor/releases/download/v0.1.0/hotupdate-0.1.1.zip",
   "download_size": 1234567,
   "checksum": "abc123def456...",
   "files": []
@@ -295,7 +295,7 @@ dist/ → web/ 前缀 → zip
 
 | 路径 | 功能 | 数据源 |
 |------|------|--------|
-| `/updates/{target}/{arch}/{currentVersion}` | 应用更新查询 | GitHub API (little-flute/GodotHarbor) |
+| `/updates/{target}/{arch}/{currentVersion}` | 应用更新查询 | GitHub API (odayou/GodotHarbor) |
 | `/hot-update/manifest.json` | 热更新清单 | GitHub Release assets (`hotupdate-manifest.json`) |
 
 **缓存策略**：
