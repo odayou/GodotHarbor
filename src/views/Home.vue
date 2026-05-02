@@ -7,6 +7,7 @@ import type { DashboardStats } from '@/types'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
 import { useAutoSetup } from '@/composables/useAutoSetup'
+import { convertFileSrc } from '@tauri-apps/api/core'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -25,6 +26,15 @@ const hasError = ref(false)
 let unlisten: UnlistenFn | null = null
 let unlistenFs: UnlistenFn | null = null
 let unlistenEngines: UnlistenFn | null = null
+
+const getIconUrl = (iconPath: string) => {
+  if (!iconPath) return ''
+  try {
+    return convertFileSrc(iconPath)
+  } catch {
+    return ''
+  }
+}
 
 const loadStats = async () => {
   isLoading.value = true
@@ -231,8 +241,14 @@ const launchProject = async (projectId: string) => {
               class="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
               @click="openProjectDetail(project.project_id)"
             >
-              <div class="w-8 h-8 rounded bg-gray-100 dark:bg-surface-layer flex items-center justify-center shrink-0">
-                <svg class="w-4 h-4 text-gray-500 dark:text-content-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div class="w-8 h-8 rounded bg-gray-100 dark:bg-surface-layer flex items-center justify-center shrink-0 overflow-hidden">
+                <img
+                  v-if="project.icon_path"
+                  :src="getIconUrl(project.icon_path)"
+                  :alt="project.name"
+                  class="w-full h-full object-cover"
+                />
+                <svg v-else class="w-4 h-4 text-gray-500 dark:text-content-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                 </svg>
               </div>
@@ -294,7 +310,7 @@ const launchProject = async (projectId: string) => {
             class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium flex items-center gap-2"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 5.803A3.42 3.42 0 0016.862 18a3.42 3.42 0 01-2.273-3.953 3.42 3.42 0 00-.483 1.968 3.42 3.42 0 01-1.946.806 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-1.946-.806 3.42 3.42 0 00-.483-1.968 3.42 3.42 0 01-2.273 3.953 3.42 3.42 0 00-2.957-1.047 3.42 3.42 0 01-3.138-5.803 3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806z" />
             </svg>
             {{ t('home.oneClickSetup') }}
           </button>
