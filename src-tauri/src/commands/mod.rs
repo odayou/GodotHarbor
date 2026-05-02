@@ -1705,6 +1705,8 @@ pub async fn install_app_update(app: AppHandle) -> Result<(), String> {
         "message": "安装程序已启动，即将重启..."
     }));
 
+    record_update_history(&app, "app", "Godot Harbor", &update_info.current_version, &update_info.latest_version, "success", "安装程序已启动");
+
     app.exit(0);
     Ok(())
 }
@@ -1772,8 +1774,10 @@ pub fn batch_update_plugins(app: AppHandle, plugin_ids: Vec<String>) -> Result<B
         }
 
         let git_url = plugin.source.url.clone();
+        let old_version = plugin.versions.first().map(|v| v.version.clone()).unwrap_or_default();
         match manager.import_from_git(&git_url, &app) {
             Ok(updated) => {
+                let new_version = updated.versions.last().map(|v| v.version.clone()).unwrap_or_default();
                 if let Some(idx) = plugins.iter().position(|p| p.plugin_id == *plugin_id) {
                     plugins[idx].versions.extend(updated.versions);
                     if !updated.content_hash.is_empty() {
@@ -1783,6 +1787,7 @@ pub fn batch_update_plugins(app: AppHandle, plugin_ids: Vec<String>) -> Result<B
                     dirty = true;
                 }
                 success_count += 1;
+                record_update_history(&app, "plugin", &plugin.name, &old_version, &new_version, "success", "");
                 let _ = app.emit("plugin-update-progress", serde_json::json!({
                     "plugin_id": plugin_id,
                     "stage": "complete",
@@ -1792,6 +1797,7 @@ pub fn batch_update_plugins(app: AppHandle, plugin_ids: Vec<String>) -> Result<B
             }
             Err(e) => {
                 failed_count += 1;
+                record_update_history(&app, "plugin", &plugin.name, &old_version, "", "failed", &format!("更新失败: {}", e));
                 errors.push(format!("更新插件 {} 失败: {}", plugin.name, e));
                 let _ = app.emit("plugin-update-progress", serde_json::json!({
                     "plugin_id": plugin_id,
@@ -1971,7 +1977,7 @@ pub fn clear_update_history(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-fn record_update_history(app: &AppHandle, update_type: &str, target_name: &str, from_version: &str, to_version: &str, status: &str, notes: &str) {
+pub fn record_update_history(app: &AppHandle, update_type: &str, target_name: &str, from_version: &str, to_version: &str, status: &str, notes: &str) {
     let storage = get_storage(app);
     let mut history: Vec<crate::models::UpdateHistoryEntry> = storage.load_or_default("update_history.json");
     

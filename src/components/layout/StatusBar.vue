@@ -18,7 +18,8 @@ const lastChecked = ref<string>('')
 const showUpdatePanel = ref(false)
 
 let unlisten: (() => void) | null = null
-let updateInterval: ReturnType<typeof setInterval> | null = null
+let unlistenEngine: (() => void) | null = null
+let unlistenUpdates: (() => void) | null = null
 
 const totalUpdateCount = computed(() => {
   return updateStore.totalUpdateCount + engineUpdatesAvailable.value.length
@@ -194,6 +195,13 @@ onMounted(async () => {
     unlisten = await listen<VersionUpdateInfo[]>('godot-update-available', (event) => {
       engineUpdatesAvailable.value = event.payload
     })
+    unlistenEngine = await listen<VersionUpdateInfo[]>('engine-updates-available', (event) => {
+      engineUpdatesAvailable.value = event.payload
+    })
+    unlistenUpdates = await listen('updates-available', () => {
+      checkEngineUpdates()
+      updateStore.checkAll()
+    })
   } catch (e) {
     console.error('Failed to listen for update events:', e)
   }
@@ -216,10 +224,6 @@ onMounted(async () => {
     }
   }, 8000)
 
-  updateInterval = setInterval(() => {
-    checkEngineUpdates()
-  }, 30 * 60 * 1000)
-
   document.addEventListener('click', handleClickOutside)
 })
 
@@ -228,9 +232,13 @@ onUnmounted(() => {
     unlisten()
     unlisten = null
   }
-  if (updateInterval) {
-    clearInterval(updateInterval)
-    updateInterval = null
+  if (unlistenEngine) {
+    unlistenEngine()
+    unlistenEngine = null
+  }
+  if (unlistenUpdates) {
+    unlistenUpdates()
+    unlistenUpdates = null
   }
   updateStore.cleanupListeners()
   document.removeEventListener('click', handleClickOutside)

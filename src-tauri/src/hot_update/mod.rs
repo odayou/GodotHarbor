@@ -1,6 +1,7 @@
 use crate::models::HotUpdateInfo;
 use crate::utils::{copy_dir_all, create_http_client};
 use serde::{Deserialize, Serialize};
+use sha2::{Sha256, Digest};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter, Manager};
@@ -115,6 +116,10 @@ impl HotUpdateManager {
         let manifest: HotUpdateManifest = resp.json().await
             .map_err(|e| format!("解析热更新清单失败: {}", e))?;
 
+        let old_version = self.get_current_hot_update_version()
+            .unwrap_or(None)
+            .unwrap_or_else(|| app.config().version.clone().unwrap_or_default());
+
         let staging = self.staging_dir();
         if staging.exists() {
             fs::remove_dir_all(&staging)
@@ -130,6 +135,16 @@ impl HotUpdateManager {
 
         let archive_data = archive_resp.bytes().await
             .map_err(|e| format!("读取更新包数据失败: {}", e))?;
+
+        if !manifest.checksum.is_empty() {
+            emit_hot_update_progress(app, "verifying", 40, "正在校验更新包完整性...");
+            let mut hasher = Sha256::new();
+            hasher.update(&archive_data);
+            let computed = format!("{:x}", hasher.finalize());
+            if computed != manifest.checksum {
+                return Err(format!("更新包校验失败: 期望 {} 实际 {}", manifest.checksum, computed));
+            }
+        }
 
         emit_hot_update_progress(app, "extracting", 60, "正在解压更新包...");
 
@@ -157,6 +172,8 @@ impl HotUpdateManager {
 
         self.save_current_version(&manifest.version)?;
 
+        crate::commands::record_update_history(app, "hot", "Godot Harbor", &old_version, &manifest.version, "success", "");
+
         emit_hot_update_progress(app, "complete", 100, "热更新完成，部分更改将在重启后生效");
 
         Ok(())
@@ -168,6 +185,11 @@ impl HotUpdateManager {
             return Err("没有可回滚的备份".to_string());
         }
 
+        let hot_version = self.get_current_hot_update_version()
+            .unwrap_or(None)
+            .unwrap_or_default();
+        let app_version = app.config().version.clone().unwrap_or_default();
+
         self.apply_hot_update(app, &backup)?;
 
         let version_file = self.current_version_file();
@@ -175,6 +197,8 @@ impl HotUpdateManager {
             fs::remove_file(&version_file)
                 .map_err(|e| format!("删除版本文件失败: {}", e))?;
         }
+
+        crate::commands::record_update_history(app, "hot", "Godot Harbor", &hot_version, &app_version, "rollback", "热更新已回滚");
 
         Ok(())
     }
@@ -239,7 +263,7 @@ impl HotUpdateManager {
         let overlay = self.overlay_dir();
 
         for entry in walkdir::WalkDir::new(source_dir)
-            .max_depth(2)
+            .max_depth(10)
             .follow_links(false)
             .into_iter()
             .filter_map(|e| e.ok())

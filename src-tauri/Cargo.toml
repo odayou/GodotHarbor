@@ -39,6 +39,7 @@ semver = "1"
 percent-encoding = "2"
 futures = "0.3"
 fs2 = "0.4"
+sha2 = "0.10"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52"

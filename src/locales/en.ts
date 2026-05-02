@@ -1092,7 +1092,12 @@ export default {
     installCompleteRestarting: 'Update installation complete, restarting...',
     installFailed: 'Update failed: {error}',
     preparingHotUpdate: 'Preparing to download hot update...',
-    hotUpdateFailed: 'Hot update failed: {error}'
+    hotUpdateFailed: 'Hot update failed: {error}',
+    manualDownload: 'Download installer manually',
+    offlineUpdateTip: 'If online update fails, you can download the installer manually:',
+    githubRelease: 'View GitHub Release page',
+    goToEngines: 'Go to Engine Management',
+    checksumFailed: 'Update package checksum verification failed, file may be corrupted'
   },
   autoSetup: {
     scanningPlugins: 'Scanning project plugins...',

@@ -1,0 +1,176 @@
+name: Hot Update
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Hot update version (e.g., 0.1.1)'
+        required: true
+      release_tag:
+        description: 'Target release tag (e.g., v0.1.0)'
+        required: true
+      release_notes:
+        description: 'Release notes'
+        required: false
+      min_compatible:
+        description: 'Min compatible app version (defaults to release_tag version)'
+        required: false
+      max_compatible:
+        description: 'Max compatible app version (defaults to next minor)'
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  hot-update:
+    name: Build & Deploy Hot Update
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Prepare hot update package
+        run: |
+          mkdir -p hotupdate-staging/web
+          cp -r dist/* hotupdate-staging/web/
+          cd hotupdate-staging
+          zip -r ../hotupdate.zip web/
+          cd ..
+
+      - name: Generate manifest
+        id: manifest
+        run: |
+          TAG="${{ github.event.inputs.release_tag }}"
+          VERSION="${{ github.event.inputs.version }}"
+          MIN_COMPAT="${{ github.event.inputs.min_compatible }}"
+          MAX_COMPAT="${{ github.event.inputs.max_compatible }}"
+          NOTES="${{ github.event.inputs.release_notes }}"
+
+          if [ -z "$MIN_COMPAT" ]; then
+            MIN_COMPAT="${TAG#v}"
+          fi
+
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/hotupdate-${VERSION}.zip"
+
+          node scripts/generate-update-manifest.js from-zip \
+            "$VERSION" \
+            hotupdate.zip \
+            "$DOWNLOAD_URL" \
+            "$MIN_COMPAT" \
+            "$MAX_COMPAT" \
+            "$NOTES" \
+            hotupdate-manifest.json
+
+          echo "manifest_path=hotupdate-manifest.json" >> $GITHUB_OUTPUT
+          echo "zip_path=hotupdate.zip" >> $GITHUB_OUTPUT
+
+      - name: Verify manifest
+        run: |
+          echo "=== Generated manifest ==="
+          cat hotupdate-manifest.json
+          echo ""
+          echo "=== Zip info ==="
+          ls -lh hotupdate.zip
+
+      - name: Find release
+        id: release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = '${{ github.event.inputs.release_tag }}';
+            try {
+              const { data: release } = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag: tag,
+              });
+              core.setOutput('id', release.id);
+              core.setOutput('upload_url', release.upload_url);
+              core.info(`Found release for tag ${tag}, id=${release.id}`);
+            } catch (err) {
+              if (err.status === 404) {
+                core.setFailed(`No release found for tag ${tag}. Create a release first via the Build workflow.`);
+              } else {
+                throw err;
+              }
+            }
+
+      - name: Delete old hot update assets
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const releaseId = parseInt('${{ steps.release.outputs.id }}', 10);
+            const { data: release } = await github.rest.repos.getRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId,
+            });
+            for (const asset of release.assets) {
+              if (asset.name === 'hotupdate-manifest.json' || asset.name.startsWith('hotupdate-') && asset.name.endsWith('.zip')) {
+                core.info(`Deleting old asset: ${asset.name}`);
+                await github.rest.repos.deleteReleaseAsset({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  asset_id: asset.id,
+                });
+              }
+            }
+
+      - name: Upload assets to release
+        uses: actions/github-script@v7
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ steps.release.outputs.id }}
+          HOTUPDATE_VERSION: ${{ github.event.inputs.version }}
+        with:
+          script: |
+            const fs = require('fs');
+            const releaseId = parseInt(process.env.RELEASE_ID, 10);
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const version = process.env.HOTUPDATE_VERSION;
+
+            async function uploadAsset(filePath, assetName, contentType) {
+              const fileContent = fs.readFileSync(filePath);
+              const { data: releaseData } = await github.rest.repos.getRelease({ owner, repo, release_id: releaseId });
+              const url = `${releaseData.upload_url.replace('{?name,label}', '')}?name=${encodeURIComponent(assetName)}`;
+
+              await github.request({
+                method: 'POST',
+                url: url,
+                headers: {
+                  'Content-Type': contentType,
+                  'Content-Length': fileContent.length,
+                  'Authorization': `token ${process.env.GITHUB_TOKEN}`,
+                },
+                data: fileContent,
+              });
+              core.info(`Uploaded ${assetName}`);
+            }
+
+            await uploadAsset('hotupdate.zip', `hotupdate-${version}.zip`, 'application/zip');
+            await uploadAsset('hotupdate-manifest.json', 'hotupdate-manifest.json', 'application/json');
+
+      - name: Summary
+        run: |
+          echo "## Hot Update Published ✅" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: ${{ github.event.inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target Release**: ${{ github.event.inputs.release_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Compatible**: ${{ github.event.inputs.min_compatible || 'auto' }} ~ ${{ github.event.inputs.max_compatible || 'auto' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Manifest URL**: https://godotharbor.odayou.workers.dev/hot-update/manifest.json" >> $GITHUB_STEP_SUMMARY
+          echo "- **Download URL**: https://github.com/${{ github.repository }}/releases/download/${{ github.event.inputs.release_tag }}/hotupdate-${{ github.event.inputs.version }}.zip" >> $GITHUB_STEP_SUMMARY

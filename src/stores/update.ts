@@ -149,18 +149,65 @@ export const useUpdateStore = defineStore('updates', () => {
     }
   }
 
+  async function reapplyBindingsForPlugin(pluginId: string) {
+    try {
+      const projects = await api.getProjects()
+      const bindingResults = await Promise.allSettled(
+        projects.map(p => api.getProjectBindings(p.project_id))
+      )
+      const projectIdsToApply: string[] = []
+      bindingResults.forEach((result, i) => {
+        if (result.status === 'fulfilled' && result.value.some(b => b.plugin_id === pluginId)) {
+          projectIdsToApply.push(projects[i].project_id)
+        }
+      })
+      await Promise.allSettled(
+        projectIdsToApply.map(id => api.applyChanges(id))
+      )
+    } catch {
+      // ignore reapply errors
+    }
+  }
+
+  async function reapplyAllBindings() {
+    try {
+      const projects = await api.getProjects()
+      await Promise.allSettled(
+        projects.map(p => api.applyChanges(p.project_id))
+      )
+    } catch {
+      // ignore reapply errors
+    }
+  }
+
   async function updateSinglePlugin(pluginId: string) {
     await api.updateGitPlugin(pluginId)
     pluginUpdates.value = pluginUpdates.value.filter(u => u.plugin_id !== pluginId)
+    await reapplyBindingsForPlugin(pluginId)
   }
 
   async function batchUpdateAllPlugins() {
     isUpdatingPlugins.value = true
     try {
       const ids = pluginUpdates.value.map(u => u.plugin_id)
-      const result = await api.batchUpdatePlugins(ids)
-      const failedIds = new Set(result.errors.map((_: any, i: number) => ids[i]))
+      const concurrency = 3
+      const chunks: string[][] = []
+      for (let i = 0; i < ids.length; i += concurrency) {
+        chunks.push(ids.slice(i, i + concurrency))
+      }
+      const failedIds = new Set<string>()
+      for (const chunk of chunks) {
+        const results = await Promise.allSettled(
+          chunk.map(id => api.updateGitPlugin(id))
+        )
+        for (let i = 0; i < results.length; i++) {
+          if (results[i].status === 'rejected') {
+            failedIds.add(chunk[i])
+          }
+        }
+      }
       pluginUpdates.value = pluginUpdates.value.filter(u => failedIds.has(u.plugin_id))
+      await reapplyAllBindings()
     } finally {
       isUpdatingPlugins.value = false
     }

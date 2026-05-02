@@ -63,14 +63,19 @@ async fn check_and_notify(app: &AppHandle) {
         }
     }
 
-    // if settings.auto_check_app_updates {
-    //     if let Ok(Some(update)) = crate::commands::check_app_update(app.clone()).await {
-    //         if update.latest_version != settings.skipped_app_version {
-    //             has_updates = true;
-    //             let _ = app.emit("app-update-available", &update);
-    //         }
-    //     }
-    // }
+    if settings.auto_check_app_updates {
+        if let Ok(Some(update)) = crate::commands::check_app_update(app.clone()).await {
+            if update.latest_version != settings.skipped_app_version {
+                has_updates = true;
+                let _ = app.emit("app-update-available", &update);
+            }
+        }
+
+        if let Ok(Some(hot_update)) = crate::commands::check_hot_update(app.clone(), None).await {
+            has_updates = true;
+            let _ = app.emit("hot-update-available", &hot_update);
+        }
+    }
 
     if has_updates {
         let _ = app.emit("updates-available", ());

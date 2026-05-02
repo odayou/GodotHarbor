@@ -143,39 +143,45 @@ godot-harbor/
 │   ├── api/               # API 接口封装
 │   ├── components/         # Vue 组件
 │   │   └── layout/        # 布局组件
+│   ├── composables/        # 组合式函数
 │   ├── router/            # 路由配置
 │   ├── stores/            # Pinia 状态管理
 │   ├── types/             # TypeScript 类型定义
 │   ├── views/             # 页面视图
-│   │   ├── Home.vue       # 首页
-│   │   ├── Projects.vue   # 项目管理
-│   │   ├── Plugins.vue   # 插件仓库
-│   │   ├── Linker.vue     # 插件绑定
-│   │   └── Settings.vue   # 设置
 │   ├── App.vue            # 根组件
 │   ├── main.ts            # 入口文件
 │   └── style.css          # 全局样式
 ├── src-tauri/             # Rust 后端代码
 │   ├── src/
 │   │   ├── commands/      # Tauri 命令
+│   │   ├── hot_update/    # 热更新模块
 │   │   ├── linker/        # 绑定管理
 │   │   ├── models/        # 数据模型
 │   │   ├── plugin_manager/# 插件管理
 │   │   ├── scanner/       # 项目扫描
 │   │   ├── storage/       # 存储模块
+│   │   ├── update_scheduler/ # 更新调度器
 │   │   ├── lib.rs         # 库入口
 │   │   └── main.rs        # 主程序
 │   ├── Cargo.toml         # Rust 依赖
-│   ├── build.rs           # 构建脚本
 │   └── tauri.conf.json    # Tauri 配置
-├── package.json           # Node.js 依赖
-├── vite.config.ts         # Vite 配置
-├── tailwind.config.js     # TailwindCSS 配置
-├── tsconfig.json          # TypeScript 配置
-├── PLAN.md                # 实施计划
-├── STATUS.md              # 项目状态
-└── README.md              # 项目说明
+├── workers/               # Cloudflare Worker（更新端点）
+├── scripts/               # 构建脚本（manifest生成等）
+├── .github/workflows/     # CI/CD 工作流
+├── docs/                  # 项目文档
+└── package.json           # Node.js 依赖
 ```
+
+## 文档索引
+
+| 文档 | 说明 |
+|------|------|
+| [更新系统](docs/update-system.md) | 更新策略、架构设计、发布流程（全量/热更新）、Worker配置 |
+| [UI风格指南](docs/design/UI风格指南.md) | 界面设计规范与主题方案 |
+| [插件管理分析](docs/technical/插件管理分析.md) | 插件系统技术架构 |
+| [引擎自动发现](docs/technical/引擎自动发现.md) | Godot引擎识别与绑定 |
+| [产品规划 v0.1](docs/planning/产品规划_v0.1.md) | 初期产品规划 |
+| [迭代计划 v0.2](docs/planning/迭代计划_v0.2.md) | v0.2迭代计划 |
 
 ## 开发指南
 

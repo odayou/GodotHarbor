@@ -2,7 +2,36 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-function generateUpdateManifest(version, releaseNotes, assetsDir, outputPath) {
+function generateHotUpdateManifest(options) {
+  const { version, zipPath, downloadUrl, minVersion, maxVersion, releaseNotes, outputPath } = options;
+
+  const zipBuffer = fs.readFileSync(zipPath);
+  const checksum = crypto.createHash('sha256').update(zipBuffer).digest('hex');
+  const downloadSize = zipBuffer.length;
+
+  const manifest = {
+    version,
+    min_compatible_app_version: minVersion || version,
+    max_compatible_app_version: maxVersion || incrementMinor(version),
+    release_notes: releaseNotes || '',
+    pub_date: new Date().toISOString(),
+    download_url: downloadUrl || '',
+    download_size: downloadSize,
+    checksum,
+    files: []
+  };
+
+  const output = outputPath || 'hotupdate-manifest.json';
+  fs.writeFileSync(output, JSON.stringify(manifest, null, 2));
+  console.log(`Hot update manifest written to ${output}`);
+  console.log(`  Version: ${version}`);
+  console.log(`  Compatible: ${manifest.min_compatible_app_version} ~ ${manifest.max_compatible_app_version}`);
+  console.log(`  Download size: ${downloadSize} bytes`);
+  console.log(`  Checksum: ${checksum}`);
+}
+
+function generateHotUpdateManifestFromDir(options) {
+  const { version, assetsDir, downloadUrl, minVersion, maxVersion, releaseNotes, outputPath } = options;
   const files = [];
 
   function walkDir(dir, base = '') {
@@ -17,7 +46,7 @@ function generateUpdateManifest(version, releaseNotes, assetsDir, outputPath) {
         const hash = crypto.createHash('sha256').update(content).digest('hex');
         files.push({
           path: relativePath,
-          checksum: `sha256:${hash}`,
+          checksum: hash,
           size: content.length
         });
       }
@@ -29,48 +58,25 @@ function generateUpdateManifest(version, releaseNotes, assetsDir, outputPath) {
   }
 
   const totalSize = files.reduce((sum, f) => sum + f.size, 0);
-  const allChecksums = files.map(f => f.checksum).join('');
-  const checksum = crypto.createHash('sha256').update(allChecksums).digest('hex');
 
   const manifest = {
-    latest_version: version,
-    min_compatible_app_version: version,
-    max_compatible_app_version: incrementMinor(version),
+    version,
+    min_compatible_app_version: minVersion || version,
+    max_compatible_app_version: maxVersion || incrementMinor(version),
     release_notes: releaseNotes || '',
     pub_date: new Date().toISOString(),
-    checksum: `sha256:${checksum}`,
-    download_url: '',
-    signature: '',
+    download_url: downloadUrl || '',
+    download_size: totalSize,
+    checksum: '',
     files
   };
 
-  const output = outputPath || 'hotfix-manifest.json';
+  const output = outputPath || 'hotupdate-manifest.json';
   fs.writeFileSync(output, JSON.stringify(manifest, null, 2));
-  console.log(`Manifest written to ${output}`);
+  console.log(`Hot update manifest written to ${output}`);
   console.log(`  Version: ${version}`);
   console.log(`  Files: ${files.length}`);
   console.log(`  Total size: ${totalSize} bytes`);
-}
-
-function generateAppUpdateJson(version, releaseNotes, platformAssets) {
-  const platforms = {};
-  for (const [key, asset] of Object.entries(platformAssets || {})) {
-    platforms[key] = {
-      signature: asset.signature || '',
-      url: asset.url || ''
-    };
-  }
-
-  const update = {
-    version,
-    notes: releaseNotes || '',
-    pub_date: new Date().toISOString(),
-    platforms
-  };
-
-  const output = `app-update-${version}.json`;
-  fs.writeFileSync(output, JSON.stringify(update, null, 2));
-  console.log(`App update JSON written to ${output}`);
 }
 
 function incrementMinor(version) {
@@ -86,18 +92,28 @@ function incrementMinor(version) {
 const args = process.argv.slice(2);
 const command = args[0];
 
-if (command === 'hot-update') {
-  const version = args[1] || '0.1.0';
-  const assetsDir = args[2] || './dist';
-  const outputPath = args[3];
-  const releaseNotes = args[4] || '';
-  generateUpdateManifest(version, releaseNotes, assetsDir, outputPath);
-} else if (command === 'app-update') {
-  const version = args[1] || '0.1.0';
-  const releaseNotes = args[2] || '';
-  generateAppUpdateJson(version, releaseNotes, {});
+if (command === 'from-zip') {
+  generateHotUpdateManifest({
+    version: args[1] || '0.1.0',
+    zipPath: args[2] || 'hotupdate.zip',
+    downloadUrl: args[3] || '',
+    minVersion: args[4] || '',
+    maxVersion: args[5] || '',
+    releaseNotes: args[6] || '',
+    outputPath: args[7] || 'hotupdate-manifest.json'
+  });
+} else if (command === 'from-dir') {
+  generateHotUpdateManifestFromDir({
+    version: args[1] || '0.1.0',
+    assetsDir: args[2] || './dist',
+    downloadUrl: args[3] || '',
+    minVersion: args[4] || '',
+    maxVersion: args[5] || '',
+    releaseNotes: args[6] || '',
+    outputPath: args[7] || 'hotupdate-manifest.json'
+  });
 } else {
   console.log('Usage:');
-  console.log('  node generate-update-manifest.js hot-update <version> <assetsDir> [outputPath] [releaseNotes]');
-  console.log('  node generate-update-manifest.js app-update <version> [releaseNotes]');
+  console.log('  node generate-update-manifest.js from-zip <version> <zipPath> [downloadUrl] [minVersion] [maxVersion] [releaseNotes] [outputPath]');
+  console.log('  node generate-update-manifest.js from-dir <version> <assetsDir> [downloadUrl] [minVersion] [maxVersion] [releaseNotes] [outputPath]');
 }

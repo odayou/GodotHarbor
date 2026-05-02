@@ -1,4 +1,5 @@
-const GITHUB_REPO = 'odayou/GodotHarbor';
+const GITHUB_REPO = 'little-flute/GodotHarbor';
+const HOTUPDATE_MANIFEST_ASSET = 'hotupdate-manifest.json';
 
 export default {
   async fetch(request) {
@@ -80,25 +81,48 @@ async function handleAppUpdate(request, path) {
 }
 
 async function handleHotUpdateManifest(request) {
-  const manifest = {
-    latest_version: '0.1.0',
-    min_compatible_app_version: '0.1.0',
-    max_compatible_app_version: '0.2.0',
-    release_notes: '',
-    pub_date: new Date().toISOString(),
-    checksum: '',
-    download_url: '',
-    signature: '',
-    files: []
-  };
-
-  return new Response(JSON.stringify(manifest), {
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-      'Cache-Control': 'public, max-age=60'
+  try {
+    const release = await getLatestRelease();
+    if (!release) {
+      return new Response(null, { status: 204 });
     }
-  });
+
+    const manifestAsset = release.assets.find(a => a.name === HOTUPDATE_MANIFEST_ASSET);
+    if (!manifestAsset) {
+      return new Response(null, { status: 204 });
+    }
+
+    const cache = caches.default;
+    const cacheKey = new Request(manifestAsset.browser_download_url);
+    const cached = await cache.match(cacheKey);
+    if (cached) return cached;
+
+    const resp = await fetch(manifestAsset.browser_download_url, {
+      headers: { 'User-Agent': 'GodotHarbor-UpdateEndpoint' }
+    });
+
+    if (!resp.ok) {
+      return new Response(null, { status: 502 });
+    }
+
+    const manifestText = await resp.text();
+
+    const response = new Response(manifestText, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'public, max-age=60'
+      }
+    });
+
+    await cache.put(cacheKey, response.clone());
+    return response;
+  } catch (error) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
 }
 
 async function getLatestRelease() {

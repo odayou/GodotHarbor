@@ -1092,7 +1092,12 @@ export default {
     installCompleteRestarting: '更新安装完成，即将重启...',
     installFailed: '更新失败: {error}',
     preparingHotUpdate: '准备下载热更新...',
-    hotUpdateFailed: '热更新失败: {error}'
+    hotUpdateFailed: '热更新失败: {error}',
+    manualDownload: '手动下载安装包',
+    offlineUpdateTip: '如遇在线更新失败，可手动下载安装包替换：',
+    githubRelease: '查看 GitHub Release 页面',
+    goToEngines: '前往引擎管理',
+    checksumFailed: '更新包校验失败，文件可能已损坏'
   },
   autoSetup: {
     scanningPlugins: '正在扫描项目插件...',
