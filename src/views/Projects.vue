@@ -337,12 +337,13 @@ const startScan = async () => {
     toast.success(t('common.scanComplete', { count: result.length }))
     await loadProjects()
     if (result.length > 0) {
-      runAutoSetup(result)
+      runAutoSetup(result, true)
     }
   } catch (error) {
     toast.error(t('common.scanFailed', { error }))
   } finally {
     isLoading.value = false
+    showScanDialog.value = false
   }
 }
 
@@ -350,10 +351,9 @@ const quickScan = async () => {
   isLoading.value = true
   try {
     const settings = await api.getSettings()
-    const rootDirs = settings.scan_directories?.length ? settings.scan_directories : []
+    const rootDirs = settings.scan_directories.length > 0 ? settings.scan_directories : []
     if (rootDirs.length === 0) {
-      toast.info(t('common.noScanDir'))
-      showScanDialog.value = true
+      toast.warning(t('projects.noScanDirs'))
       isLoading.value = false
       return
     }
@@ -362,7 +362,7 @@ const quickScan = async () => {
     toast.success(t('common.scanComplete', { count: result.length }))
     await loadProjects()
     if (result.length > 0) {
-      runAutoSetup(result)
+      runAutoSetup(result, true)
     }
   } catch (error) {
     toast.error(t('common.scanFailed', { error }))
@@ -388,7 +388,7 @@ const addProject = async () => {
       const result = await api.addProject(selected)
       toast.success(t('common.addProjectSuccess', { name: result.name }))
       await loadProjects()
-      runAutoSetup([result])
+      runAutoSetup([result], true)
     }
   } catch (error) {
     toast.error(t('common.addProjectFailed', { error }))

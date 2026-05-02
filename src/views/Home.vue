@@ -6,10 +6,12 @@ import { api } from '@/api'
 import type { DashboardStats } from '@/types'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
+import { useAutoSetup } from '@/composables/useAutoSetup'
 
 const router = useRouter()
 const { t } = useI18n()
 const toast = useToast()
+const { isRunning: isAutoSetupRunning, currentStep: autoSetupStep, stepMessage: autoSetupMessage, progressPercent: autoSetupProgress, lastResult: autoSetupResult, runAutoSetup } = useAutoSetup()
 const stats = ref<DashboardStats>({
   project_count: 0,
   plugin_count: 0,
@@ -22,6 +24,7 @@ const hasError = ref(false)
 
 let unlisten: UnlistenFn | null = null
 let unlistenFs: UnlistenFn | null = null
+let unlistenEngines: UnlistenFn | null = null
 
 const loadStats = async () => {
   isLoading.value = true
@@ -44,6 +47,9 @@ onMounted(async () => {
   unlistenFs = await listen('project-fs-changed', () => {
     loadStats()
   })
+  unlistenEngines = await listen('engines-discovered', () => {
+    loadStats()
+  })
 })
 
 onUnmounted(() => {
@@ -52,6 +58,9 @@ onUnmounted(() => {
   }
   if (unlistenFs) {
     unlistenFs()
+  }
+  if (unlistenEngines) {
+    unlistenEngines()
   }
 })
 
@@ -277,7 +286,48 @@ const launchProject = async (projectId: string) => {
       </div>
 
       <div class="card">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('home.quickStart') }}</h2>
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('home.quickStart') }}</h2>
+          <button
+            v-if="!isAutoSetupRunning"
+            @click="runAutoSetup()"
+            class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium flex items-center gap-2"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            {{ t('home.oneClickSetup') }}
+          </button>
+          <div v-else class="flex items-center gap-2 text-sm text-primary-600 dark:text-primary-400">
+            <div class="animate-spin rounded-full h-4 w-4 border-2 border-primary-600 border-t-transparent"></div>
+            <span>{{ autoSetupMessage }}</span>
+          </div>
+        </div>
+
+        <div v-if="isAutoSetupRunning" class="mb-4">
+          <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+            <div
+              class="bg-primary-600 h-2 rounded-full transition-all duration-500 ease-out"
+              :style="{ width: `${autoSetupProgress}%` }"
+            ></div>
+          </div>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ autoSetupProgress }}%</p>
+        </div>
+
+        <div v-if="autoSetupResult && autoSetupStep === 'done' && !isAutoSetupRunning" class="mb-4 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+          <div class="flex items-start gap-2">
+            <svg class="w-5 h-5 text-green-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+            <div class="text-sm text-green-700 dark:text-green-300">
+              <p class="font-medium">{{ t('autoSetup.complete', { projects: autoSetupResult.projectsScanned, plugins: autoSetupResult.pluginsImported, bindings: autoSetupResult.bindingsCreated, engines: autoSetupResult.enginesDiscovered }) }}</p>
+              <div v-if="autoSetupResult.projectsAffected.length > 0" class="mt-1 text-xs text-green-600 dark:text-green-400">
+                {{ t('home.affectedProjects') }}: {{ autoSetupResult.projectsAffected.join(', ') }}
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div
             class="p-4 border border-gray-200 dark:border-surface-border rounded-lg cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors"

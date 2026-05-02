@@ -1,10 +1,10 @@
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { api } from '@/api'
 import type { Project, BatchBindingRequest } from '@/types'
 import { useToast } from '@/composables/useToast'
 import { useI18n } from 'vue-i18n'
 
-export type AutoSetupStep = 'idle' | 'scanning-plugins' | 'importing-plugins' | 'binding-plugins' | 'applying-changes' | 'discovering-engines' | 'done'
+export type AutoSetupStep = 'idle' | 'scanning-projects' | 'scanning-plugins' | 'importing-plugins' | 'binding-plugins' | 'applying-changes' | 'discovering-engines' | 'binding-engines' | 'done'
 
 function normalizePath(p: string): string {
   return p.replace(/\\/g, '/').toLowerCase()
@@ -16,31 +16,63 @@ function getPluginDirName(pluginPath: string): string {
   return segments[segments.length - 1] || ''
 }
 
+const isRunning = ref(false)
+const currentStep = ref<AutoSetupStep>('idle')
+const stepMessage = ref('')
+const lastResult = ref<{
+  projectsScanned: number
+  pluginsImported: number
+  bindingsCreated: number
+  enginesDiscovered: number
+  enginesBound: number
+  projectsAffected: string[]
+} | null>(null)
+
+const stepIndex = computed(() => {
+  const steps: AutoSetupStep[] = ['scanning-projects', 'scanning-plugins', 'importing-plugins', 'binding-plugins', 'applying-changes', 'discovering-engines', 'binding-engines']
+  const idx = steps.indexOf(currentStep.value)
+  return idx >= 0 ? idx : -1
+})
+
+const stepTotal = 7
+
+const progressPercent = computed(() => {
+  if (currentStep.value === 'idle') return 0
+  if (currentStep.value === 'done') return 100
+  if (stepIndex.value < 0) return 0
+  return Math.round(((stepIndex.value + 1) / stepTotal) * 100)
+})
+
 export function useAutoSetup() {
   const toast = useToast()
   const { t } = useI18n()
 
-  const isRunning = ref(false)
-  const currentStep = ref<AutoSetupStep>('idle')
-  const stepMessage = ref('')
-  const lastResult = ref<{
-    pluginsImported: number
-    bindingsCreated: number
-    enginesDiscovered: number
-    projectsAffected: string[]
-  } | null>(null)
-
-  const runAutoSetup = async (targetProjects?: Project[]) => {
+  const runAutoSetup = async (targetProjects?: Project[], skipProjectScan = false) => {
     if (isRunning.value) return
     isRunning.value = true
     lastResult.value = null
 
+    let projectsScanned = 0
     let pluginsImported = 0
     let bindingsCreated = 0
     let enginesDiscovered = 0
+    let enginesBound = 0
     const projectsAffected: string[] = []
 
     try {
+      if (!skipProjectScan) {
+        currentStep.value = 'scanning-projects'
+        stepMessage.value = t('autoSetup.scanningProjects')
+        const settings = await api.getSettings()
+        if (settings.auto_scan_on_startup) {
+          const scanDirs = settings.scan_directories.length > 0 ? settings.scan_directories : undefined
+          if (scanDirs && scanDirs.length > 0) {
+            const newProjects = await api.scanProjects(scanDirs)
+            projectsScanned = newProjects.length
+          }
+        }
+      }
+
       currentStep.value = 'scanning-plugins'
       stepMessage.value = t('autoSetup.scanningPlugins')
       const scannedPlugins = await api.scanProjectPlugins()
@@ -138,6 +170,8 @@ export function useAutoSetup() {
 
           const allEngines = await api.getEngines()
           if (allEngines.length > 0) {
+            currentStep.value = 'binding-engines'
+            stepMessage.value = t('autoSetup.bindingEngines')
             const allProjects2 = targetProjects || await api.getProjects()
             for (const project of allProjects2) {
               try {
@@ -149,6 +183,7 @@ export function useAutoSetup() {
               if (matchedEngine) {
                 try {
                   await api.bindProjectEngine(project.project_id, matchedEngine.engine_id, '')
+                  enginesBound++
                 } catch {}
               }
             }
@@ -158,14 +193,15 @@ export function useAutoSetup() {
 
       currentStep.value = 'done'
       stepMessage.value = t('autoSetup.complete', {
+        projects: projectsScanned,
         plugins: pluginsImported,
         bindings: bindingsCreated,
         engines: enginesDiscovered
       })
 
-      lastResult.value = { pluginsImported, bindingsCreated, enginesDiscovered, projectsAffected }
+      lastResult.value = { projectsScanned, pluginsImported, bindingsCreated, enginesDiscovered, enginesBound, projectsAffected }
 
-      if (pluginsImported > 0 || bindingsCreated > 0 || enginesDiscovered > 0) {
+      if (projectsScanned > 0 || pluginsImported > 0 || bindingsCreated > 0 || enginesDiscovered > 0) {
         toast.success(stepMessage.value)
       } else {
         toast.info(t('autoSetup.nothingToDo'))
@@ -184,6 +220,9 @@ export function useAutoSetup() {
     currentStep,
     stepMessage,
     lastResult,
+    progressPercent,
+    stepIndex,
+    stepTotal,
     runAutoSetup,
   }
 }

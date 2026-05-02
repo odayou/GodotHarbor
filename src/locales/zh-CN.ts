@@ -905,7 +905,9 @@ export default {
     step4Desc: '一键将插件挂载到项目 addons 目录',
     retry: '重试',
     noRecentProjects: '暂无最近项目，开始扫描或添加项目吧',
-    goToProjects: '前往项目管理'
+    goToProjects: '前往项目管理',
+    oneClickSetup: '一键设置',
+    affectedProjects: '受影响的项目'
   },
   sidebar: {
     collapse: '折叠侧边栏',
@@ -1100,13 +1102,15 @@ export default {
     checksumFailed: '更新包校验失败，文件可能已损坏'
   },
   autoSetup: {
+    scanningProjects: '正在扫描项目...',
     scanningPlugins: '正在扫描项目插件...',
     noPluginsFound: '未发现项目插件',
     importingPlugins: '正在导入 {count} 个插件到仓库...',
     bindingPlugins: '正在建立插件绑定关系...',
     applyingChanges: '正在应用变更到项目...',
     discoveringEngines: '正在发现引擎...',
-    complete: '自动设置完成：导入 {plugins} 个插件，建立 {bindings} 个绑定，发现 {engines} 个引擎',
+    bindingEngines: '正在为项目匹配引擎...',
+    complete: '自动设置完成：扫描 {projects} 个项目，导入 {plugins} 个插件，建立 {bindings} 个绑定，发现 {engines} 个引擎',
     nothingToDo: '项目已是最新状态，无需额外操作',
     failed: '自动设置失败: {error}'
   }

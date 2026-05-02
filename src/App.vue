@@ -17,12 +17,16 @@ import StatusBar from './components/layout/StatusBar.vue'
 import ToastContainer from './components/ToastContainer.vue'
 import OnboardingGuide from './components/OnboardingGuide.vue'
 import CommandPalette from './components/CommandPalette.vue'
+import AutoSetupProgressBar from './components/AutoSetupProgressBar.vue'
+import { useAutoSetup } from './composables/useAutoSetup'
 
 const { t, locale } = useI18n()
 const { isVisible: showLanguageDialog, hideLanguageDialog } = useLanguageDialog()
 
 const pluginStore = usePluginStore()
+const { runAutoSetup, isRunning: isAutoSetupRunning } = useAutoSetup()
 let unlistenProgress: any = null
+let unlistenScanComplete: any = null
 
 const { registerShortcut } = useKeyboardShortcuts()
 const { currentTheme, setTheme } = useTheme()
@@ -51,6 +55,12 @@ onMounted(async () => {
   unlistenProgress = await listen('asset-import-progress', (event) => {
     pluginStore.setImportProgress(event.payload)
   })
+
+  unlistenScanComplete = await listen('scan-complete', async () => {
+    if (!isAutoSetupRunning.value) {
+      await runAutoSetup(undefined, true)
+    }
+  })
 })
 
 const selectLanguage = async (lang: string) => {
@@ -67,6 +77,9 @@ const selectLanguage = async (lang: string) => {
 onUnmounted(() => {
   if (unlistenProgress) {
     unlistenProgress()
+  }
+  if (unlistenScanComplete) {
+    unlistenScanComplete()
   }
 })
 
@@ -126,6 +139,7 @@ registerShortcut({
     <ToastContainer />
     <OnboardingGuide />
     <CommandPalette />
+    <AutoSetupProgressBar />
   </div>
   
   <!-- 首次启动语言选择对话框 -->

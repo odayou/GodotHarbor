@@ -905,7 +905,9 @@ export default {
     step4Desc: 'One-click mount plugins to project addons directory',
     retry: 'Retry',
     noRecentProjects: 'No recent projects yet. Start scanning or adding projects',
-    goToProjects: 'Go to Projects'
+    goToProjects: 'Go to Projects',
+    oneClickSetup: 'One-Click Setup',
+    affectedProjects: 'Affected projects'
   },
   sidebar: {
     collapse: 'Collapse Sidebar',
@@ -1100,13 +1102,15 @@ export default {
     checksumFailed: 'Update package checksum verification failed, file may be corrupted'
   },
   autoSetup: {
+    scanningProjects: 'Scanning projects...',
     scanningPlugins: 'Scanning project plugins...',
     noPluginsFound: 'No plugins found in projects',
     importingPlugins: 'Importing {count} plugins to vault...',
     bindingPlugins: 'Creating plugin bindings...',
     applyingChanges: 'Applying changes to projects...',
     discoveringEngines: 'Discovering engines...',
-    complete: 'Auto setup complete: imported {plugins} plugins, created {bindings} bindings, discovered {engines} engines',
+    bindingEngines: 'Matching engines to projects...',
+    complete: 'Auto setup complete: scanned {projects} projects, imported {plugins} plugins, created {bindings} bindings, discovered {engines} engines',
     nothingToDo: 'Projects are up to date, no actions needed',
     failed: 'Auto setup failed: {error}'
   }
