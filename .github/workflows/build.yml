@@ -1,14 +1,13 @@
 name: Build Godot Harbor
 
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version tag (e.g., v1.0.0)'
-        required: true
-        default: 'v0.1.0'
-      reason:
-        description: 'Build reason'
+        description: 'Version tag (e.g., v1.0.0) — only use if tag push did not trigger'
         required: false
 
 env:
@@ -20,21 +19,44 @@ permissions:
   contents: write
 
 jobs:
+  resolve-version:
+    name: Resolve Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      tag: ${{ steps.resolve.outputs.tag }}
+    steps:
+      - name: Resolve version from tag or input
+        id: resolve
+        run: |
+          if [ -n "${{ github.ref_name }}" ] && [[ "${{ github.ref_name }}" == v* ]]; then
+            TAG="${{ github.ref_name }}"
+          elif [ -n "${{ github.event.inputs.version }}" ]; then
+            TAG="${{ github.event.inputs.version }}"
+          else
+            echo "ERROR: No version tag found. Push a tag (e.g., v0.2.0) or provide version input."
+            exit 1
+          fi
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Resolved: tag=$TAG version=$VERSION"
+
   create-release:
     name: Create Draft Release
+    needs: resolve-version
     runs-on: ubuntu-latest
     outputs:
       release_id: ${{ steps.create-release.outputs.id }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
       - name: Create Draft Release
         id: create-release
         uses: actions/github-script@v7
+        env:
+          TAG: ${{ needs.resolve-version.outputs.tag }}
         with:
           script: |
-            const tagName = '${{ github.event.inputs.version }}';
+            const tagName = process.env.TAG;
             let releaseId;
 
             try {
@@ -48,18 +70,18 @@ jobs:
                 core.info('Existing release is draft, reusing it');
                 releaseId = existing.id;
               } else {
-                core.setFailed(`Release for tag ${tagName} already published (not draft). Delete it first or use a new version.`);
+                core.setFailed(`Release for tag ${tagName} already published. Delete it first or use a new version.`);
                 return;
               }
             } catch (err) {
               if (err.status === 404) {
-                core.info(`No existing release for tag ${tagName}, creating new one`);
+                core.info(`Creating new draft release for tag ${tagName}`);
                 const { data } = await github.rest.repos.createRelease({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   tag_name: tagName,
                   name: `Godot Harbor ${tagName}`,
-                  body: `**Version:** ${tagName}\n**Build Reason:** ${{ github.event.inputs.reason || 'Manual build' }}`,
+                  body: `**Version:** ${tagName}`,
                   draft: true,
                   prerelease: false
                 });
@@ -73,7 +95,7 @@ jobs:
 
   build:
     name: Build ${{ matrix.platform.name }}
-    needs: create-release
+    needs: [resolve-version, create-release]
     runs-on: ${{ matrix.platform.os }}
     strategy:
       fail-fast: false
@@ -146,7 +168,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
-          tagName: ${{ github.event.inputs.version }}
+          tagName: ${{ needs.resolve-version.outputs.tag }}
           releaseDraft: true
           prerelease: false
           args: '--target ${{ matrix.platform.target }} --bundles ${{ matrix.platform.bundle }}'
@@ -161,7 +183,7 @@ jobs:
 
   hotupdate-manifest:
     name: Generate Hot Update Baseline
-    needs: create-release
+    needs: [resolve-version, create-release]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -188,9 +210,10 @@ jobs:
           cd ..
 
       - name: Generate manifest
+        env:
+          TAG: ${{ needs.resolve-version.outputs.tag }}
+          VERSION: ${{ needs.resolve-version.outputs.version }}
         run: |
-          TAG="${{ github.event.inputs.version }}"
-          VERSION="${TAG#v}"
           DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/hotupdate-${VERSION}.zip"
           node scripts/generate-update-manifest.js from-zip \
             "$VERSION" \
@@ -206,17 +229,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+          VERSION: ${{ needs.resolve-version.outputs.version }}
         with:
           script: |
             const fs = require('fs');
             const releaseId = parseInt(process.env.RELEASE_ID, 10);
             const owner = context.repo.owner;
             const repo = context.repo.repo;
+            const version = process.env.VERSION;
 
             async function uploadAsset(filePath, assetName, contentType) {
               const fileContent = fs.readFileSync(filePath);
-              const { data: uploadUrl } = await github.rest.repos.getRelease({ owner, repo, release_id: releaseId });
-              const url = `${uploadUrl.upload_url.replace('{?name,label}', '')}?name=${encodeURIComponent(assetName)}`;
+              const { data: releaseData } = await github.rest.repos.getRelease({ owner, repo, release_id: releaseId });
+              const url = `${releaseData.upload_url.replace('{?name,label}', '')}?name=${encodeURIComponent(assetName)}`;
 
               await github.request({
                 method: 'POST',
@@ -231,12 +256,12 @@ jobs:
               core.info(`Uploaded ${assetName}`);
             }
 
-            await uploadAsset('hotupdate.zip', `hotupdate-${{ github.event.inputs.version }}.zip`, 'application/zip');
+            await uploadAsset('hotupdate.zip', `hotupdate-${version}.zip`, 'application/zip');
             await uploadAsset('hotupdate-manifest.json', 'hotupdate-manifest.json', 'application/json');
 
   publish-release:
     name: Publish Release
-    needs: [create-release, build, hotupdate-manifest]
+    needs: [resolve-version, create-release, build, hotupdate-manifest]
     runs-on: ubuntu-latest
     if: ${{ always() && needs.build.result != 'cancelled' }}
     steps:
@@ -247,10 +272,10 @@ jobs:
         with:
           script: |
             const releaseId = parseInt(process.env.RELEASE_ID, 10);
-            const failedJobs = '${{ needs.build.result }}';
+            const buildResult = '${{ needs.build.result }}';
 
-            if (failedJobs === 'failure') {
-              core.info('Some build jobs failed, keeping release as draft');
+            if (buildResult === 'failure') {
+              core.info('Build failed, keeping release as draft');
               return;
             }
 

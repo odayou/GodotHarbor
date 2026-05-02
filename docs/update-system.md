@@ -181,14 +181,45 @@ Rust Scheduler → emit("engine-updates-available") → StatusBar → 更新引�
 
 ## 七、发布流程
 
-### 7.1 全量发布
+### 7.1 版本号管理
 
-**触发**：GitHub Actions → `Build Godot Harbor` → 输入版本号（如 `v0.2.0`）
+版本号分布在三个文件中，必须保持一致：
+
+| 文件 | 字段 |
+|------|------|
+| `package.json` | `"version": "x.x.x"` |
+| `src-tauri/tauri.conf.json` | `"version": "x.x.x"` |
+| `src-tauri/Cargo.toml` | `version = "x.x.x"` |
+
+**一键发布命令**：
+
+```bash
+npm run release 0.2.0
+```
+
+此命令自动完成：修改3个文件版本号 → git add → commit → 打tag → push → push --tags
+
+**仅改版本号不发布**：
+
+```bash
+npm run bump-version 0.2.0
+```
+
+此命令只修改版本号，不执行 git 操作，适合开发中预置版本号。
+
+### 7.2 全量发布
+
+**触发方式**：`npm run release x.x.x` 推送 tag 后，CI 由 `push tags: v*` 自动触发
 
 **流水线**：
 
 ```
-create-release          创建 Draft Release
+git push --tags (v0.2.0)
+       │
+       ▼
+resolve-version          从 tag 解析版本号
+       │
+       ├── create-release     创建 Draft Release
        │
        ├── build (3平台并行)
        │     ├── windows-x86_64 (nsis)
@@ -204,6 +235,8 @@ create-release          创建 Draft Release
        └── publish-release    Draft → Published
 ```
 
+**CI 不修改任何源码版本号**，源码中的版本号与 tag 始终一致。
+
 **Release Assets 产物**：
 | 文件 | 说明 |
 |------|------|
@@ -213,7 +246,7 @@ create-release          创建 Draft Release
 | `hotupdate-x.x.x.zip` | 热更新包（前端资源） |
 | `hotupdate-manifest.json` | 热更新清单 |
 
-### 7.2 热更新发布
+### 7.3 热更新发布
 
 **触发**：GitHub Actions → `Hot Update` → 输入参数
 
@@ -243,7 +276,7 @@ dist/ → web/ 前缀 → zip
 
 **无需编译 Rust，几分钟即可完成。**
 
-### 7.3 版本兼容性规则
+### 7.4 版本兼容性规则
 
 热更新 manifest 中的兼容版本范围决定了哪些应用版本可以安装此热更新：
 
