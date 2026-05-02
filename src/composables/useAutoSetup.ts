@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { api } from '@/api'
-import type { Project, BatchBindingRequest, Settings } from '@/types'
+import type { Project, Plugin, BatchBindingRequest, Settings } from '@/types'
 import { useToast } from '@/composables/useToast'
 import { useI18n } from 'vue-i18n'
 
@@ -20,6 +20,7 @@ function getPluginDirName(pluginPath: string): string {
 const isRunning = ref(false)
 const currentStep = ref<AutoSetupStep>('idle')
 const stepMessage = ref('')
+let doneTimer: ReturnType<typeof setTimeout> | null = null
 const lastResult = ref<{
   projectsScanned: number
   pluginsImported: number
@@ -61,21 +62,11 @@ function findMatchingEngine(project: Project, engines: { engine_id: string; engi
   return typeMatch || versionMatch || defaultEngine || engines[0]
 }
 
-async function scanAndImportPlugins(t: ReturnType<typeof useI18n>['t'], targetProjects?: Project[]): Promise<{ pluginsImported: number; bindingsCreated: number; projectsAffected: string[] }> {
-  setStep('scanning-plugins', t('autoSetup.scanningPlugins'))
-  const scannedPlugins = await api.scanProjectPlugins()
-
-  if (scannedPlugins.length === 0) {
-    return { pluginsImported: 0, bindingsCreated: 0, projectsAffected: [] }
-  }
-
-  setStep('importing-plugins', t('autoSetup.importingPlugins', { count: scannedPlugins.length }))
-  const importedPlugins = await api.importPluginsFromProjects('copy')
-
-  setStep('binding-plugins', t('autoSetup.bindingPlugins'))
-  const allProjects = targetProjects || await api.getProjects()
-  const allPlugins = await api.getPlugins()
-
+async function buildAutoBindings(
+  allProjects: Project[],
+  allPlugins: Plugin[],
+  scannedPlugins: { path: string; plugin_name: string }[]
+): Promise<{ bindings: BatchBindingRequest[]; projectsAffected: string[] }> {
   const allBindingsMap = new Map<string, Set<string>>()
   const bindingResults = await Promise.allSettled(
     allProjects.map(p => api.getProjectBindings(p.project_id))
@@ -139,6 +130,26 @@ async function scanAndImportPlugins(t: ReturnType<typeof useI18n>['t'], targetPr
       }
     }
   }
+
+  return { bindings, projectsAffected }
+}
+
+async function scanAndImportPlugins(t: ReturnType<typeof useI18n>['t'], targetProjects?: Project[]): Promise<{ pluginsImported: number; bindingsCreated: number; projectsAffected: string[] }> {
+  setStep('scanning-plugins', t('autoSetup.scanningPlugins'))
+  const scannedPlugins = await api.scanProjectPlugins()
+
+  if (scannedPlugins.length === 0) {
+    return { pluginsImported: 0, bindingsCreated: 0, projectsAffected: [] }
+  }
+
+  setStep('importing-plugins', t('autoSetup.importingPlugins', { count: scannedPlugins.length }))
+  const importedPlugins = await api.importPluginsFromProjects('copy')
+
+  setStep('binding-plugins', t('autoSetup.bindingPlugins'))
+  const allProjects = targetProjects || await api.getProjects()
+  const allPlugins = await api.getPlugins()
+
+  const { bindings, projectsAffected } = await buildAutoBindings(allProjects, allPlugins, scannedPlugins)
 
   let bindingsCreated = 0
   if (bindings.length > 0) {
@@ -249,10 +260,12 @@ export function useAutoSetup() {
         toast.info(t('autoSetup.nothingToDo'))
       }
 
-      setTimeout(() => {
+      if (doneTimer) clearTimeout(doneTimer)
+      doneTimer = setTimeout(() => {
         if (currentStep.value === 'done') {
           currentStep.value = 'idle'
         }
+        doneTimer = null
       }, 5000)
     } catch (error: any) {
       console.error('Auto setup failed:', error)

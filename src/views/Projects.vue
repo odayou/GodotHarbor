@@ -58,6 +58,7 @@ const filterGroup = ref<string>('all')
 const filterStatus = ref<string>('all')
 const availableGroups = ref<string[]>([])
 let unlisten: UnlistenFn | null = null
+let unlistenFs: UnlistenFn | null = null
 
 const sortBy = ref<string>('name')
 const sortOrder = ref<string>('asc')
@@ -115,7 +116,7 @@ onMounted(async () => {
   unlisten = await listen('scan-complete', () => {
     loadProjects()
   })
-  listen('project-fs-changed', async () => {
+  unlistenFs = await listen('project-fs-changed', async () => {
     try {
       const synced = await api.syncProjects()
       projects.value = synced
@@ -129,6 +130,9 @@ onUnmounted(() => {
   if (unlisten) {
     unlisten()
   }
+  if (unlistenFs) {
+    unlistenFs()
+  }
 })
 
 const getIconUrl = (iconPath: string) => {
@@ -140,15 +144,15 @@ const getIconUrl = (iconPath: string) => {
   }
 }
 
+const matchesSearch = (project: Project) =>
+  searchQuery.value === '' ||
+  project.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+  project.path.toLowerCase().includes(searchQuery.value.toLowerCase())
+
 const groupedProjects = computed(() => {
   const groups: Record<string, Project[]> = {}
 
-  const filtered = projects.value.filter(project => {
-    const matchesSearch = searchQuery.value === '' ||
-      project.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      project.path.toLowerCase().includes(searchQuery.value.toLowerCase())
-    return matchesSearch
-  })
+  const filtered = projects.value.filter(matchesSearch)
 
   filtered.forEach(project => {
     const groupKey = project.group || t('projects.ungrouped')
@@ -163,10 +167,6 @@ const groupedProjects = computed(() => {
 
 const filteredProjects = computed(() => {
   let result = projects.value.filter(project => {
-    const matchesSearch = searchQuery.value === '' ||
-      project.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      project.path.toLowerCase().includes(searchQuery.value.toLowerCase())
-
     const matchesGroup = filterGroup.value === 'all' ||
       (filterGroup.value === 'ungrouped' && !project.group) ||
       project.group === filterGroup.value
@@ -174,7 +174,7 @@ const filteredProjects = computed(() => {
     const matchesStatus = filterStatus.value === 'all' ||
       project.status === filterStatus.value
 
-    return matchesSearch && matchesGroup && matchesStatus
+    return matchesSearch(project) && matchesGroup && matchesStatus
   })
 
   result.sort((a, b) => {

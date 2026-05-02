@@ -8,83 +8,55 @@ function useLoadingState() {
   const loading = computed(() => count.value > 0)
   const start = () => { count.value++ }
   const done = () => { count.value = Math.max(0, count.value - 1) }
-  return { loading, start, done }
+
+  async function withLoading<T>(fn: () => Promise<T>, errorRef: { value: string | null }, rethrow = false): Promise<T | undefined> {
+    start()
+    errorRef.value = null
+    try {
+      return await fn()
+    } catch (e) {
+      errorRef.value = e instanceof Error ? e.message : String(e)
+      if (rethrow) throw e
+      return undefined
+    } finally {
+      done()
+    }
+  }
+
+  return { loading, start, done, withLoading }
 }
 
 export const useProjectStore = defineStore('projects', () => {
   const projects = ref<Project[]>([])
-  const { loading, start: startLoading, done: doneLoading } = useLoadingState()
+  const { loading, withLoading } = useLoadingState()
   const error = ref<string | null>(null)
 
-  const loadProjects = async () => {
-    startLoading()
-    error.value = null
-    try {
-      projects.value = await api.getProjects()
-    } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to load projects'
-    } finally {
-      doneLoading()
-    }
-  }
+  const loadProjects = () => withLoading(async () => {
+    projects.value = await api.getProjects()
+  }, error)
 
-  const scanProjects = async (rootDirs: string[]) => {
-    startLoading()
-    error.value = null
-    try {
-      const newProjects = await api.scanProjects(rootDirs)
-      projects.value = newProjects
-    } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to scan projects'
-    } finally {
-      doneLoading()
-    }
-  }
+  const scanProjects = (rootDirs: string[]) => withLoading(async () => {
+    projects.value = await api.scanProjects(rootDirs)
+  }, error)
 
-  const addProject = async (path: string) => {
-    startLoading()
-    error.value = null
-    try {
-      const project = await api.addProject(path)
-      projects.value.push(project)
-      return project
-    } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to add project'
-      throw e
-    } finally {
-      doneLoading()
-    }
-  }
+  const addProject = (path: string) => withLoading(async () => {
+    const project = await api.addProject(path)
+    projects.value.push(project)
+    return project
+  }, error, true)
 
-  const removeProject = async (projectId: string) => {
-    startLoading()
-    error.value = null
-    try {
-      await api.removeProject(projectId)
-      projects.value = projects.value.filter(p => p.project_id !== projectId)
-    } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to remove project'
-    } finally {
-      doneLoading()
-    }
-  }
+  const removeProject = (projectId: string) => withLoading(async () => {
+    await api.removeProject(projectId)
+    projects.value = projects.value.filter(p => p.project_id !== projectId)
+  }, error)
 
-  const updateGroup = async (projectId: string, group: string) => {
-    startLoading()
-    error.value = null
-    try {
-      await api.updateProjectGroup(projectId, group)
-      const project = projects.value.find(p => p.project_id === projectId)
-      if (project) {
-        project.group = group
-      }
-    } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to update group'
-      throw e
-    } finally {
-      doneLoading()
+  const updateGroup = (projectId: string, group: string) => withLoading(async () => {
+    await api.updateProjectGroup(projectId, group)
+    const project = projects.value.find(p => p.project_id === projectId)
+    if (project) {
+      project.group = group
     }
-  }
+  }, error, true)
 
   const loadGroups = async (): Promise<string[]> => {
     try {
@@ -110,83 +82,40 @@ export const useProjectStore = defineStore('projects', () => {
 
 export const usePluginStore = defineStore('plugins', () => {
   const plugins = ref<Plugin[]>([])
-  const { loading, start: startLoading, done: doneLoading } = useLoadingState()
+  const { loading, withLoading } = useLoadingState()
   const error = ref<string | null>(null)
   const importProgress = ref<AssetImportProgress | null>(null)
   const isImporting = ref<string | null>(null)
 
-  const loadPlugins = async () => {
-    startLoading()
-    error.value = null
-    try {
-      plugins.value = await api.getPlugins()
-    } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to load plugins'
-    } finally {
-      doneLoading()
-    }
-  }
+  const loadPlugins = () => withLoading(async () => {
+    plugins.value = await api.getPlugins()
+  }, error)
 
-  const importFromLocal = async (path: string) => {
-    startLoading()
-    error.value = null
-    try {
-      const plugin = await api.importPluginFromLocal(path)
-      plugins.value.push(plugin)
-      return plugin
-    } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to import plugin'
-      throw e
-    } finally {
-      doneLoading()
-    }
-  }
+  const importFromLocal = (path: string) => withLoading(async () => {
+    const plugin = await api.importPluginFromLocal(path)
+    plugins.value.push(plugin)
+    return plugin
+  }, error, true)
 
-  const importFromGit = async (url: string) => {
-    startLoading()
-    error.value = null
-    try {
-      const plugin = await api.importPluginFromGit(url)
-      plugins.value.push(plugin)
-      return plugin
-    } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to import plugin'
-      throw e
-    } finally {
-      doneLoading()
-    }
-  }
+  const importFromGit = (url: string) => withLoading(async () => {
+    const plugin = await api.importPluginFromGit(url)
+    plugins.value.push(plugin)
+    return plugin
+  }, error, true)
 
-  const removePlugin = async (pluginId: string) => {
-    startLoading()
-    error.value = null
-    try {
-      await api.removePlugin(pluginId)
-      plugins.value = plugins.value.filter(p => p.plugin_id !== pluginId)
-    } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to remove plugin'
-    } finally {
-      doneLoading()
-    }
-  }
+  const removePlugin = (pluginId: string) => withLoading(async () => {
+    await api.removePlugin(pluginId)
+    plugins.value = plugins.value.filter(p => p.plugin_id !== pluginId)
+  }, error)
 
-  const toggleFavorite = async (pluginId: string) => {
-    startLoading()
-    error.value = null
-    try {
-      const newState = await api.togglePluginFavorite(pluginId)
-      const plugin = plugins.value.find(p => p.plugin_id === pluginId)
-      if (plugin) {
-        plugin.is_favorite = newState
-      }
-      return newState
-    } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to toggle favorite'
-      throw e
-    } finally {
-      doneLoading()
+  const toggleFavorite = (pluginId: string) => withLoading(async () => {
+    const newState = await api.togglePluginFavorite(pluginId)
+    const plugin = plugins.value.find(p => p.plugin_id === pluginId)
+    if (plugin) {
+      plugin.is_favorite = newState
     }
-  }
+    return newState
+  }, error, true)
 
   const setImportProgress = (progress: any) => {
     importProgress.value = progress
@@ -220,68 +149,33 @@ export const usePluginStore = defineStore('plugins', () => {
 
 export const useBindingStore = defineStore('bindings', () => {
   const bindings = ref<ProjectBinding[]>([])
-  const { loading, start: startLoading, done: doneLoading } = useLoadingState()
+  const { loading, withLoading } = useLoadingState()
   const error = ref<string | null>(null)
 
-  const loadBindings = async (projectId: string) => {
-    startLoading()
-    error.value = null
-    try {
-      bindings.value = await api.getProjectBindings(projectId)
-    } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to load bindings'
-    } finally {
-      doneLoading()
-    }
-  }
+  const loadBindings = (projectId: string) => withLoading(async () => {
+    bindings.value = await api.getProjectBindings(projectId)
+  }, error)
 
-  const bindPlugin = async (
+  const bindPlugin = (
     projectId: string,
     pluginId: string,
     versionId: string,
     unitId: string,
     mountPath: string,
     subdirectory: string
-  ) => {
-    startLoading()
-    error.value = null
-    try {
-      await api.bindPlugin(projectId, pluginId, versionId, unitId, mountPath, subdirectory)
-      await loadBindings(projectId)
-    } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to bind plugin'
-      throw e
-    } finally {
-      doneLoading()
-    }
-  }
+  ) => withLoading(async () => {
+    await api.bindPlugin(projectId, pluginId, versionId, unitId, mountPath, subdirectory)
+    await loadBindings(projectId)
+  }, error, true)
 
-  const unbindPlugin = async (projectId: string, pluginId: string) => {
-    startLoading()
-    error.value = null
-    try {
-      await api.unbindPlugin(projectId, pluginId)
-      await loadBindings(projectId)
-    } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to unbind plugin'
-    } finally {
-      doneLoading()
-    }
-  }
+  const unbindPlugin = (projectId: string, pluginId: string) => withLoading(async () => {
+    await api.unbindPlugin(projectId, pluginId)
+    await loadBindings(projectId)
+  }, error)
 
-  const applyChanges = async (projectId: string) => {
-    startLoading()
-    error.value = null
-    try {
-      const result = await api.applyChanges(projectId)
-      return result
-    } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to apply changes'
-      throw e
-    } finally {
-      doneLoading()
-    }
-  }
+  const applyChanges = (projectId: string) => withLoading(async () => {
+    return await api.applyChanges(projectId)
+  }, error, true)
 
   return {
     bindings,
@@ -303,33 +197,16 @@ export const useSettingsStore = defineStore('settings', () => {
     auto_scan_on_startup: true,
     sidebar_collapsed: false
   })
-  const { loading, start: startLoading, done: doneLoading } = useLoadingState()
+  const { loading, withLoading } = useLoadingState()
   const error = ref<string | null>(null)
 
-  const loadSettings = async () => {
-    startLoading()
-    error.value = null
-    try {
-      settings.value = await api.getSettings()
-    } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to load settings'
-    } finally {
-      doneLoading()
-    }
-  }
+  const loadSettings = () => withLoading(async () => {
+    settings.value = await api.getSettings()
+  }, error)
 
-  const saveSettings = async () => {
-    startLoading()
-    error.value = null
-    try {
-      await api.saveSettings(settings.value)
-    } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to save settings'
-      throw e
-    } finally {
-      doneLoading()
-    }
-  }
+  const saveSettings = () => withLoading(async () => {
+    await api.saveSettings(settings.value)
+  }, error, true)
 
   return {
     settings,

@@ -41,6 +41,7 @@ export const useUpdateStore = defineStore('updates', () => {
   const unlisteners: (() => void)[] = []
 
   async function initListeners() {
+    if (unlisteners.length > 0) return
     const unlisten1 = await listen('app-update-progress', (event: any) => {
       installProgress.value = event.payload.progress || 0
       installMessage.value = event.payload.message || ''
