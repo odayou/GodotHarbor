@@ -315,7 +315,7 @@ const inspirationDeps = [
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <!-- <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <div class="flex items-center gap-3 mb-4">
             <div class="w-10 h-10 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg flex items-center justify-center">
               <span class="text-xl">☕</span>
@@ -345,7 +345,7 @@ const inspirationDeps = [
           <a href="https://github.com/sponsors" target="_blank" class="inline-block px-4 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 text-sm">
             {{ t('about.becomeSponsor') }}
           </a>
-        </div>
+        </div> -->
 
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <div class="flex items-center gap-3 mb-4">
