@@ -497,8 +497,9 @@ const startDownload = async (version: RemoteEngineVersion) => {
 const cancelDownload = async (version: string, variant: string) => {
   try {
     await api.cancelEngineDownload(version, variant)
-  } catch {
-    // ignore
+    toast.info(t('engines.download.cancelled'))
+  } catch (error) {
+    toast.error(t('engines.download.cancelFailed', { error }))
   }
 }
 
@@ -517,6 +518,7 @@ const onMirrorChange = () => {
 const handleLaunchEngine = async (engineId: string) => {
   try {
     await api.launchEngine(engineId)
+    toast.success(t('engines.launched'))
   } catch (error) {
     toast.error(t('engines.launchFailed', { error }))
   }
@@ -1227,6 +1229,7 @@ const initCollapsedGroups = () => {
         <input type="checkbox" v-model="deleteAlsoFiles" class="rounded border-gray-300 text-red-600 focus:ring-red-500" />
         <span class="text-sm text-gray-600 dark:text-gray-400">{{ t('engines.deleteAlsoFiles') }}</span>
       </label>
+      <p v-if="deleteAlsoFiles" class="mt-2 text-xs text-red-600 dark:text-red-400">{{ t('engines.deleteAlsoFilesWarning') }}</p>
     </ConfirmDialog>
   </Teleport>
 </template>

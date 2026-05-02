@@ -362,6 +362,7 @@ const importTeamConfig = async (configId: string) => {
 }
 
 const showDeleteTeamConfigConfirm = ref(false)
+const showRestoreConfirm = ref(false)
 const deleteTeamConfigId = ref('')
 const showResetConfirm = ref(false)
 const isResetting = ref(false)
@@ -921,10 +922,10 @@ const toggleMirrorEnabled = (mirrorId: string) => {
             :disabled="isBackingUp || !backupPath"
             class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
           >
-            {{ isBackingUp ? t('settings.backup.restoring') : t('settings.backup.backup') }}
+            {{ isBackingUp ? t('settings.backup.backupping') : t('settings.backup.backup') }}
           </button>
           <button
-            @click="performRestore"
+            @click="showRestoreConfirm = true"
             :disabled="isRestoring || !backupPath"
             class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
           >
@@ -1062,6 +1063,15 @@ const toggleMirrorEnabled = (mirrorId: string) => {
       :description="t('settings.teamConfig.deleteConfirmDesc')"
       :confirm-text="t('settings.teamConfig.delete')"
       @confirm="onDeleteTeamConfigConfirm"
+    />
+
+    <ConfirmDialog
+      v-model="showRestoreConfirm"
+      :title="t('settings.storage.backup.restoreConfirm')"
+      :description="t('settings.storage.backup.restoreConfirmDesc')"
+      :confirm-text="t('settings.storage.backup.restore')"
+      confirm-color="red"
+      @confirm="performRestore"
     />
 
   </Teleport>

@@ -31,7 +31,7 @@
           </p>
         </div>
         <div class="flex items-center gap-2">
-          <button @click="store.skipAppVersion()" class="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer text-gray-700 dark:text-content-secondary">
+          <button @click="showSkipVersionConfirm = true" class="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer text-gray-700 dark:text-content-secondary">
             {{ t('updates.skipVersion') }}
           </button>
           <button @click="store.installAppUpdate()" :disabled="store.isInstallingApp" class="btn-primary">
@@ -131,7 +131,7 @@
         <div>
           <h3 class="text-sm font-medium text-gray-700 dark:text-content-primary">{{ t('updates.currentHotUpdateVersion') }} {{ store.currentHotUpdateVersion }}</h3>
         </div>
-        <button @click="store.rollbackHotUpdate()" class="px-3 py-1.5 text-sm border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20">
+        <button @click="showRollbackConfirm = true" class="px-3 py-1.5 text-sm border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20">
           {{ t('updates.rollbackHotUpdate') }}
         </button>
       </div>
@@ -154,7 +154,7 @@
         <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">
           {{ t('updates.updateHistory') }} ({{ store.updateHistory.length }})
         </h3>
-        <button @click="store.clearHistory()" class="px-3 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer text-gray-700 dark:text-content-secondary">
+        <button @click="showClearHistoryConfirm = true" class="px-3 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer text-gray-700 dark:text-content-secondary">
           {{ t('updates.clearHistory') }}
         </button>
       </div>
@@ -187,16 +187,52 @@
         </div>
       </div>
     </div>
+
+    <div v-if="store.lastCheckedAt && store.updateHistory.length === 0" class="card text-center py-8">
+      <p class="text-sm text-gray-500 dark:text-content-secondary">{{ t('updates.noHistory') }}</p>
+    </div>
+
+    <ConfirmDialog
+      v-model="showRollbackConfirm"
+      :title="t('updates.rollbackHotUpdate')"
+      :description="t('updates.rollbackConfirmDesc')"
+      :confirm-text="t('updates.rollbackHotUpdate')"
+      confirm-color="red"
+      @confirm="store.rollbackHotUpdate()"
+    />
+
+    <ConfirmDialog
+      v-model="showClearHistoryConfirm"
+      :title="t('updates.clearHistory')"
+      :description="t('updates.clearHistoryConfirmDesc')"
+      :confirm-text="t('updates.clearHistory')"
+      confirm-color="orange"
+      @confirm="store.clearHistory()"
+    />
+
+    <ConfirmDialog
+      v-model="showSkipVersionConfirm"
+      :title="t('updates.skipVersion')"
+      :description="t('updates.skipVersionConfirmDesc')"
+      :confirm-text="t('updates.skipVersion')"
+      confirm-color="orange"
+      @confirm="store.skipAppVersion()"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUpdateStore } from '@/stores/update'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const { t } = useI18n()
 const store = useUpdateStore()
+
+const showRollbackConfirm = ref(false)
+const showClearHistoryConfirm = ref(false)
+const showSkipVersionConfirm = ref(false)
 
 const githubReleaseUrl = 'https://github.com/little-flute/GodotHarbor/releases'
 
