@@ -10,7 +10,7 @@ const { t } = useI18n()
   <Teleport to="body">
     <Transition name="auto-setup-slide">
       <div
-        v-if="isRunning || (currentStep === 'done' && lastResult && (lastResult.pluginsImported > 0 || lastResult.bindingsCreated > 0 || lastResult.enginesDiscovered > 0 || lastResult.projectsScanned > 0))"
+        v-if="isRunning || currentStep === 'done'"
         class="fixed bottom-8 left-1/2 -translate-x-1/2 z-[80] w-full max-w-lg"
       >
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
