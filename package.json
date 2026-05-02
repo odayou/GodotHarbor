@@ -9,8 +9,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-path .gitignore",
-    "bump-version": "node scripts/bump-version.js",
-    "release": "node scripts/release.js"
+    "bump-version": "node scripts/bump-version.cjs",
+    "release": "node scripts/release.cjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",

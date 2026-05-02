@@ -114,6 +114,6 @@ if (command === 'from-zip') {
   });
 } else {
   console.log('Usage:');
-  console.log('  node generate-update-manifest.js from-zip <version> <zipPath> [downloadUrl] [minVersion] [maxVersion] [releaseNotes] [outputPath]');
-  console.log('  node generate-update-manifest.js from-dir <version> <assetsDir> [downloadUrl] [minVersion] [maxVersion] [releaseNotes] [outputPath]');
+  console.log('  node generate-update-manifest.cjs from-zip <version> <zipPath> [downloadUrl] [minVersion] [maxVersion] [releaseNotes] [outputPath]');
+  console.log('  node generate-update-manifest.cjs from-dir <version> <assetsDir> [downloadUrl] [minVersion] [maxVersion] [releaseNotes] [outputPath]');
 }

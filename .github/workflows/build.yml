@@ -215,7 +215,7 @@ jobs:
           VERSION: ${{ needs.resolve-version.outputs.version }}
         run: |
           DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/hotupdate-${VERSION}.zip"
-          node scripts/generate-update-manifest.js from-zip \
+          node scripts/generate-update-manifest.cjs from-zip \
             "$VERSION" \
             hotupdate.zip \
             "$DOWNLOAD_URL" \
