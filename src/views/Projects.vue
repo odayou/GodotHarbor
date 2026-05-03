@@ -158,7 +158,7 @@ onUnmounted(() => {
 const getIconUrl = (iconPath: string) => {
   if (!iconPath) return ''
   try {
-    return convertFileSrc(iconPath)
+    return convertFileSrc(iconPath.replace(/\\/g, '/'))
   } catch {
     return ''
   }

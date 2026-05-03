@@ -991,7 +991,7 @@ export default {
   onboarding: {
     welcome: {
       title: 'Welcome to Godot Harbor',
-      desc: 'Godot Harbor helps you manage Godot plugins, projects and engines.\nAll plugins can be mounted to any project with one click.\n\n💡 You can switch language anytime in Settings → Appearance'
+      desc: 'Godot Harbor helps you manage Godot plugins, projects and engines.\nAll plugins can be mounted to any project with one click.'
     },
     scan: {
       title: 'Configure Scan Directories',

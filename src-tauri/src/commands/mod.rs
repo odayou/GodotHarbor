@@ -488,7 +488,7 @@ pub fn launch_engine(app: AppHandle, engine_id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn scan_projects(app: AppHandle, root_dirs: Vec<String>) -> Result<Vec<Project>, String> {
+pub async fn scan_projects(app: AppHandle, root_dirs: Vec<String>) -> Result<Vec<Project>, String> {
     if root_dirs.is_empty() {
         log_error(&app, "scan_projects", "", "未提供扫描目录");
         return Err("请至少指定一个扫描目录".to_string());
@@ -503,10 +503,13 @@ pub fn scan_projects(app: AppHandle, root_dirs: Vec<String>) -> Result<Vec<Proje
         return Err("所有指定的目录均不存在".to_string());
     }
 
-    let all_projects = ProjectScanner::scan_directories_parallel(&valid_dirs)
-        .map_err(|e| format!("扫描失败: {}", e))?;
+    let app_clone = app.clone();
+    let all_projects = tokio::task::spawn_blocking(move || {
+        ProjectScanner::scan_directories_parallel(&valid_dirs)
+    }).await.map_err(|e| format!("扫描任务失败: {}", e))?
+    .map_err(|e| format!("扫描失败: {}", e))?;
 
-    let storage = get_storage(&app);
+    let storage = get_storage(&app_clone);
     let mut existing_projects: Vec<Project> = storage.load_or_default("projects.json");
 
     for project in &all_projects {
@@ -523,7 +526,7 @@ pub fn scan_projects(app: AppHandle, root_dirs: Vec<String>) -> Result<Vec<Proje
     storage.save("projects.json", &existing_projects)
         .map_err(|e| format!("保存项目列表失败: {}", e))?;
 
-    log_operation(&app, "scan_projects", &valid_dirs.join(", "),
+    log_operation(&app, "scan_projects", &root_dirs.join(", "),
         &format!("扫描完成，发现 {} 个项目", all_projects.len()));
 
     Ok(all_projects)
@@ -847,7 +850,7 @@ pub fn get_project_bindings(app: AppHandle, project_id: String) -> Result<Vec<Pr
 }
 
 #[tauri::command]
-pub fn scan_project_plugins(app: AppHandle) -> Result<Vec<crate::models::ScannedPlugin>, String> {
+pub async fn scan_project_plugins(app: AppHandle) -> Result<Vec<crate::models::ScannedPlugin>, String> {
     let storage = get_storage(&app);
     let projects: Vec<Project> = storage.load_or_default("projects.json");
 
@@ -856,14 +859,16 @@ pub fn scan_project_plugins(app: AppHandle) -> Result<Vec<crate::models::Scanned
     }
 
     let manager = get_plugin_manager(&app);
-    let scanned_plugins = manager.scan_project_plugins(&projects)
-        .map_err(|e| format!("扫描项目插件失败: {}", e))?;
+    let scanned_plugins = tokio::task::spawn_blocking(move || {
+        manager.scan_project_plugins(&projects)
+    }).await.map_err(|e| format!("扫描任务失败: {}", e))?
+    .map_err(|e| format!("扫描项目插件失败: {}", e))?;
 
     Ok(scanned_plugins)
 }
 
 #[tauri::command]
-pub fn import_plugins_from_projects(app: AppHandle, mode: Option<String>) -> Result<Vec<Plugin>, String> {
+pub async fn import_plugins_from_projects(app: AppHandle, mode: Option<String>) -> Result<Vec<Plugin>, String> {
     let import_mode = mode.unwrap_or_else(|| "copy".to_string());
     if !["copy", "move", "reference"].contains(&import_mode.as_str()) {
         return Err("无效的导入模式，支持: copy, move, reference".to_string());
@@ -878,9 +883,15 @@ pub fn import_plugins_from_projects(app: AppHandle, mode: Option<String>) -> Res
 
     let mut plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
 
+    let app_for_scan = app.clone();
+    let projects_clone = projects.clone();
+    let scanned_plugins = tokio::task::spawn_blocking(move || {
+        let manager = get_plugin_manager(&app_for_scan);
+        manager.scan_project_plugins(&projects_clone)
+    }).await.map_err(|e| format!("扫描任务失败: {}", e))?
+    .map_err(|e| format!("扫描项目插件失败: {}", e))?;
+
     let manager = get_plugin_manager(&app);
-    let scanned_plugins = manager.scan_project_plugins(&projects)
-        .map_err(|e| format!("扫描项目插件失败: {}", e))?;
 
     if scanned_plugins.is_empty() {
         return Err("未在项目中发现可导入的插件".to_string());
@@ -1607,21 +1618,9 @@ pub async fn install_app_update(app: AppHandle) -> Result<(), String> {
         .map_err(|e| format!("检查更新失败: {}", e))?
         .ok_or("没有可用的更新".to_string())?;
 
-    let download_url = update_info.download_url
+    let download_url = update_info.download_url.clone()
         .ok_or("未找到下载链接".to_string())?;
 
-    let client = create_http_client(None)?;
-
-    let _ = app.emit("app-update-progress", serde_json::json!({
-        "stage": "downloading",
-        "progress": 0,
-        "message": "正在下载更新..."
-    }));
-
-    let resp = client.get(&download_url).send().await
-        .map_err(|e| format!("下载更新失败: {}", e))?;
-
-    let total_size = resp.content_length();
     let temp_dir = std::env::temp_dir().join("godot-harbor-update");
     fs::create_dir_all(&temp_dir)
         .map_err(|e| format!("创建临时目录失败: {}", e))?;
@@ -1629,29 +1628,64 @@ pub async fn install_app_update(app: AppHandle) -> Result<(), String> {
     let file_name = download_url.split('/').last().unwrap_or("update.exe").to_string();
     let file_path = temp_dir.join(&file_name);
 
-    let mut file = fs::File::create(&file_path)
-        .map_err(|e| format!("创建文件失败: {}", e))?;
-
-    let mut downloaded: u64 = 0;
-    let mut stream = resp.bytes_stream();
-    use futures::StreamExt;
-
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|e| format!("下载数据失败: {}", e))?;
-        file.write_all(&chunk)
-            .map_err(|e| format!("写入文件失败: {}", e))?;
-        downloaded += chunk.len() as u64;
-
-        let progress = if let Some(total) = total_size {
-            ((downloaded as f64 / total as f64) * 100.0) as u32
+    let already_downloaded = if file_path.exists() {
+        if let Ok(metadata) = fs::metadata(&file_path) {
+            if let Some(expected_size) = update_info.download_size {
+                metadata.len() == expected_size
+            } else {
+                metadata.len() > 0
+            }
         } else {
-            0
-        };
+            false
+        }
+    } else {
+        false
+    };
+
+    if !already_downloaded {
+        let client = create_http_client(None)?;
 
         let _ = app.emit("app-update-progress", serde_json::json!({
             "stage": "downloading",
-            "progress": progress.min(100),
-            "message": format!("下载中... {}%", progress.min(100))
+            "progress": 0,
+            "message": "正在下载更新..."
+        }));
+
+        let resp = client.get(&download_url).send().await
+            .map_err(|e| format!("下载更新失败: {}", e))?;
+
+        let total_size = resp.content_length();
+
+        let mut file = fs::File::create(&file_path)
+            .map_err(|e| format!("创建文件失败: {}", e))?;
+
+        let mut downloaded: u64 = 0;
+        let mut stream = resp.bytes_stream();
+        use futures::StreamExt;
+
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(|e| format!("下载数据失败: {}", e))?;
+            file.write_all(&chunk)
+                .map_err(|e| format!("写入文件失败: {}", e))?;
+            downloaded += chunk.len() as u64;
+
+            let progress = if let Some(total) = total_size {
+                ((downloaded as f64 / total as f64) * 100.0) as u32
+            } else {
+                0
+            };
+
+            let _ = app.emit("app-update-progress", serde_json::json!({
+                "stage": "downloading",
+                "progress": progress.min(100),
+                "message": format!("下载中... {}%", progress.min(100))
+            }));
+        }
+    } else {
+        let _ = app.emit("app-update-progress", serde_json::json!({
+            "stage": "installing",
+            "progress": 100,
+            "message": "安装包已就绪，正在启动安装程序..."
         }));
     }
 
@@ -1675,12 +1709,17 @@ pub async fn install_app_update(app: AppHandle) -> Result<(), String> {
         if file_name.ends_with(".nsis.zip") {
             let extract_dir = temp_dir.join("nsis_extract");
             let _ = fs::create_dir_all(&extract_dir);
-            let _ = std::process::Command::new("powershell")
+            let extract_result = std::process::Command::new("powershell")
                 .args(["-NoProfile", "-Command", &format!(
                     "Expand-Archive -Path '{}' -DestinationPath '{}' -Force",
                     file_path.display(), extract_dir.display()
                 )])
-                .spawn();
+                .output();
+
+            if let Err(e) = extract_result {
+                return Err(format!("解压更新包失败: {}", e));
+            }
+
             let installer = walk_dir_for_exe(&extract_dir);
             if let Some(installer) = installer {
                 std::process::Command::new(&installer)
@@ -1695,8 +1734,66 @@ pub async fn install_app_update(app: AppHandle) -> Result<(), String> {
                 .spawn()
                 .map_err(|e| format!("启动安装程序失败: {}", e))?;
         }
+    } else if cfg!(target_os = "macos") {
+        let app_dir = std::env::current_exe()
+            .ok()
+            .and_then(|e| e.parent().and_then(|p| p.parent().map(|pp| pp.to_path_buf())))
+            .unwrap_or_else(|| PathBuf::from("/Applications"));
+
+        let _ = app.emit("app-update-progress", serde_json::json!({
+            "stage": "installing",
+            "progress": 100,
+            "message": "正在解压并安装更新..."
+        }));
+
+        let extract_result = std::process::Command::new("tar")
+            .args(["-xzf", &file_path.to_string_lossy(), "-C", &app_dir.to_string_lossy()])
+            .output();
+
+        if let Err(e) = extract_result {
+            return Err(format!("解压更新包失败: {}", e));
+        }
+
+        let app_name = "Godot Harbor.app";
+        std::process::Command::new("open")
+            .arg(app_dir.join(app_name))
+            .spawn()
+            .map_err(|e| format!("启动应用失败: {}", e))?;
     } else {
-        open_file_in_os(&file_path)?;
+        let _ = app.emit("app-update-progress", serde_json::json!({
+            "stage": "installing",
+            "progress": 100,
+            "message": "正在解压并安装更新..."
+        }));
+
+        let extract_dir = temp_dir.join("appimage_extract");
+        let _ = fs::create_dir_all(&extract_dir);
+
+        let extract_result = std::process::Command::new("tar")
+            .args(["-xzf", &file_path.to_string_lossy(), "-C", &extract_dir.to_string_lossy()])
+            .output();
+
+        if let Err(e) = extract_result {
+            return Err(format!("解压更新包失败: {}", e));
+        }
+
+        let appimage = walk_dir_for_appimage(&extract_dir);
+        if let Some(appimage_path) = appimage {
+            let current_exe = std::env::current_exe().unwrap_or_default();
+            let install_dir = current_exe.parent().unwrap_or(Path::new("/usr/bin"));
+            let dest = install_dir.join(appimage_path.file_name().unwrap_or_default());
+            let _ = fs::copy(&appimage_path, &dest);
+
+            std::process::Command::new("chmod")
+                .args(["+x", &dest.to_string_lossy()])
+                .output().ok();
+
+            std::process::Command::new(&dest)
+                .spawn()
+                .map_err(|e| format!("启动应用失败: {}", e))?;
+        } else {
+            open_file_in_os(&file_path)?;
+        }
     }
 
     let _ = app.emit("app-update-progress", serde_json::json!({
@@ -1723,6 +1820,27 @@ fn walk_dir_for_exe(dir: &Path) -> Option<PathBuf> {
             return Some(path);
         }
     }
+    None
+}
+
+#[cfg(target_os = "linux")]
+fn walk_dir_for_appimage(dir: &Path) -> Option<PathBuf> {
+    for entry in fs::read_dir(dir).ok()? {
+        let entry = entry.ok()?;
+        let path = entry.path();
+        if path.is_dir() {
+            if let Some(f) = walk_dir_for_appimage(&path) {
+                return Some(f);
+            }
+        } else if path.to_string_lossy().ends_with(".AppImage") {
+            return Some(path);
+        }
+    }
+    None
+}
+
+#[cfg(not(target_os = "linux"))]
+fn walk_dir_for_appimage(_dir: &Path) -> Option<PathBuf> {
     None
 }
 

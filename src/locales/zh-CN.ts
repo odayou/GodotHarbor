@@ -991,7 +991,7 @@ export default {
   onboarding: {
     welcome: {
       title: '欢迎使用 Godot Harbor',
-      desc: 'Godot Harbor 帮助你管理 Godot 插件、项目和引擎。\n所有插件都可以一键挂载到任意项目。\n\n💡 可在「设置 → 外观」中随时切换语言'
+      desc: 'Godot Harbor 帮助你管理 Godot 插件、项目和引擎。\n所有插件都可以一键挂载到任意项目。'
     },
     scan: {
       title: '配置扫描目录',

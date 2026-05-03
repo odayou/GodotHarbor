@@ -225,6 +225,14 @@ export function useAutoSetup() {
     try {
       const settings = await api.getSettings()
 
+      if (!skipProjectScan && settings.scan_directories.length === 0 && settings.auto_scan_on_startup) {
+        toast.warning(t('autoSetup.noScanDirs'))
+        router.push('/settings')
+        isRunning.value = false
+        currentStep.value = 'idle'
+        return
+      }
+
       if (!skipProjectScan && settings.auto_scan_on_startup) {
         setStep('scanning-projects', t('autoSetup.scanningProjects'))
         const scanDirs = settings.scan_directories.length > 0 ? settings.scan_directories : undefined
@@ -234,15 +242,21 @@ export function useAutoSetup() {
         }
       }
 
-      if (!skipProjectScan && projectsScanned === 0 && settings.scan_directories.length === 0) {
-        toast.warning(t('autoSetup.noScanDirs'))
-        router.push('/settings')
+      const allProjects = targetProjects || await api.getProjects()
+
+      if (allProjects.length === 0) {
+        setStep('done', t('autoSetup.complete'))
+        lastResult.value = {
+          projectsScanned,
+          pluginsImported: 0,
+          bindingsCreated: 0,
+          enginesDiscovered: 0,
+          enginesBound: 0,
+          projectsAffected: []
+        }
         isRunning.value = false
-        currentStep.value = 'idle'
         return
       }
-
-      const allProjects = targetProjects || await api.getProjects()
 
       const [pluginResult, engineResult] = await Promise.all([
         scanAndImportPlugins(t, allProjects),
