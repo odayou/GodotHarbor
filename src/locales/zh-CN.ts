@@ -1131,6 +1131,7 @@ export default {
     complete: '自动设置完成：扫描 {projects} 个项目，导入 {plugins} 个插件，建立 {bindings} 个绑定，发现 {engines} 个引擎',
     nothingToDo: '项目已是最新状态，无需额外操作',
     noScanDirs: '未配置扫描目录，请先在设置中添加扫描目录',
-    failed: '自动设置失败: {error}'
+    failed: '自动设置失败: {error}',
+    pleaseWait: '请稍候，正在自动配置...'
   }
 }

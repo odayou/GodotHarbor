@@ -8,6 +8,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { useToast } from '@/composables/useToast'
 import { useDialogEscape } from '@/composables/useDialogEscape'
 import { useBatchSelection } from '@/composables/useBatchSelection'
+import { useAutoSetup } from '@/composables/useAutoSetup'
 import { usePluginFilter } from '@/composables/usePluginFilter'
 import { usePluginUpdate } from '@/composables/usePluginUpdate'
 import { useAssetLibrary } from '@/composables/useAssetLibrary'
@@ -18,6 +19,7 @@ const pluginStore = usePluginStore()
 const route = useRoute()
 
 const toast = useToast()
+const { isRunning: isAutoSetupRunning, stepMessage: autoSetupMessage } = useAutoSetup()
 const { t } = useI18n()
 
 const plugins = computed(() => pluginStore.plugins)
@@ -1682,6 +1684,12 @@ const retryBatchFailed = async () => {
     <div v-if="activeTab === 'repository'">
     <div v-if="isLoading" class="flex justify-center py-12">
       <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+    </div>
+
+    <div v-else-if="isAutoSetupRunning && filteredPlugins.length === 0 && plugins.length === 0" class="text-center py-16">
+      <div class="animate-spin rounded-full h-10 w-10 border-2 border-primary-600 border-t-transparent mx-auto"></div>
+      <h3 class="mt-4 text-sm font-medium text-gray-900 dark:text-gray-100">{{ autoSetupMessage }}</h3>
+      <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('autoSetup.pleaseWait') }}</p>
     </div>
 
     <div v-else-if="filteredPlugins.length === 0 && plugins.length === 0" class="text-center py-12 max-w-md mx-auto">

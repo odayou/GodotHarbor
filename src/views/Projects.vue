@@ -5,18 +5,24 @@ import { useRouter } from 'vue-router'
 import { api } from '@/api'
 import type { Project, Engine, ProjectEngineBinding, MovedProjectCandidate, ProjectBinding, Plugin } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
-import { convertFileSrc } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
 import { useBatchSelection } from '@/composables/useBatchSelection'
 import { useDialogEscape } from '@/composables/useDialogEscape'
 import { useAutoSetup } from '@/composables/useAutoSetup'
+import { preloadIcons, getIconUrl, getIconDebugInfo } from '@/composables/useIconCache'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const router = useRouter()
 const toast = useToast()
 const { t } = useI18n()
-const { runAutoSetup } = useAutoSetup()
+const { isRunning: isAutoSetupRunning, stepMessage: autoSetupMessage, runAutoSetup } = useAutoSetup()
+const debugMode = ref(false)
+const toggleDebug = (e: KeyboardEvent) => {
+  if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+    debugMode.value = !debugMode.value
+  }
+}
 const projects = ref<Project[]>([])
 const engines = ref<Engine[]>([])
 const projectBindingMap = ref<Map<string, ProjectBinding[]>>(new Map())
@@ -128,6 +134,7 @@ onMounted(async () => {
   loadGroups()
   loadEngines()
   document.addEventListener('click', handleGlobalClick)
+  document.addEventListener('keydown', toggleDebug)
   try {
     const settings = await api.getSettings()
     hasScanDirs.value = settings.scan_directories.length > 0
@@ -147,6 +154,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   document.removeEventListener('click', handleGlobalClick)
+  document.removeEventListener('keydown', toggleDebug)
   if (unlisten) {
     unlisten()
   }
@@ -154,15 +162,6 @@ onUnmounted(() => {
     unlistenFs()
   }
 })
-
-const getIconUrl = (iconPath: string) => {
-  if (!iconPath) return ''
-  try {
-    return convertFileSrc(iconPath.replace(/\\/g, '/'))
-  } catch {
-    return ''
-  }
-}
 
 const matchesSearch = (project: Project) =>
   searchQuery.value === '' ||
@@ -267,6 +266,7 @@ const loadProjects = async () => {
   try {
     const result = await api.getProjects()
     projects.value = result
+    preloadIcons(result.map(p => p.icon_path).filter(Boolean))
     await loadGroups()
     await checkMovedProjects()
     await loadAllProjectBindings()
@@ -923,6 +923,12 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
       <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
     </div>
 
+    <div v-else-if="isAutoSetupRunning && filteredProjects.length === 0" class="text-center py-16">
+      <div class="animate-spin rounded-full h-10 w-10 border-2 border-primary-600 border-t-transparent mx-auto"></div>
+      <h3 class="mt-4 text-sm font-medium text-gray-900 dark:text-gray-100">{{ autoSetupMessage }}</h3>
+      <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('autoSetup.pleaseWait') }}</p>
+    </div>
+
     <div v-else-if="filteredProjects.length === 0" class="text-center py-12">
       <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-content-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
@@ -980,15 +986,18 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
             />
             <div class="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
               <img
-                v-if="project.icon_path"
+                v-if="project.icon_path && getIconUrl(project.icon_path)"
                 :src="getIconUrl(project.icon_path)"
                 :alt="project.name"
                 class="w-10 h-10 object-contain"
-                @error="($event.target as HTMLImageElement).style.display = 'none'; ($event.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden')"
               />
-              <svg :class="project.icon_path ? 'hidden' : ''" class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg v-else class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
               </svg>
+            </div>
+            <div v-if="debugMode && project.icon_path" class="text-[9px] text-red-500 break-all leading-tight max-w-[200px]">
+              <div>path: {{ project.icon_path }}</div>
+              <div class="text-blue-500">{{ getIconDebugInfo(project.icon_path) }}</div>
             </div>
             <div 
               class="min-w-0 flex-1 cursor-pointer hover:text-primary-600 dark:hover:text-primary-400"
@@ -1122,11 +1131,10 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
         <div class="flex items-center gap-4 mb-4">
           <div class="flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
             <img
-              v-if="selectedProject.icon_path"
+              v-if="selectedProject.icon_path && getIconUrl(selectedProject.icon_path)"
               :src="getIconUrl(selectedProject.icon_path)"
               :alt="selectedProject.name"
               class="w-12 h-12 object-contain"
-              @error="($event.target as HTMLImageElement).style.display = 'none'"
             />
             <svg v-else class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />

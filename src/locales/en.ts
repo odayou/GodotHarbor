@@ -1131,6 +1131,7 @@ export default {
     complete: 'Auto setup complete: scanned {projects} projects, imported {plugins} plugins, created {bindings} bindings, discovered {engines} engines',
     nothingToDo: 'Projects are up to date, no actions needed',
     noScanDirs: 'No scan directories configured. Please add scan directories in Settings first',
-    failed: 'Auto setup failed: {error}'
+    failed: 'Auto setup failed: {error}',
+    pleaseWait: 'Please wait, auto-configuring...'
   }
 }

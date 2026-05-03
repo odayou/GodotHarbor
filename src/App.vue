@@ -57,7 +57,7 @@ onMounted(async () => {
 
   unlistenScanComplete = await listen('scan-complete', async () => {
     if (!isAutoSetupRunning.value) {
-      await runAutoSetup(undefined, true)
+      await runAutoSetup(undefined, true, true)
     }
   })
 })

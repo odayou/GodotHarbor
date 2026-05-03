@@ -12,6 +12,20 @@ use crate::operation_log::{OperationLogger, LogEntry};
 use crate::AppState;
 use uuid::Uuid;
 use futures::future::join_all;
+
+#[cfg(windows)]
+fn no_window_cmd(program: impl AsRef<std::ffi::OsStr>) -> std::process::Command {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    let mut cmd = std::process::Command::new(program);
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    cmd
+}
+
+#[cfg(not(windows))]
+fn no_window_cmd(program: impl AsRef<std::ffi::OsStr>) -> std::process::Command {
+    std::process::Command::new(program)
+}
 use crate::utils::{copy_dir_all, create_http_client};
 
 fn get_config_dir(app: &AppHandle) -> PathBuf {
@@ -174,6 +188,65 @@ pub fn save_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
     save_settings_to_config(&app, &settings)?;
     log_operation(&app, "save_settings", "settings.json", "设置已保存");
     Ok(())
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+struct AutoSetupState {
+    completed_at: i64,
+    settings_hash: String,
+}
+
+fn compute_settings_hash(settings: &Settings) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut hasher = DefaultHasher::new();
+    settings.scan_directories.join(",").hash(&mut hasher);
+    settings.auto_scan_on_startup.hash(&mut hasher);
+    settings.auto_discover_engines.hash(&mut hasher);
+    format!("{:016x}", hasher.finish())
+}
+
+#[tauri::command]
+pub fn check_auto_setup_needed(app: AppHandle) -> Result<bool, String> {
+    let storage = get_storage(&app);
+    let settings = load_settings(&app);
+    let current_hash = compute_settings_hash(&settings);
+
+    let state: Option<AutoSetupState> = storage.load("auto_setup_state.json").ok();
+
+    match state {
+        Some(s) => {
+            let now = chrono::Utc::now().timestamp();
+            let elapsed_hours = (now - s.completed_at) / 3600;
+            if s.settings_hash == current_hash && elapsed_hours < 24 {
+                Ok(false)
+            } else {
+                Ok(true)
+            }
+        }
+        None => Ok(true),
+    }
+}
+
+#[tauri::command]
+pub fn mark_auto_setup_done(app: AppHandle) -> Result<(), String> {
+    let storage = get_storage(&app);
+    let settings = load_settings(&app);
+    let state = AutoSetupState {
+        completed_at: chrono::Utc::now().timestamp(),
+        settings_hash: compute_settings_hash(&settings),
+    };
+    storage.save("auto_setup_state.json", &state)
+        .map_err(|e| format!("保存自动设置状态失败: {}", e))
+}
+
+#[tauri::command]
+pub fn read_file_as_base64(path: String) -> Result<String, String> {
+    use std::io::Read;
+    let mut file = std::fs::File::open(&path).map_err(|e| format!("打开文件失败: {}", e))?;
+    let mut data = Vec::new();
+    file.read_to_end(&mut data).map_err(|e| format!("读取文件失败: {}", e))?;
+    Ok(base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &data))
 }
 
 #[tauri::command]
@@ -480,7 +553,7 @@ pub fn launch_engine(app: AppHandle, engine_id: String) -> Result<(), String> {
     let exe_path = crate::engine::EngineManager::find_executable_in_dir(engine_path)
         .ok_or("未找到引擎可执行文件".to_string())?;
 
-    std::process::Command::new(&exe_path)
+    no_window_cmd(&exe_path)
         .spawn()
         .map_err(|e| format!("启动引擎失败: {}", e))?;
 
@@ -892,143 +965,162 @@ pub async fn import_plugins_from_projects(app: AppHandle, mode: Option<String>) 
     }).await.map_err(|e| format!("扫描任务失败: {}", e))?
     .map_err(|e| format!("扫描项目插件失败: {}", e))?;
 
-    let manager = get_plugin_manager(&app);
-
     if scanned_plugins.is_empty() {
         return Err("未在项目中发现可导入的插件".to_string());
     }
 
-    let mut imported_plugins = Vec::new();
-    let mut seen_names: std::collections::HashSet<String> = plugins.iter()
+    let imported_plugins;
+    let seen_names: std::collections::HashSet<String> = plugins.iter()
         .map(|p| p.name.to_lowercase())
         .collect();
 
-    for scanned in &scanned_plugins {
-        let path_str = scanned.path.clone();
-        let plugin_name_lower = scanned.plugin_name.to_lowercase();
+    let import_mode_clone = import_mode.clone();
+    let scanned_plugins_clone = scanned_plugins.clone();
+    let plugins_clone = plugins.clone();
+    let projects_clone = projects.clone();
+    let manager_clone = get_plugin_manager(&app);
+    let storage_clone = get_storage(&app);
 
-        let already_imported = plugins.iter()
-            .any(|p| p.source.url == path_str || p.name.to_lowercase() == plugin_name_lower);
+    let import_result = tokio::task::spawn_blocking(move || {
+        let mut local_plugins = plugins_clone;
+        let mut local_imported = Vec::new();
+        let mut local_seen = seen_names;
+        let mut pending_bindings: Vec<ProjectBinding> = Vec::new();
 
-        if already_imported {
-            continue;
-        }
+        for scanned in &scanned_plugins_clone {
+            let path_str = scanned.path.clone();
+            let plugin_name_lower = scanned.plugin_name.to_lowercase();
 
-        match import_mode.as_str() {
-            "copy" => {
-                match manager.import_from_local(&path_str) {
-                    Ok(plugin) => {
-                        seen_names.insert(plugin.name.to_lowercase());
-                        imported_plugins.push(plugin.clone());
-                        plugins.push(plugin);
-                    }
-                    Err(e) => eprintln!("Failed to import plugin from {}: {}", path_str, e),
-                }
+            let already_imported = local_plugins.iter()
+                .any(|p| p.source.url == path_str || p.name.to_lowercase() == plugin_name_lower);
+
+            if already_imported {
+                continue;
             }
-            "move" => {
-                match manager.import_from_local(&path_str) {
-                    Ok(mut plugin) => {
-                        let source_path = Path::new(&path_str);
-                        if let Ok(metadata) = fs::symlink_metadata(source_path) {
-                            if metadata.file_type().is_symlink() || is_junction_path(source_path) {
-                                if let Ok(link_target) = fs::read_link(source_path) {
-                                    plugin.source.url = link_target.to_string_lossy().to_string();
+
+            match import_mode_clone.as_str() {
+                "copy" => {
+                    match manager_clone.import_from_local(&path_str) {
+                        Ok(plugin) => {
+                            local_seen.insert(plugin.name.to_lowercase());
+                            local_imported.push(plugin.clone());
+                            local_plugins.push(plugin);
+                        }
+                        Err(e) => eprintln!("Failed to import plugin from {}: {}", path_str, e),
+                    }
+                }
+                "move" => {
+                    match manager_clone.import_from_local(&path_str) {
+                        Ok(mut plugin) => {
+                            let source_path = Path::new(&path_str);
+                            if let Ok(metadata) = fs::symlink_metadata(source_path) {
+                                if metadata.file_type().is_symlink() || is_junction_path(source_path) {
+                                    if let Ok(link_target) = fs::read_link(source_path) {
+                                        plugin.source.url = link_target.to_string_lossy().to_string();
+                                    }
                                 }
                             }
+                            let plugin_id = plugin.plugin_id.clone();
+                            let version = plugin.versions.first();
+                            let version_id = version.map(|v| v.version_id.clone()).unwrap_or_default();
+                            let payload_path = version.map(|v| v.path.clone()).unwrap_or_default();
+
+                            if let Err(e) = replace_with_symlink(source_path, &payload_path) {
+                                eprintln!("Warning: failed to replace with symlink: {}", e);
+                            }
+
+                            local_seen.insert(plugin.name.to_lowercase());
+                            local_imported.push(plugin.clone());
+                            local_plugins.push(plugin);
+
+                            let project = projects_clone.iter().find(|p| path_str.starts_with(&p.path));
+                            if let Some(proj) = project {
+                                let mount_path = path_str.replace(&format!("{}/", proj.path.replace('\\', "/")), "")
+                                    .replace(&format!("{}\\", proj.path), "");
+                                pending_bindings.push(ProjectBinding::new(
+                                    proj.project_id.clone(),
+                                    plugin_id,
+                                    version_id,
+                                    String::new(),
+                                    mount_path,
+                                    String::new(),
+                                ));
+                            }
                         }
-                        let plugin_id = plugin.plugin_id.clone();
-                        let version = plugin.versions.first();
-                        let version_id = version.map(|v| v.version_id.clone()).unwrap_or_default();
-                        let payload_path = version
-                            .map(|v| v.path.clone())
-                            .unwrap_or_default();
+                        Err(e) => eprintln!("Failed to import plugin from {}: {}", path_str, e),
+                    }
+                }
+                "reference" => {
+                    let source = Path::new(&path_str);
+                    let plugin_name = scanned.plugin_name.clone();
+                    let plugin_source = PluginSource {
+                        source_type: SourceType::Local,
+                        url: path_str.clone(),
+                        imported_at: chrono::Utc::now(),
+                    };
+                    let mut plugin = Plugin::new(plugin_name.clone(), plugin_source);
+                    plugin.content_hash = compute_dir_hash(source).unwrap_or_default();
 
-                        if let Err(e) = replace_with_symlink(source_path, &payload_path) {
-                            eprintln!("Warning: failed to replace with symlink: {}", e);
-                        }
-
-                        seen_names.insert(plugin.name.to_lowercase());
-                        imported_plugins.push(plugin.clone());
-                        plugins.push(plugin);
-
-                        let mut bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
-                        let project = projects.iter().find(|p| path_str.starts_with(&p.path));
-                        if let Some(proj) = project {
-                            let mount_path = path_str.replace(&format!("{}/", proj.path.replace('\\', "/")), "")
-                                .replace(&format!("{}\\", proj.path), "");
-                            bindings.push(ProjectBinding::new(
-                                proj.project_id.clone(),
-                                plugin_id,
+                    match manager_clone.parse_plugin_units(source) {
+                        Ok(units) => {
+                            let (unit_version, unit_name, unit_description, unit_author) =
+                                if let Some(first_unit) = units.first() {
+                                    (
+                                        if first_unit.version.is_empty() { "1.0.0".to_string() } else { first_unit.version.clone() },
+                                        if first_unit.name.is_empty() { plugin_name } else { first_unit.name.clone() },
+                                        first_unit.description.clone(),
+                                        first_unit.author.clone(),
+                                    )
+                                } else {
+                                    ("1.0.0".to_string(), plugin_name, String::new(), String::new())
+                                };
+                            let version_id = Uuid::new_v4().to_string();
+                            let plugin_version = PluginVersion {
                                 version_id,
-                                String::new(),
-                                mount_path,
-                                String::new(),
-                            ));
-                            storage.save("bindings.json", &bindings)
-                                .map_err(|e| format!("保存绑定关系失败: {}", e))?;
+                                version: unit_version,
+                                path: path_str.clone(),
+                                created_at: chrono::Utc::now(),
+                                units,
+                            };
+                            plugin.versions.push(plugin_version);
+                            plugin.compatibility = manager_clone.detect_compatibility(source);
+                            plugin.name = unit_name;
+                            plugin.description = unit_description;
+                            plugin.author = unit_author;
+                        }
+                        Err(_) => {
+                            let version_id = Uuid::new_v4().to_string();
+                            let plugin_version = PluginVersion {
+                                version_id,
+                                version: "1.0.0".to_string(),
+                                path: path_str.clone(),
+                                created_at: chrono::Utc::now(),
+                                units: Vec::new(),
+                            };
+                            plugin.versions.push(plugin_version);
                         }
                     }
-                    Err(e) => eprintln!("Failed to import plugin from {}: {}", path_str, e),
-                }
-            }
-            "reference" => {
-                let source = Path::new(&path_str);
-                let plugin_name = scanned.plugin_name.clone();
-                let plugin_source = PluginSource {
-                    source_type: SourceType::Local,
-                    url: path_str.clone(),
-                    imported_at: chrono::Utc::now(),
-                };
-                let mut plugin = Plugin::new(plugin_name.clone(), plugin_source);
-                plugin.content_hash = compute_dir_hash(source).unwrap_or_default();
 
-                match manager.parse_plugin_units(source) {
-                    Ok(units) => {
-                        let (unit_version, unit_name, unit_description, unit_author) =
-                            if let Some(first_unit) = units.first() {
-                                (
-                                    if first_unit.version.is_empty() { "1.0.0".to_string() } else { first_unit.version.clone() },
-                                    if first_unit.name.is_empty() { plugin_name } else { first_unit.name.clone() },
-                                    first_unit.description.clone(),
-                                    first_unit.author.clone(),
-                                )
-                            } else {
-                                ("1.0.0".to_string(), plugin_name, String::new(), String::new())
-                            };
-                        let version_id = Uuid::new_v4().to_string();
-                        let plugin_version = PluginVersion {
-                            version_id,
-                            version: unit_version,
-                            path: path_str.clone(),
-                            created_at: chrono::Utc::now(),
-                            units,
-                        };
-                        plugin.versions.push(plugin_version);
-                        plugin.compatibility = manager.detect_compatibility(source);
-                        plugin.name = unit_name;
-                        plugin.description = unit_description;
-                        plugin.author = unit_author;
-                    }
-                    Err(_) => {
-                        let version_id = Uuid::new_v4().to_string();
-                        let plugin_version = PluginVersion {
-                            version_id,
-                            version: "1.0.0".to_string(),
-                            path: path_str.clone(),
-                            created_at: chrono::Utc::now(),
-                            units: Vec::new(),
-                        };
-                        plugin.versions.push(plugin_version);
-                    }
+                    local_seen.insert(plugin.name.to_lowercase());
+                    local_imported.push(plugin.clone());
+                    local_plugins.push(plugin);
                 }
-
-                seen_names.insert(plugin.name.to_lowercase());
-                imported_plugins.push(plugin.clone());
-                plugins.push(plugin);
+                _ => {}
             }
-            _ => {}
         }
-    }
+
+        if !pending_bindings.is_empty() {
+            let mut bindings: Vec<ProjectBinding> = storage_clone.load_or_default("bindings.json");
+            bindings.extend(pending_bindings);
+            let _ = storage_clone.save("bindings.json", &bindings);
+        }
+
+        (local_plugins, local_imported)
+    }).await.map_err(|e| format!("导入任务失败: {}", e))?;
+
+    let (updated_plugins, imported) = import_result;
+    plugins = updated_plugins;
+    imported_plugins = imported;
 
     storage.save("plugins.json", &plugins)
         .map_err(|e| format!("保存插件列表失败: {}", e))?;
@@ -1078,7 +1170,7 @@ fn replace_with_symlink(original_path: &Path, repo_payload_path: &str) -> Result
         match std::os::windows::fs::symlink_dir(payload, original_path) {
             Ok(_) => {}
             Err(_) => {
-                let output = std::process::Command::new("cmd")
+                let output = no_window_cmd("cmd")
                     .args(&["/C", "mklink", "/J"])
                     .arg(original_path)
                     .arg(payload)
@@ -1710,7 +1802,7 @@ pub async fn install_app_update(app: AppHandle) -> Result<(), String> {
         if file_name.ends_with(".nsis.zip") {
             let extract_dir = temp_dir.join("nsis_extract");
             let _ = fs::create_dir_all(&extract_dir);
-            let extract_result = std::process::Command::new("powershell")
+            let extract_result = no_window_cmd("powershell")
                 .args(["-NoProfile", "-Command", &format!(
                     "Expand-Archive -Path '{}' -DestinationPath '{}' -Force",
                     file_path.display(), extract_dir.display()
@@ -1723,7 +1815,7 @@ pub async fn install_app_update(app: AppHandle) -> Result<(), String> {
 
             let installer = walk_dir_for_exe(&extract_dir);
             if let Some(installer) = installer {
-                std::process::Command::new(&installer)
+                no_window_cmd(&installer)
                     .args(&["/S", "--force-run"])
                     .spawn()
                     .map_err(|e| format!("启动安装程序失败: {}", e))?;
@@ -1731,7 +1823,7 @@ pub async fn install_app_update(app: AppHandle) -> Result<(), String> {
                 open_file_in_os(&file_path)?;
             }
         } else {
-            std::process::Command::new(&file_path)
+            no_window_cmd(&file_path)
                 .spawn()
                 .map_err(|e| format!("启动安装程序失败: {}", e))?;
         }
@@ -1847,7 +1939,7 @@ fn walk_dir_for_appimage(_dir: &Path) -> Option<PathBuf> {
 
 fn open_file_in_os(path: &Path) -> Result<(), String> {
     if cfg!(target_os = "windows") {
-        std::process::Command::new("explorer")
+        no_window_cmd("explorer")
             .arg(path)
             .spawn()
             .map_err(|e| format!("打开文件失败: {}", e))?;
@@ -2605,7 +2697,7 @@ pub fn launch_project_with_engine(
             "引擎可执行文件不存在".to_string()
         })?;
 
-    let mut cmd = std::process::Command::new(&actual_exe);
+    let mut cmd = no_window_cmd(&actual_exe);
     cmd.current_dir(&project.path);
 
     if let Some(args) = custom_args {
@@ -4023,7 +4115,7 @@ pub fn open_in_file_manager(path: String) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         let target = if p.is_dir() { path.clone() } else { p.parent().map(|d| d.to_string_lossy().to_string()).unwrap_or(path.clone()) };
-        std::process::Command::new("explorer")
+        no_window_cmd("explorer")
             .arg(&target)
             .spawn()
             .map_err(|e| format!("打开文件管理器失败: {}", e))?;

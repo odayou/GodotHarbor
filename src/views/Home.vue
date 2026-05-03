@@ -7,12 +7,18 @@ import type { DashboardStats } from '@/types'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
 import { useAutoSetup } from '@/composables/useAutoSetup'
-import { convertFileSrc } from '@tauri-apps/api/core'
+import { preloadIcons, getIconUrl, getIconDebugInfo } from '@/composables/useIconCache'
 
 const router = useRouter()
 const { t } = useI18n()
 const toast = useToast()
 const { isRunning: isAutoSetupRunning, stepMessage: autoSetupMessage, runAutoSetup } = useAutoSetup()
+const debugMode = ref(false)
+const toggleDebug = (e: KeyboardEvent) => {
+  if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+    debugMode.value = !debugMode.value
+  }
+}
 const stats = ref<DashboardStats>({
   project_count: 0,
   plugin_count: 0,
@@ -29,20 +35,12 @@ let unlistenFs: UnlistenFn | null = null
 let unlistenEngines: UnlistenFn | null = null
 let unlistenAutoSetup: UnlistenFn | null = null
 
-const getIconUrl = (iconPath: string) => {
-  if (!iconPath) return ''
-  try {
-    return convertFileSrc(iconPath.replace(/\\/g, '/'))
-  } catch {
-    return ''
-  }
-}
-
 const loadStats = async () => {
   isLoading.value = true
   hasError.value = false
   try {
     stats.value = await api.getDashboardStats()
+    preloadIcons(stats.value.recent_projects.map(p => p.icon_path).filter(Boolean))
   } catch (error) {
     console.error('Failed to load stats:', error)
     hasError.value = true
@@ -52,6 +50,7 @@ const loadStats = async () => {
 }
 
 onMounted(async () => {
+  document.addEventListener('keydown', toggleDebug)
   await loadStats()
   unlisten = await listen('scan-complete', () => {
     loadStats()
@@ -68,6 +67,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  document.removeEventListener('keydown', toggleDebug)
   if (unlisten) {
     unlisten()
   }
@@ -231,15 +231,18 @@ const openInFileManager = async (path: string) => {
             >
               <div class="w-8 h-8 rounded bg-gray-100 dark:bg-surface-layer flex items-center justify-center shrink-0 overflow-hidden">
                 <img
-                  v-if="project.icon_path"
+                  v-if="project.icon_path && getIconUrl(project.icon_path)"
                   :src="getIconUrl(project.icon_path)"
                   :alt="project.name"
                   class="w-full h-full object-cover"
-                  @error="($event.target as HTMLImageElement).style.display = 'none'; ($event.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden')"
                 />
-                <svg :class="project.icon_path ? 'hidden' : ''" class="w-4 h-4 text-gray-500 dark:text-content-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg v-else class="w-4 h-4 text-gray-500 dark:text-content-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                 </svg>
+              </div>
+              <div v-if="debugMode && project.icon_path" class="text-[9px] text-red-500 break-all leading-tight max-w-[200px]">
+                <div>path: {{ project.icon_path }}</div>
+                <div class="text-blue-500">{{ getIconDebugInfo(project.icon_path) }}</div>
               </div>
               <div class="min-w-0">
                 <h4 class="text-sm font-medium text-gray-900 dark:text-content-primary truncate">{{ project.name }}</h4>
@@ -293,7 +296,11 @@ const openInFileManager = async (path: string) => {
           </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div v-if="isAutoSetupRunning" class="text-center py-8">
+          <div class="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent mx-auto"></div>
+          <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">{{ autoSetupMessage }}</p>
+        </div>
+        <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div
             class="p-4 border border-gray-200 dark:border-surface-border rounded-lg cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors"
             @click="navigateTo('/projects')"

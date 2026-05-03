@@ -479,8 +479,16 @@ impl Linker {
     #[cfg(windows)]
     fn create_junction(&self, source: &Path, target: &Path) -> Result<()> {
         use std::process::Command;
+        #[cfg(windows)]
+        use std::os::windows::process::CommandExt;
 
-        let output = Command::new("cmd")
+        #[cfg(windows)]
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+        let mut cmd = Command::new("cmd");
+        #[cfg(windows)]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        let output = cmd
             .args(&["/C", "mklink", "/J"])
             .arg(target)
             .arg(source)

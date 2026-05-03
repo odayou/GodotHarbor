@@ -212,8 +212,20 @@ async function discoverAndBindEngines(t: ReturnType<typeof useI18n>['t'], settin
 export function useAutoSetup() {
   const toast = useToast()
   const { t } = useI18n()
-  const runAutoSetup = async (targetProjects?: Project[], skipProjectScan = false) => {
+  const runAutoSetup = async (targetProjects?: Project[], skipProjectScan = false, checkCompletionMark = false) => {
     if (isRunning.value) return
+
+    if (checkCompletionMark) {
+      try {
+        const needed = await api.checkAutoSetupNeeded()
+        if (!needed) {
+          return
+        }
+      } catch {
+        // check failed, proceed with setup
+      }
+    }
+
     isRunning.value = true
     lastResult.value = null
 
@@ -223,7 +235,6 @@ export function useAutoSetup() {
       const settings = await api.getSettings()
 
       const existingProjects = targetProjects || await api.getProjects()
-      const hasExistingData = existingProjects.length > 0
 
       if (!skipProjectScan && settings.auto_scan_on_startup) {
         let scanDirs = settings.scan_directories
@@ -237,9 +248,10 @@ export function useAutoSetup() {
         }
       }
 
-      const allProjects = hasExistingData ? existingProjects : await api.getProjects()
+      const allProjects = existingProjects.length > 0 ? existingProjects : await api.getProjects()
 
       if (allProjects.length === 0) {
+        await api.markAutoSetupDone()
         setStep('done', t('autoSetup.complete'))
         lastResult.value = {
           projectsScanned,
@@ -257,6 +269,8 @@ export function useAutoSetup() {
         scanAndImportPlugins(t, allProjects),
         discoverAndBindEngines(t, settings, allProjects),
       ])
+
+      await api.markAutoSetupDone()
 
       setStep('done', t('autoSetup.complete', {
         projects: projectsScanned,
@@ -276,8 +290,6 @@ export function useAutoSetup() {
 
       if (projectsScanned > 0 || pluginResult.pluginsImported > 0 || pluginResult.bindingsCreated > 0 || engineResult.enginesDiscovered > 0) {
         toast.success(stepMessage.value)
-      } else {
-        toast.info(t('autoSetup.nothingToDo'))
       }
 
       if (doneTimer) clearTimeout(doneTimer)

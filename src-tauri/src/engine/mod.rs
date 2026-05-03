@@ -6,7 +6,7 @@ use rayon::prelude::*;
 use regex::Regex;
 use walkdir::WalkDir;
 
-const MAX_SCAN_DEPTH: usize = 5;
+const MAX_SCAN_DEPTH: usize = 3;
 
 pub struct EngineManager {
     #[allow(dead_code)]
@@ -751,7 +751,7 @@ impl EngineManager {
                         continue;
                     }
 
-                    let skip_dirs = ["target", "node_modules", ".git", "build", "dist", "cache", "__pycache__", ".cargo", "deps"];
+                    let skip_dirs = ["target", "node_modules", ".git", "build", "dist", "cache", "__pycache__", ".cargo", "deps", ".vscode", ".idea", ".cache", ".nuget", "venv", "Debug", "Release", "obj", "out", "pkg", ".gradle", ".android"];
                     if skip_dirs.iter().any(|sd| dir_name == *sd) {
                         continue;
                     }
@@ -821,7 +821,7 @@ impl EngineManager {
     #[cfg(windows)]
     fn scan_drive_root_dirs() -> Vec<std::path::PathBuf> {
         let mut result = Vec::new();
-        let keywords = ["godot", "engine", "dev", "tool", "game", "program"];
+        let keywords = ["godot", "engine", "game", "develop", "project"];
 
         for letter in b'A'..=b'Z' {
             let drive = format!("{}:\\", letter as char);
@@ -862,12 +862,28 @@ impl EngineManager {
 
         if cfg!(windows) {
             if let Some(program_files) = std::env::var("ProgramFiles").ok() {
-                dirs.push(std::path::PathBuf::from(&program_files));
+                let pf = std::path::PathBuf::from(&program_files);
+                if let Ok(entries) = std::fs::read_dir(&pf) {
+                    for entry in entries.flatten() {
+                        let name = entry.file_name().to_string_lossy().to_lowercase();
+                        if name.contains("godot") || name.contains("engine") {
+                            dirs.push(entry.path());
+                        }
+                    }
+                }
                 dirs.push(std::path::PathBuf::from(&program_files).join("Godot"));
                 dirs.push(std::path::PathBuf::from(&program_files).join("Tools"));
             }
             if let Some(program_files_x86) = std::env::var("ProgramFiles(x86)").ok() {
-                dirs.push(std::path::PathBuf::from(&program_files_x86));
+                let pf = std::path::PathBuf::from(&program_files_x86);
+                if let Ok(entries) = std::fs::read_dir(&pf) {
+                    for entry in entries.flatten() {
+                        let name = entry.file_name().to_string_lossy().to_lowercase();
+                        if name.contains("godot") || name.contains("engine") {
+                            dirs.push(entry.path());
+                        }
+                    }
+                }
                 dirs.push(std::path::PathBuf::from(&program_files_x86).join("Godot"));
                 dirs.push(std::path::PathBuf::from(&program_files_x86).join("Tools"));
             }

@@ -409,6 +409,18 @@ export const api = {
     return await invoke('open_in_file_manager', { path })
   },
 
+  async readFileAsBase64(path: string): Promise<string> {
+    return await invoke('read_file_as_base64', { path })
+  },
+
+  async checkAutoSetupNeeded(): Promise<boolean> {
+    return await invoke('check_auto_setup_needed')
+  },
+
+  async markAutoSetupDone(): Promise<void> {
+    return await invoke('mark_auto_setup_done')
+  },
+
   async getStoragePaths(): Promise<StoragePaths> {
     return await invoke('get_storage_paths')
   },
