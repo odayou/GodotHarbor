@@ -119,6 +119,7 @@ export default {
     fromGit: 'Import from Git',
     importFromGit: 'Import from Git',
     empty: 'No Plugins',
+    searchNoResult: 'No matching plugins found',
     emptyDesc: 'Try adjusting your search or import new plugins',
     onboarding: {
       title: 'Add Your First Plugin',
@@ -145,7 +146,7 @@ export default {
     },
     search: 'Search plugin name, description or author...',
     allCompat: 'All Compatibility',
-    allVersions: 'All Versions',
+    allVersions: 'All Compatibility',
     allSource: 'All Sources',
     source: {
       local: 'Local',
@@ -157,6 +158,8 @@ export default {
     viewDuplicates: 'View Duplicates',
     details: 'Plugin Details',
     version: 'Version',
+    versionCount: 'versions',
+    unitCount: 'units',
     sourceType: 'Source',
     checkUpdates: 'Check Updates',
     checkingUpdates: 'Checking...',

@@ -119,6 +119,7 @@ export default {
     fromGit: '从 Git 导入',
     importFromGit: '从 Git 导入',
     empty: '暂无插件',
+    searchNoResult: '未找到匹配的插件',
     emptyDesc: '尝试调整搜索条件或导入新插件',
     onboarding: {
       title: '添加你的第一个插件',
@@ -145,7 +146,7 @@ export default {
     },
     search: '搜索插件名称、描述或作者...',
     allCompat: '全部兼容性',
-    allVersions: '全部版本',
+    allVersions: '全部兼容性',
     allSource: '全部来源',
     source: {
       local: '本地',
@@ -157,6 +158,8 @@ export default {
     viewDuplicates: '查看重复',
     details: '插件详情',
     version: '版本',
+    versionCount: '个版本',
+    unitCount: '个单元',
     sourceType: '来源',
     checkUpdates: '检查更新',
     checkingUpdates: '检查中...',

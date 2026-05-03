@@ -1756,11 +1756,11 @@ const retryBatchFailed = async () => {
       </div>
     </div>
 
-    <div v-else-if="filteredPlugins.length === 0" class="text-center py-12">
+    <div v-else-if="filteredPlugins.length === 0 && plugins.length > 0" class="text-center py-12">
       <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
       </svg>
-      <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('plugins.empty') }}</h3>
+      <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('plugins.searchNoResult') }}</h3>
       <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('plugins.emptyDesc') }}</p>
     </div>
 
@@ -1845,8 +1845,8 @@ const retryBatchFailed = async () => {
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                 </svg>
               </button>
-              <span v-if="plugin.versions.length > 1" class="text-xs text-gray-400 dark:text-gray-500" :title="t('plugins.version')">{{ plugin.versions.length }}v</span>
-              <span v-if="plugin.versions[0]?.units.length > 1" class="text-xs text-gray-400 dark:text-gray-500" :title="t('plugins.pluginDetail.unitCount', { count: plugin.versions[0].units.length })">{{ plugin.versions[0].units.length }}u</span>
+              <span v-if="plugin.versions.length > 1" class="text-xs text-gray-400 dark:text-gray-500">{{ plugin.versions.length }} {{ t('plugins.versionCount') }}</span>
+              <span v-if="plugin.versions[0]?.units.length > 1" class="text-xs text-gray-400 dark:text-gray-500">{{ plugin.versions[0].units.length }} {{ t('plugins.unitCount') }}</span>
             </div>
             <div class="flex items-center gap-2">
               <button
@@ -1938,10 +1938,8 @@ const retryBatchFailed = async () => {
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
               {{ t('plugins.contextMenu.updatePlugin') }}
             </button>
-            <button @click="closePluginDetail" class="text-gray-500 dark:text-content-secondary hover:text-gray-700 dark:hover:text-content-primary">
-              <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
+            <button @click="closePluginDetail" class="text-gray-500 dark:text-content-secondary hover:text-gray-700 dark:hover:text-content-primary text-sm">
+              {{ t('common.close') }}
             </button>
           </div>
         </div>
