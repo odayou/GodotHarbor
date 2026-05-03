@@ -63,6 +63,7 @@ let unlistenFs: UnlistenFn | null = null
 
 const sortBy = ref<string>('name')
 const sortOrder = ref<string>('asc')
+const hasScanDirs = ref(false)
 
 const showBatchGroupDialog = ref(false)
 const batchGroupInput = ref('')
@@ -114,6 +115,10 @@ onMounted(async () => {
   loadProjects()
   loadGroups()
   loadEngines()
+  try {
+    const settings = await api.getSettings()
+    hasScanDirs.value = settings.scan_directories.length > 0
+  } catch { /* ignore */ }
   unlisten = await listen('scan-complete', () => {
     loadProjects()
   })
@@ -383,6 +388,11 @@ const quickScan = async () => {
   }
 }
 
+const quickScanFromDialog = async () => {
+  showScanDialog.value = false
+  await quickScan()
+}
+
 const addProject = async () => {
   try {
     const selected = await open({
@@ -525,6 +535,19 @@ const syncProject = async (project: Project) => {
     }
   } catch (error) {
     toast.error(t('projects.syncFailed', { error }))
+  }
+}
+
+const syncAllProjects = async () => {
+  isLoading.value = true
+  try {
+    await api.syncProjects()
+    await loadProjects()
+    toast.success(t('projects.syncAllSuccess', { count: projects.value.length }))
+  } catch (error) {
+    toast.error(t('projects.syncFailed', { error }))
+  } finally {
+    isLoading.value = false
   }
 }
 
@@ -777,18 +800,22 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
           {{ t('projects.scan') }}
         </button>
         <button
-          @click="quickScan"
-          :disabled="isLoading"
-          class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 text-sm"
-        >
-          {{ t('projects.quickScan') }}
-        </button>
-        <button
           @click="addProject"
           :disabled="isLoading"
           class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 text-sm"
         >
           {{ t('projects.add') }}
+        </button>
+        <button
+          @click="syncAllProjects"
+          :disabled="isLoading"
+          class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 text-sm flex items-center gap-1.5"
+          :title="t('projects.syncAllHint')"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {{ t('projects.syncProject') }}
         </button>
       </div>
     </div>
@@ -967,6 +994,16 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
                 >
                   {{ project.group }}
                 </span>
+                <button
+                  v-else
+                  @click.stop="openGroupDialog(project)"
+                  class="text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 p-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                  :title="t('projects.setGroup')"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
+                </button>
                 <span
                   :class="[
                     'badge',
@@ -999,15 +1036,12 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
                   v-if="projectBindingMap.get(project.project_id)?.length"
                   class="text-sm text-gray-500 dark:text-content-secondary flex items-center gap-1"
                 >
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                  </svg>
-                  {{ projectBindingMap.get(project.project_id)!.length }}
                   <span
                     v-if="projectBindingMap.get(project.project_id)?.some(b => b.is_healthy === false)"
                     class="w-2 h-2 rounded-full bg-red-500"
                     :title="t('projects.unhealthyBindings')"
                   ></span>
+                  {{ projectBindingMap.get(project.project_id)!.length }} {{ t('projects.pluginCount') }}
                 </span>
               </div>
             </div>
@@ -1022,29 +1056,14 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
                 </svg>
               </button>
               <button
-                @click.stop="syncProject(project)"
-                class="text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-                :title="t('projects.syncProject')"
-              >
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-              </button>
-              <button
-                @click.stop="openGroupDialog(project)"
-                class="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                :title="t('projects.setGroup')"
-              >
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                </svg>
-              </button>
-              <button
                 v-if="project.status === 'MissingSource'"
                 @click.stop="openRelocateDialog(project)"
-                class="px-3 py-1.5 rounded-lg text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 transition-colors"
+                class="px-3 py-1.5 rounded-lg text-sm font-medium bg-orange-500 text-white hover:bg-orange-600 transition-colors flex items-center gap-1.5"
                 :title="t('projects.relocate')"
               >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
                 {{ t('projects.relocate') }}
               </button>
               <template v-else-if="engines.length === 0">
@@ -1068,9 +1087,10 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
               <button
                 @click.stop="removeProject(project.project_id)"
                 class="text-red-600 hover:text-red-800 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
+                :title="t('projects.delete')"
               >
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
               </button>
             </div>
@@ -1227,12 +1247,6 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
         <div class="flex justify-between gap-2">
           <div class="flex gap-2">
             <button
-              @click="openInFileManager(selectedProject.path)"
-              class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 text-sm"
-            >
-              {{ t('projects.openInFileManager') }}
-            </button>
-            <button
               @click="syncProject(selectedProject)"
               class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 text-sm"
             >
@@ -1263,6 +1277,16 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
         <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
           {{ t('projects.scanDesc') }}
         </p>
+        <button
+          v-if="hasScanDirs"
+          @click="quickScanFromDialog"
+          class="w-full mb-4 px-4 py-2.5 border border-primary-300 dark:border-primary-700 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 rounded-lg hover:bg-primary-100 dark:hover:bg-primary-900/30 text-sm text-left flex items-center gap-2"
+        >
+          <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          <span>{{ t('projects.quickScanHint') }}</span>
+        </button>
         <div class="flex gap-2 mb-6">
           <input
             v-model="scanDirInput"
