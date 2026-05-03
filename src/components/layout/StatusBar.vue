@@ -212,7 +212,7 @@ onUnmounted(() => {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
           </svg>
           <span class="text-gray-700 dark:text-gray-300 truncate">
-            {{ isAutoSetupRunning ? autoSetupMessage : t('autoSetup.complete', { projects: autoSetupResult?.projectsScanned ?? 0, plugins: autoSetupResult?.pluginsImported ?? 0, bindings: autoSetupResult?.bindingsCreated ?? 0, engines: autoSetupResult?.enginesDiscovered ?? 0 }) }}
+            {{ isAutoSetupRunning ? autoSetupMessage : t('autoSetup.complete', { projects: autoSetupResult?.projectsScanned ?? 0, plugins: autoSetupResult?.pluginsImported ?? 0, bindings: autoSetupResult?.bindingsCreated ?? 0 }) }}
           </span>
           <div v-if="isAutoSetupRunning" class="w-20 bg-gray-200 dark:bg-gray-700 rounded-full h-1 shrink-0">
             <div class="bg-primary-600 h-1 rounded-full transition-all duration-500" :style="{ width: `${autoSetupProgress}%` }"></div>

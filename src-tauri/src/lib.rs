@@ -100,7 +100,7 @@ pub fn run() {
             let discover_handle = app_handle.clone();
             tauri::async_runtime::spawn(async move {
                 tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
-                let _ = commands::auto_discover_engines(discover_handle);
+                let _ = commands::auto_discover_engines(discover_handle).await;
             });
 
             let scheduler_handle = app_handle.clone();
@@ -140,6 +140,12 @@ pub fn run() {
                     if let Some(window) = show_handle.get_webview_window("main") {
                         let _ = window.maximize();
                         let _ = window.show();
+                        let _ = window.set_always_on_top(true);
+                        let win = window.clone();
+                        tauri::async_runtime::spawn(async move {
+                            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                            let _ = win.set_always_on_top(false);
+                        });
                     }
                 }
             });

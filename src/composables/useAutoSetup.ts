@@ -5,9 +5,9 @@ import { useToast } from '@/composables/useToast'
 import { useI18n } from 'vue-i18n'
 import { emit } from '@tauri-apps/api/event'
 
-export type AutoSetupStep = 'idle' | 'scanning-projects' | 'scanning-plugins' | 'importing-plugins' | 'binding-plugins' | 'applying-changes' | 'discovering-engines' | 'done'
+export type AutoSetupStep = 'idle' | 'scanning-projects' | 'scanning-plugins' | 'importing-plugins' | 'binding-plugins' | 'applying-changes' | 'done'
 
-const SETUP_STEPS: AutoSetupStep[] = ['scanning-projects', 'scanning-plugins', 'importing-plugins', 'binding-plugins', 'applying-changes', 'discovering-engines']
+const SETUP_STEPS: AutoSetupStep[] = ['scanning-projects', 'scanning-plugins', 'importing-plugins', 'binding-plugins', 'applying-changes']
 
 function normalizePath(p: string): string {
   return p.replace(/\\/g, '/').toLowerCase()
@@ -26,7 +26,6 @@ const lastResult = ref<{
   projectsScanned: number
   pluginsImported: number
   bindingsCreated: number
-  enginesDiscovered: number
   projectsAffected: string[]
 } | null>(null)
 
@@ -148,12 +147,6 @@ async function scanAndImportPlugins(t: ReturnType<typeof useI18n>['t'], allProje
   return { pluginsImported: importedPlugins.length, bindingsCreated, projectsAffected }
 }
 
-async function discoverEngines(t: ReturnType<typeof useI18n>['t']): Promise<{ enginesDiscovered: number }> {
-  setStep('discovering-engines', t('autoSetup.discoveringEngines'))
-  const newEngines = await api.autoDiscoverEngines()
-  return { enginesDiscovered: newEngines.length }
-}
-
 export function useAutoSetup() {
   const toast = useToast()
   const { t } = useI18n()
@@ -202,17 +195,13 @@ export function useAutoSetup() {
           projectsScanned,
           pluginsImported: 0,
           bindingsCreated: 0,
-          enginesDiscovered: 0,
           projectsAffected: []
         }
         isRunning.value = false
         return
       }
 
-      const [pluginResult, engineResult] = await Promise.all([
-        scanAndImportPlugins(t, allProjects),
-        discoverEngines(t),
-      ])
+      const pluginResult = await scanAndImportPlugins(t, allProjects)
 
       await api.markAutoSetupDone()
 
@@ -220,18 +209,16 @@ export function useAutoSetup() {
         projects: projectsScanned,
         plugins: pluginResult.pluginsImported,
         bindings: pluginResult.bindingsCreated,
-        engines: engineResult.enginesDiscovered
       }))
 
       lastResult.value = {
         projectsScanned,
         pluginsImported: pluginResult.pluginsImported,
         bindingsCreated: pluginResult.bindingsCreated,
-        enginesDiscovered: engineResult.enginesDiscovered,
         projectsAffected: pluginResult.projectsAffected
       }
 
-      if (projectsScanned > 0 || pluginResult.pluginsImported > 0 || pluginResult.bindingsCreated > 0 || engineResult.enginesDiscovered > 0) {
+      if (projectsScanned > 0 || pluginResult.pluginsImported > 0 || pluginResult.bindingsCreated > 0) {
         toast.success(stepMessage.value)
       }
 

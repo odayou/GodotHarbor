@@ -18,14 +18,17 @@ import ToastContainer from './components/ToastContainer.vue'
 import OnboardingGuide from './components/OnboardingGuide.vue'
 import CommandPalette from './components/CommandPalette.vue'
 import { useAutoSetup } from './composables/useAutoSetup'
+import { useToast } from './composables/useToast'
 
 const { t, locale } = useI18n()
 const { isVisible: showLanguageDialog, hideLanguageDialog } = useLanguageDialog()
+const toast = useToast()
 
 const pluginStore = usePluginStore()
 const { runAutoSetup, isRunning: isAutoSetupRunning } = useAutoSetup()
 let unlistenProgress: any = null
 let unlistenScanComplete: any = null
+let unlistenEnginesDiscovered: any = null
 
 const { registerShortcut } = useKeyboardShortcuts()
 const { currentTheme, setTheme } = useTheme()
@@ -33,7 +36,11 @@ const { initSidebarState, toggleSidebar } = useSidebar()
 const { openPalette } = useCommandPalette()
 
 getCurrentWindow().show().then(() => {
-  getCurrentWindow().setFocus().catch(() => {})
+  getCurrentWindow().setAlwaysOnTop(true).then(() => {
+    setTimeout(() => {
+      getCurrentWindow().setAlwaysOnTop(false).catch(() => {})
+    }, 100)
+  }).catch(() => {})
 }).catch((e) => {
   console.error('Failed to show window:', e)
 })
@@ -62,6 +69,13 @@ onMounted(async () => {
       await runAutoSetup(undefined, true, true)
     }
   })
+
+  unlistenEnginesDiscovered = await listen<{ engine_id: string; name: string }[]>('engines-discovered', (event) => {
+    const count = event.payload.length
+    if (count > 0) {
+      toast.success(t('engines.discovered', { count }))
+    }
+  })
 })
 
 const selectLanguage = async (lang: string) => {
@@ -81,6 +95,9 @@ onUnmounted(() => {
   }
   if (unlistenScanComplete) {
     unlistenScanComplete()
+  }
+  if (unlistenEnginesDiscovered) {
+    unlistenEnginesDiscovered()
   }
 })
 

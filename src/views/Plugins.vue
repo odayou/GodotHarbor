@@ -5,6 +5,7 @@ import { useRoute } from 'vue-router'
 import { api } from '@/api'
 import type { Plugin, Project, PluginDependency, PluginStorageStats, ProjectBinding, TotalStorageStats, DuplicateCheckResult, ScannedPlugin, TeamSharedConfig } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
 import { useDialogEscape } from '@/composables/useDialogEscape'
 import { useBatchSelection } from '@/composables/useBatchSelection'
@@ -25,6 +26,7 @@ const { t } = useI18n()
 const plugins = computed(() => pluginStore.plugins)
 const isLoading = ref(false)
 const hasLoaded = ref(false)
+let unlistenAutoSetup: UnlistenFn | null = null
 const gitUrl = ref('')
 const showGitDialog = ref(false)
 const showPluginDetail = ref(false)
@@ -310,6 +312,11 @@ onMounted(async () => {
   loadTotalStorageStats()
   document.addEventListener('click', handleClickOutside)
 
+  unlistenAutoSetup = await listen('auto-setup-complete', () => {
+    loadPlugins()
+    loadTotalStorageStats()
+  })
+
   if (route.query.tab === 'bindings') {
     activeTab.value = 'bindings'
     await loadLinkerData()
@@ -340,6 +347,9 @@ onMounted(async () => {
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
+  if (unlistenAutoSetup) {
+    unlistenAutoSetup()
+  }
 })
 
 const showDeletePluginConfirm = ref(false)

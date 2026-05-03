@@ -22,7 +22,7 @@ const { t } = useI18n()
               </svg>
               <div class="flex-1 min-w-0">
                 <p class="text-sm font-medium text-gray-900 dark:text-content-primary truncate">
-                  {{ isRunning ? stepMessage : t('autoSetup.complete', { projects: lastResult?.projectsScanned ?? 0, plugins: lastResult?.pluginsImported ?? 0, bindings: lastResult?.bindingsCreated ?? 0, engines: lastResult?.enginesDiscovered ?? 0 }) }}
+                  {{ isRunning ? stepMessage : t('autoSetup.complete', { projects: lastResult?.projectsScanned ?? 0, plugins: lastResult?.pluginsImported ?? 0, bindings: lastResult?.bindingsCreated ?? 0 }) }}
                 </p>
                 <div v-if="isRunning" class="mt-1.5 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
                   <div

@@ -72,6 +72,7 @@ const filterStatus = ref<string>('all')
 const availableGroups = ref<string[]>([])
 let unlisten: UnlistenFn | null = null
 let unlistenFs: UnlistenFn | null = null
+let unlistenAutoSetup: UnlistenFn | null = null
 
 const sortBy = ref<string>('name')
 const sortOrder = ref<string>('asc')
@@ -144,6 +145,10 @@ onMounted(async () => {
       console.error('增量同步失败:', error)
     }
   })
+  unlistenAutoSetup = await listen('auto-setup-complete', () => {
+    loadProjects()
+    loadEngines()
+  })
 })
 
 onUnmounted(() => {
@@ -154,6 +159,9 @@ onUnmounted(() => {
   }
   if (unlistenFs) {
     unlistenFs()
+  }
+  if (unlistenAutoSetup) {
+    unlistenAutoSetup()
   }
 })
 

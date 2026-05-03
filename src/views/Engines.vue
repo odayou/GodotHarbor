@@ -7,14 +7,13 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
 import { useDialogEscape } from '@/composables/useDialogEscape'
-import { useAutoSetup } from '@/composables/useAutoSetup'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const toast = useToast()
-const { isRunning: isAutoSetupRunning, stepMessage: autoSetupMessage } = useAutoSetup()
 const { t } = useI18n()
 const engines = ref<Engine[]>([])
 const isLoading = ref(false)
+const isDiscovering = ref(false)
 const showAddDialog = ref(false)
 const newEnginePath = ref('')
 const newEngineName = ref('')
@@ -24,6 +23,7 @@ const deleteAlsoFiles = ref(false)
 const deleteTargetId = ref('')
 let unlistenDiscover: UnlistenFn | null = null
 let unlistenDownloadProgress: UnlistenFn | null = null
+let unlistenAutoSetup: UnlistenFn | null = null
 
 const searchQuery = ref('')
 const filterType = ref<string>('all')
@@ -53,6 +53,9 @@ useDialogEscape(showDownloadDialog)
 
 onMounted(async () => {
   await loadEngines()
+  if (engines.value.length === 0) {
+    isDiscovering.value = true
+  }
   try {
     const activeList = await api.getActiveDownloads()
     const newMap = new Map<string, EngineDownloadProgress>()
@@ -63,6 +66,11 @@ onMounted(async () => {
     activeDownloads.value = newMap
   } catch {}
   unlistenDiscover = await listen('engines-discovered', () => {
+    isDiscovering.value = false
+    loadEngines()
+  })
+  unlistenAutoSetup = await listen('auto-setup-complete', () => {
+    isDiscovering.value = false
     loadEngines()
   })
   unlistenDownloadProgress = await listen('engine-download-progress', (event) => {
@@ -85,6 +93,9 @@ onUnmounted(() => {
   }
   if (unlistenDownloadProgress) {
     unlistenDownloadProgress()
+  }
+  if (unlistenAutoSetup) {
+    unlistenAutoSetup()
   }
   document.removeEventListener('click', handleGlobalClick)
 })
@@ -219,6 +230,7 @@ const checkAllEngineHealth = async () => {
 
 const discoverEngines = async () => {
   isLoading.value = true
+  isDiscovering.value = true
   try {
     const discovered = await api.autoDiscoverEngines()
     if (discovered.length > 0) {
@@ -231,6 +243,7 @@ const discoverEngines = async () => {
     toast.error(t('engines.discoverFailed', { error }))
   } finally {
     isLoading.value = false
+    isDiscovering.value = false
   }
 }
 
@@ -586,9 +599,9 @@ const initCollapsedGroups = () => {
       <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
     </div>
 
-    <div v-else-if="isAutoSetupRunning && engines.length === 0" class="text-center py-16">
+    <div v-else-if="isDiscovering && engines.length === 0" class="text-center py-16">
       <div class="animate-spin rounded-full h-10 w-10 border-2 border-primary-600 border-t-transparent mx-auto"></div>
-      <h3 class="mt-4 text-sm font-medium text-gray-900 dark:text-gray-100">{{ autoSetupMessage }}</h3>
+      <h3 class="mt-4 text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('engines.discovering') }}</h3>
       <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('autoSetup.pleaseWait') }}</p>
     </div>
 
