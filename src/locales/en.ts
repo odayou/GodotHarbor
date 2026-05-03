@@ -993,12 +993,12 @@ export default {
       desc: 'Godot Harbor helps you manage Godot plugins, projects and engines.\nAll plugins can be mounted to any project with one click.'
     },
     scan: {
-      title: 'Scan Your Godot Projects',
-      desc: 'Automatically discover local Godot projects.\nYou can also manually add or drag and drop projects.'
+      title: 'Configure Scan Directories',
+      desc: 'Set up project scan paths, the app will automatically discover Godot projects.\nAfter configuration, click "Auto Configure" to complete all setup in one click.'
     },
     import: {
-      title: 'Import Plugins',
-      desc: 'Import plugins from local directories, Git repositories, or Godot Asset Library.'
+      title: 'Import and Manage Plugins',
+      desc: 'Import plugins from local directories, Git repositories, or Godot Asset Library, and bind them to projects.'
     },
     link: {
       title: 'Bind Plugins to Projects',
@@ -1135,6 +1135,7 @@ export default {
     bindingEngines: 'Matching engines to projects...',
     complete: 'Auto setup complete: scanned {projects} projects, imported {plugins} plugins, created {bindings} bindings, discovered {engines} engines',
     nothingToDo: 'Projects are up to date, no actions needed',
+    noScanDirs: 'No scan directories configured. Please add scan directories in Settings first',
     failed: 'Auto setup failed: {error}'
   }
 }

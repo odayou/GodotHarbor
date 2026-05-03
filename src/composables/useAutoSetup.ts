@@ -4,6 +4,7 @@ import type { Project, Plugin, BatchBindingRequest, Settings } from '@/types'
 import { useToast } from '@/composables/useToast'
 import { useI18n } from 'vue-i18n'
 import { emit } from '@tauri-apps/api/event'
+import { useRouter } from 'vue-router'
 
 export type AutoSetupStep = 'idle' | 'scanning-projects' | 'scanning-plugins' | 'importing-plugins' | 'binding-plugins' | 'applying-changes' | 'discovering-engines' | 'binding-engines' | 'done'
 
@@ -214,6 +215,7 @@ async function discoverAndBindEngines(t: ReturnType<typeof useI18n>['t'], settin
 export function useAutoSetup() {
   const toast = useToast()
   const { t } = useI18n()
+  const router = useRouter()
 
   const runAutoSetup = async (targetProjects?: Project[], skipProjectScan = false) => {
     if (isRunning.value) return
@@ -232,6 +234,14 @@ export function useAutoSetup() {
           const newProjects = await api.scanProjects(scanDirs)
           projectsScanned = newProjects.length
         }
+      }
+
+      if (!skipProjectScan && projectsScanned === 0 && settings.scan_directories.length === 0) {
+        toast.warning(t('autoSetup.noScanDirs'))
+        router.push('/settings')
+        isRunning.value = false
+        currentStep.value = 'idle'
+        return
       }
 
       const [pluginResult, engineResult] = await Promise.all([

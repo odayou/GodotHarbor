@@ -993,12 +993,12 @@ export default {
       desc: 'Godot Harbor 帮助你管理 Godot 插件、项目和引擎。\n所有插件都可以一键挂载到任意项目。'
     },
     scan: {
-      title: '扫描你的 Godot 项目',
-      desc: '自动发现本地 Godot 项目。\n也可以手动添加或拖拽导入项目。'
+      title: '配置扫描目录',
+      desc: '设置项目扫描路径，应用会自动发现其中的 Godot 项目。\n配置完成后点击"自动配置"即可一键完成所有设置。'
     },
     import: {
-      title: '导入插件',
-      desc: '从本地目录、Git 仓库或 Godot Asset Library\n导入插件到本地存储。',
+      title: '导入和管理插件',
+      desc: '从本地目录、Git 仓库或 Godot Asset Library\n导入插件到本地存储，并绑定到项目。'
     },
     link: {
       title: '绑定插件到项目',
@@ -1135,6 +1135,7 @@ export default {
     bindingEngines: '正在为项目匹配引擎...',
     complete: '自动设置完成：扫描 {projects} 个项目，导入 {plugins} 个插件，建立 {bindings} 个绑定，发现 {engines} 个引擎',
     nothingToDo: '项目已是最新状态，无需额外操作',
+    noScanDirs: '未配置扫描目录，请先在设置中添加扫描目录',
     failed: '自动设置失败: {error}'
   }
 }

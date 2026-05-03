@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { api } from '@/api'
 import { useOnboarding } from '@/composables/useOnboarding'
 import { useLanguageDialog } from '@/composables/useLanguageDialog'
+import { useAutoSetup } from '@/composables/useAutoSetup'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -12,6 +13,7 @@ const router = useRouter()
 const currentStep = ref(0)
 const { isVisible, hideOnboarding } = useOnboarding()
 const { isVisible: languageDialogVisible } = useLanguageDialog()
+const { runAutoSetup } = useAutoSetup()
 
 const checkFirstTime = async () => {
   try {
@@ -49,24 +51,12 @@ const steps = computed(() => [
     title: t('onboarding.scan.title'),
     desc: t('onboarding.scan.desc'),
     icon: 'scan',
-    action: '/projects'
+    action: '/settings'
   },
   {
     title: t('onboarding.import.title'),
     desc: t('onboarding.import.desc'),
     icon: 'import',
-    action: '/plugins'
-  },
-  {
-    title: t('onboarding.link.title'),
-    desc: t('onboarding.link.desc'),
-    icon: 'link',
-    action: '/plugins'
-  },
-  {
-    title: t('onboarding.assetLibrary.title'),
-    desc: t('onboarding.assetLibrary.desc'),
-    icon: 'asset',
     action: '/plugins'
   },
   {
@@ -112,6 +102,9 @@ const finish = async () => {
   hideOnboarding()
   currentStep.value = 0
   await markOnboardingCompleted()
+  setTimeout(() => {
+    runAutoSetup()
+  }, 500)
 }
 </script>
 
@@ -140,16 +133,6 @@ const finish = async () => {
           <div v-else-if="currentStepData.icon === 'import'" class="w-20 h-20 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
             <svg class="w-10 h-10 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
-            </svg>
-          </div>
-          <div v-else-if="currentStepData.icon === 'link'" class="w-20 h-20 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-            <svg class="w-10 h-10 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-            </svg>
-          </div>
-          <div v-else-if="currentStepData.icon === 'asset'" class="w-20 h-20 rounded-full bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center">
-            <svg class="w-10 h-10 text-teal-600 dark:text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
             </svg>
           </div>
           <div v-else-if="currentStepData.icon === 'shortcuts'" class="w-20 h-20 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
