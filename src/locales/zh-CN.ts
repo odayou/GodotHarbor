@@ -109,7 +109,7 @@ export default {
   },
   plugins: {
     title: '插件生态',
-    tabRepository: '插件仓库',
+    tabRepository: '我的插件',
     tabBindings: '项目绑定',
     goToBindings: '前往绑定',
     bindToProject: '绑定到项目',
@@ -122,7 +122,7 @@ export default {
     emptyDesc: '尝试调整搜索条件或导入新插件',
     onboarding: {
       title: '添加你的第一个插件',
-      desc: '通过以下任一方式导入插件，开始管理你的 Godot 插件仓库',
+      desc: '通过以下任一方式导入插件，开始管理你的 Godot 插件',
       fromDir: '从本地目录导入',
       fromDirDesc: '选择包含 plugin.cfg 的本地目录',
       fromGit: '从 Git 仓库导入',
@@ -746,12 +746,12 @@ export default {
       enginesFile: '引擎数据',
       enginesFileDesc: '引擎注册信息',
       openInFileManager: '打开',
-      customizable: '可在上方插件仓库区域修改',
+      customizable: '可在上方插件存储区域修改',
       notExist: '尚未创建'
     },
     pluginRepo: {
-      title: '插件仓库',
-      storagePath: '仓库存储路径',
+      title: '插件存储',
+      storagePath: '存储路径',
       storageHint: '设置插件文件的存储位置。留空则使用应用数据目录下的默认路径。修改后新导入的插件将存储到新位置。',
       browse: '浏览',
       placeholder: '留空使用默认路径',
@@ -759,8 +759,8 @@ export default {
       autoCheckAppUpdates: '自动检查应用更新',
       autoCheckEngineUpdates: '自动检查引擎更新',
       checkInterval: '检查间隔（小时）',
-      migrateTitle: '插件仓库路径变更',
-      migrateDesc: '检测到仓库存储路径已变更，是否将已有插件文件迁移到新路径？',
+      migrateTitle: '插件存储路径变更',
+      migrateDesc: '检测到存储路径已变更，是否将已有插件文件迁移到新路径？',
       migrateFrom: '原路径',
       migrateTo: '新路径',
       skipMigration: '跳过迁移',
@@ -991,8 +991,8 @@ export default {
       desc: '自动发现本地 Godot 项目。\n也可以手动添加或拖拽导入项目。'
     },
     import: {
-      title: '导入插件到仓库',
-      desc: '从本地目录、Git 仓库或 Godot Asset Library\n导入插件到你的插件仓库（Vault）。'
+      title: '导入插件',
+      desc: '从本地目录、Git 仓库或 Godot Asset Library\n导入插件到本地存储。',
     },
     link: {
       title: '绑定插件到项目',

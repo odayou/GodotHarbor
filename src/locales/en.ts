@@ -109,7 +109,7 @@ export default {
   },
   plugins: {
     title: 'Plugin Ecosystem',
-    tabRepository: 'Repository',
+    tabRepository: 'My Plugins',
     tabBindings: 'Project Bindings',
     goToBindings: 'Go to Bindings',
     bindToProject: 'Bind to Project',
@@ -122,7 +122,7 @@ export default {
     emptyDesc: 'Try adjusting your search or import new plugins',
     onboarding: {
       title: 'Add Your First Plugin',
-      desc: 'Import plugins using any of the methods below to start managing your Godot plugin repository',
+      desc: 'Import plugins using any of the methods below to start managing your Godot plugins',
       fromDir: 'Import from Local Directory',
       fromDirDesc: 'Select a local directory containing plugin.cfg',
       fromGit: 'Import from Git Repository',
@@ -746,12 +746,12 @@ export default {
       enginesFile: 'Engine Data',
       enginesFileDesc: 'Engine registration information',
       openInFileManager: 'Open',
-      customizable: 'Can be modified in the Plugin Repository section above',
+      customizable: 'Can be modified in the Plugin Storage section above',
       notExist: 'Not yet created'
     },
     pluginRepo: {
-      title: 'Plugin Repository',
-      storagePath: 'Repository storage path',
+      title: 'Plugin Storage',
+      storagePath: 'Storage path',
       storageHint: 'Set the storage location for plugin files. Leave blank to use the default path under the application data directory. Newly imported plugins will be stored in the new location after modification.',
       browse: 'Browse',
       placeholder: 'Leave blank to use default path',
@@ -911,7 +911,7 @@ export default {
     step1: '1. Scan Projects',
     step1Desc: 'automatically discover local Godot projects',
     step2: '2. Import Plugins',
-    step2Desc: 'Import plugins to Vault from local directory or Git repository',
+    step2Desc: 'Import plugins from local directory or Git repository',
     step3: '3. Bind Plugins',
     step3Desc: 'Select required plugins and versions for your projects',
     step4: '4. Apply Changes',
@@ -991,8 +991,8 @@ export default {
       desc: 'Automatically discover local Godot projects.\nYou can also manually add or drag and drop projects.'
     },
     import: {
-      title: 'Import Plugins to Vault',
-      desc: 'Import plugins to your plugin vault from local directories, Git repositories, or Godot Asset Library.'
+      title: 'Import Plugins',
+      desc: 'Import plugins from local directories, Git repositories, or Godot Asset Library.'
     },
     link: {
       title: 'Bind Plugins to Projects',
