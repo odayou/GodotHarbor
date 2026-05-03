@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { api } from '@/api'
-import type { Project, Engine, ProjectEngineBinding, MovedProjectCandidate, ProjectBinding, Plugin } from '@/types'
+import type { Project, Engine, MovedProjectCandidate, ProjectBinding, Plugin } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
@@ -26,7 +26,6 @@ const toggleDebug = (e: KeyboardEvent) => {
 const projects = ref<Project[]>([])
 const engines = ref<Engine[]>([])
 const projectBindingMap = ref<Map<string, ProjectBinding[]>>(new Map())
-const projectEngineMap = ref<Map<string, string>>(new Map())
 const isLoading = ref(false)
 const showScanDialog = ref(false)
 const scanDirInput = ref('')
@@ -35,10 +34,6 @@ const selectedProject = ref<Project | null>(null)
 const showGroupDialog = ref(false)
 const groupInput = ref('')
 const editingProjectId = ref<string | null>(null)
-const showEngineDialog = ref(false)
-const selectedEngineId = ref<string>('')
-const customArgs = ref('')
-const isLaunching = ref(false)
 const projectMenuId = ref('')
 
 const toggleProjectMenu = (projectId: string) => {
@@ -51,7 +46,6 @@ const handleGlobalClick = (e: MouseEvent) => {
     projectMenuId.value = ''
   }
 }
-const projectEngineBinding = ref<ProjectEngineBinding | null>(null)
 const projectBindings = ref<ProjectBinding[]>([])
 const allPlugins = ref<Plugin[]>([])
 
@@ -248,14 +242,6 @@ const showProjectDetails = async (project: Project) => {
   showProjectDetail.value = true
   try {
     projectBindings.value = await api.getProjectBindings(project.project_id)
-    projectEngineBinding.value = await api.getProjectEngineBinding(project.project_id)
-    if (projectEngineBinding.value) {
-      selectedEngineId.value = projectEngineBinding.value.engine_id
-      customArgs.value = projectEngineBinding.value.custom_args
-    } else {
-      selectedEngineId.value = ''
-      customArgs.value = ''
-    }
   } catch (error) {
     console.error('Failed to load project details:', error)
   }
@@ -284,24 +270,13 @@ const loadProjects = async () => {
 
 const loadAllProjectBindings = async () => {
   const map = new Map<string, ProjectBinding[]>()
-  const engineMap = new Map<string, string>()
   const bindingResults = await Promise.allSettled(
     projects.value.map(p => api.getProjectBindings(p.project_id))
-  )
-  const engineResults = await Promise.allSettled(
-    projects.value.map(p => api.getProjectEngineBinding(p.project_id))
   )
   bindingResults.forEach((result, i) => {
     map.set(projects.value[i].project_id, result.status === 'fulfilled' ? result.value : [])
   })
-  engineResults.forEach((result, i) => {
-    if (result.status === 'fulfilled' && result.value) {
-      const engine = engines.value.find(e => e.engine_id === result.value!.engine_id)
-      engineMap.set(projects.value[i].project_id, engine?.name || result.value!.engine_id)
-    }
-  })
   projectBindingMap.value = map
-  projectEngineMap.value = engineMap
 }
 
 const showMovedDialog = ref(false)
@@ -519,9 +494,6 @@ const removeProject = async (projectId: string) => {
           await api.unbindPlugin(projectId, binding.plugin_id)
         } catch { /* ignore unbind errors during removal */ }
       }
-      try {
-        await api.unbindProjectEngine(projectId)
-      } catch { /* ignore engine unbind errors */ }
       await api.removeProject(projectId)
       toast.success(t('common.projectDeleted'))
       await loadProjects()
@@ -598,92 +570,6 @@ const loadEngines = async () => {
   }
 }
 
-const loadProjectEngineBinding = async (projectId: string) => {
-  try {
-    projectEngineBinding.value = await api.getProjectEngineBinding(projectId)
-    if (projectEngineBinding.value) {
-      selectedEngineId.value = projectEngineBinding.value.engine_id
-      customArgs.value = projectEngineBinding.value.custom_args
-    }
-  } catch (error) {
-    console.error('Failed to load engine binding:', error)
-  }
-}
-
-const openEngineDialog = async (project: Project) => {
-  selectedProject.value = project
-  await loadProjectEngineBinding(project.project_id)
-  showEngineDialog.value = true
-}
-
-const bindEngine = async () => {
-  if (!selectedProject.value || !selectedEngineId.value) {
-    toast.warning(t('common.selectEngine'))
-    return
-  }
-  try {
-    await api.bindProjectEngine(selectedProject.value.project_id, selectedEngineId.value, customArgs.value)
-    toast.success(t('common.engineBindSuccess'))
-    showEngineDialog.value = false
-  } catch (error) {
-    toast.error(t('common.engineBindFailed', { error }))
-  }
-}
-
-const unbindEngine = async () => {
-  if (!selectedProject.value) return
-  try {
-    await api.unbindProjectEngine(selectedProject.value.project_id)
-    toast.success(t('common.engineUnbindSuccess'))
-    projectEngineBinding.value = null
-    selectedEngineId.value = ''
-    customArgs.value = ''
-  } catch (error) {
-    toast.error(t('common.engineUnbindFailed', { error }))
-  }
-}
-
-const launchProject = async (project: Project, engineId?: string) => {
-  isLaunching.value = true
-  try {
-    if (!engineId) {
-      const engineBinding = await api.getProjectEngineBinding(project.project_id)
-      if (engineBinding) {
-        engineId = engineBinding.engine_id
-      } else {
-        const defaultEngine = engines.value.find(e => e.is_default)
-        if (!defaultEngine) {
-          toast.warning(t('projects.noEngineHint'))
-          isLaunching.value = false
-          return
-        }
-        engineId = defaultEngine.engine_id
-      }
-    }
-    try {
-      const healthy = await api.checkEngineHealth(engineId)
-      if (!healthy) {
-        toast.error(t('projects.engineUnhealthy'))
-        isLaunching.value = false
-        return
-      }
-    } catch {
-      // health check failed, proceed anyway
-    }
-    const result = await api.launchProjectWithEngine(project.project_id, engineId)
-    if (result.success) {
-      toast.success(t('common.projectLaunched', { pid: result.pid }))
-    } else {
-      toast.error(result.error || t('common.launchFailed'))
-    }
-  } catch (error) {
-    toast.error(t('common.projectLaunchFailed', { error }))
-  } finally {
-    isLaunching.value = false
-  }
-}
-
-
 const showRelocateDialog = ref(false)
 const relocateProjectId = ref('')
 const relocateNewPath = ref('')
@@ -691,7 +577,6 @@ const relocateNewPath = ref('')
 useDialogEscape(showScanDialog)
 useDialogEscape(showProjectDetail)
 useDialogEscape(showGroupDialog)
-useDialogEscape(showEngineDialog)
 useDialogEscape(showRelocateDialog)
 useDialogEscape(showMovedDialog)
 useDialogEscape(showBatchGroupDialog)
@@ -1044,15 +929,6 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
                 <span class="text-sm text-gray-400">|</span>
                 <span class="text-sm text-gray-500 dark:text-content-secondary">Godot {{ project.godot_version }}</span>
                 <span
-                  v-if="projectEngineMap.get(project.project_id)"
-                  class="text-sm text-primary-600 dark:text-primary-400 flex items-center gap-1"
-                >
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  {{ projectEngineMap.get(project.project_id) }}
-                </span>
-                <span
                   v-if="projectBindingMap.get(project.project_id)?.length"
                   class="text-sm text-gray-500 dark:text-content-secondary flex items-center gap-1"
                 >
@@ -1091,15 +967,6 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
                   v-if="projectMenuId === project.project_id"
                   class="absolute right-0 top-full mt-1 bg-white dark:bg-gray-700 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 py-1 z-20 min-w-[140px]"
                 >
-                  <button
-                    v-if="project.status !== 'MissingSource' && engines.length > 0"
-                    @click.stop="launchProject(project); projectMenuId = ''"
-                    :disabled="isLaunching"
-                    class="w-full text-left px-3 py-1.5 text-sm text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 flex items-center gap-2 disabled:opacity-50"
-                  >
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    {{ t('projects.launch') }}
-                  </button>
                   <button
                     @click.stop="openInFileManager(project.path); projectMenuId = ''"
                     class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 flex items-center gap-2"
@@ -1251,20 +1118,6 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-        <div class="mb-4">
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('projects.engineBinding') }}</h4>
-          <div class="flex items-center gap-2">
-            <button
-              @click="openEngineDialog(selectedProject)"
-              class="px-3 py-1 rounded text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 transition-colors"
-            >
-              {{ projectEngineBinding ? t('projects.changeEngine') : t('projects.bind') }}
-            </button>
-            <span v-if="projectEngineBinding" class="text-sm text-gray-600 dark:text-gray-400">
-              {{ engines.find(e => e.engine_id === projectEngineBinding?.engine_id)?.name || t('projects.bound') }}
-            </span>
           </div>
         </div>
         <div class="flex justify-between gap-2">
@@ -1440,72 +1293,6 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
   </Teleport>
 
   <Teleport to="body">
-    <div v-if="showEngineDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showEngineDialog = false">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-          {{ selectedProject?.name }} - {{ t('projects.engineBind') }}
-        </h3>
-        <div class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('projects.selectEngine') }}</label>
-            <select
-              v-model="selectedEngineId"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
-            >
-              <option value="">{{ t('projects.selectEnginePlaceholder') }}</option>
-              <option v-for="engine in engines" :key="engine.engine_id" :value="engine.engine_id">
-                {{ engine.name }} (v{{ engine.version }}) {{ engine.is_default ? `- ${t('engines.default')}` : '' }}
-              </option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('projects.launchArgs') }}</label>
-            <input
-              v-model="customArgs"
-              type="text"
-              :placeholder="t('projects.launchArgsPlaceholder')"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
-            />
-          </div>
-        </div>
-        <div class="flex justify-between mt-6">
-          <button
-            v-if="projectEngineBinding"
-            @click="unbindEngine"
-            class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-          >
-            {{ t('projects.unbind') }}
-          </button>
-          <div class="flex gap-2 ml-auto">
-            <button
-              @click="showEngineDialog = false"
-              class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
-            >
-              {{ t('common.cancel') }}
-            </button>
-            <button
-              @click="bindEngine"
-              :disabled="!selectedEngineId"
-              class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
-            >
-              {{ t('projects.bind') }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <ConfirmDialog
-      v-model="showConfirmDialog"
-      :title="confirmAction?.title || ''"
-      :description="confirmAction?.message || ''"
-      :confirm-text="t('common.confirmDelete')"
-      @confirm="onConfirmDialogConfirm"
-    />
-
-  </Teleport>
-
-  <Teleport to="body">
     <div v-if="showRelocateDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showRelocateDialog = false">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('projects.relocateTitle') }}</h3>
@@ -1548,6 +1335,14 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
       </div>
     </div>
   </Teleport>
+
+  <ConfirmDialog
+    v-model="showConfirmDialog"
+    :title="confirmAction?.title || ''"
+    :description="confirmAction?.message || ''"
+    :confirm-text="t('common.confirmDelete')"
+    @confirm="onConfirmDialogConfirm"
+  />
 
   <Teleport to="body">
     <div v-if="showMovedDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showMovedDialog = false">

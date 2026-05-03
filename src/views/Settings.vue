@@ -984,7 +984,7 @@ const toggleMirrorEnabled = (mirrorId: string) => {
                 </div>
               </div>
               <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                {{ t('settings.teamConfig.stats', { bindings: config.bindings.length, engineBindings: config.engine_bindings.length }) }}
+                {{ t('settings.teamConfig.stats', { bindings: config.bindings.length }) }}
               </div>
             </div>
           </div>

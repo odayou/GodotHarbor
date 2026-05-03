@@ -373,7 +373,6 @@ pub struct Engine {
     pub path: String,
     pub engine_type: EngineType,
     pub version: String,
-    pub is_default: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -387,28 +386,8 @@ impl Engine {
             path,
             engine_type,
             version,
-            is_default: false,
             created_at: now,
             updated_at: now,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProjectEngineBinding {
-    pub project_id: String,
-    pub engine_id: String,
-    pub custom_args: String,
-    pub created_at: DateTime<Utc>,
-}
-
-impl ProjectEngineBinding {
-    pub fn new(project_id: String, engine_id: String, custom_args: String) -> Self {
-        Self {
-            project_id,
-            engine_id,
-            custom_args,
-            created_at: Utc::now(),
         }
     }
 }
@@ -437,7 +416,6 @@ pub struct TeamSharedConfig {
     pub name: String,
     pub description: String,
     pub bindings: Vec<ProjectBinding>,
-    pub engine_bindings: Vec<ProjectEngineBinding>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -450,18 +428,10 @@ impl TeamSharedConfig {
             name,
             description,
             bindings: Vec::new(),
-            engine_bindings: Vec::new(),
             created_at: now,
             updated_at: now,
         }
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LaunchResult {
-    pub success: bool,
-    pub pid: Option<u32>,
-    pub error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -32,7 +32,9 @@ const { currentTheme, setTheme } = useTheme()
 const { initSidebarState, toggleSidebar } = useSidebar()
 const { openPalette } = useCommandPalette()
 
-getCurrentWindow().show().catch((e) => {
+getCurrentWindow().show().then(() => {
+  getCurrentWindow().setFocus().catch(() => {})
+}).catch((e) => {
   console.error('Failed to show window:', e)
 })
 

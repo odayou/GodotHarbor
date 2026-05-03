@@ -22,15 +22,12 @@ const isRegistering = ref(false)
 const showDeleteConfirm = ref(false)
 const deleteAlsoFiles = ref(false)
 const deleteTargetId = ref('')
-const deleteBoundProjects = ref<string[]>([])
 let unlistenDiscover: UnlistenFn | null = null
 let unlistenDownloadProgress: UnlistenFn | null = null
 
 const searchQuery = ref('')
 const filterType = ref<string>('all')
 const engineHealthMap = ref<Map<string, boolean>>(new Map())
-const boundProjectsMap = ref<Map<string, string[]>>(new Map())
-const expandedEngineId = ref<string | null>(null)
 
 const showRenameDialog = ref(false)
 const renameEngineId = ref('')
@@ -90,10 +87,6 @@ onUnmounted(() => {
     unlistenDownloadProgress()
   }
   document.removeEventListener('click', handleGlobalClick)
-})
-
-const defaultEngine = computed(() => {
-  return engines.value.find(e => e.is_default)
 })
 
 const filteredEngines = computed(() => {
@@ -196,7 +189,7 @@ const loadEngines = async () => {
   try {
     const result = await api.getEngines()
     engines.value = result
-    await Promise.allSettled([checkAllEngineHealth(), loadAllBoundProjects()])
+    await checkAllEngineHealth()
   } catch (error) {
     toast.error(t('common.loadFailed', { error }))
   } finally {
@@ -222,26 +215,6 @@ const checkAllEngineHealth = async () => {
     }
   }
   engineHealthMap.value = healthMap
-}
-
-const loadAllBoundProjects = async () => {
-  const projectsMap = new Map<string, string[]>()
-  const results = await Promise.allSettled(
-    engines.value.map(async (engine) => {
-      try {
-        const projects = await api.getEngineBoundProjects(engine.engine_id)
-        return { id: engine.engine_id, projects }
-      } catch {
-        return { id: engine.engine_id, projects: [] }
-      }
-    })
-  )
-  for (const result of results) {
-    if (result.status === 'fulfilled') {
-      projectsMap.set(result.value.id, result.value.projects)
-    }
-  }
-  boundProjectsMap.value = projectsMap
 }
 
 const discoverEngines = async () => {
@@ -309,11 +282,6 @@ const registerEngine = async () => {
 const confirmRemoveEngine = async (engineId: string) => {
   deleteTargetId.value = engineId
   deleteAlsoFiles.value = false
-  try {
-    deleteBoundProjects.value = await api.getEngineBoundProjects(engineId)
-  } catch {
-    deleteBoundProjects.value = []
-  }
   showDeleteConfirm.value = true
 }
 
@@ -335,16 +303,6 @@ const onRemoveEngineConfirm = async () => {
     }
   } catch (error) {
     toast.error(t('common.deleteFailed', { error }))
-  }
-}
-
-const setDefault = async (engineId: string) => {
-  try {
-    await api.setDefaultEngine(engineId)
-    toast.success(t('engines.defaultSet'))
-    await loadEngines()
-  } catch (error) {
-    toast.error(t('common.loadFailed', { error }))
   }
 }
 
@@ -375,23 +333,6 @@ const saveRename = async () => {
   } catch (error) {
     toast.error(t('engines.renameFailed', { error }))
   }
-}
-
-const checkEngineUpdates = async () => {
-  try {
-    const result = await api.checkGodotUpdates()
-    if (result.updates_available.length > 0) {
-      toast.info(t('engines.updatesAvailable', { count: result.updates_available.length }))
-    } else {
-      toast.success(t('engines.noUpdates'))
-    }
-  } catch (error) {
-    toast.error(t('engines.checkUpdatesFailed', { error }))
-  }
-}
-
-const toggleBoundProjects = (engineId: string) => {
-  expandedEngineId.value = expandedEngineId.value === engineId ? null : engineId
 }
 
 const openDownloadDialog = async () => {
@@ -517,15 +458,6 @@ const onMirrorChange = () => {
   fetchRemoteVersions(false)
 }
 
-const handleLaunchEngine = async (engineId: string) => {
-  try {
-    await api.launchEngine(engineId)
-    toast.success(t('engines.launched'))
-  } catch (error) {
-    toast.error(t('engines.launchFailed', { error }))
-  }
-}
-
 const toggleEngineMenu = (engineId: string) => {
   openMenuId.value = openMenuId.value === engineId ? '' : engineId
 }
@@ -588,31 +520,6 @@ const initCollapsedGroups = () => {
           class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm"
         >
           {{ t('engines.register') }}
-        </button>
-      </div>
-    </div>
-
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-4">
-          <div class="flex items-center gap-2">
-            <svg class="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-            <span class="text-sm text-gray-600 dark:text-gray-400">{{ t('engines.defaultEngine') }}:</span>
-          </div>
-          <span v-if="defaultEngine" class="text-sm font-medium text-gray-900 dark:text-gray-100">
-            {{ defaultEngine.name }} (v{{ defaultEngine.version }})
-          </span>
-          <span v-else class="text-sm text-yellow-600 dark:text-yellow-400">
-            {{ t('engines.noDefaultEngine') }}
-          </span>
-        </div>
-        <button
-          @click="checkEngineUpdates"
-          class="px-3 py-1.5 text-xs font-medium border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
-        >
-          {{ t('engines.checkUpdates') }}
         </button>
       </div>
     </div>
@@ -735,10 +642,7 @@ const initCollapsedGroups = () => {
           <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
             <template v-for="engine in filteredEngines" :key="engine.engine_id">
             <tr
-              :class="[
-                'hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors',
-                engine.is_default ? 'bg-primary-50/50 dark:bg-primary-900/10' : ''
-              ]"
+              class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
             >
               <td class="px-4 py-4 whitespace-nowrap">
                 <div class="flex items-center gap-3">
@@ -751,12 +655,6 @@ const initCollapsedGroups = () => {
                     <div class="flex items-center gap-2">
                       <span class="font-medium text-gray-900 dark:text-gray-100 text-sm">
                         {{ engine.name }}
-                      </span>
-                      <span
-                        v-if="engine.is_default"
-                        class="px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-400"
-                      >
-                        {{ t('engines.default') }}
                       </span>
                     </div>
                     <span class="text-xs text-gray-500 dark:text-gray-400">v{{ engine.version }}</span>
@@ -795,16 +693,6 @@ const initCollapsedGroups = () => {
                 </span>
                 <span v-else class="text-xs text-gray-400">{{ t('engines.checking') }}</span>
               </td>
-              <td class="px-4 py-4 whitespace-nowrap">
-                <button
-                  @click="toggleBoundProjects(engine.engine_id)"
-                  class="text-sm text-primary-600 dark:text-primary-400 hover:underline cursor-pointer"
-                  :title="t('engines.boundProjectsList')"
-                >
-                  {{ boundProjectsMap.get(engine.engine_id)?.length || 0 }} {{ t('engines.projectCount') }}
-                  <svg class="w-3 h-3 inline-block ml-0.5 transition-transform" :class="{ 'rotate-180': expandedEngineId === engine.engine_id }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
-                </button>
-              </td>
               <td class="px-4 py-4">
                 <span
                   class="text-sm text-primary-600 dark:text-primary-400 hover:underline cursor-pointer truncate max-w-xs block"
@@ -816,27 +704,6 @@ const initCollapsedGroups = () => {
               </td>
               <td class="px-4 py-4 whitespace-nowrap">
                 <div class="flex items-center justify-end gap-1">
-                  <button
-                    v-if="engineHealthMap.get(engine.engine_id) === true"
-                    @click="handleLaunchEngine(engine.engine_id)"
-                    class="text-green-600 hover:text-green-800 dark:text-green-400 p-2 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
-                    :title="t('engines.launchEngine')"
-                  >
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </button>
-                  <button
-                    v-if="!engine.is_default"
-                    @click="setDefault(engine.engine_id)"
-                    class="text-primary-600 hover:text-primary-800 dark:text-primary-400 p-2 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
-                    :title="t('engines.setDefault')"
-                  >
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                    </svg>
-                  </button>
                   <div class="engine-menu-wrapper" style="position: relative; display: inline-block">
                     <button
                       @click="toggleEngineMenu(engine.engine_id)"
@@ -851,14 +718,6 @@ const initCollapsedGroups = () => {
                       v-if="openMenuId === engine.engine_id"
                       class="absolute right-0 top-full mt-1 bg-white dark:bg-gray-700 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 py-1 z-20 min-w-[140px]"
                     >
-                      <button
-                        v-if="engineHealthMap.get(engine.engine_id) === true"
-                        @click="handleLaunchEngine(engine.engine_id); openMenuId = ''"
-                        class="w-full text-left px-3 py-1.5 text-sm text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 flex items-center gap-2"
-                      >
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        {{ t('engines.launchEngine') }}
-                      </button>
                       <button
                         @click="openRenameDialog(engine); openMenuId = ''"
                         class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 flex items-center gap-2"
@@ -883,23 +742,6 @@ const initCollapsedGroups = () => {
                       </button>
                     </div>
                   </div>
-                </div>
-              </td>
-            </tr>
-            <tr v-if="expandedEngineId === engine.engine_id">
-              <td colspan="6" class="px-6 py-3 bg-gray-50 dark:bg-gray-700/30">
-                <div class="text-sm">
-                  <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('engines.boundProjectsList') }}:</span>
-                  <div v-if="boundProjectsMap.get(engine.engine_id)?.length" class="mt-1 flex flex-wrap gap-2">
-                    <span
-                      v-for="projectName in boundProjectsMap.get(engine.engine_id)"
-                      :key="projectName"
-                      class="px-2 py-1 bg-white dark:bg-gray-600 rounded text-xs text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-500"
-                    >
-                      {{ projectName }}
-                    </span>
-                  </div>
-                  <span v-else class="text-gray-400 dark:text-gray-500 ml-2">{{ t('engines.noBoundProjects') }}</span>
                 </div>
               </td>
             </tr>
@@ -1219,9 +1061,7 @@ const initCollapsedGroups = () => {
     <ConfirmDialog
       v-model="showDeleteConfirm"
       :title="t('engines.deleteConfirm')"
-      :description="deleteBoundProjects.length > 0 
-        ? t('engines.deleteConfirmDescWithProjects', { projects: deleteBoundProjects.join(', ') }) 
-        : t('engines.deleteConfirmDesc')"
+      :description="t('engines.deleteConfirmDesc')"
       :confirm-text="t('common.confirm')"
       @confirm="onRemoveEngineConfirm"
     >

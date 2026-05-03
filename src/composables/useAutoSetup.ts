@@ -1,13 +1,13 @@
 import { ref, computed } from 'vue'
 import { api } from '@/api'
-import type { Project, Plugin, BatchBindingRequest, Settings } from '@/types'
+import type { Project, Plugin, BatchBindingRequest } from '@/types'
 import { useToast } from '@/composables/useToast'
 import { useI18n } from 'vue-i18n'
 import { emit } from '@tauri-apps/api/event'
 
-export type AutoSetupStep = 'idle' | 'scanning-projects' | 'scanning-plugins' | 'importing-plugins' | 'binding-plugins' | 'applying-changes' | 'discovering-engines' | 'binding-engines' | 'done'
+export type AutoSetupStep = 'idle' | 'scanning-projects' | 'scanning-plugins' | 'importing-plugins' | 'binding-plugins' | 'applying-changes' | 'discovering-engines' | 'done'
 
-const SETUP_STEPS: AutoSetupStep[] = ['scanning-projects', 'scanning-plugins', 'importing-plugins', 'binding-plugins', 'applying-changes', 'discovering-engines', 'binding-engines']
+const SETUP_STEPS: AutoSetupStep[] = ['scanning-projects', 'scanning-plugins', 'importing-plugins', 'binding-plugins', 'applying-changes', 'discovering-engines']
 
 function normalizePath(p: string): string {
   return p.replace(/\\/g, '/').toLowerCase()
@@ -27,7 +27,6 @@ const lastResult = ref<{
   pluginsImported: number
   bindingsCreated: number
   enginesDiscovered: number
-  enginesBound: number
   projectsAffected: string[]
 } | null>(null)
 
@@ -46,21 +45,6 @@ const progressPercent = computed(() => {
 function setStep(step: AutoSetupStep, message: string) {
   currentStep.value = step
   stepMessage.value = message
-}
-
-function findMatchingEngine(project: Project, engines: { engine_id: string; engine_type: string; version: string; is_default: boolean }[]) {
-  const projectMajor = project.godot_version?.split('.')[0]
-  const typeMatch = engines.find(e => {
-    if (projectMajor === '4') return e.engine_type === 'Godot4'
-    if (projectMajor === '3') return e.engine_type === 'Godot3'
-    return false
-  })
-  const versionMatch = engines.find(e => {
-    const engineMajor = e.version?.split('.')[0]
-    return engineMajor && projectMajor && engineMajor === projectMajor
-  })
-  const defaultEngine = engines.find(e => e.is_default)
-  return typeMatch || versionMatch || defaultEngine || engines[0]
 }
 
 async function buildAutoBindings(
@@ -164,49 +148,10 @@ async function scanAndImportPlugins(t: ReturnType<typeof useI18n>['t'], allProje
   return { pluginsImported: importedPlugins.length, bindingsCreated, projectsAffected }
 }
 
-async function discoverAndBindEngines(t: ReturnType<typeof useI18n>['t'], settings: Settings, allProjects: Project[]): Promise<{ enginesDiscovered: number; enginesBound: number }> {
-  let enginesDiscovered = 0
-  let enginesBound = 0
-
-  if (!settings.auto_discover_engines) {
-    return { enginesDiscovered, enginesBound }
-  }
-
+async function discoverEngines(t: ReturnType<typeof useI18n>['t']): Promise<{ enginesDiscovered: number }> {
   setStep('discovering-engines', t('autoSetup.discoveringEngines'))
   const newEngines = await api.autoDiscoverEngines()
-  enginesDiscovered = newEngines.length
-
-  const allEngines = await api.getEngines()
-  if (allEngines.length === 0) {
-    return { enginesDiscovered, enginesBound }
-  }
-
-  setStep('binding-engines', t('autoSetup.bindingEngines'))
-
-  const engineBindingResults = await Promise.allSettled(
-    allProjects.map(p => api.getProjectEngineBinding(p.project_id))
-  )
-  const boundProjectIds = new Set<string>()
-  engineBindingResults.forEach((result, i) => {
-    if (result.status === 'fulfilled' && result.value) {
-      boundProjectIds.add(allProjects[i].project_id)
-    }
-  })
-
-  const bindPromises = allProjects
-    .filter(p => !boundProjectIds.has(p.project_id))
-    .map(p => {
-      const matchedEngine = findMatchingEngine(p, allEngines)
-      if (!matchedEngine) return null
-      return api.bindProjectEngine(p.project_id, matchedEngine.engine_id, '')
-        .then(() => { enginesBound++ })
-        .catch(() => {})
-    })
-    .filter(Boolean)
-
-  await Promise.all(bindPromises)
-
-  return { enginesDiscovered, enginesBound }
+  return { enginesDiscovered: newEngines.length }
 }
 
 export function useAutoSetup() {
@@ -258,7 +203,6 @@ export function useAutoSetup() {
           pluginsImported: 0,
           bindingsCreated: 0,
           enginesDiscovered: 0,
-          enginesBound: 0,
           projectsAffected: []
         }
         isRunning.value = false
@@ -267,7 +211,7 @@ export function useAutoSetup() {
 
       const [pluginResult, engineResult] = await Promise.all([
         scanAndImportPlugins(t, allProjects),
-        discoverAndBindEngines(t, settings, allProjects),
+        discoverEngines(t),
       ])
 
       await api.markAutoSetupDone()
@@ -284,7 +228,6 @@ export function useAutoSetup() {
         pluginsImported: pluginResult.pluginsImported,
         bindingsCreated: pluginResult.bindingsCreated,
         enginesDiscovered: engineResult.enginesDiscovered,
-        enginesBound: engineResult.enginesBound,
         projectsAffected: pluginResult.projectsAffected
       }
 

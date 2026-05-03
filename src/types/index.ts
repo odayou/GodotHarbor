@@ -116,16 +116,8 @@ export interface Engine {
   path: string
   engine_type: 'Godot3' | 'Godot4' | 'Unknown'
   version: string
-  is_default: boolean
   created_at: string
   updated_at: string
-}
-
-export interface ProjectEngineBinding {
-  project_id: string
-  engine_id: string
-  custom_args: string
-  created_at: string
 }
 
 export interface PluginDependency {
@@ -149,15 +141,8 @@ export interface TeamSharedConfig {
   name: string
   description: string
   bindings: ProjectBinding[]
-  engine_bindings: ProjectEngineBinding[]
   created_at: string
   updated_at: string
-}
-
-export interface LaunchResult {
-  success: boolean
-  pid: number | null
-  error: string | null
 }
 
 export interface DashboardStats {

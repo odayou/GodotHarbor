@@ -7,11 +7,9 @@ import type {
   ApplyResult,
   LogEntry,
   Engine,
-  ProjectEngineBinding,
   PluginUpdateInfo,
   PluginDependency,
   TeamSharedConfig,
-  LaunchResult,
   DashboardStats,
   MovedProjectCandidate,
   GodotVersionCheckResult,
@@ -232,34 +230,6 @@ export const api = {
     return await invoke('remove_engine', { engineId, deleteFiles })
   },
 
-  async setDefaultEngine(engineId: string): Promise<void> {
-    return await invoke('set_default_engine', { engineId })
-  },
-
-  async bindProjectEngine(
-    projectId: string,
-    engineId: string,
-    customArgs: string
-  ): Promise<void> {
-    return await invoke('bind_project_engine', { projectId, engineId, customArgs })
-  },
-
-  async unbindProjectEngine(projectId: string): Promise<void> {
-    return await invoke('unbind_project_engine', { projectId })
-  },
-
-  async getProjectEngineBinding(projectId: string): Promise<ProjectEngineBinding | null> {
-    return await invoke('get_project_engine_binding', { projectId })
-  },
-
-  async launchProjectWithEngine(
-    projectId: string,
-    engineId?: string,
-    customArgs?: string
-  ): Promise<LaunchResult> {
-    return await invoke('launch_project_with_engine', { projectId, engineId, customArgs })
-  },
-
   async autoDiscoverEngines(): Promise<Engine[]> {
     return await invoke('auto_discover_engines')
   },
@@ -270,14 +240,6 @@ export const api = {
 
   async renameEngine(engineId: string, newName: string): Promise<void> {
     return await invoke('rename_engine', { engineId, newName })
-  },
-
-  async getEngineBoundProjects(engineId: string): Promise<string[]> {
-    return await invoke('get_engine_bound_projects', { engineId })
-  },
-
-  async launchEngine(engineId: string): Promise<void> {
-    return await invoke('launch_engine', { engineId })
   },
 
   // ─── Engine Download ───
