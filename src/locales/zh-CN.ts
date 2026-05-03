@@ -905,6 +905,7 @@ export default {
   home: {
     welcome: '欢迎使用 Godot Harbor',
     desc: 'Godot Harbor 帮助你管理 Godot 插件、项目和引擎。\n所有插件都可以一键挂载到任意项目。',
+    overview: '概览',
     projects: '项目',
     plugins: '插件',
     bindings: '绑定',
@@ -914,7 +915,7 @@ export default {
     step1: '1. 扫描项目',
     step1Desc: '自动发现本地 Godot 项目',
     step2: '2. 导入插件',
-    step2Desc: '从本地目录或 Git 仓库导入插件到 Vault',
+    step2Desc: '从本地目录或 Git 仓库导入插件到存储',
     step3: '3. 绑定插件',
     step3Desc: '为项目选择需要的插件和版本',
     step4: '4. 应用变更',
@@ -922,7 +923,9 @@ export default {
     retry: '重试',
     noRecentProjects: '暂无最近项目，开始扫描或添加项目吧',
     goToProjects: '前往项目管理',
-    oneClickSetup: '一键设置',
+    oneClickSetup: '自动配置',
+    autoSetupDesc: '自动扫描项目、导入插件、建立绑定、发现引擎',
+    reconfigure: '重新配置',
     affectedProjects: '受影响的项目'
   },
   sidebar: {
@@ -1125,7 +1128,7 @@ export default {
     scanningProjects: '正在扫描项目...',
     scanningPlugins: '正在扫描项目插件...',
     noPluginsFound: '未发现项目插件',
-    importingPlugins: '正在导入 {count} 个插件到仓库...',
+    importingPlugins: '正在导入 {count} 个插件到存储...',
     bindingPlugins: '正在建立插件绑定关系...',
     applyingChanges: '正在应用变更到项目...',
     discoveringEngines: '正在发现引擎...',

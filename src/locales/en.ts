@@ -905,6 +905,7 @@ export default {
   home: {
     welcome: 'Welcome to Godot Harbor',
     desc: 'Godot Harbor helps you manage Godot plugins, projects and engines. All plugins can be mounted to any project with one click.',
+    overview: 'Overview',
     projects: 'Projects',
     plugins: 'Plugins',
     bindings: 'Bindings',
@@ -922,7 +923,9 @@ export default {
     retry: 'Retry',
     noRecentProjects: 'No recent projects yet. Start scanning or adding projects',
     goToProjects: 'Go to Projects',
-    oneClickSetup: 'One-Click Setup',
+    oneClickSetup: 'Auto Configure',
+    autoSetupDesc: 'Auto scan projects, import plugins, create bindings, discover engines',
+    reconfigure: 'Reconfigure',
     affectedProjects: 'Affected projects'
   },
   sidebar: {

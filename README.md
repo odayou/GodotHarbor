@@ -109,6 +109,29 @@ npm run tauri build
 
 构建完成后，安装包位于 `src-tauri/target/release/bundle/` 目录。
 
+### 一键发布新版本
+
+```bash
+# 补丁版本升级 (如 v0.1.4 → v0.1.5)
+npm run release -- patch
+
+# 小版本升级 (如 v0.1.4 → v0.2.0)
+npm run release -- minor
+
+# 大版本升级 (如 v0.1.4 → v1.0.0)
+npm run release -- major
+
+# 显式指定版本号
+npm run release -- 0.2.0
+
+# 自定义 commit 信息（\n 表示换行）
+npm run release -- patch -m "feat: 新增批量更新\nfix: 修复扫描崩溃"
+```
+
+此命令自动完成：修改版本号 → git commit → 打 tag → push → CI 自动构建发布。
+
+> **注意**：`--` 用于分隔 npm 参数和脚本参数，不可省略。
+
 ### GitHub Actions 构建（推荐）
 
 项目已配置 GitHub Actions 自动构建工作流，支持**多平台并行构建**。

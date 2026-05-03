@@ -25,6 +25,17 @@ function bumpVersion(semver, type) {
 
 const input = process.argv[2];
 
+function getCustomMessage() {
+  const mIdx = process.argv.indexOf('-m');
+  if (mIdx === -1) return null;
+  const msg = process.argv.slice(mIdx + 1).join(' ');
+  if (!msg) {
+    console.error('Error: -m requires a message. Example: npm run release -- patch -m "fix: 修复xxx"');
+    process.exit(1);
+  }
+  return msg.replace(/\\n/g, '\n');
+}
+
 if (!input) {
   const latestTag = getLatestTag();
   if (latestTag) {
@@ -36,11 +47,13 @@ if (!input) {
       console.log(`  npm run release minor     → v${bumpVersion(semver, 'minor')}`);
       console.log(`  npm run release major     → v${bumpVersion(semver, 'major')}`);
       console.log(`  npm run release 0.2.0     → v0.2.0 (explicit)`);
+      console.log(`  npm run release patch -m "fix: 修复xxx"  → 自定义commit信息`);
     }
   } else {
-    console.error('Usage: npm run release <version | patch | minor | major>');
+    console.error('Usage: npm run release <version | patch | minor | major> [-m "message"]');
     console.error('Example: npm run release patch');
     console.error('         npm run release 0.2.0');
+    console.error('         npm run release -- patch -m "fix: 修复xxx"');
   }
   process.exit(1);
 }
@@ -94,8 +107,13 @@ for (const file of files) {
   console.log(`  ${path.relative(rootDir, file.path)} → ${newVersion}`);
 }
 
+const customMessage = getCustomMessage();
+const commitMessage = customMessage
+  ? `chore: release ${tag}\n\n${customMessage}`
+  : `chore: release ${tag}`;
+
 execSync('git add -A', { stdio: 'inherit' });
-execSync(`git commit -m "chore: release ${tag}"`, { stdio: 'inherit' });
+execSync(`git commit -m "${commitMessage}"`, { stdio: 'inherit' });
 execSync(`git tag ${tag}`, { stdio: 'inherit' });
 execSync('git push', { stdio: 'inherit' });
 execSync('git push --tags', { stdio: 'inherit' });

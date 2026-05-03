@@ -3,6 +3,7 @@ import { api } from '@/api'
 import type { Project, Plugin, BatchBindingRequest, Settings } from '@/types'
 import { useToast } from '@/composables/useToast'
 import { useI18n } from 'vue-i18n'
+import { emit } from '@tauri-apps/api/event'
 
 export type AutoSetupStep = 'idle' | 'scanning-projects' | 'scanning-plugins' | 'importing-plugins' | 'binding-plugins' | 'applying-changes' | 'discovering-engines' | 'binding-engines' | 'done'
 
@@ -267,6 +268,8 @@ export function useAutoSetup() {
         }
         doneTimer = null
       }, 5000)
+
+      emit('auto-setup-complete')
     } catch (error: any) {
       console.error('Auto setup failed:', error)
       toast.error(t('autoSetup.failed', { error: error?.message || error }))

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { api } from '@/api'
@@ -12,7 +12,7 @@ import { convertFileSrc } from '@tauri-apps/api/core'
 const router = useRouter()
 const { t } = useI18n()
 const toast = useToast()
-const { isRunning: isAutoSetupRunning, currentStep: autoSetupStep, stepMessage: autoSetupMessage, progressPercent: autoSetupProgress, lastResult: autoSetupResult, runAutoSetup } = useAutoSetup()
+const { isRunning: isAutoSetupRunning, stepMessage: autoSetupMessage, runAutoSetup } = useAutoSetup()
 const stats = ref<DashboardStats>({
   project_count: 0,
   plugin_count: 0,
@@ -22,10 +22,12 @@ const stats = ref<DashboardStats>({
 })
 const isLoading = ref(true)
 const hasError = ref(false)
+const hasData = computed(() => stats.value.project_count > 0 || stats.value.plugin_count > 0 || stats.value.engine_count > 0)
 
 let unlisten: UnlistenFn | null = null
 let unlistenFs: UnlistenFn | null = null
 let unlistenEngines: UnlistenFn | null = null
+let unlistenAutoSetup: UnlistenFn | null = null
 
 const getIconUrl = (iconPath: string) => {
   if (!iconPath) return ''
@@ -60,6 +62,9 @@ onMounted(async () => {
   unlistenEngines = await listen('engines-discovered', () => {
     loadStats()
   })
+  unlistenAutoSetup = await listen('auto-setup-complete', () => {
+    loadStats()
+  })
 })
 
 onUnmounted(() => {
@@ -71,6 +76,9 @@ onUnmounted(() => {
   }
   if (unlistenEngines) {
     unlistenEngines()
+  }
+  if (unlistenAutoSetup) {
+    unlistenAutoSetup()
   }
 })
 
@@ -123,11 +131,11 @@ const launchProject = async (projectId: string) => {
 
 <template>
   <div class="space-y-6">
-    <div class="card">
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-content-primary mb-4">
+    <div class="mb-2">
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-content-primary">
         {{ t('home.welcome') }}
       </h1>
-      <p class="text-gray-600 dark:text-content-secondary">
+      <p class="text-sm text-gray-500 dark:text-content-secondary mt-1">
         {{ t('home.desc') }}
       </p>
     </div>
@@ -147,6 +155,20 @@ const launchProject = async (projectId: string) => {
     </div>
 
     <template v-else>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('home.overview') }}</h2>
+        <button
+          v-if="hasData && !isAutoSetupRunning"
+          @click="runAutoSetup()"
+          class="px-3 py-1.5 border border-primary-300 dark:border-primary-700 text-primary-600 dark:text-primary-400 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors text-sm flex items-center gap-1.5"
+          :title="t('home.autoSetupDesc')"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {{ t('home.reconfigure') }}
+        </button>
+      </div>
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div
           class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 cursor-pointer hover:shadow-md transition-shadow group"
@@ -190,7 +212,7 @@ const launchProject = async (projectId: string) => {
 
         <div
           class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 cursor-pointer hover:shadow-md transition-shadow group"
-          @click="navigateTo('/plugins')"
+          @click="navigateTo('/plugins?tab=bindings')"
         >
           <div class="flex items-center">
             <div class="p-3 rounded-lg bg-purple-100 dark:bg-purple-900/30">
@@ -247,8 +269,9 @@ const launchProject = async (projectId: string) => {
                   :src="getIconUrl(project.icon_path)"
                   :alt="project.name"
                   class="w-full h-full object-cover"
+                  @error="($event.target as HTMLImageElement).style.display = 'none'; ($event.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden')"
                 />
-                <svg v-else class="w-4 h-4 text-gray-500 dark:text-content-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg :class="project.icon_path ? 'hidden' : ''" class="w-4 h-4 text-gray-500 dark:text-content-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                 </svg>
               </div>
@@ -263,10 +286,12 @@ const launchProject = async (projectId: string) => {
                   'badge',
                   project.status === 'Ready' ? 'badge-success' :
                   project.status === 'Warning' ? 'badge-warning' :
+                  project.status === 'MissingSource' ? 'badge-error' :
+                  project.status === 'Conflict' ? 'badge-error' :
                   'badge-error'
                 ]"
               >
-                {{ project.status === 'Ready' ? t('projects.status.ready') : project.status === 'Warning' ? t('projects.status.warning') : t('projects.status.error') }}
+                {{ t(`projects.status.${project.status.toLowerCase()}`) }}
               </span>
               <button
                 @click.stop="launchProject(project.project_id)"
@@ -301,46 +326,23 @@ const launchProject = async (projectId: string) => {
         </div>
       </div>
 
-      <div class="card">
+      <div v-if="!hasData" class="card">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('home.quickStart') }}</h2>
           <button
             v-if="!isAutoSetupRunning"
             @click="runAutoSetup()"
             class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium flex items-center gap-2"
+            :title="t('home.autoSetupDesc')"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 5.803A3.42 3.42 0 0016.862 18a3.42 3.42 0 01-2.273-3.953 3.42 3.42 0 00-.483 1.968 3.42 3.42 0 01-1.946.806 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-1.946-.806 3.42 3.42 0 00-.483-1.968 3.42 3.42 0 01-2.273 3.953 3.42 3.42 0 00-2.957-1.047 3.42 3.42 0 01-3.138-5.803 3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806z" />
             </svg>
-            {{ t('home.oneClickSetup') }}
+            {{ hasData ? t('home.reconfigure') : t('home.oneClickSetup') }}
           </button>
           <div v-else class="flex items-center gap-2 text-sm text-primary-600 dark:text-primary-400">
             <div class="animate-spin rounded-full h-4 w-4 border-2 border-primary-600 border-t-transparent"></div>
             <span>{{ autoSetupMessage }}</span>
-          </div>
-        </div>
-
-        <div v-if="isAutoSetupRunning" class="mb-4">
-          <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-            <div
-              class="bg-primary-600 h-2 rounded-full transition-all duration-500 ease-out"
-              :style="{ width: `${autoSetupProgress}%` }"
-            ></div>
-          </div>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ autoSetupProgress }}%</p>
-        </div>
-
-        <div v-if="autoSetupResult && autoSetupStep === 'done' && !isAutoSetupRunning" class="mb-4 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-          <div class="flex items-start gap-2">
-            <svg class="w-5 h-5 text-green-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-            </svg>
-            <div class="text-sm text-green-700 dark:text-green-300">
-              <p class="font-medium">{{ t('autoSetup.complete', { projects: autoSetupResult.projectsScanned, plugins: autoSetupResult.pluginsImported, bindings: autoSetupResult.bindingsCreated, engines: autoSetupResult.enginesDiscovered }) }}</p>
-              <div v-if="autoSetupResult.projectsAffected.length > 0" class="mt-1 text-xs text-green-600 dark:text-green-400">
-                {{ t('home.affectedProjects') }}: {{ autoSetupResult.projectsAffected.join(', ') }}
-              </div>
-            </div>
           </div>
         </div>
 
