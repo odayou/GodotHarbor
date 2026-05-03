@@ -548,7 +548,7 @@ export default {
     registering: 'Registering...',
     type: 'Type',
     unknown: 'Unknown',
-    discover: 'Discover Engines',
+    discover: 'Auto Discover',
     discoveredCount: 'Discovered {count} new engines',
     noNewEngines: 'No new engines found',
     discoverFailed: 'Discover engines failed: {error}',
@@ -584,6 +584,7 @@ export default {
     launchEngine: 'Launch Engine',
     launched: 'Engine launched',
     launchFailed: 'Failed to launch engine: {error}',
+    projectCount: 'projects',
     download: {
       title: 'Download Engine',
       cancelled: 'Download cancelled',

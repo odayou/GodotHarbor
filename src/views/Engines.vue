@@ -750,14 +750,6 @@ const initCollapsedGroups = () => {
                       >
                         {{ t('engines.default') }}
                       </span>
-                      <span
-                        v-if="engineHealthMap.get(engine.engine_id) === false"
-                        class="px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 cursor-pointer hover:underline"
-                        :title="t('engines.exeNotFound')"
-                        @click="confirmRemoveEngine(engine.engine_id)"
-                      >
-                        ⚠️
-                      </span>
                     </div>
                     <span class="text-xs text-gray-500 dark:text-gray-400">v{{ engine.version }}</span>
                     <span
@@ -801,7 +793,7 @@ const initCollapsedGroups = () => {
                   class="text-sm text-primary-600 dark:text-primary-400 hover:underline cursor-pointer"
                   :title="t('engines.boundProjectsList')"
                 >
-                  {{ boundProjectsMap.get(engine.engine_id)?.length || 0 }}
+                  {{ boundProjectsMap.get(engine.engine_id)?.length || 0 }} {{ t('engines.projectCount') }}
                   <svg class="w-3 h-3 inline-block ml-0.5 transition-transform" :class="{ 'rotate-180': expandedEngineId === engine.engine_id }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                 </button>
               </td>
@@ -970,8 +962,8 @@ const initCollapsedGroups = () => {
       <div class="bg-white dark:bg-gray-800 rounded-lg w-full max-w-3xl shadow-xl max-h-[85vh] flex flex-col" @click.stop>
         <div class="flex justify-between items-center p-6 pb-4">
           <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ t('engines.download.title') }}</h3>
-          <button @click="handleDownloadDialogClose" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
-            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+          <button @click="handleDownloadDialogClose" class="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+            {{ t('common.close') }}
           </button>
         </div>
 

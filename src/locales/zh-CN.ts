@@ -548,7 +548,7 @@ export default {
     registering: '注册中...',
     type: '类型',
     unknown: '未知',
-    discover: '发现引擎',
+    discover: '自动发现',
     discoveredCount: '发现 {count} 个新引擎',
     noNewEngines: '未发现新引擎',
     discoverFailed: '发现引擎失败: {error}',
@@ -584,6 +584,7 @@ export default {
     launchEngine: '启动引擎',
     launched: '引擎已启动',
     launchFailed: '启动引擎失败: {error}',
+    projectCount: '个项目',
     download: {
       title: '下载引擎',
       cancelled: '已取消下载',
