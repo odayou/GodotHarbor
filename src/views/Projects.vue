@@ -16,10 +16,11 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 const router = useRouter()
 const toast = useToast()
 const { t } = useI18n()
-const { isRunning: isAutoSetupRunning, stepMessage: autoSetupMessage, runAutoSetup } = useAutoSetup()
+const { runAutoSetup } = useAutoSetup()
 const projects = ref<Project[]>([])
 const engines = ref<Engine[]>([])
 const projectBindingMap = ref<Map<string, ProjectBinding[]>>(new Map())
+const projectEngineMap = ref<Map<string, string>>(new Map())
 const isLoading = ref(false)
 const showScanDialog = ref(false)
 const scanDirInput = ref('')
@@ -264,13 +265,24 @@ const loadProjects = async () => {
 
 const loadAllProjectBindings = async () => {
   const map = new Map<string, ProjectBinding[]>()
-  const results = await Promise.allSettled(
+  const engineMap = new Map<string, string>()
+  const bindingResults = await Promise.allSettled(
     projects.value.map(p => api.getProjectBindings(p.project_id))
   )
-  results.forEach((result, i) => {
+  const engineResults = await Promise.allSettled(
+    projects.value.map(p => api.getProjectEngineBinding(p.project_id))
+  )
+  bindingResults.forEach((result, i) => {
     map.set(projects.value[i].project_id, result.status === 'fulfilled' ? result.value : [])
   })
+  engineResults.forEach((result, i) => {
+    if (result.status === 'fulfilled' && result.value) {
+      const engine = engines.value.find(e => e.engine_id === result.value!.engine_id)
+      engineMap.set(projects.value[i].project_id, engine?.name || result.value!.engine_id)
+    }
+  })
   projectBindingMap.value = map
+  projectEngineMap.value = engineMap
 }
 
 const showMovedDialog = ref(false)
@@ -477,6 +489,15 @@ const removeProject = async (projectId: string) => {
   const name = project?.name || projectId
   confirm(t('common.confirmDelete'), t('projects.deleteConfirm', { count: 1, name }), async () => {
     try {
+      const bindings = projectBindingMap.value.get(projectId) || []
+      for (const binding of bindings) {
+        try {
+          await api.unbindPlugin(projectId, binding.plugin_id)
+        } catch { /* ignore unbind errors during removal */ }
+      }
+      try {
+        await api.unbindProjectEngine(projectId)
+      } catch { /* ignore engine unbind errors */ }
       await api.removeProject(projectId)
       toast.success(t('common.projectDeleted'))
       await loadProjects()
@@ -498,7 +519,10 @@ const syncProject = async (project: Project) => {
   try {
     await api.syncProjects()
     await loadProjects()
-    toast.success(t('projects.syncSuccess', { name: project.name }))
+    const synced = projects.value.find(p => p.project_id === project.project_id)
+    if (synced) {
+      toast.success(t('projects.syncSuccess', { name: project.name, status: t(`projects.status.${synced.status.toLowerCase()}`) }))
+    }
   } catch (error) {
     toast.error(t('projects.syncFailed', { error }))
   }
@@ -598,6 +622,16 @@ const launchProject = async (project: Project, engineId?: string) => {
         }
         engineId = defaultEngine.engine_id
       }
+    }
+    try {
+      const healthy = await api.checkEngineHealth(engineId)
+      if (!healthy) {
+        toast.error(t('projects.engineUnhealthy'))
+        isLaunching.value = false
+        return
+      }
+    } catch {
+      // health check failed, proceed anyway
     }
     const result = await api.launchProjectWithEngine(project.project_id, engineId)
     if (result.success) {
@@ -725,21 +759,6 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ t('projects.dragDesc') }}</p>
       </div>
     </div>
-    <Transition
-      enter-active-class="transition-all duration-300"
-      enter-from-class="translate-y-full opacity-0"
-      enter-to-class="translate-y-0 opacity-100"
-      leave-active-class="transition-all duration-200"
-      leave-from-class="translate-y-0 opacity-100"
-      leave-to-class="translate-y-full opacity-0"
-    >
-      <div v-if="isAutoSetupRunning" class="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-primary-200 dark:border-primary-800 shadow-lg z-40 px-6 py-3 flex items-center gap-4">
-        <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-600"></div>
-        <div class="flex-1">
-          <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ autoSetupMessage }}</p>
-        </div>
-      </div>
-    </Transition>
     <div
       class="space-y-6"
       @dragenter="onDragEnter"
@@ -927,9 +946,9 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
                 :src="getIconUrl(project.icon_path)"
                 :alt="project.name"
                 class="w-10 h-10 object-contain"
-                @error="($event.target as HTMLImageElement).style.display = 'none'"
+                @error="($event.target as HTMLImageElement).style.display = 'none'; ($event.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden')"
               />
-              <svg v-else class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg :class="project.icon_path ? 'hidden' : ''" class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
               </svg>
             </div>
@@ -967,6 +986,15 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
                 </span>
                 <span class="text-sm text-gray-400">|</span>
                 <span class="text-sm text-gray-500 dark:text-content-secondary">Godot {{ project.godot_version }}</span>
+                <span
+                  v-if="projectEngineMap.get(project.project_id)"
+                  class="text-sm text-primary-600 dark:text-primary-400 flex items-center gap-1"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  {{ projectEngineMap.get(project.project_id) }}
+                </span>
                 <span
                   v-if="projectBindingMap.get(project.project_id)?.length"
                   class="text-sm text-gray-500 dark:text-content-secondary flex items-center gap-1"
@@ -1109,6 +1137,9 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
           >
             {{ t(`projects.status.${selectedProject.status.toLowerCase()}`) }}
           </span>
+          <span v-if="selectedProject.last_synced_at" class="text-xs text-gray-400 dark:text-gray-500 ml-3">
+            {{ t('projects.lastSynced') }} {{ new Date(selectedProject.last_synced_at).toLocaleString() }}
+          </span>
         </div>
         <div class="mb-4">
           <div class="flex items-center justify-between mb-2">
@@ -1206,6 +1237,12 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
               class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 text-sm"
             >
               {{ t('projects.syncProject') }}
+            </button>
+            <button
+              @click="showProjectDetail = false; openRelocateDialog(selectedProject)"
+              class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 text-sm"
+            >
+              {{ t('projects.relocate') }}
             </button>
           </div>
           <button
