@@ -4,10 +4,12 @@ import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
 import { sendAppNotification } from '@/composables/useNotification'
 import { useUpdateStore } from '@/stores/update'
+import { useAutoSetup } from '@/composables/useAutoSetup'
 import type { ChannelLatestVersions, LocalEngineVersion } from '@/types'
 
 const { t } = useI18n()
 const updateStore = useUpdateStore()
+const { isRunning: isAutoSetupRunning, currentStep: autoSetupStep, stepMessage: autoSetupMessage, progressPercent: autoSetupProgress, lastResult: autoSetupResult } = useAutoSetup()
 
 const godot4Channels = ref<ChannelLatestVersions>({ stable: null, preview: null, snapshot: null })
 const godot3Channels = ref<ChannelLatestVersions>({ stable: null, preview: null, snapshot: null })
@@ -203,19 +205,36 @@ onUnmounted(() => {
 <template>
   <footer class="h-7 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between px-3 text-xs select-none shrink-0">
     <div class="flex items-center gap-3 overflow-hidden">
-      <template v-for="item in channelStatusItems" :key="item.label">
-        <div class="flex items-center gap-1 shrink-0" :class="item.hasUpdate ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'">
-          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+      <template v-if="isAutoSetupRunning || autoSetupStep === 'done'">
+        <div class="flex items-center gap-2 flex-1 min-w-0">
+          <div v-if="isAutoSetupRunning" class="animate-spin rounded-full h-3 w-3 border-2 border-primary-600 border-t-transparent shrink-0"></div>
+          <svg v-else class="h-3 w-3 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
           </svg>
-          <span>{{ item.label }}:</span>
-          <span v-if="item.localVersion" class="font-medium">{{ item.localVersion }}</span>
-          <span v-else class="text-gray-400 dark:text-gray-500">—</span>
-          <svg v-if="item.hasUpdate" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-          </svg>
-          <span v-if="item.hasUpdate" class="font-medium">{{ item.remoteVersion }}</span>
+          <span class="text-gray-700 dark:text-gray-300 truncate">
+            {{ isAutoSetupRunning ? autoSetupMessage : t('autoSetup.complete', { projects: autoSetupResult?.projectsScanned ?? 0, plugins: autoSetupResult?.pluginsImported ?? 0, bindings: autoSetupResult?.bindingsCreated ?? 0, engines: autoSetupResult?.enginesDiscovered ?? 0 }) }}
+          </span>
+          <div v-if="isAutoSetupRunning" class="w-20 bg-gray-200 dark:bg-gray-700 rounded-full h-1 shrink-0">
+            <div class="bg-primary-600 h-1 rounded-full transition-all duration-500" :style="{ width: `${autoSetupProgress}%` }"></div>
+          </div>
+          <span v-if="isAutoSetupRunning" class="text-gray-400 dark:text-gray-500 shrink-0">{{ autoSetupProgress }}%</span>
         </div>
+      </template>
+      <template v-else>
+        <template v-for="item in channelStatusItems" :key="item.label">
+          <div class="flex items-center gap-1 shrink-0" :class="item.hasUpdate ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <span>{{ item.label }}:</span>
+            <span v-if="item.localVersion" class="font-medium">{{ item.localVersion }}</span>
+            <span v-else class="text-gray-400 dark:text-gray-500">—</span>
+            <svg v-if="item.hasUpdate" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+            <span v-if="item.hasUpdate" class="font-medium">{{ item.remoteVersion }}</span>
+          </div>
+        </template>
       </template>
     </div>
 

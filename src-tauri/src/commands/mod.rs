@@ -92,6 +92,7 @@ fn upsert_plugin(app: &AppHandle, new_plugin: &crate::models::Plugin, operation:
     }
 }
 
+#[tauri::command]
 pub fn get_default_scan_dirs() -> Vec<String> {
     let mut dirs = Vec::new();
     if cfg!(windows) {

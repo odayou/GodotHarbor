@@ -4,7 +4,6 @@ import type { Project, Plugin, BatchBindingRequest, Settings } from '@/types'
 import { useToast } from '@/composables/useToast'
 import { useI18n } from 'vue-i18n'
 import { emit } from '@tauri-apps/api/event'
-import { useRouter } from 'vue-router'
 
 export type AutoSetupStep = 'idle' | 'scanning-projects' | 'scanning-plugins' | 'importing-plugins' | 'binding-plugins' | 'applying-changes' | 'discovering-engines' | 'binding-engines' | 'done'
 
@@ -213,8 +212,6 @@ async function discoverAndBindEngines(t: ReturnType<typeof useI18n>['t'], settin
 export function useAutoSetup() {
   const toast = useToast()
   const { t } = useI18n()
-  const router = useRouter()
-
   const runAutoSetup = async (targetProjects?: Project[], skipProjectScan = false) => {
     if (isRunning.value) return
     isRunning.value = true
@@ -225,24 +222,22 @@ export function useAutoSetup() {
     try {
       const settings = await api.getSettings()
 
-      if (!skipProjectScan && settings.scan_directories.length === 0 && settings.auto_scan_on_startup) {
-        toast.warning(t('autoSetup.noScanDirs'))
-        router.push('/settings')
-        isRunning.value = false
-        currentStep.value = 'idle'
-        return
-      }
+      const existingProjects = targetProjects || await api.getProjects()
+      const hasExistingData = existingProjects.length > 0
 
       if (!skipProjectScan && settings.auto_scan_on_startup) {
-        setStep('scanning-projects', t('autoSetup.scanningProjects'))
-        const scanDirs = settings.scan_directories.length > 0 ? settings.scan_directories : undefined
-        if (scanDirs && scanDirs.length > 0) {
+        let scanDirs = settings.scan_directories
+        if (scanDirs.length === 0) {
+          scanDirs = await api.getDefaultScanDirs()
+        }
+        if (scanDirs.length > 0) {
+          setStep('scanning-projects', t('autoSetup.scanningProjects'))
           const newProjects = await api.scanProjects(scanDirs)
           projectsScanned = newProjects.length
         }
       }
 
-      const allProjects = targetProjects || await api.getProjects()
+      const allProjects = hasExistingData ? existingProjects : await api.getProjects()
 
       if (allProjects.length === 0) {
         setStep('done', t('autoSetup.complete'))

@@ -17,7 +17,6 @@ import StatusBar from './components/layout/StatusBar.vue'
 import ToastContainer from './components/ToastContainer.vue'
 import OnboardingGuide from './components/OnboardingGuide.vue'
 import CommandPalette from './components/CommandPalette.vue'
-import AutoSetupProgressBar from './components/AutoSetupProgressBar.vue'
 import { useAutoSetup } from './composables/useAutoSetup'
 
 const { t, locale } = useI18n()
@@ -137,7 +136,6 @@ registerShortcut({
     <ToastContainer />
     <OnboardingGuide />
     <CommandPalette />
-    <AutoSetupProgressBar />
   </div>
   
   <!-- 首次启动语言选择对话框 -->

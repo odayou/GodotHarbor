@@ -270,6 +270,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler!(
             commands::get_settings,
             commands::save_settings,
+            commands::get_default_scan_dirs,
             commands::scan_projects,
             commands::get_projects,
             commands::add_project,

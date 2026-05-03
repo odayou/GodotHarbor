@@ -46,6 +46,10 @@ export const api = {
     return await invoke('save_settings', { settings })
   },
 
+  async getDefaultScanDirs(): Promise<string[]> {
+    return await invoke('get_default_scan_dirs')
+  },
+
   // ─── Projects ───
   async scanProjects(rootDirs: string[]): Promise<Project[]> {
     return await invoke('scan_projects', { rootDirs })

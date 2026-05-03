@@ -926,7 +926,7 @@ export default {
     goToProjects: 'Go to Projects',
     oneClickSetup: 'Auto Configure',
     autoSetupDesc: 'Auto scan projects, import plugins, create bindings, discover engines',
-    reconfigure: 'Reconfigure',
+    reconfigure: 'Refresh Data',
     affectedProjects: 'Affected projects'
   },
   sidebar: {
@@ -991,23 +991,15 @@ export default {
   onboarding: {
     welcome: {
       title: 'Welcome to Godot Harbor',
-      desc: 'Godot Harbor helps you manage Godot plugins, projects and engines.\nAll plugins can be mounted to any project with one click.'
+      desc: 'Godot Harbor is a plugin and project manager for Godot.\nLet\'s walk through the core features to get you started.'
     },
-    scan: {
-      title: 'Configure Scan Directories',
-      desc: 'Set up project scan paths, the app will automatically discover Godot projects.\nAfter configuration, click "Auto Configure" to complete all setup in one click.'
+    plugin: {
+      title: 'Plugin Management',
+      desc: 'Import plugins from projects, Git repos, or Asset Library,\nthen mount them to any project\'s addons directory with one click.'
     },
-    import: {
-      title: 'Import and Manage Plugins',
-      desc: 'Import plugins from local directories, Git repositories, or Godot Asset Library, and bind them to projects.'
-    },
-    link: {
-      title: 'Bind Plugins to Projects',
-      desc: 'Select required plugins and versions for your projects,\none-click apply changes, plugins are automatically mounted to addons directory.'
-    },
-    assetLibrary: {
-      title: 'Browse Asset Library',
-      desc: 'Search and browse the official Godot Asset Library directly,\none-click download and install community plugins to your vault.'
+    project: {
+      title: 'Projects & Engines',
+      desc: 'Auto-scan your disk to discover Godot projects,\nregister local engine versions, and auto-bind matching engines to projects.'
     },
     shortcuts: {
       title: 'Keyboard Shortcuts',
@@ -1022,9 +1014,8 @@ export default {
       ctrlDDesc: 'Toggle dark/light mode'
     },
     skip: 'Skip Guide',
-    startExperience: 'Start Experience',
     next: 'Next',
-    startUsing: 'Start Using'
+    startUsing: 'Get Started'
   },
   about: {
     title: 'About',
@@ -1061,6 +1052,7 @@ export default {
     githubRepo: 'GitHub Repository',
     issueReport: 'Report Issues',
     contribute: 'Contribute',
+    email: 'Email',
     creditsTitle: 'Credits',
     creditsDesc: 'Godot Harbor would not be possible without the following open source projects and communities.',
     rustDeps: 'Rust Dependencies',
@@ -1095,7 +1087,9 @@ export default {
     checkUpdateFailed: 'Failed to check for updates',
     checkUpdateTimeout: 'Update check timed out, please check your network connection and try again',
     copyVersion: 'Copy version',
-    versionCopied: 'Version copied to clipboard'
+    versionCopied: 'Version copied to clipboard',
+    copyEmail: 'Copy email',
+    emailCopied: 'Email copied to clipboard'
   },
   updates: {
     updatingApp: 'Updating application',

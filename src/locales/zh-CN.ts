@@ -926,7 +926,7 @@ export default {
     goToProjects: '前往项目管理',
     oneClickSetup: '自动配置',
     autoSetupDesc: '自动扫描项目、导入插件、建立绑定、发现引擎',
-    reconfigure: '重新配置',
+    reconfigure: '刷新数据',
     affectedProjects: '受影响的项目'
   },
   sidebar: {
@@ -991,23 +991,15 @@ export default {
   onboarding: {
     welcome: {
       title: '欢迎使用 Godot Harbor',
-      desc: 'Godot Harbor 帮助你管理 Godot 插件、项目和引擎。\n所有插件都可以一键挂载到任意项目。'
+      desc: 'Godot Harbor 是 Godot 的插件与项目管理工具。\n接下来将介绍核心功能，帮助你快速上手。'
     },
-    scan: {
-      title: '配置扫描目录',
-      desc: '设置项目扫描路径，应用会自动发现其中的 Godot 项目。\n配置完成后点击"自动配置"即可一键完成所有设置。'
+    plugin: {
+      title: '插件管理',
+      desc: '从项目、Git 仓库或 Asset Library 导入插件，\n然后一键挂载到任意项目的 addons 目录。'
     },
-    import: {
-      title: '导入和管理插件',
-      desc: '从本地目录、Git 仓库或 Godot Asset Library\n导入插件到本地存储，并绑定到项目。'
-    },
-    link: {
-      title: '绑定插件到项目',
-      desc: '为项目选择需要的插件和版本，\n一键应用变更，插件自动挂载到 addons 目录。'
-    },
-    assetLibrary: {
-      title: '浏览 Asset Library',
-      desc: '直接搜索和浏览 Godot 官方 Asset Library，\n一键下载安装社区插件到你的仓库。'
+    project: {
+      title: '项目与引擎',
+      desc: '自动扫描磁盘发现 Godot 项目，\n注册本地引擎版本，为项目自动绑定匹配的引擎。'
     },
     shortcuts: {
       title: '快捷键',
@@ -1022,7 +1014,6 @@ export default {
       ctrlDDesc: '深色/浅色模式切换'
     },
     skip: '跳过引导',
-    startExperience: '前往体验',
     next: '下一步',
     startUsing: '开始使用'
   },
@@ -1061,6 +1052,7 @@ export default {
     githubRepo: 'GitHub 仓库',
     issueReport: '问题反馈',
     contribute: '参与贡献',
+    email: '邮箱',
     creditsTitle: '鸣谢',
     creditsDesc: 'Godot Harbor 的诞生离不开以下开源项目和社区的支持。',
     rustDeps: 'Rust 依赖',
@@ -1095,7 +1087,9 @@ export default {
     checkUpdateFailed: '检查更新失败',
     checkUpdateTimeout: '检查更新超时，请检查网络连接后重试',
     copyVersion: '复制版本号',
-    versionCopied: '版本号已复制到剪贴板'
+    versionCopied: '版本号已复制到剪贴板',
+    copyEmail: '复制邮箱',
+    emailCopied: '邮箱已复制到剪贴板'
   },
   updates: {
     updatingApp: '正在更新应用',

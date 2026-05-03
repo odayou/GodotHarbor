@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import { api } from '@/api'
 import { useOnboarding } from '@/composables/useOnboarding'
 import { useLanguageDialog } from '@/composables/useLanguageDialog'
@@ -9,7 +8,6 @@ import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
 
-const router = useRouter()
 const currentStep = ref(0)
 const { isVisible, hideOnboarding } = useOnboarding()
 const { isVisible: languageDialogVisible } = useLanguageDialog()
@@ -44,26 +42,22 @@ const steps = computed(() => [
   {
     title: t('onboarding.welcome.title'),
     desc: t('onboarding.welcome.desc'),
-    icon: 'welcome',
-    action: null
+    icon: 'welcome'
   },
   {
-    title: t('onboarding.scan.title'),
-    desc: t('onboarding.scan.desc'),
-    icon: 'scan',
-    action: '/settings'
+    title: t('onboarding.plugin.title'),
+    desc: t('onboarding.plugin.desc'),
+    icon: 'plugin'
   },
   {
-    title: t('onboarding.import.title'),
-    desc: t('onboarding.import.desc'),
-    icon: 'import',
-    action: '/plugins'
+    title: t('onboarding.project.title'),
+    desc: t('onboarding.project.desc'),
+    icon: 'project'
   },
   {
     title: t('onboarding.shortcuts.title'),
     desc: t('onboarding.shortcuts.desc'),
-    icon: 'shortcuts',
-    action: null
+    icon: 'shortcuts'
   }
 ])
 
@@ -91,19 +85,12 @@ const skip = () => {
   finish()
 }
 
-const goToStep = () => {
-  if (currentStepData.value.action) {
-    router.push(currentStepData.value.action)
-  }
-  finish()
-}
-
 const finish = async () => {
   hideOnboarding()
   currentStep.value = 0
   await markOnboardingCompleted()
   setTimeout(() => {
-    runAutoSetup()
+    runAutoSetup(undefined, false)
   }, 500)
 }
 </script>
@@ -125,14 +112,14 @@ const finish = async () => {
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
             </svg>
           </div>
-          <div v-else-if="currentStepData.icon === 'scan'" class="w-20 h-20 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-            <svg class="w-10 h-10 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-            </svg>
-          </div>
-          <div v-else-if="currentStepData.icon === 'import'" class="w-20 h-20 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+          <div v-else-if="currentStepData.icon === 'plugin'" class="w-20 h-20 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
             <svg class="w-10 h-10 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
+            </svg>
+          </div>
+          <div v-else-if="currentStepData.icon === 'project'" class="w-20 h-20 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+            <svg class="w-10 h-10 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
             </svg>
           </div>
           <div v-else-if="currentStepData.icon === 'shortcuts'" class="w-20 h-20 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
@@ -186,13 +173,6 @@ const finish = async () => {
                 ]"
               />
             </div>
-            <button
-              v-if="currentStepData.action && currentStep > 0"
-              @click="goToStep"
-              class="px-4 py-2 bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400 rounded-lg hover:bg-primary-200 dark:hover:bg-primary-800/50 text-sm font-medium"
-            >
-              {{ t('onboarding.startExperience') }}
-            </button>
             <button
               @click="next"
               class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium"

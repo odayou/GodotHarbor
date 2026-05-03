@@ -300,8 +300,9 @@ MIT License
 
 ## 联系方式
 
-- 项目主页：[GitHub Repository]
-- 问题反馈：[GitHub Issues]
+- 项目主页：[GitHub Repository](https://github.com/odayou/GodotHarbor)
+- 问题反馈：[GitHub Issues](https://github.com/odayou/GodotHarbor/issues)
+- 邮箱：gbytl@sina.cn
 
 ---
 
