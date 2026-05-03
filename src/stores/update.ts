@@ -31,7 +31,6 @@ export const useUpdateStore = defineStore('updates', () => {
     let count = 0
     if (appUpdate.value) count++
     count += pluginUpdates.value.length
-    count += engineUpdates.value.length
     if (hotUpdate.value) count++
     return count
   })

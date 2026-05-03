@@ -33,6 +33,18 @@ const showEngineDialog = ref(false)
 const selectedEngineId = ref<string>('')
 const customArgs = ref('')
 const isLaunching = ref(false)
+const projectMenuId = ref('')
+
+const toggleProjectMenu = (projectId: string) => {
+  projectMenuId.value = projectMenuId.value === projectId ? '' : projectId
+}
+
+const handleGlobalClick = (e: MouseEvent) => {
+  const target = e.target as HTMLElement
+  if (!target.closest('.project-menu-wrapper')) {
+    projectMenuId.value = ''
+  }
+}
 const projectEngineBinding = ref<ProjectEngineBinding | null>(null)
 const projectBindings = ref<ProjectBinding[]>([])
 const allPlugins = ref<Plugin[]>([])
@@ -115,6 +127,7 @@ onMounted(async () => {
   loadProjects()
   loadGroups()
   loadEngines()
+  document.addEventListener('click', handleGlobalClick)
   try {
     const settings = await api.getSettings()
     hasScanDirs.value = settings.scan_directories.length > 0
@@ -133,6 +146,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  document.removeEventListener('click', handleGlobalClick)
   if (unlisten) {
     unlisten()
   }
@@ -669,9 +683,6 @@ const launchProject = async (project: Project, engineId?: string) => {
   }
 }
 
-const goToEngines = () => {
-  router.push('/engines')
-}
 
 const showRelocateDialog = ref(false)
 const relocateProjectId = ref('')
@@ -1047,15 +1058,6 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
             </div>
             <div class="flex items-center gap-1">
               <button
-                @click.stop="openInFileManager(project.path)"
-                class="text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-                :title="t('projects.openInFileManager')"
-              >
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </button>
-              <button
                 v-if="project.status === 'MissingSource'"
                 @click.stop="openRelocateDialog(project)"
                 class="px-3 py-1.5 rounded-lg text-sm font-medium bg-orange-500 text-white hover:bg-orange-600 transition-colors flex items-center gap-1.5"
@@ -1066,33 +1068,46 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
                 </svg>
                 {{ t('projects.relocate') }}
               </button>
-              <template v-else-if="engines.length === 0">
+              <div class="project-menu-wrapper" style="position: relative; display: inline-block">
                 <button
-                  @click.stop="goToEngines"
-                  class="px-3 py-1.5 rounded-lg text-sm font-medium bg-yellow-500 text-white hover:bg-yellow-600 transition-colors"
-                  :title="t('projects.noEngineHint')"
+                  @click.stop="toggleProjectMenu(project.project_id)"
+                  class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                  :title="t('projects.moreActions')"
                 >
-                  {{ t('projects.registerEngine') }}
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                  </svg>
                 </button>
-              </template>
-              <button
-                v-else
-                @click.stop="launchProject(project)"
-                :disabled="isLaunching"
-                class="px-3 py-1.5 rounded-lg text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 transition-colors"
-                :title="t('projects.launch')"
-              >
-                {{ t('projects.launch') }}
-              </button>
-              <button
-                @click.stop="removeProject(project.project_id)"
-                class="text-red-600 hover:text-red-800 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
-                :title="t('projects.delete')"
-              >
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
+                <div
+                  v-if="projectMenuId === project.project_id"
+                  class="absolute right-0 top-full mt-1 bg-white dark:bg-gray-700 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 py-1 z-20 min-w-[140px]"
+                >
+                  <button
+                    v-if="project.status !== 'MissingSource' && engines.length > 0"
+                    @click.stop="launchProject(project); projectMenuId = ''"
+                    :disabled="isLaunching"
+                    class="w-full text-left px-3 py-1.5 text-sm text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 flex items-center gap-2 disabled:opacity-50"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    {{ t('projects.launch') }}
+                  </button>
+                  <button
+                    @click.stop="openInFileManager(project.path); projectMenuId = ''"
+                    class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 flex items-center gap-2"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                    {{ t('projects.openInFileManager') }}
+                  </button>
+                  <hr class="my-1 border-gray-200 dark:border-gray-600" />
+                  <button
+                    @click.stop="removeProject(project.project_id); projectMenuId = ''"
+                    class="w-full text-left px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    {{ t('projects.delete') }}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

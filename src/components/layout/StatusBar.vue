@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
 import { sendAppNotification } from '@/composables/useNotification'
 import { useUpdateStore } from '@/stores/update'
-import type { VersionUpdateInfo, GodotVersionCheckResult, ChannelLatestVersions, LocalEngineVersion } from '@/types'
+import type { ChannelLatestVersions, LocalEngineVersion } from '@/types'
 
 const { t } = useI18n()
 const updateStore = useUpdateStore()
@@ -12,17 +12,15 @@ const updateStore = useUpdateStore()
 const godot4Channels = ref<ChannelLatestVersions>({ stable: null, preview: null, snapshot: null })
 const godot3Channels = ref<ChannelLatestVersions>({ stable: null, preview: null, snapshot: null })
 const localEngines = ref<LocalEngineVersion[]>([])
-const engineUpdatesAvailable = ref<VersionUpdateInfo[]>([])
 const isChecking = ref(false)
 const lastChecked = ref<string>('')
 const showUpdatePanel = ref(false)
 
 let unlisten: (() => void) | null = null
-let unlistenEngine: (() => void) | null = null
 let unlistenUpdates: (() => void) | null = null
 
 const totalUpdateCount = computed(() => {
-  return updateStore.totalUpdateCount + engineUpdatesAvailable.value.length
+  return updateStore.totalUpdateCount
 })
 
 const hasAnyUpdate = computed(() => totalUpdateCount.value > 0)
@@ -84,29 +82,19 @@ const channelStatusItems = computed(() => {
   return items
 })
 
-const checkEngineUpdates = async () => {
+const checkEngineVersionStatus = async () => {
   if (isChecking.value) return
   isChecking.value = true
   try {
-    const result: GodotVersionCheckResult = await api.checkGodotUpdates()
+    const result = await api.checkGodotUpdates()
     godot4Channels.value = result.godot4_channels
     godot3Channels.value = result.godot3_channels
     localEngines.value = result.local_engines
-    engineUpdatesAvailable.value = result.updates_available
     lastChecked.value = result.checked_at
   } catch (e) {
-    console.error('Failed to check Godot updates:', e)
+    console.error('Failed to check Godot version status:', e)
   } finally {
     isChecking.value = false
-  }
-}
-
-const openDownloadPage = async (url: string) => {
-  try {
-    const { open } = await import('@tauri-apps/plugin-shell')
-    await open(url)
-  } catch (e) {
-    console.error('Failed to open URL:', e)
   }
 }
 
@@ -153,7 +141,7 @@ const handleRollbackHotUpdate = () => {
 }
 
 const handleCheckAll = () => {
-  checkEngineUpdates()
+  checkEngineVersionStatus()
   updateStore.checkAll()
 }
 
@@ -165,41 +153,11 @@ const handleClickOutside = (e: MouseEvent) => {
   }
 }
 
-const channelLabel = (ch: string) => {
-  if (ch === 'stable') return t('statusbar.channel.stable')
-  if (ch === 'preview') return t('statusbar.channel.preview')
-  if (ch === 'snapshot') return t('statusbar.channel.snapshot')
-  return ch
-}
-
-const channelBadgeClass = (ch: string) => {
-  if (ch === 'stable') return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-  if (ch === 'preview') return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
-  if (ch === 'snapshot') return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
-  return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
-}
-
-const engineUpdatesByChannel = computed(() => {
-  const groups: Record<string, VersionUpdateInfo[]> = { stable: [], preview: [], snapshot: [] }
-  for (const u of engineUpdatesAvailable.value) {
-    const ch = u.channel || 'stable'
-    if (!groups[ch]) groups[ch] = []
-    groups[ch].push(u)
-  }
-  return groups
-})
-
 onMounted(async () => {
   try {
     const { listen } = await import('@tauri-apps/api/event')
-    unlisten = await listen<VersionUpdateInfo[]>('godot-update-available', (event) => {
-      engineUpdatesAvailable.value = event.payload
-    })
-    unlistenEngine = await listen<VersionUpdateInfo[]>('engine-updates-available', (event) => {
-      engineUpdatesAvailable.value = event.payload
-    })
     unlistenUpdates = await listen('updates-available', () => {
-      checkEngineUpdates()
+      checkEngineVersionStatus()
       updateStore.checkAll()
     })
   } catch (e) {
@@ -209,18 +167,19 @@ onMounted(async () => {
   await updateStore.initListeners()
 
   setTimeout(async () => {
-    checkEngineUpdates()
+    checkEngineVersionStatus()
     await updateStore.checkAll()
     if (hasAnyUpdate.value) {
       const parts: string[] = []
       if (updateStore.appUpdate) parts.push(t('statusbar.appUpdate'))
       if (updateStore.pluginUpdates.length > 0) parts.push(`${updateStore.pluginUpdates.length} ${t('statusbar.plugins')}`)
-      if (engineUpdatesAvailable.value.length > 0) parts.push(`${engineUpdatesAvailable.value.length} ${t('statusbar.engine')}`)
       if (updateStore.hotUpdate) parts.push(t('statusbar.hotUpdate'))
-      await sendAppNotification(
-        t('statusbar.updateAvailable'),
-        `${t('statusbar.updateAvailable')}: ${parts.join(', ')}`
-      )
+      if (parts.length > 0) {
+        await sendAppNotification(
+          t('statusbar.updateAvailable'),
+          `${t('statusbar.updateAvailable')}: ${parts.join(', ')}`
+        )
+      }
     }
   }, 8000)
 
@@ -231,10 +190,6 @@ onUnmounted(() => {
   if (unlisten) {
     unlisten()
     unlisten = null
-  }
-  if (unlistenEngine) {
-    unlistenEngine()
-    unlistenEngine = null
   }
   if (unlistenUpdates) {
     unlistenUpdates()
@@ -387,52 +342,6 @@ onUnmounted(() => {
             <p class="text-xs text-blue-600 dark:text-blue-400">{{ t('statusbar.bothUpdatesTip') }}</p>
           </div>
 
-          <template v-for="ch in ['stable', 'preview', 'snapshot']" :key="ch">
-            <div v-if="engineUpdatesByChannel[ch]?.length > 0" class="border-b border-gray-100 dark:border-gray-700">
-              <div class="px-4 py-2 flex items-center justify-between bg-gray-50 dark:bg-gray-700/30">
-                <div class="flex items-center gap-2">
-                  <span class="text-xs font-medium text-gray-700 dark:text-gray-300">
-                    {{ t('statusbar.engine') }} {{ channelLabel(ch) }}
-                  </span>
-                  <span class="text-xs px-1.5 py-0.5 rounded" :class="channelBadgeClass(ch)">
-                    {{ engineUpdatesByChannel[ch].length }}
-                  </span>
-                </div>
-              </div>
-              <div
-                v-for="update in engineUpdatesByChannel[ch]"
-                :key="update.engine_id"
-                class="px-4 py-3 border-b border-gray-50 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-              >
-                <div class="flex items-center justify-between mb-1">
-                  <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ update.engine_name }}</span>
-                  <span
-                    v-if="update.is_major_update"
-                    class="text-xs px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded"
-                  >
-                    {{ t('statusbar.majorUpdate') }}
-                  </span>
-                </div>
-                <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                  <span>{{ update.current_version }}</span>
-                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
-                  <span class="font-medium text-amber-600 dark:text-amber-400">{{ update.latest_version }}</span>
-                </div>
-                <button
-                  @click="openDownloadPage(update.download_url)"
-                  class="mt-2 text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 flex items-center gap-1"
-                >
-                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
-                  {{ t('statusbar.downloadPage') }}
-                </button>
-              </div>
-            </div>
-          </template>
-
           <div
             v-if="updateStore.pluginUpdates.length > 0"
             class="border-b border-gray-100 dark:border-gray-700"
@@ -487,7 +396,7 @@ onUnmounted(() => {
           </div>
 
           <div
-            v-if="!updateStore.isChecking && !updateStore.appUpdate && updateStore.pluginUpdates.length === 0 && engineUpdatesAvailable.length === 0 && !updateStore.hotUpdate"
+            v-if="!updateStore.isChecking && !updateStore.appUpdate && updateStore.pluginUpdates.length === 0 && !updateStore.hotUpdate"
             class="px-4 py-6 text-center"
           >
             <svg class="mx-auto h-8 w-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">

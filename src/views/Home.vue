@@ -86,45 +86,11 @@ const navigateTo = (path: string) => {
   router.push(path)
 }
 
-const openProjectDetail = (projectId: string) => {
-  router.push({ path: '/projects', query: { highlight: projectId } })
-}
-
 const openInFileManager = async (path: string) => {
   try {
     await api.openInFileManager(path)
   } catch (error) {
     toast.error(t('projects.openInFileManagerFailed', { error }))
-  }
-}
-
-const launchProject = async (projectId: string) => {
-  try {
-    const engineBinding = await api.getProjectEngineBinding(projectId)
-    if (engineBinding) {
-      const result = await api.launchProjectWithEngine(projectId, engineBinding.engine_id, engineBinding.custom_args)
-      if (result.success) {
-        toast.success(t('common.projectLaunched', { pid: result.pid }))
-      } else {
-        toast.error(t('common.projectLaunchFailed', { error: result.error }))
-      }
-    } else {
-      const engines = await api.getEngines()
-      const defaultEngine = engines.find(e => e.is_default)
-      if (defaultEngine) {
-        const result = await api.launchProjectWithEngine(projectId, defaultEngine.engine_id)
-        if (result.success) {
-          toast.success(t('common.projectLaunched', { pid: result.pid }))
-        } else {
-          toast.error(t('common.projectLaunchFailed', { error: result.error }))
-        }
-      } else {
-        toast.warning(t('projects.noEngineHint'))
-        router.push('/engines')
-      }
-    }
-  } catch (error) {
-    toast.error(t('common.projectLaunchFailed', { error }))
   }
 }
 </script>
@@ -261,7 +227,7 @@ const launchProject = async (projectId: string) => {
           >
             <div
               class="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
-              @click="openProjectDetail(project.project_id)"
+              @click="openInFileManager(project.path)"
             >
               <div class="w-8 h-8 rounded bg-gray-100 dark:bg-surface-layer flex items-center justify-center shrink-0 overflow-hidden">
                 <img
@@ -293,25 +259,6 @@ const launchProject = async (projectId: string) => {
               >
                 {{ t(`projects.status.${project.status.toLowerCase()}`) }}
               </span>
-              <button
-                @click.stop="launchProject(project.project_id)"
-                class="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
-                :title="t('projects.launch')"
-              >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </button>
-              <button
-                @click.stop="openInFileManager(project.path)"
-                class="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
-                :title="t('projects.openInFileManager')"
-              >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </button>
             </div>
           </div>
         </div>

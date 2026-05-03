@@ -136,7 +136,7 @@ async function buildAutoBindings(
   return { bindings, projectsAffected }
 }
 
-async function scanAndImportPlugins(t: ReturnType<typeof useI18n>['t'], targetProjects?: Project[]): Promise<{ pluginsImported: number; bindingsCreated: number; projectsAffected: string[] }> {
+async function scanAndImportPlugins(t: ReturnType<typeof useI18n>['t'], allProjects: Project[]): Promise<{ pluginsImported: number; bindingsCreated: number; projectsAffected: string[] }> {
   setStep('scanning-plugins', t('autoSetup.scanningPlugins'))
   const scannedPlugins = await api.scanProjectPlugins()
 
@@ -148,7 +148,6 @@ async function scanAndImportPlugins(t: ReturnType<typeof useI18n>['t'], targetPr
   const importedPlugins = await api.importPluginsFromProjects('copy')
 
   setStep('binding-plugins', t('autoSetup.bindingPlugins'))
-  const allProjects = targetProjects || await api.getProjects()
   const allPlugins = await api.getPlugins()
 
   const { bindings, projectsAffected } = await buildAutoBindings(allProjects, allPlugins, scannedPlugins)
@@ -166,7 +165,7 @@ async function scanAndImportPlugins(t: ReturnType<typeof useI18n>['t'], targetPr
   return { pluginsImported: importedPlugins.length, bindingsCreated, projectsAffected }
 }
 
-async function discoverAndBindEngines(t: ReturnType<typeof useI18n>['t'], settings: Settings, targetProjects?: Project[]): Promise<{ enginesDiscovered: number; enginesBound: number }> {
+async function discoverAndBindEngines(t: ReturnType<typeof useI18n>['t'], settings: Settings, allProjects: Project[]): Promise<{ enginesDiscovered: number; enginesBound: number }> {
   let enginesDiscovered = 0
   let enginesBound = 0
 
@@ -184,7 +183,6 @@ async function discoverAndBindEngines(t: ReturnType<typeof useI18n>['t'], settin
   }
 
   setStep('binding-engines', t('autoSetup.bindingEngines'))
-  const allProjects = targetProjects || await api.getProjects()
 
   const engineBindingResults = await Promise.allSettled(
     allProjects.map(p => api.getProjectEngineBinding(p.project_id))
@@ -244,9 +242,11 @@ export function useAutoSetup() {
         return
       }
 
+      const allProjects = targetProjects || await api.getProjects()
+
       const [pluginResult, engineResult] = await Promise.all([
-        scanAndImportPlugins(t, targetProjects),
-        discoverAndBindEngines(t, settings, targetProjects),
+        scanAndImportPlugins(t, allProjects),
+        discoverAndBindEngines(t, settings, allProjects),
       ])
 
       setStep('done', t('autoSetup.complete', {
