@@ -564,6 +564,8 @@ pub struct EngineDownloadProgress {
     pub total_bytes: u64,
     pub progress: f64,
     pub message: String,
+    pub speed: f64,
+    pub eta: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

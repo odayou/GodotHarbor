@@ -477,7 +477,7 @@ pub async fn download_engine(
                     success: false,
                     cancelled: false,
                     engine: None,
-                    error: Some(format!("磁盘空间不足，可用 {:.0}MB，需要约 {:.0}MB", avail_mb, req_mb)),
+                    error: Some(format!("磁盘空间不足，可用 {:.0}MB，需要约 {:.0}MB（包含下载文件 + 解压空间 + 余量）", avail_mb, req_mb)),
                 });
             }
         }

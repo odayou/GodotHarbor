@@ -14,7 +14,8 @@ pub mod update_scheduler;
 pub mod hot_update;
 pub mod utils;
 
-use tauri::Manager;
+use tauri::{Emitter, Manager};
+use tauri_plugin_notification::NotificationExt;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -215,18 +216,62 @@ pub fn run() {
                         "check_update" => {
                             let app_clone = app.clone();
                             tauri::async_runtime::spawn(async move {
-                                match commands::check_hot_update(app_clone, None).await {
-                                    Ok(Some(update)) => {
-                                        // 有新版本
-                                        println!("发现新版本: {}", update.version);
+                                let _ = app_clone.emit("tray-check-update-start", ());
+
+                                let mut has_updates = false;
+                                let mut update_parts: Vec<String> = Vec::new();
+
+                                if let Ok(result) = commands::check_all_updates(app_clone.clone()).await {
+                                    if !result.plugin_updates.is_empty() {
+                                        has_updates = true;
+                                        update_parts.push(format!("{} 个插件更新", result.plugin_updates.len()));
+                                        let _ = app_clone.emit("plugin-updates-available", &result.plugin_updates);
                                     }
-                                    Ok(None) => {
-                                        // 无新版本
-                                        println!("当前已是最新版本");
+                                    if !result.engine_updates.is_empty() {
+                                        has_updates = true;
+                                        update_parts.push(format!("{} 个引擎更新", result.engine_updates.len()));
+                                        let _ = app_clone.emit("engine-updates-available", &result.engine_updates);
                                     }
-                                    Err(e) => {
-                                        eprintln!("检查更新失败: {}", e);
+                                }
+
+                                if let Ok(Some(update)) = commands::check_app_update(app_clone.clone()).await {
+                                    has_updates = true;
+                                    update_parts.push(format!("应用更新 v{}", update.latest_version));
+                                    let _ = app_clone.emit("app-update-available", &update);
+                                }
+
+                                if let Ok(Some(hot_update)) = commands::check_hot_update(app_clone.clone(), None).await {
+                                    has_updates = true;
+                                    update_parts.push(format!("热更新 {}", hot_update.version));
+                                    let _ = app_clone.emit("hot-update-available", &hot_update);
+                                }
+
+                                if has_updates {
+                                    let _ = app_clone.emit("updates-available", ());
+                                    let _ = app_clone.emit("tray-check-update-result", serde_json::json!({
+                                        "has_updates": true,
+                                        "message": update_parts.join(", ")
+                                    }));
+
+                                    if let Some(window) = app_clone.get_webview_window("main") {
+                                        let _ = window.show();
+                                        let _ = window.set_focus();
                                     }
+
+                                    let _ = app_clone.notification().builder()
+                                        .title("发现更新")
+                                        .body(&update_parts.join(", "))
+                                        .show();
+                                } else {
+                                    let _ = app_clone.emit("tray-check-update-result", serde_json::json!({
+                                        "has_updates": false,
+                                        "message": "当前已是最新版本"
+                                    }));
+
+                                    let _ = app_clone.notification().builder()
+                                        .title("Godot Harbor")
+                                        .body("当前已是最新版本")
+                                        .show();
                                 }
                             });
                         }

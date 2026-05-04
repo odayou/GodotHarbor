@@ -436,6 +436,8 @@ export interface EngineDownloadProgress {
   total_bytes: number
   progress: number
   message: string
+  speed: number
+  eta: number
 }
 
 export interface DownloadEngineResult {

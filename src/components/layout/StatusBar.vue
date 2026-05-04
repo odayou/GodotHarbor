@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
 import { sendAppNotification } from '@/composables/useNotification'
@@ -17,6 +17,18 @@ const localEngines = ref<LocalEngineVersion[]>([])
 const isChecking = ref(false)
 const lastChecked = ref<string>('')
 const showUpdatePanel = ref(false)
+const showUpToDateToast = ref(false)
+
+watch(() => updateStore.trayCheckHasUpdates, (val) => {
+  if (val === true) {
+    showUpdatePanel.value = true
+  } else if (val === false) {
+    showUpToDateToast.value = true
+    setTimeout(() => {
+      showUpToDateToast.value = false
+    }, 3000)
+  }
+})
 
 let unlisten: (() => void) | null = null
 let unlistenUpdates: (() => void) | null = null
@@ -239,6 +251,22 @@ onUnmounted(() => {
     </div>
 
     <div class="flex items-center gap-2">
+      <transition
+        enter-active-class="transition ease-out duration-200"
+        enter-from-class="opacity-0 translate-y-1"
+        enter-to-class="opacity-100 translate-y-0"
+        leave-active-class="transition ease-in duration-150"
+        leave-from-class="opacity-100 translate-y-0"
+        leave-to-class="opacity-0 translate-y-1"
+      >
+        <span v-if="showUpToDateToast" class="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          {{ t('statusbar.upToDate') }}
+        </span>
+      </transition>
+
       <button
         v-if="hasAnyUpdate"
         @click.stop="toggleUpdatePanel"

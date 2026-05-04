@@ -240,6 +240,24 @@ impl EngineDownloader {
                     Ok(resp) => {
                         let status = resp.status().as_u16();
                         if status == 403 {
+                            let reset_header = resp.headers()
+                                .get("x-ratelimit-reset")
+                                .and_then(|v| v.to_str().ok())
+                                .and_then(|v| v.parse::<u64>().ok());
+                            if let Some(reset_ts) = reset_header {
+                                let now = std::time::SystemTime::now()
+                                    .duration_since(std::time::UNIX_EPOCH)
+                                    .unwrap_or_default()
+                                    .as_secs();
+                                let remaining = reset_ts.saturating_sub(now);
+                                let mins = remaining / 60;
+                                let secs = remaining % 60;
+                                if mins > 0 {
+                                    return Err(format!("RATE_LIMITED:{}m{}s", mins, secs));
+                                } else {
+                                    return Err(format!("RATE_LIMITED:{}s", secs));
+                                }
+                            }
                             return Err("RATE_LIMITED".to_string());
                         }
                         eprintln!("获取 {} 返回状态码: {}", url, resp.status());
@@ -478,7 +496,7 @@ impl EngineDownloader {
             return Err("下载已取消".to_string());
         }
 
-        Self::emit_progress(app, version, variant, "extracting", 0.0, "正在解压引擎文件...", 0, 0);
+        Self::emit_progress(app, version, variant, "extracting", 0.0, "正在解压引擎文件...", 0, 0, 0.0, 0);
 
         std::fs::create_dir_all(&target_dir)
             .map_err(|e| format!("创建引擎目录失败: {}", e))?;
@@ -492,7 +510,7 @@ impl EngineDownloader {
             return Err(e);
         }
 
-        Self::emit_progress(app, version, variant, "complete", 100.0, "引擎下载安装完成", 0, 0);
+        Self::emit_progress(app, version, variant, "complete", 100.0, "引擎下载安装完成", 0, 0, 0.0, 0);
 
         remove_cancel_flag(version, variant);
 
@@ -507,7 +525,7 @@ impl EngineDownloader {
         variant: &str,
         total_size: u64,
     ) -> Result<(), String> {
-        Self::emit_progress(app, version, variant, "downloading", 0.0, "正在下载引擎...", 0, total_size);
+        Self::emit_progress(app, version, variant, "downloading", 0.0, "正在下载引擎...", 0, total_size, 0.0, 0);
 
         let client = create_http_client(Some(std::time::Duration::from_secs(300)))?;
 
@@ -525,7 +543,7 @@ impl EngineDownloader {
                 Err(e) => {
                     if attempt < max_retries && (e.is_connect() || e.is_timeout() || e.is_request()) {
                         let msg = format!("下载请求失败，第 {} 次重试...", attempt);
-                        Self::emit_progress(app, version, variant, "downloading", 0.0, &msg, 0, total_size);
+                        Self::emit_progress(app, version, variant, "downloading", 0.0, &msg, 0, total_size, 0.0, 0);
                         tokio::time::sleep(std::time::Duration::from_secs(2u64.pow(attempt as u32 - 1))).await;
                         continue;
                     }
@@ -537,7 +555,7 @@ impl EngineDownloader {
                 let status = response.status().as_u16();
                 if status >= 500 && attempt < max_retries {
                     let msg = format!("服务器错误 ({}), 第 {} 次重试...", status, attempt);
-                    Self::emit_progress(app, version, variant, "downloading", 0.0, &msg, 0, total_size);
+                    Self::emit_progress(app, version, variant, "downloading", 0.0, &msg, 0, total_size, 0.0, 0);
                     tokio::time::sleep(std::time::Duration::from_secs(2u64.pow(attempt as u32 - 1))).await;
                     continue;
                 }
@@ -557,6 +575,10 @@ impl EngineDownloader {
                 .map_err(|e| format!("创建文件失败: {}", e))?;
 
             let mut downloaded: u64 = 0;
+            let start_time = std::time::Instant::now();
+            let mut last_progress_time = start_time;
+            let mut last_downloaded: u64 = 0;
+            let mut current_speed: f64 = 0.0;
 
             use std::io::Write;
 
@@ -574,21 +596,41 @@ impl EngineDownloader {
                             .map_err(|e| format!("写入文件失败: {}", e))?;
                         downloaded += data.len() as u64;
 
+                        let now = std::time::Instant::now();
+                        let elapsed_since_last = now.duration_since(last_progress_time).as_secs_f64();
+                        if elapsed_since_last >= 0.5 {
+                            let bytes_diff = downloaded.saturating_sub(last_downloaded) as f64;
+                            current_speed = bytes_diff / elapsed_since_last;
+                            last_progress_time = now;
+                            last_downloaded = downloaded;
+                        }
+                        let overall_elapsed = start_time.elapsed().as_secs_f64();
+                        if overall_elapsed > 1.0 && downloaded > 0 {
+                            current_speed = if current_speed > 0.0 { current_speed } else { downloaded as f64 / overall_elapsed };
+                        }
+
                         let progress = if total > 0 {
                             (downloaded as f64 / total as f64) * 100.0
                         } else {
                             0.0
                         };
 
-                        let size_mb = downloaded as f64 / 1024.0 / 1024.0;
-                        let total_mb = total as f64 / 1024.0 / 1024.0;
-                        let msg = if total > 0 {
-                            format!("正在下载: {:.1}MB / {:.1}MB", size_mb, total_mb)
+                        let remaining = if total > downloaded && current_speed > 0.0 {
+                            ((total - downloaded) as f64 / current_speed).ceil() as u64
                         } else {
-                            format!("正在下载: {:.1}MB", size_mb)
+                            0
                         };
 
-                        Self::emit_progress(app, version, variant, "downloading", progress, &msg, downloaded, total);
+                        let size_mb = downloaded as f64 / 1024.0 / 1024.0;
+                        let total_mb = total as f64 / 1024.0 / 1024.0;
+                        let speed_mb = current_speed / 1024.0 / 1024.0;
+                        let msg = if total > 0 {
+                            format!("正在下载: {:.1}MB / {:.1}MB ({:.1}MB/s)", size_mb, total_mb, speed_mb)
+                        } else {
+                            format!("正在下载: {:.1}MB ({:.1}MB/s)", size_mb, speed_mb)
+                        };
+
+                        Self::emit_progress(app, version, variant, "downloading", progress, &msg, downloaded, total, current_speed, remaining);
                     }
                     None => break,
                 }
@@ -662,14 +704,14 @@ impl EngineDownloader {
             if extracted % 5 == 0 || extracted == total_entries {
                 let progress = (extracted as f64 / total_entries as f64) * 100.0;
                 let msg = format!("正在解压: {}/{}", extracted, total_entries);
-                Self::emit_progress(app, version, variant, "extracting", progress, &msg, 0, 0);
+                Self::emit_progress(app, version, variant, "extracting", progress, &msg, 0, 0, 0.0, 0);
             }
         }
 
         Ok(())
     }
 
-    fn emit_progress(app: &AppHandle, version: &str, variant: &str, stage: &str, progress: f64, message: &str, downloaded_bytes: u64, total_bytes: u64) {
+    fn emit_progress(app: &AppHandle, version: &str, variant: &str, stage: &str, progress: f64, message: &str, downloaded_bytes: u64, total_bytes: u64, speed: f64, eta: u64) {
         let progress_info = EngineDownloadProgress {
             version: version.to_string(),
             variant: variant.to_string(),
@@ -678,6 +720,8 @@ impl EngineDownloader {
             total_bytes,
             progress,
             message: message.to_string(),
+            speed,
+            eta,
         };
         {
             let key = download_key(version, variant);

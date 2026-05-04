@@ -9,6 +9,8 @@ export const useUpdateStore = defineStore('updates', () => {
   const { t } = useI18n()
   const isChecking = ref(false)
   const lastCheckedAt = ref('')
+  const trayCheckMessage = ref('')
+  const trayCheckHasUpdates = ref<boolean | null>(null)
 
   const appUpdate = ref<AppUpdateInfo | null>(null)
   const pluginUpdates = ref<PluginUpdateInfo[]>([])
@@ -75,7 +77,17 @@ export const useUpdateStore = defineStore('updates', () => {
         message: event.payload.message || ''
       }
     })
-    unlisteners.push(unlisten1, unlisten2, unlisten3, unlisten4)
+    const unlisten5 = await listen('tray-check-update-result', (event: any) => {
+      trayCheckHasUpdates.value = event.payload.has_updates
+      trayCheckMessage.value = event.payload.message
+      if (!event.payload.has_updates) {
+        setTimeout(() => {
+          trayCheckHasUpdates.value = null
+          trayCheckMessage.value = ''
+        }, 5000)
+      }
+    })
+    unlisteners.push(unlisten1, unlisten2, unlisten3, unlisten4, unlisten5)
   }
 
   function cleanupListeners() {
@@ -250,6 +262,8 @@ export const useUpdateStore = defineStore('updates', () => {
   return {
     isChecking,
     lastCheckedAt,
+    trayCheckMessage,
+    trayCheckHasUpdates,
     appUpdate,
     pluginUpdates,
     engineUpdates,

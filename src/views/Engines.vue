@@ -50,9 +50,12 @@ const downloadVariantFilter = ref<'all' | 'standard' | 'mono'>('all')
 const downloadSearchQuery = ref('')
 const hideInstalled = ref(false)
 const activeDownloads = ref<Map<string, EngineDownloadProgress>>(new Map())
+const failedDownloads = ref<Map<string, string>>(new Map())
 const expandedReleaseVersion = ref<string>('')
 const openMenuId = ref<string>('')
 const collapsedGroups = ref<Set<string>>(new Set())
+const showReDownloadConfirm = ref(false)
+const reDownloadTarget = ref<RemoteEngineVersion | null>(null)
 
 useDialogEscape(showAddDialog)
 useDialogEscape(showRenameDialog)
@@ -151,6 +154,17 @@ const groupedRemoteVersions = computed(() => {
   return groups
 })
 
+const latestStableKey = computed(() => {
+  const stables = remoteVersions.value.filter(v => v.channel === 'Stable' && v.variant === 'standard')
+  if (stables.length === 0) return ''
+  stables.sort((a, b) => {
+    if (a.major !== b.major) return b.major - a.major
+    if (a.minor !== b.minor) return b.minor - a.minor
+    return b.patch - a.patch
+  })
+  return `${stables[0].version}_${stables[0].variant}`
+})
+
 const subGroupedVersions = (versions: RemoteEngineVersion[]) => {
   const subGroups = new Map<string, RemoteEngineVersion[]>()
   for (const v of versions) {
@@ -197,6 +211,15 @@ const formatFileSize = (bytes: number) => {
   const mb = bytes / 1024 / 1024
   if (mb < 1024) return `${mb.toFixed(1)} MB`
   return `${(mb / 1024).toFixed(2)} GB`
+}
+
+const formatEta = (seconds: number) => {
+  if (seconds < 60) return `${seconds}s`
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  if (m < 60) return `${m}m ${s}s`
+  const h = Math.floor(m / 60)
+  return `${h}h ${m % 60}m`
 }
 
 const formatDate = (dateStr: string) => {
@@ -353,6 +376,11 @@ const downloadEngineFromUrl = async () => {
     toast.warning(t('engines.urlDownload.enterUrl'))
     return
   }
+  const urlLower = engineUrl.value.toLowerCase()
+  if (!urlLower.endsWith('.zip') && !urlLower.includes('.zip?') && !urlLower.includes('.zip/')) {
+    toast.warning(t('engines.urlDownload.zipHint'))
+    return
+  }
   isDownloadingFromUrl.value = true
   try {
     const result = await api.downloadEngineFromUrl(engineUrl.value, engineUrlName.value)
@@ -397,10 +425,6 @@ const saveRename = async () => {
 
 const openDownloadDialog = async () => {
   showDownloadDialog.value = true
-  downloadChannelFilter.value = 'all'
-  downloadVariantFilter.value = 'all'
-  downloadSearchQuery.value = ''
-  hideInstalled.value = false
   expandedReleaseVersion.value = ''
 
   try {
@@ -445,7 +469,12 @@ const fetchRemoteVersions = async (forceRefresh: boolean = false) => {
   } catch (error) {
     const errMsg = String(error)
     if (errMsg.includes('RATE_LIMITED')) {
-      toast.error(t('engines.download.rateLimitError'))
+      const timeMatch = errMsg.match(/RATE_LIMITED:(.+)/)
+      if (timeMatch) {
+        toast.error(t('engines.download.rateLimitErrorWithTime', { time: timeMatch[1] }))
+      } else {
+        toast.error(t('engines.download.rateLimitError'))
+      }
     } else if (errMsg.includes('NETWORK_ERROR')) {
       toast.error(t('engines.download.networkError'))
     } else {
@@ -462,6 +491,16 @@ const startDownload = async (version: RemoteEngineVersion) => {
     toast.info(t('engines.download.alreadyDownloading'))
     return
   }
+  if (version.is_installed) {
+    reDownloadTarget.value = version
+    showReDownloadConfirm.value = true
+    return
+  }
+  doStartDownload(version)
+}
+
+const doStartDownload = (version: RemoteEngineVersion) => {
+  const dlKey = `${version.version}_${version.variant}`
   const newMap = new Map(activeDownloads.value)
   newMap.set(dlKey, {
     version: version.version,
@@ -470,11 +509,16 @@ const startDownload = async (version: RemoteEngineVersion) => {
     downloaded_bytes: 0,
     total_bytes: 0,
     progress: 0,
-    message: t('engines.download.downloading')
+    message: t('engines.download.downloading'),
+    speed: 0,
+    eta: 0
   })
   activeDownloads.value = newMap
-  try {
-    const result = await api.downloadEngine(version)
+  const failedMap = new Map(failedDownloads.value)
+  failedMap.delete(dlKey)
+  failedDownloads.value = failedMap
+
+  api.downloadEngine(version).then(result => {
     if (result.cancelled) {
       toast.info(t('engines.download.downloadCancelled'))
     } else if (result.success && result.engine) {
@@ -485,17 +529,23 @@ const startDownload = async (version: RemoteEngineVersion) => {
         }
         return v
       })
-      await loadEngines()
+      loadEngines()
     } else if (result.error) {
       toast.error(t('engines.download.downloadFailed', { error: result.error }))
+      const fm = new Map(failedDownloads.value)
+      fm.set(dlKey, result.error)
+      failedDownloads.value = fm
     }
-  } catch (error) {
+  }).catch(error => {
     toast.error(t('engines.download.downloadFailed', { error }))
-  } finally {
+    const fm = new Map(failedDownloads.value)
+    fm.set(dlKey, String(error))
+    failedDownloads.value = fm
+  }).finally(() => {
     const cleanupMap = new Map(activeDownloads.value)
     cleanupMap.delete(dlKey)
     activeDownloads.value = cleanupMap
-  }
+  })
 }
 
 const cancelDownload = async (version: string, variant: string) => {
@@ -602,6 +652,7 @@ const initCollapsedGroups = () => {
           <div class="flex items-center justify-between mb-1">
             <span class="text-xs text-blue-700 dark:text-blue-300">v{{ progress.version }}{{ progress.variant === 'mono' ? ' (.NET)' : '' }} - {{ progress.message }}</span>
             <div class="flex items-center gap-2">
+              <span v-if="progress.speed > 0" class="text-xs text-blue-600 dark:text-blue-400">{{ formatFileSize(progress.speed) }}/s</span>
               <span class="text-xs text-blue-600 dark:text-blue-400">{{ progress.progress.toFixed(1) }}%</span>
               <button
                 @click="cancelDownload(progress.version, progress.variant)"
@@ -979,8 +1030,10 @@ const initCollapsedGroups = () => {
               <div class="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
                 <div class="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-300" :style="{ width: `${progress.progress}%` }"></div>
               </div>
-              <div v-if="progress.total_bytes > 0" class="text-xs text-blue-500 dark:text-blue-400 mt-1">
-                {{ formatFileSize(progress.downloaded_bytes) }} / {{ formatFileSize(progress.total_bytes) }}
+              <div class="flex justify-between text-xs text-blue-500 dark:text-blue-400 mt-1">
+                <span v-if="progress.total_bytes > 0">{{ formatFileSize(progress.downloaded_bytes) }} / {{ formatFileSize(progress.total_bytes) }}</span>
+                <span v-else>{{ formatFileSize(progress.downloaded_bytes) }}</span>
+                <span v-if="progress.speed > 0">{{ formatFileSize(progress.speed) }}/s{{ progress.eta > 0 ? ` · ${formatEta(progress.eta)}` : '' }}</span>
               </div>
               <div class="flex justify-end mt-2">
                 <button
@@ -1075,6 +1128,12 @@ const initCollapsedGroups = () => {
                     <div class="flex-1 min-w-0">
                       <div class="flex items-center gap-2">
                         <span class="font-medium text-sm text-gray-900 dark:text-gray-100">v{{ version.version }}</span>
+                        <span
+                          v-if="latestStableKey === `${version.version}_${version.variant}`"
+                          class="px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400"
+                        >
+                          {{ t('engines.download.latestStable') }}
+                        </span>
                         <span :class="['px-1.5 py-0.5 rounded text-xs font-medium', channelBadgeClass(version.channel)]">
                           {{ channelLabel(version.channel, version.channel_number) }}
                         </span>
@@ -1119,28 +1178,38 @@ const initCollapsedGroups = () => {
                         </button>
                       </div>
                     </div>
-                    <button
-                      @click="startDownload(version)"
-                      :disabled="activeDownloads.has(`${version.version}_${version.variant}`)"
-                      :class="[
-                        'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap',
-                        version.is_installed
-                          ? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-                          : activeDownloads.has(`${version.version}_${version.variant}`)
-                            ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
-                            : 'bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50'
-                      ]"
-                    >
-                      <template v-if="activeDownloads.has(`${version.version}_${version.variant}`)">
+                    <template v-if="activeDownloads.has(`${version.version}_${version.variant}`)">
+                      <button
+                        disabled
+                        class="px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
+                      >
                         {{ t('engines.download.downloading') }}
-                      </template>
-                      <template v-else-if="version.is_installed">
-                        {{ t('engines.download.reDownload') }}
-                      </template>
-                      <template v-else>
+                      </button>
+                    </template>
+                    <template v-else-if="failedDownloads.has(`${version.version}_${version.variant}`)">
+                      <button
+                        @click="doStartDownload(version)"
+                        class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50"
+                      >
+                        {{ t('engines.download.retry') }}
+                      </button>
+                    </template>
+                    <template v-else-if="version.is_installed">
+                      <button
+                        @click="startDownload(version)"
+                        class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
+                      >
+                        {{ t('engines.download.reInstall') }}
+                      </button>
+                    </template>
+                    <template v-else>
+                      <button
+                        @click="startDownload(version)"
+                        class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap bg-primary-600 text-white hover:bg-primary-700"
+                      >
                         {{ t('engines.download.downloadAction') }}
-                      </template>
-                    </button>
+                      </button>
+                    </template>
                   </div>
                   <div
                     v-if="expandedReleaseVersion === `${version.version}_${version.variant}` && version.release_notes"
@@ -1202,5 +1271,13 @@ const initCollapsedGroups = () => {
       </label>
       <p v-if="deleteAlsoFiles" class="mt-2 text-xs text-red-600 dark:text-red-400">{{ t('engines.deleteAlsoFilesWarning') }}</p>
     </ConfirmDialog>
+
+    <ConfirmDialog
+      v-model="showReDownloadConfirm"
+      :title="t('engines.download.reInstallTitle')"
+      :description="t('engines.download.reInstallDesc', { version: reDownloadTarget ? `v${reDownloadTarget.version}` : '' })"
+      :confirm-text="t('engines.download.reInstall')"
+      @confirm="reDownloadTarget && doStartDownload(reDownloadTarget); reDownloadTarget = null"
+    />
   </Teleport>
 </template>
