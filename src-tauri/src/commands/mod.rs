@@ -13,20 +13,7 @@ use crate::AppState;
 use uuid::Uuid;
 use futures::future::join_all;
 
-#[cfg(windows)]
-fn no_window_cmd(program: impl AsRef<std::ffi::OsStr>) -> std::process::Command {
-    use std::os::windows::process::CommandExt;
-    const CREATE_NO_WINDOW: u32 = 0x08000000;
-    let mut cmd = std::process::Command::new(program);
-    cmd.creation_flags(CREATE_NO_WINDOW);
-    cmd
-}
-
-#[cfg(not(windows))]
-fn no_window_cmd(program: impl AsRef<std::ffi::OsStr>) -> std::process::Command {
-    std::process::Command::new(program)
-}
-use crate::utils::{copy_dir_all, create_http_client};
+use crate::utils::{copy_dir_all, create_http_client, no_window_cmd};
 
 pub fn get_config_dir(app: &AppHandle) -> PathBuf {
     app.path().app_data_dir()
@@ -359,6 +346,25 @@ pub fn migrate_data_dir(app: AppHandle, new_data_dir: String) -> Result<(), Stri
         }
         if changed {
             let _ = new_storage.save("plugins.json", &plugins);
+        }
+    }
+
+    for entry in fs::read_dir(&old_data_dir)
+        .map_err(|e| format!("读取源目录失败: {}", e))?
+    {
+        let entry = entry.map_err(|e| format!("读取目录条目失败: {}", e))?;
+        let file_name = entry.file_name();
+        let name_str = file_name.to_string_lossy();
+        if exclude_names.iter().any(|ex| *ex == name_str) {
+            continue;
+        }
+        let ty = entry.file_type().map_err(|e| format!("获取文件类型失败: {}", e))?;
+        if ty.is_dir() {
+            std::fs::remove_dir_all(entry.path())
+                .map_err(|e| format!("删除目录 {} 失败: {}", name_str, e))?;
+        } else {
+            std::fs::remove_file(entry.path())
+                .map_err(|e| format!("删除文件 {} 失败: {}", name_str, e))?;
         }
     }
 

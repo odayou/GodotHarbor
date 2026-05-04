@@ -1,6 +1,20 @@
 use std::path::Path;
 use std::fs;
 
+#[cfg(windows)]
+pub fn no_window_cmd(program: impl AsRef<std::ffi::OsStr>) -> std::process::Command {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    let mut cmd = std::process::Command::new(program);
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    cmd
+}
+
+#[cfg(not(windows))]
+pub fn no_window_cmd(program: impl AsRef<std::ffi::OsStr>) -> std::process::Command {
+    std::process::Command::new(program)
+}
+
 pub const SKIP_DIRS: &[&str] = &[
     ".git", ".svn", ".hg",
     "node_modules", "__pycache__",

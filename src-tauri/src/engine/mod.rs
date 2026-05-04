@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::collections::HashSet;
 use crate::models::{Engine, EngineType};
+use crate::utils::no_window_cmd;
 use anyhow::{Result, anyhow};
 use rayon::prelude::*;
 use regex::Regex;
@@ -115,7 +116,7 @@ impl EngineManager {
         let exe_path = Self::find_executable_in_dir(dir_path)
             .ok_or_else(|| anyhow!("未找到 Godot 可执行文件"))?;
 
-        let output = std::process::Command::new(&exe_path)
+        let output = no_window_cmd(&exe_path)
             .arg("--version")
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
@@ -546,7 +547,7 @@ impl EngineManager {
                                     }
                                 } else {
                                     let exe_str = exe_path.to_string_lossy().to_string();
-                                    let output = std::process::Command::new(&exe_path)
+                                    let output = no_window_cmd(&exe_path)
                                         .arg("--version")
                                         .output();
                                     if let Ok(output) = output {
@@ -683,7 +684,7 @@ impl EngineManager {
                                         Err(_) => {}
                                     }
                                 } else {
-                                    let output = std::process::Command::new(exe_path)
+                                    let output = no_window_cmd(exe_path)
                                         .arg("--version")
                                         .output();
                                     if let Ok(output) = output {
@@ -743,7 +744,7 @@ impl EngineManager {
                     continue;
                 }
 
-                let output = match std::process::Command::new(&exe_path)
+                let output = match no_window_cmd(&exe_path)
                     .arg("--version")
                     .output()
                 {
