@@ -542,6 +542,9 @@ impl EngineDownloader {
                     tokio::time::sleep(std::time::Duration::from_secs(2u64.pow(attempt as u32 - 1))).await;
                     continue;
                 }
+                if status == 403 {
+                    return Err(format!("下载被拒绝 (403 Forbidden)，该镜像源可能已不可用，请尝试切换到其他镜像源或使用自定义 URL 下载"));
+                }
                 return Err(format!("下载失败，HTTP 状态码: {}", response.status()));
             }
 

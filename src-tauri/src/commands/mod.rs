@@ -179,7 +179,19 @@ fn log_error(app: &AppHandle, action: &str, target: &str, error: &str) {
 
 #[tauri::command]
 pub fn get_settings(app: AppHandle) -> Result<Settings, String> {
-    Ok(load_settings(&app))
+    let mut settings = load_settings(&app);
+    let mut need_save = false;
+    for mirror in &mut settings.engine_mirrors {
+        if mirror.id == "your-objectstorage" && mirror.enabled {
+            mirror.enabled = false;
+            mirror.name = "Your ObjectStorage (CN) - Unavailable".to_string();
+            need_save = true;
+        }
+    }
+    if need_save {
+        let _ = save_settings_to_config(&app, &settings);
+    }
+    Ok(settings)
 }
 
 #[tauri::command]

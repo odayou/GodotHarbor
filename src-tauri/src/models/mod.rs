@@ -262,9 +262,9 @@ impl EngineMirrorConfig {
     pub fn your_objectstorage() -> Self {
         Self {
             id: "your-objectstorage".to_string(),
-            name: "Your ObjectStorage (CN)".to_string(),
+            name: "Your ObjectStorage (CN) - Unavailable".to_string(),
             base_url: "https://godot-releases.nbg1.your-objectstorage.com".to_string(),
-            enabled: true,
+            enabled: false,
             is_official: false,
             mirror_type: "direct".to_string(),
         }
