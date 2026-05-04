@@ -45,7 +45,7 @@ const selectedProjectIds = ref<string[]>([])
 const isExporting = ref(false)
 const isImporting = ref(false)
 
-const activeSection = ref('scan')
+const activeSection = ref('general')
 
 onMounted(() => {
   initTheme(); loadSettings(); loadTeamConfigs(); loadProjects(); loadStoragePaths()
@@ -174,7 +174,7 @@ const copyError = async (log: LogEntry) => {
 const formatTime = (timestamp: string) => {
   try {
     const date = new Date(timestamp)
-    return date.toLocaleString('zh-CN')
+    return date.toLocaleString(settings.value.language || 'zh-CN')
   } catch { return timestamp }
 }
 
@@ -242,6 +242,7 @@ const executeDataMigration = async () => {
     await api.migrateDataDir(pendingDataDir.value)
     toast.success(t('settings.storage.migrateSuccess'))
     showDataMigrateDialog.value = false
+    await loadSettings()
     await loadStoragePaths()
   } catch (error) {
     toast.error(t('settings.storage.migrateFailed') + ': ' + error)
@@ -535,8 +536,6 @@ const toggleMirrorEnabled = (mirrorId: string) => {
       <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ t('settings.title') }}</h1>
       <div class="flex gap-2">
         <button @click="loadLogs" class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm">{{ t('settings.buttons.viewLogs') }}</button>
-        <button @click="showBackupDialog = true" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm">{{ t('settings.buttons.backup') }}</button>
-        <button @click="showTeamConfigDialog = true" class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm">{{ t('settings.buttons.teamConfig') }}</button>
       </div>
     </div>
     <div v-if="isLoading" class="flex justify-center py-12"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div></div>
@@ -544,13 +543,11 @@ const toggleMirrorEnabled = (mirrorId: string) => {
       <nav class="w-44 shrink-0 hidden lg:block">
         <div class="sticky top-6 space-y-1">
           <button v-for="section in [
-            { id: 'scan', label: t('settings.scan'), icon: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z' },
-            { id: 'mount', label: t('settings.mount'), icon: 'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1' },
-            { id: 'pluginRepo', label: t('settings.pluginRepo.title'), icon: 'M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z' },
-            { id: 'engineMirror', label: t('settings.engineMirror.title'), icon: 'M13 10V3L4 14h7v7l9-11h-7z' },
-            { id: 'appearance', label: t('settings.appearance'), icon: 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01' },
+            { id: 'general', label: t('settings.general'), icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
             { id: 'storage', label: t('settings.storage.title'), icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4' },
-            { id: 'other', label: t('settings.other'), icon: 'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4' }
+            { id: 'mount', label: t('settings.mount'), icon: 'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1' },
+            { id: 'updates', label: t('settings.updates.title'), icon: 'M13 10V3L4 14h7v7l9-11h-7z' },
+            { id: 'dataManagement', label: t('settings.dataManagement'), icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4' }
           ]" :key="section.id" @click="activeSection = section.id"
             :class="[
               'flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors w-full text-left',
@@ -566,27 +563,68 @@ const toggleMirrorEnabled = (mirrorId: string) => {
           </button>
         </div>
       </nav>
+      <div class="lg:hidden flex gap-1.5 overflow-x-auto pb-2 -mx-1 px-1">
+        <button v-for="section in [
+          { id: 'general', label: t('settings.general') },
+          { id: 'storage', label: t('settings.storage.title') },
+          { id: 'mount', label: t('settings.mount') },
+          { id: 'updates', label: t('settings.updates.title') },
+          { id: 'dataManagement', label: t('settings.dataManagement') }
+        ]" :key="section.id" @click="activeSection = section.id"
+          :class="[
+            'px-3 py-1.5 text-xs rounded-full whitespace-nowrap transition-colors',
+            activeSection === section.id
+              ? 'bg-primary-600 text-white font-medium'
+              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+          ]"
+        >
+          {{ section.label }}
+        </button>
+      </div>
       <div class="flex-1 min-w-0 space-y-6">
-      <div v-show="activeSection === 'scan'" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.scan') }}</h2>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.scanDirs') }}</label>
-        <div class="space-y-2">
-          <div v-for="(dir, index) in settings.scan_directories" :key="index" class="flex items-center space-x-2">
-            <input type="text" readonly :value="dir" class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm" />
-            <button @click="removeScanDirectory(index)" class="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm">{{ t('settings.remove') }}</button>
+      <div v-show="activeSection === 'general'" class="space-y-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.appearance') }}</h2>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.languageLabel') }}</label>
+              <select v-model="settings.language" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                <option value="zh-CN">{{ t('settings.language.zhCN') }}</option>
+                <option value="en">English</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.theme') }}</label>
+              <select v-model="settings.theme" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                <option value="light">{{ t('settings.themeLight') }}</option>
+                <option value="dark">{{ t('settings.themeDark') }}</option>
+                <option value="system">{{ t('settings.themeSystem') }}</option>
+                <option value="volcano">{{ t('settings.cloudProvider.volcano') }}</option>
+              </select>
+            </div>
           </div>
-          <div v-if="!settings.scan_directories?.length" class="text-sm text-gray-500 dark:text-gray-400 py-2">{{ t('settings.noDirs') }}</div>
-          <button @click="addScanDirectory" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm">{{ t('settings.addDir') }}</button>
         </div>
-        <div class="mt-4 space-y-3">
-          <label class="flex items-center gap-3 cursor-pointer">
-            <input type="checkbox" v-model="settings.auto_scan_on_startup" class="w-4 h-4 text-primary-600 rounded" />
-            <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.autoScanOnStartup') }}</span>
-          </label>
-          <label class="flex items-center gap-3 cursor-pointer">
-            <input type="checkbox" v-model="settings.auto_discover_engines" class="w-4 h-4 text-primary-600 rounded" />
-            <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.autoDiscoverEngines') }}</span>
-          </label>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.scan') }}</h2>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.scanDirs') }}</label>
+          <div class="space-y-2">
+            <div v-for="(dir, index) in settings.scan_directories" :key="index" class="flex items-center space-x-2">
+              <input type="text" readonly :value="dir" class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm" />
+              <button @click="removeScanDirectory(index)" class="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm">{{ t('settings.remove') }}</button>
+            </div>
+            <div v-if="!settings.scan_directories?.length" class="text-sm text-gray-500 dark:text-gray-400 py-2">{{ t('settings.noDirs') }}</div>
+            <button @click="addScanDirectory" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm">{{ t('settings.addDir') }}</button>
+          </div>
+          <div class="mt-4 space-y-3">
+            <label class="flex items-center gap-3 cursor-pointer">
+              <input type="checkbox" v-model="settings.auto_scan_on_startup" class="w-4 h-4 text-primary-600 rounded" />
+              <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.autoScanOnStartup') }}</span>
+            </label>
+            <label class="flex items-center gap-3 cursor-pointer">
+              <input type="checkbox" v-model="settings.auto_discover_engines" class="w-4 h-4 text-primary-600 rounded" />
+              <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.autoDiscoverEngines') }}</span>
+            </label>
+          </div>
         </div>
       </div>
       <div v-show="activeSection === 'mount'" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
@@ -603,11 +641,25 @@ const toggleMirrorEnabled = (mirrorId: string) => {
           <span v-else-if="settings.mount_strategy === 'Copy'">{{ t('settings.copyDesc') }}</span>
         </p>
       </div>
-      <div v-show="activeSection === 'pluginRepo'" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.pluginRepo.title') }}</h2>
-        <div class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.pluginRepo.storagePath') }}</label>
+      <div v-if="storagePaths" v-show="activeSection === 'storage'" class="space-y-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ t('settings.storage.title') }}</h2>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">{{ t('settings.storage.description') }}</p>
+          <div class="mb-4 p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
+            <label class="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">{{ t('settings.storage.customDataDir') }}</label>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ t('settings.storage.customDataDirDesc') }}</p>
+            <div class="flex gap-2">
+              <input type="text" v-model="settings.custom_data_dir"
+                     :placeholder="t('settings.storage.customDataDirPlaceholder')"
+                     class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+              <button @click="selectCustomDataDir" class="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.pluginRepo.browse') }}</button>
+              <button v-if="settings.custom_data_dir" @click="settings.custom_data_dir = ''" class="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.storage.resetToDefault') }}</button>
+            </div>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">{{ t('settings.storage.customDataDirHint') }}</p>
+          </div>
+          <div class="mb-4 p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
+            <label class="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">{{ t('settings.pluginRepo.storagePath') }}</label>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ t('settings.pluginRepo.storageHint') }}</p>
             <div class="flex gap-2">
               <input
                 type="text"
@@ -622,183 +674,138 @@ const toggleMirrorEnabled = (mirrorId: string) => {
                 {{ t('settings.pluginRepo.browse') }}
               </button>
             </div>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ t('settings.pluginRepo.storageHint') }}</p>
           </div>
-          <label class="flex items-center gap-3 cursor-pointer">
-            <input type="checkbox" v-model="settings.auto_check_plugin_updates" class="w-4 h-4 text-primary-600 rounded" />
-            <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.pluginRepo.autoCheckPluginUpdates') }}</span>
-          </label>
-          <label class="flex items-center gap-3 cursor-pointer">
-            <input type="checkbox" v-model="settings.auto_check_app_updates" class="w-4 h-4 text-primary-600 rounded" />
-            <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.pluginRepo.autoCheckAppUpdates') }}</span>
-          </label>
-          <label class="flex items-center gap-3 cursor-pointer">
-            <input type="checkbox" v-model="settings.auto_check_engine_updates" class="w-4 h-4 text-primary-600 rounded" />
-            <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.pluginRepo.autoCheckEngineUpdates') }}</span>
-          </label>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.pluginRepo.checkInterval') }}</label>
-            <input type="number" v-model.number="settings.update_check_interval_hours" min="1" max="168"
-              class="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm" />
-          </div>
-        </div>
-      </div>
-      <div v-show="activeSection === 'engineMirror'" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.engineMirror.title') }}</h2>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ t('settings.engineMirror.desc') }}</p>
-        <div class="space-y-3">
-          <div v-for="mirror in (settings.engine_mirrors || [])" :key="mirror.id"
-            class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-600"
-            :class="{ 'opacity-60': !mirror.enabled }"
-          >
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2">
-                <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ mirror.name }}</span>
-                <span v-if="mirror.is_official" class="px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">{{ t('settings.engineMirror.official') }}</span>
-                <span v-else class="px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">{{ t('settings.engineMirror.custom') }}</span>
+          <div class="space-y-3">
+            <div v-for="item in [
+              { key: 'appDataDir', path: storagePaths.app_data_dir },
+              { key: 'pluginsDir', path: storagePaths.plugins_dir },
+              { key: 'enginesDir', path: storagePaths.engines_dir },
+              { key: 'cacheDir', path: storagePaths.cache_dir },
+              { key: 'logsDir', path: storagePaths.logs_dir },
+              { key: 'hotUpdatesDir', path: storagePaths.hot_updates_dir }
+            ]" :key="item.key" class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t(`settings.storage.${item.key}`) }}</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">{{ t(`settings.storage.${item.key}Desc`) }}</div>
+                <div class="text-xs font-mono text-gray-600 dark:text-gray-300 mt-1 break-all">{{ item.path }}</div>
               </div>
-              <span class="text-xs text-gray-500 dark:text-gray-400 truncate block mt-0.5">{{ mirror.base_url }}</span>
+              <button @click="openPath(item.path)" class="shrink-0 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.storage.openInFileManager') }}</button>
             </div>
-            <div class="flex items-center gap-2">
-              <button
-                @click="toggleMirrorEnabled(mirror.id)"
-                :class="['px-2 py-1 rounded text-xs font-medium transition-colors', mirror.enabled ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400']"
-              >
-                {{ mirror.enabled ? t('settings.engineMirror.enabled') : t('settings.engineMirror.disabled') }}
-              </button>
-              <button
-                @click="openEditMirror(mirror)"
-                class="text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-                :title="t('settings.engineMirror.edit')"
-              >
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-              </button>
-              <button
-                v-if="!mirror.is_official"
-                @click="removeMirror(mirror.id)"
-                class="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                :title="t('settings.engineMirror.remove')"
-              >
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-              </button>
-            </div>
-          </div>
-          <button
-            @click="openAddMirror"
-            class="px-4 py-2 border border-dashed border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm w-full"
-          >
-            + {{ t('settings.engineMirror.addMirror') }}
-          </button>
-        </div>
-      </div>
-      <div v-show="activeSection === 'appearance'" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.appearance') }}</h2>
-        <div class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.languageLabel') }}</label>
-            <select v-model="settings.language" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
-              <option value="zh-CN">{{ t('settings.language.zhCN') }}</option>
-              <option value="en">English</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.theme') }}</label>
-            <select v-model="settings.theme" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
-              <option value="light">{{ t('settings.themeLight') }}</option>
-              <option value="dark">{{ t('settings.themeDark') }}</option>
-              <option value="system">{{ t('settings.themeSystem') }}</option>
-              <option value="volcano">{{ t('settings.cloudProvider.volcano') }}</option>
-            </select>
-          </div>
-        </div>
-      </div>
-      <div v-if="storagePaths" v-show="activeSection === 'storage'" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ t('settings.storage.title') }}</h2>
-        <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">{{ t('settings.storage.description') }}</p>
-        <div class="mb-4 p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
-          <label class="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">{{ t('settings.storage.customDataDir') }}</label>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ t('settings.storage.customDataDirDesc') }}</p>
-          <div class="flex gap-2">
-            <input type="text" v-model="settings.custom_data_dir"
-                   :placeholder="t('settings.storage.customDataDirPlaceholder')"
-                   class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-            <button @click="selectCustomDataDir" class="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.pluginRepo.browse') }}</button>
-            <button v-if="settings.custom_data_dir" @click="settings.custom_data_dir = ''" class="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.storage.resetToDefault') }}</button>
-          </div>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">{{ t('settings.storage.customDataDirHint') }}</p>
-        </div>
-        <div class="space-y-3">
-          <div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-            <div class="flex-1 min-w-0">
-              <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('settings.storage.appDataDir') }}</div>
-              <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('settings.storage.appDataDirDesc') }}</div>
-              <div class="text-xs font-mono text-gray-600 dark:text-gray-300 mt-1 break-all">{{ storagePaths.app_data_dir }}</div>
-            </div>
-            <button @click="openPath(storagePaths.app_data_dir)" class="shrink-0 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.storage.openInFileManager') }}</button>
-          </div>
-          <div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-            <div class="flex-1 min-w-0">
-              <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('settings.storage.pluginsDir') }}</div>
-              <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('settings.storage.pluginsDirDesc') }} · {{ t('settings.storage.customizable') }}</div>
-              <div class="text-xs font-mono text-gray-600 dark:text-gray-300 mt-1 break-all">{{ storagePaths.plugins_dir }}</div>
-            </div>
-            <button @click="openPath(storagePaths.plugins_dir)" class="shrink-0 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.storage.openInFileManager') }}</button>
-          </div>
-          <div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-            <div class="flex-1 min-w-0">
-              <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('settings.storage.enginesDir') }}</div>
-              <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('settings.storage.enginesDirDesc') }}</div>
-              <div class="text-xs font-mono text-gray-600 dark:text-gray-300 mt-1 break-all">{{ storagePaths.engines_dir }}</div>
-            </div>
-            <button @click="openPath(storagePaths.engines_dir)" class="shrink-0 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.storage.openInFileManager') }}</button>
-          </div>
-          <div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-            <div class="flex-1 min-w-0">
-              <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('settings.storage.cacheDir') }}</div>
-              <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('settings.storage.cacheDirDesc') }}</div>
-              <div class="text-xs font-mono text-gray-600 dark:text-gray-300 mt-1 break-all">{{ storagePaths.cache_dir }}</div>
-            </div>
-            <button @click="openPath(storagePaths.cache_dir)" class="shrink-0 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.storage.openInFileManager') }}</button>
-          </div>
-          <div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-            <div class="flex-1 min-w-0">
-              <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('settings.storage.logsDir') }}</div>
-              <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('settings.storage.logsDirDesc') }}</div>
-              <div class="text-xs font-mono text-gray-600 dark:text-gray-300 mt-1 break-all">{{ storagePaths.logs_dir }}</div>
-            </div>
-            <button @click="openPath(storagePaths.logs_dir)" class="shrink-0 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.storage.openInFileManager') }}</button>
-          </div>
-          <div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-            <div class="flex-1 min-w-0">
-              <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('settings.storage.hotUpdatesDir') }}</div>
-              <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('settings.storage.hotUpdatesDirDesc') }}</div>
-              <div class="text-xs font-mono text-gray-600 dark:text-gray-300 mt-1 break-all">{{ storagePaths.hot_updates_dir }}</div>
-            </div>
-            <button @click="openPath(storagePaths.hot_updates_dir)" class="shrink-0 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.storage.openInFileManager') }}</button>
-          </div>
-          <div class="pt-2 border-t border-gray-200 dark:border-gray-700">
-            <div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">{{ t('settings.storage.settingsFile') }}</div>
-            <div class="flex items-center gap-3 p-2 bg-gray-50 dark:bg-gray-700/50 rounded">
-              <div class="flex-1 min-w-0 text-xs font-mono text-gray-600 dark:text-gray-300 break-all">{{ storagePaths.settings_file }}</div>
-              <button @click="openPath(storagePaths.settings_file)" class="shrink-0 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.storage.openInFileManager') }}</button>
-            </div>
-            <div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 mt-2">{{ t('settings.storage.projectsFile') }}</div>
-            <div class="flex items-center gap-3 p-2 bg-gray-50 dark:bg-gray-700/50 rounded">
-              <div class="flex-1 min-w-0 text-xs font-mono text-gray-600 dark:text-gray-300 break-all">{{ storagePaths.projects_file }}</div>
-              <button @click="openPath(storagePaths.projects_file)" class="shrink-0 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.storage.openInFileManager') }}</button>
-            </div>
-            <div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 mt-2">{{ t('settings.storage.enginesFile') }}</div>
-            <div class="flex items-center gap-3 p-2 bg-gray-50 dark:bg-gray-700/50 rounded">
-              <div class="flex-1 min-w-0 text-xs font-mono text-gray-600 dark:text-gray-300 break-all">{{ storagePaths.engines_file }}</div>
-              <button @click="openPath(storagePaths.engines_file)" class="shrink-0 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.storage.openInFileManager') }}</button>
+            <div class="pt-2 border-t border-gray-200 dark:border-gray-700">
+              <div v-for="item in [
+                { key: 'settingsFile', path: storagePaths.settings_file },
+                { key: 'projectsFile', path: storagePaths.projects_file },
+                { key: 'enginesFile', path: storagePaths.engines_file }
+              ]" :key="item.key" class="mb-2 last:mb-0">
+                <div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ t(`settings.storage.${item.key}`) }}</div>
+                <div class="flex items-center gap-3 p-2 bg-gray-50 dark:bg-gray-700/50 rounded">
+                  <div class="flex-1 min-w-0 text-xs font-mono text-gray-600 dark:text-gray-300 break-all">{{ item.path }}</div>
+                  <button @click="openPath(item.path)" class="shrink-0 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.storage.openInFileManager') }}</button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
-      <div v-show="activeSection === 'other'" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.other') }}</h2>
+      <div v-show="activeSection === 'updates'" class="space-y-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.updates.autoCheck') }}</h2>
+          <div class="space-y-3">
+            <label class="flex items-center gap-3 cursor-pointer">
+              <input type="checkbox" v-model="settings.auto_check_app_updates" class="w-4 h-4 text-primary-600 rounded" />
+              <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.pluginRepo.autoCheckAppUpdates') }}</span>
+            </label>
+            <label class="flex items-center gap-3 cursor-pointer">
+              <input type="checkbox" v-model="settings.auto_check_plugin_updates" class="w-4 h-4 text-primary-600 rounded" />
+              <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.pluginRepo.autoCheckPluginUpdates') }}</span>
+            </label>
+            <label class="flex items-center gap-3 cursor-pointer">
+              <input type="checkbox" v-model="settings.auto_check_engine_updates" class="w-4 h-4 text-primary-600 rounded" />
+              <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.pluginRepo.autoCheckEngineUpdates') }}</span>
+            </label>
+            <div class="pt-2">
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.pluginRepo.checkInterval') }}</label>
+              <input type="number" v-model.number="settings.update_check_interval_hours" min="1" max="168"
+                class="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm" />
+            </div>
+          </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.engineMirror.title') }}</h2>
+          <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ t('settings.engineMirror.desc') }}</p>
+          <div class="space-y-3">
+            <div v-for="mirror in (settings.engine_mirrors || [])" :key="mirror.id"
+              class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-600"
+              :class="{ 'opacity-60': !mirror.enabled }"
+            >
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ mirror.name }}</span>
+                  <span v-if="mirror.is_official" class="px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">{{ t('settings.engineMirror.official') }}</span>
+                  <span v-else class="px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">{{ t('settings.engineMirror.custom') }}</span>
+                </div>
+                <span class="text-xs text-gray-500 dark:text-gray-400 truncate block mt-0.5">{{ mirror.base_url }}</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <button
+                  @click="toggleMirrorEnabled(mirror.id)"
+                  :class="['px-2 py-1 rounded text-xs font-medium transition-colors', mirror.enabled ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400']"
+                >
+                  {{ mirror.enabled ? t('settings.engineMirror.enabled') : t('settings.engineMirror.disabled') }}
+                </button>
+                <button
+                  @click="openEditMirror(mirror)"
+                  class="text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                  :title="t('settings.engineMirror.edit')"
+                >
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                </button>
+                <button
+                  v-if="!mirror.is_official"
+                  @click="removeMirror(mirror.id)"
+                  class="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  :title="t('settings.engineMirror.remove')"
+                >
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                </button>
+              </div>
+            </div>
+            <button
+              @click="openAddMirror"
+              class="px-4 py-2 border border-dashed border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm w-full"
+            >
+              + {{ t('settings.engineMirror.addMirror') }}
+            </button>
+          </div>
+        </div>
+      </div>
+      <div v-show="activeSection === 'dataManagement'" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.dataManagement') }}</h2>
         <div class="space-y-4">
           <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.buttons.backup') }}</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ t('settings.backup.desc') }}</p>
+            </div>
+            <button
+              @click="showBackupDialog = true"
+              class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors text-sm"
+            >
+              {{ t('settings.buttons.backup') }}
+            </button>
+          </div>
+          <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+            <div>
+              <p class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.buttons.teamConfig') }}</p>
+            </div>
+            <button
+              @click="showTeamConfigDialog = true"
+              class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors text-sm"
+            >
+              {{ t('settings.buttons.teamConfig') }}
+            </button>
+          </div>
+          <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
             <div>
               <p class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.showOnboarding') }}</p>
               <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ t('settings.showOnboardingDesc') }}</p>

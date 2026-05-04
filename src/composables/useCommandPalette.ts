@@ -138,29 +138,6 @@ export function useCommandPalette() {
   const allItems = computed<SearchItem[]>(() => {
     const items: SearchItem[] = []
 
-    projectStore.projects.forEach(p => {
-      items.push({
-        id: `project-${p.project_id}`,
-        label: p.name,
-        category: 'project',
-        icon: 'folder',
-        keywords: `${p.name} ${p.path} ${p.godot_version} ${p.group || ''}`,
-        action: () => router.push('/projects')
-      })
-    })
-
-    pluginStore.plugins.forEach(p => {
-      const versionStr = p.versions.length > 0 ? p.versions[0].version : ''
-      items.push({
-        id: `plugin-${p.plugin_id}`,
-        label: p.name,
-        category: 'plugin',
-        icon: 'puzzle',
-        keywords: `${p.name} ${p.description} ${p.author} ${versionStr}`,
-        action: () => router.push('/plugins')
-      })
-    })
-
     items.push(
       {
         id: 'nav-home',
@@ -277,6 +254,29 @@ export function useCommandPalette() {
         }
       }
     )
+
+    projectStore.projects.forEach(p => {
+      items.push({
+        id: `project-${p.project_id}`,
+        label: p.name,
+        category: 'project',
+        icon: 'folder',
+        keywords: `${p.name} ${p.path} ${p.godot_version} ${p.group || ''}`,
+        action: () => router.push('/projects')
+      })
+    })
+
+    pluginStore.plugins.forEach(p => {
+      const versionStr = p.versions.length > 0 ? p.versions[0].version : ''
+      items.push({
+        id: `plugin-${p.plugin_id}`,
+        label: p.name,
+        category: 'plugin',
+        icon: 'puzzle',
+        keywords: `${p.name} ${p.description} ${p.author} ${versionStr}`,
+        action: () => router.push('/plugins')
+      })
+    })
 
     return items
   })

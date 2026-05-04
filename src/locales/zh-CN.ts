@@ -658,6 +658,7 @@ export default {
   },
   settings: {
     title: '设置',
+    general: '通用',
     scan: '项目扫描',
     scanDirs: '扫描目录',
     noDirs: '暂无扫描目录，点击下方按钮添加',
@@ -679,6 +680,7 @@ export default {
     themeSystem: '跟随系统',
     save: '保存设置',
     data: '数据管理',
+    dataManagement: '数据管理',
     backupLabel: '备份数据',
     restore: '恢复数据',
     backupWarning: '恢复操作将覆盖当前数据，请谨慎操作！',
@@ -710,6 +712,10 @@ export default {
       enableMirror: '启用此镜像',
       nameUrlRequired: '镜像名称和地址不能为空',
       saveHint: '修改将在保存设置后生效'
+    },
+    updates: {
+      title: '更新',
+      autoCheck: '自动更新检查'
     },
     other: '其他',
     unsavedChanges: '设置已修改但未保存',
@@ -752,7 +758,7 @@ export default {
       customDataDir: '自定义数据目录',
       customDataDirDesc: '将所有数据文件存储到指定目录（设置文件除外）。修改后需要迁移现有数据。',
       customDataDirPlaceholder: '留空使用系统默认路径',
-      customDataDirHint: '更改数据目录后，应用将把插件、引擎、缓存、日志等数据存储到新位置。设置文件始终保留在系统默认路径中。',
+      customDataDirHint: '更改数据目录后，应用将把插件、引擎、缓存、日志等数据存储到新位置。设置文件始终保留在系统默认路径中。清空此选项不会自动迁移数据回原位置。',
       migrateButton: '迁移数据',
       migrateTitle: '迁移数据目录',
       migrateDescription: '将所有数据从当前目录复制到新目录。迁移完成后，应用将使用新目录作为数据存储位置。',

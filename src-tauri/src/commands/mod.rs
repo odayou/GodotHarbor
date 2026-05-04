@@ -295,20 +295,22 @@ pub fn migrate_data_dir(app: AppHandle, new_data_dir: String) -> Result<(), Stri
     std::fs::create_dir_all(new_path)
         .map_err(|e| format!("创建目录失败: {}", e))?;
 
-    let dirs_to_migrate = ["plugins", "engines", "cache", "logs", "hot_updates", "hotupdate_overlay", "backups", "downloads"];
-    for dir_name in &dirs_to_migrate {
-        let src = old_data_dir.join(dir_name);
-        if src.exists() {
-            copy_dir_all(&src, &new_path.join(dir_name))?;
+    let exclude_names: &[&str] = &["settings.json"];
+    for entry in fs::read_dir(&old_data_dir)
+        .map_err(|e| format!("读取源目录失败: {}", e))?
+    {
+        let entry = entry.map_err(|e| format!("读取目录条目失败: {}", e))?;
+        let file_name = entry.file_name();
+        let name_str = file_name.to_string_lossy();
+        if exclude_names.iter().any(|ex| *ex == name_str) {
+            continue;
         }
-    }
-
-    let files_to_migrate = ["projects.json", "engines.json", "team_configs.json", "plugins.json", "bindings.json", "operation_logs.json", "update_logs.json"];
-    for file_name in &files_to_migrate {
-        let src = old_data_dir.join(file_name);
-        if src.exists() {
-            std::fs::copy(&src, &new_path.join(file_name))
-                .map_err(|e| format!("复制 {} 失败: {}", file_name, e))?;
+        let ty = entry.file_type().map_err(|e| format!("获取文件类型失败: {}", e))?;
+        if ty.is_dir() {
+            copy_dir_all(&entry.path(), &new_path.join(&file_name))?;
+        } else {
+            fs::copy(&entry.path(), &new_path.join(&file_name))
+                .map_err(|e| format!("复制 {} 失败: {}", name_str, e))?;
         }
     }
 

@@ -658,6 +658,7 @@ export default {
   },
   settings: {
     title: 'Settings',
+    general: 'General',
     scan: 'Project Scan',
     scanDirs: 'Scan Directories',
     noDirs: 'No scan directories yet, click the button below to add',
@@ -679,6 +680,7 @@ export default {
     themeSystem: 'System',
     save: 'Save Settings',
     data: 'Data Management',
+    dataManagement: 'Data Management',
     backupLabel: 'Backup Data',
     restore: 'Restore Data',
     backupWarning: 'Restore operation will overwrite current data, please operate with caution!',
@@ -710,6 +712,10 @@ export default {
       enableMirror: 'Enable this mirror',
       nameUrlRequired: 'Mirror name and URL are required',
       saveHint: 'Changes will take effect after saving settings'
+    },
+    updates: {
+      title: 'Updates',
+      autoCheck: 'Auto Update Check'
     },
     other: 'Other',
     unsavedChanges: 'Settings modified but not saved',
@@ -752,7 +758,7 @@ export default {
       customDataDir: 'Custom Data Directory',
       customDataDirDesc: 'Store all data files in the specified directory (except settings file). Migration is required after changing.',
       customDataDirPlaceholder: 'Leave empty to use system default path',
-      customDataDirHint: 'After changing the data directory, the app will store plugins, engines, cache, logs, etc. in the new location. Settings file always stays in the system default path.',
+      customDataDirHint: 'After changing the data directory, the app will store plugins, engines, cache, logs, etc. in the new location. Settings file always stays in the system default path. Clearing this option will NOT automatically migrate data back to the default location.',
       migrateButton: 'Migrate Data',
       migrateTitle: 'Migrate Data Directory',
       migrateDescription: 'Copy all data from the current directory to the new directory. After migration, the app will use the new directory as the data storage location.',
