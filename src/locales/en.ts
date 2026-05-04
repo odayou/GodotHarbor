@@ -840,6 +840,9 @@ export default {
       backupping: 'Backing up...',
       restoring: 'Restoring...',
       restore: 'Restore data',
+      restoreTitle: 'Restore Data',
+      restoreDesc: 'Select a backup directory to restore data from. This will overwrite existing data.',
+      restoreWarning: 'Note: Restore operation will overwrite all current data. This action cannot be undone. Please confirm the backup file is correct.',
       restoreConfirm: 'Confirm Restore',
       restoreConfirmDesc: 'Restoring will overwrite all current data. This action cannot be undone. Continue?'
     },
@@ -863,7 +866,12 @@ export default {
       exporting: 'Exporting...',
       exportAction: 'Export',
       deleteConfirmTitle: 'Confirm Delete Team Configuration',
-      deleteConfirmDesc: 'Are you sure you want to delete this team configuration? This action cannot be undone.'
+      deleteConfirmDesc: 'Are you sure you want to delete this team configuration? This action cannot be undone.',
+      importSelectTitle: 'Select Target Projects',
+      importSelectDesc: 'Select projects to import the team configuration into:',
+      importAction: 'Import',
+      importing: 'Importing...',
+      noProjects: 'No projects available'
     },
     messages: {
       loadFailed: 'Failed to load settings: {error}',

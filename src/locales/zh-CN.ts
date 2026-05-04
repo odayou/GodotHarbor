@@ -840,6 +840,9 @@ export default {
       backupping: '备份中...',
       restoring: '恢复中...',
       restore: '恢复数据',
+      restoreTitle: '恢复数据',
+      restoreDesc: '选择备份目录，从该目录恢复数据覆盖现有数据。',
+      restoreWarning: '注意：恢复操作将覆盖当前所有数据，此操作不可逆。请确认备份文件的正确性。',
       restoreConfirm: '确认恢复',
       restoreConfirmDesc: '恢复操作将覆盖当前所有数据，此操作不可逆。确认继续？'
     },
@@ -863,7 +866,12 @@ export default {
       exporting: '导出中...',
       exportAction: '导出',
       deleteConfirmTitle: '确认删除团队配置',
-      deleteConfirmDesc: '确定要删除此团队配置吗？此操作不可撤销。'
+      deleteConfirmDesc: '确定要删除此团队配置吗？此操作不可撤销。',
+      importSelectTitle: '选择目标项目',
+      importSelectDesc: '选择要将团队配置导入到哪些项目：',
+      importAction: '导入',
+      importing: '导入中...',
+      noProjects: '暂无项目'
     },
     messages: {
       loadFailed: '加载设置失败: {error}',

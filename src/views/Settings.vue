@@ -32,6 +32,7 @@ const sortedLogs = computed(() => {
   return logSortOrder.value === 'newest' ? sorted : sorted.reverse()
 })
 const showBackupDialog = ref(false)
+const showRestoreDialog = ref(false)
 const backupPath = ref('')
 const isBackingUp = ref(false)
 const isRestoring = ref(false)
@@ -353,6 +354,7 @@ const importTeamConfig = async (configId: string) => {
   try {
     await api.importTeamConfig(configId, selectedProjectIds.value)
     toast.success(t('settings.messages.importSuccess'))
+    showImportSelectDialog.value = false
     showTeamConfigDialog.value = false
     await loadTeamConfigs()
   } catch (error) {
@@ -360,6 +362,15 @@ const importTeamConfig = async (configId: string) => {
   } finally {
     isImporting.value = false
   }
+}
+
+const showImportSelectDialog = ref(false)
+const importingConfigId = ref('')
+
+const openImportSelect = (configId: string) => {
+  importingConfigId.value = configId
+  selectedProjectIds.value = []
+  showImportSelectDialog.value = true
 }
 
 const showDeleteTeamConfigConfirm = ref(false)
@@ -432,7 +443,7 @@ const onDeleteTeamConfigConfirm = async () => {
 
 const formatDate = (dateStr: string) => {
   try {
-    return new Date(dateStr).toLocaleString('zh-CN')
+    return new Date(dateStr).toLocaleString(settings.value.language || 'zh-CN')
   } catch {
     return dateStr
   }
@@ -787,12 +798,20 @@ const toggleMirrorEnabled = (mirrorId: string) => {
               <p class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.buttons.backup') }}</p>
               <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ t('settings.backup.desc') }}</p>
             </div>
-            <button
-              @click="showBackupDialog = true"
-              class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors text-sm"
-            >
-              {{ t('settings.buttons.backup') }}
-            </button>
+            <div class="flex gap-2">
+              <button
+                @click="showBackupDialog = true"
+                class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors text-sm"
+              >
+                {{ t('settings.buttons.backup') }}
+              </button>
+              <button
+                @click="showRestoreDialog = true"
+                class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors text-sm"
+              >
+                {{ t('settings.backup.restore') }}
+              </button>
+            </div>
           </div>
           <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
             <div>
@@ -933,13 +952,26 @@ const toggleMirrorEnabled = (mirrorId: string) => {
           >
             {{ isBackingUp ? t('settings.backup.backupping') : t('settings.backup.backup') }}
           </button>
-          <button
-            @click="showRestoreConfirm = true"
-            :disabled="isRestoring || !backupPath"
-            class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
-          >
-            {{ isRestoring ? t('settings.backup.restoring') : t('settings.backup.restore') }}
-          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div v-if="showRestoreDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showRestoreDialog = false; backupPath = ''">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.backup.restoreTitle') }}</h3>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">{{ t('settings.backup.restoreDesc') }}</p>
+        <div class="flex gap-2 mb-4">
+          <input v-model="backupPath" type="text" readonly :placeholder="t('settings.backup.selectDir')" class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm" />
+          <button @click="selectBackupPath" class="px-4 py-2 bg-gray-100 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 text-sm whitespace-nowrap">{{ t('settings.backup.browse') }}</button>
+        </div>
+        <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 mb-4">
+          <p class="text-xs text-yellow-800 dark:text-yellow-200"><strong>{{ t('settings.backup.restoreWarning') }}</strong></p>
+        </div>
+        <div class="flex justify-end space-x-3">
+          <button @click="showRestoreDialog = false; backupPath = ''" class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500">{{ t('settings.backup.cancel') }}</button>
+          <button @click="showRestoreConfirm = true" :disabled="isRestoring || !backupPath" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors">{{ isRestoring ? t('settings.backup.restoring') : t('settings.backup.restore') }}</button>
         </div>
       </div>
     </div>
@@ -978,7 +1010,7 @@ const toggleMirrorEnabled = (mirrorId: string) => {
                 </div>
                 <div class="flex gap-2">
                   <button
-                    @click="importTeamConfig(config.config_id)"
+                    @click="openImportSelect(config.config_id)"
                     :disabled="isImporting || projects.length === 0"
                     class="px-3 py-1 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors text-sm"
                   >
@@ -1005,6 +1037,26 @@ const toggleMirrorEnabled = (mirrorId: string) => {
           >
             {{ t('settings.teamConfig.close') }}
           </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div v-if="showImportSelectDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showImportSelectDialog = false">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.teamConfig.importSelectTitle') }}</h3>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">{{ t('settings.teamConfig.importSelectDesc') }}</p>
+        <div class="space-y-2 max-h-48 overflow-y-auto bg-gray-50 dark:bg-gray-700 rounded-lg p-3 mb-4">
+          <div v-for="project in projects" :key="project.project_id" class="flex items-center gap-2">
+            <input type="checkbox" :value="project.project_id" v-model="selectedProjectIds" class="w-4 h-4 text-primary-600 rounded" />
+            <span class="text-sm text-gray-900 dark:text-gray-100">{{ project.name }}</span>
+          </div>
+          <div v-if="projects.length === 0" class="text-sm text-gray-500 dark:text-gray-400 text-center py-2">{{ t('settings.teamConfig.noProjects') }}</div>
+        </div>
+        <div class="flex justify-end space-x-3">
+          <button @click="showImportSelectDialog = false" class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500">{{ t('common.cancel') }}</button>
+          <button @click="importTeamConfig(importingConfigId)" :disabled="isImporting || selectedProjectIds.length === 0" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50">{{ isImporting ? t('settings.teamConfig.importing') : t('settings.teamConfig.importAction') }}</button>
         </div>
       </div>
     </div>
