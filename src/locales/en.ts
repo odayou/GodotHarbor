@@ -776,7 +776,8 @@ export default {
       autoCheckPluginUpdates: 'Auto check plugin updates',
       autoCheckAppUpdates: 'Auto check app updates',
       autoCheckEngineUpdates: 'Auto check engine updates',
-      checkInterval: 'Check interval (hours)'
+      checkInterval: 'Check interval (hours)',
+      skipMigration: 'Skip Migration'
     },
     language: {
       zhCN: '简体中文',

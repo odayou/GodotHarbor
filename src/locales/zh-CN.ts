@@ -776,7 +776,8 @@ export default {
       autoCheckPluginUpdates: '自动检查插件更新',
       autoCheckAppUpdates: '自动检查应用更新',
       autoCheckEngineUpdates: '自动检查引擎更新',
-      checkInterval: '检查间隔（小时）'
+      checkInterval: '检查间隔（小时）',
+      skipMigration: '跳过迁移'
     },
     language: {
       zhCN: '简体中文',
