@@ -621,6 +621,20 @@ const showPluginDetails = async (plugin: Plugin) => {
   }
   try {
     pluginBindings.value = await api.getPluginBindings(plugin.plugin_id)
+    const unchecked = pluginBindings.value.filter(b => b.is_healthy === undefined)
+    if (unchecked.length > 0) {
+      const healthResults = await Promise.allSettled(
+        unchecked.map(b => api.checkBindingHealth(b.project_id))
+      )
+      healthResults.forEach((result, i) => {
+        if (result.status === 'fulfilled') {
+          const healthBinding = result.value.find((hb: ProjectBinding) => hb.plugin_id === unchecked[i].plugin_id)
+          if (healthBinding) {
+            unchecked[i].is_healthy = healthBinding.is_healthy
+          }
+        }
+      })
+    }
   } catch (e) {
     console.error('Failed to load plugin bindings:', e)
     pluginBindings.value = []
