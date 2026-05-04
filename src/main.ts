@@ -23,6 +23,12 @@ window.addEventListener('unhandledrejection', (event) => {
   event.preventDefault()
 })
 
+window.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
+    e.preventDefault()
+  }
+})
+
 app.use(createPinia())
 app.use(router)
 app.use(i18n)

@@ -6,7 +6,7 @@ export default {
     plugins: '插件生态',
     linkerNav: '插件绑定',
     engines: '引擎管理',
-    updates: '更新中心',
+    updates: '升级更新',
     about: '关于',
     settings: '设置'
   },
@@ -361,29 +361,6 @@ export default {
       delete: '删除插件',
       goToBindings: '前往绑定管理'
     },
-    teamConfig: {
-      title: '团队配置',
-      export: '导出配置',
-      exportTitle: '导出团队配置',
-      exportDesc: '将当前项目的插件绑定配置导出为团队共享配置',
-      configName: '配置名称',
-      configNamePlaceholder: '输入配置名称',
-      configDesc: '配置描述（可选）',
-      configDescPlaceholder: '输入配置描述',
-      selectProjects: '选择包含的项目',
-      import: '导入配置',
-      importTitle: '导入团队配置',
-      importDesc: '将团队配置应用到指定项目',
-      selectTargetProjects: '选择目标项目',
-      noConfigs: '暂无团队配置',
-      noConfigsDesc: '导出项目配置以创建团队共享配置',
-      delete: '删除',
-      deleteConfirm: '确认删除团队配置',
-      deleteDesc: '确定要删除团队配置 "{name}" 吗？',
-      exportSuccess: '团队配置导出成功',
-      importSuccess: '团队配置已应用到 {count} 个项目',
-      importPartial: '应用完成: 成功 {success} 个, 失败 {failed} 个'
-    },
     versionSwitch: {
       title: '切换版本',
       desc: '为项目 "{project}" 中的插件 "{plugin}" 切换版本',
@@ -542,9 +519,6 @@ export default {
     cancel: '取消',
     versionSelectTitle: '选择版本 - {name}',
     switchVersion: '切换版本',
-    teamConfigSection: '团队配置',
-    noTeamConfigs: '暂无团队配置',
-    noTeamConfigsDesc: '导出项目配置以创建团队共享配置',
     batchVersionSelectTitle: '选择绑定版本',
     batchVersionSelectDesc: '以下插件有多个版本或单元，请选择要绑定的版本：',
   },
@@ -669,7 +643,7 @@ export default {
     symlink: '符号链接（推荐）',
     junction: 'Junction（Windows 推荐）',
     copy: '复制',
-    symlinkDesc: '创建符号链接，零磁盘占用，一改全改。Windows 下可能需要管理员权限，将自动回退到 Junction。',
+    symlinkDesc: '创建符号链接，零磁盘占用。Windows 下可能需要管理员权限，将自动回退到 Junction。',
     junctionDesc: 'Windows 目录联接，无需管理员权限，零磁盘占用。仅 Windows 可用。',
     copyDesc: '复制文件到项目目录，兼容性最好但占用额外磁盘空间，修改不会自动同步。',
     appearance: '外观',
@@ -685,9 +659,6 @@ export default {
     backupLabel: '备份数据',
     restore: '恢复数据',
     backupWarning: '恢复操作将覆盖当前数据，请谨慎操作！',
-    teamConfigLabel: '团队配置',
-    exportConfig: '导出配置',
-    importConfig: '导入配置',
     viewLogs: '查看日志',
     autoScanOnStartup: '启动时自动扫描项目',
     autoDiscoverEngines: '启动时自动发现 Godot 引擎',
@@ -750,7 +721,6 @@ export default {
     buttons: {
       viewLogs: '查看日志',
       backup: '数据备份与恢复',
-      teamConfig: '团队配置',
       select: '选择'
     },
     storage: {
@@ -842,33 +812,6 @@ export default {
       restoreWarning: '注意：恢复操作将覆盖当前所有数据，此操作不可逆。请确认备份文件的正确性。',
       restoreConfirm: '确认恢复',
       restoreConfirmDesc: '恢复操作将覆盖当前所有数据，此操作不可逆。确认继续？'
-    },
-    teamConfig: {
-      title: '团队配置管理',
-      export: '导出新配置',
-      empty: '暂无团队配置',
-      description: '无描述',
-      created: '创建时间: {date}',
-      import: '导入',
-      delete: '删除',
-      stats: '包含 {bindings} 个插件绑定',
-      close: '关闭',
-      exportTitle: '导出团队配置',
-      name: '配置名称',
-      namePlaceholder: '例如: 项目A标准配置',
-      descriptionLabel: '描述（可选）',
-      descriptionPlaceholder: '配置描述',
-      selectProjects: '选择项目',
-      cancel: '取消',
-      exporting: '导出中...',
-      exportAction: '导出',
-      deleteConfirmTitle: '确认删除团队配置',
-      deleteConfirmDesc: '确定要删除此团队配置吗？此操作不可撤销。',
-      importSelectTitle: '选择目标项目',
-      importSelectDesc: '选择要将团队配置导入到哪些项目：',
-      importAction: '导入',
-      importing: '导入中...',
-      noProjects: '暂无项目'
     },
     messages: {
       loadFailed: '加载设置失败: {error}',
@@ -982,7 +925,7 @@ export default {
     appUpdateAvailable: '应用更新可用',
     pluginUpdateAvailable: '插件更新可用',
     hotUpdateAvailable: '热更新可用',
-    goToUpdateCenter: '前往更新中心',
+    goToUpdateCenter: '检查更新',
     channel: {
       stable: '正式版',
       preview: '预览版',
@@ -1072,7 +1015,7 @@ export default {
     features: {
       symlinkEngine: {
         title: '符号链接引擎',
-        desc: '零复制安装，磁盘占用最小，一改全改'
+        desc: '零复制安装，磁盘占用最小'
       },
       versionManagement: {
         title: '版本精细管理',

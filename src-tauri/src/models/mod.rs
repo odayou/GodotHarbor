@@ -412,8 +412,6 @@ pub struct PluginUpdateInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BatchResult {
     pub success_count: usize,
     pub failed_count: usize,

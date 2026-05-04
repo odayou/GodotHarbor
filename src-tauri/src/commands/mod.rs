@@ -130,33 +130,9 @@ const DATA_FILES: &[&str] = &[
     "plugins.json",
     "bindings.json",
     "engines.json",
-    "team_configs.json",
     "operation_logs.json",
     "update_logs.json"
 ];
-
-fn get_backup_search_paths(app: &AppHandle) -> Vec<PathBuf> {
-    let mut paths = Vec::new();
-    
-    if let Some(documents) = dirs::document_dir() {
-        paths.push(documents.join("GodotHarbor"));
-        paths.push(documents);
-    }
-    
-    if let Some(downloads) = dirs::download_dir() {
-        paths.push(downloads.join("GodotHarbor"));
-        paths.push(downloads);
-    }
-    
-    if let Some(desktop) = dirs::desktop_dir() {
-        paths.push(desktop.join("GodotHarbor"));
-        paths.push(desktop);
-    }
-    
-    paths.push(get_data_dir(app).join("backups"));
-    
-    paths
-}
 
 fn log_operation(app: &AppHandle, action: &str, target: &str, detail: &str) {
     let logger = get_logger(app);

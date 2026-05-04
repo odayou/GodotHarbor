@@ -311,14 +311,6 @@ const performReset = async () => {
   }
 }
 
-const formatDate = (dateStr: string) => {
-  try {
-    return new Date(dateStr).toLocaleString(settings.value.language || 'zh-CN')
-  } catch {
-    return dateStr
-  }
-}
-
 const { showOnboarding } = useOnboarding()
 
 const resetOnboarding = async () => {

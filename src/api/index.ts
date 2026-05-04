@@ -394,6 +394,10 @@ export const api = {
     }
   },
 
+  async getDashboardStats(): Promise<DashboardStats> {
+    return await invoke('get_dashboard_stats')
+  },
+
   async getAppVersion(): Promise<string> {
     return await invoke('get_app_version')
   },

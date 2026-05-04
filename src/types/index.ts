@@ -136,15 +136,6 @@ export interface PluginUpdateInfo {
   source_url: string
 }
 
-export interface TeamSharedConfig {
-  config_id: string
-  name: string
-  description: string
-  bindings: ProjectBinding[]
-  created_at: string
-  updated_at: string
-}
-
 export interface DashboardStats {
   project_count: number
   plugin_count: number
