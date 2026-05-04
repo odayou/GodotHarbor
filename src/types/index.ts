@@ -87,6 +87,7 @@ export interface Settings {
   engine_mirrors?: EngineMirrorConfig[]
   custom_data_dir?: string
   selected_mirror_id?: string
+  known_engine_paths?: string[]
 }
 
 export interface ApplyResult {

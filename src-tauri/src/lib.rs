@@ -351,6 +351,7 @@ pub fn run() {
             commands::clear_update_history,
             commands::check_engine_health,
             commands::rename_engine,
+            commands::launch_engine,
             commands::open_in_file_manager,
             commands::read_file_as_base64,
             commands::check_auto_setup_needed,

@@ -973,7 +973,7 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
                 </button>
                 <div
                   v-if="projectMenuId === project.project_id"
-                  class="absolute right-0 top-full mt-1 bg-white dark:bg-gray-700 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 py-1 z-20 min-w-[140px]"
+                  class="absolute right-0 top-full mt-1 bg-white dark:bg-gray-700 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 py-1 z-20 whitespace-nowrap"
                 >
                   <button
                     @click.stop="openInFileManager(project.path); projectMenuId = ''"

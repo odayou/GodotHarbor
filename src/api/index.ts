@@ -242,6 +242,10 @@ export const api = {
     return await invoke('rename_engine', { engineId, newName })
   },
 
+  async launchEngine(engineId: string): Promise<void> {
+    return await invoke('launch_engine', { engineId })
+  },
+
   // ─── Engine Download ───
   async fetchRemoteEngineVersions(mirrorId: string, forceRefresh: boolean = false): Promise<RemoteEngineVersion[]> {
     return await invoke('fetch_remote_engine_versions', { mirrorId, forceRefresh })

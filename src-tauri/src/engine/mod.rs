@@ -329,6 +329,69 @@ impl EngineManager {
         all_discovered
     }
 
+    pub fn discover_engines_with_known_paths(
+        existing_paths: &[String],
+        custom_paths: &[String],
+        known_paths: &[String],
+    ) -> Vec<Engine> {
+        let mut seen_paths: HashSet<String> = existing_paths.iter().cloned().collect();
+
+        let known_dirs: Vec<std::path::PathBuf> = known_paths
+            .iter()
+            .filter(|p| Path::new(p).exists())
+            .map(std::path::PathBuf::from)
+            .collect();
+
+        let mut discovered = Vec::new();
+
+        let known_engines = Self::search_directories_parallel(&known_dirs, &seen_paths);
+        for engine in known_engines {
+            seen_paths.insert(engine.path.clone());
+            discovered.push(engine);
+        }
+
+        let platform_engines = Self::discover_from_platform();
+        for engine in platform_engines {
+            if !seen_paths.contains(&engine.path) {
+                seen_paths.insert(engine.path.clone());
+                discovered.push(engine);
+            }
+        }
+
+        let path_engines = Self::discover_from_path();
+        for engine in path_engines {
+            if !seen_paths.contains(&engine.path) {
+                seen_paths.insert(engine.path.clone());
+                discovered.push(engine);
+            }
+        }
+
+        let search_dirs = Self::get_search_directories();
+        let dir_engines = Self::search_directories_parallel(&search_dirs, &seen_paths);
+        for engine in dir_engines {
+            if !seen_paths.contains(&engine.path) {
+                seen_paths.insert(engine.path.clone());
+                discovered.push(engine);
+            }
+        }
+
+        let custom_dirs: Vec<std::path::PathBuf> = custom_paths
+            .iter()
+            .filter(|p| Path::new(p).exists())
+            .map(std::path::PathBuf::from)
+            .collect();
+
+        let custom_engines = Self::search_directories_parallel(&custom_dirs, &seen_paths);
+        for engine in custom_engines {
+            if !seen_paths.contains(&engine.path) {
+                seen_paths.insert(engine.path.clone());
+                discovered.push(engine);
+            }
+        }
+
+        discovered
+    }
+
     #[cfg(windows)]
     fn discover_from_platform() -> Vec<Engine> {
         Self::discover_from_windows_registry()

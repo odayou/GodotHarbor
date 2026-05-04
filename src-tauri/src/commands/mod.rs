@@ -189,6 +189,25 @@ pub fn save_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+pub fn launch_engine(app: AppHandle, engine_id: String) -> Result<(), String> {
+    let storage = get_storage(&app);
+    let engines: Vec<Engine> = storage.load_or_default("engines.json");
+
+    let engine = engines.iter()
+        .find(|e| e.engine_id == engine_id)
+        .ok_or("未找到指定引擎".to_string())?;
+
+    let exe_path = crate::engine::EngineManager::find_executable_in_dir(std::path::Path::new(&engine.path))
+        .ok_or("未找到引擎可执行文件".to_string())?;
+
+    std::process::Command::new(&exe_path)
+        .spawn()
+        .map_err(|e| format!("启动引擎失败: {}", e))?;
+
+    log_operation(&app, "launch_engine", &engine_id, &format!("启动引擎: {}", engine.name));
+    Ok(())
+}
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 struct AutoSetupState {
     completed_at: i64,
@@ -2468,6 +2487,18 @@ pub fn register_engine(app: AppHandle, path: String, name: String) -> Result<Eng
     storage.save("engines.json", &engines)
         .map_err(|e| format!("保存引擎信息失败: {}", e))?;
 
+    let mut settings = load_settings(&app);
+    let parent = std::path::Path::new(&engine_dir)
+        .parent()
+        .map(|p| p.to_string_lossy().to_string());
+    if let Some(parent_path) = parent {
+        if !settings.known_engine_paths.iter().any(|p| p.to_lowercase() == parent_path.to_lowercase()) {
+            settings.known_engine_paths.push(parent_path);
+            let config_storage = get_config_storage(&app);
+            let _ = config_storage.save("settings.json", &settings);
+        }
+    }
+
     log_operation(&app, "register_engine", &path, &format!("已注册引擎: {}", registered_engine.name));
     Ok(registered_engine)
 }
@@ -3772,24 +3803,21 @@ pub async fn auto_discover_engines(app: AppHandle) -> Result<Vec<Engine>, String
 
     let existing_paths: Vec<String> = engines.iter().map(|e| e.path.clone()).collect();
     let scan_dirs = settings.scan_directories.clone();
+    let known_engine_paths = settings.known_engine_paths.clone();
 
     log_operation(&app, "auto_discover_engines", "", "开始自动发现引擎");
 
     let discovered = tokio::task::spawn_blocking(move || {
-        if scan_dirs.is_empty() {
-            crate::engine::EngineManager::discover_engines(&existing_paths)
-        } else {
-            crate::engine::EngineManager::discover_engines_with_custom_paths(
-                &existing_paths,
-                &scan_dirs,
-            )
-        }
+        crate::engine::EngineManager::discover_engines_with_known_paths(
+            &existing_paths,
+            &scan_dirs,
+            &known_engine_paths,
+        )
     })
     .await
     .map_err(|e| format!("发现引擎任务失败: {}", e))?;
 
     if discovered.is_empty() {
-        log_operation(&app, "auto_discover_engines", "", "未发现新引擎");
         return Ok(Vec::new());
     }
 
@@ -3801,6 +3829,20 @@ pub async fn auto_discover_engines(app: AppHandle) -> Result<Vec<Engine>, String
     let storage = get_storage(&app);
     storage.save("engines.json", &engines)
         .map_err(|e| format!("保存引擎列表失败: {}", e))?;
+
+    let mut settings = load_settings(&app);
+    for engine in &discovered {
+        let parent = std::path::Path::new(&engine.path)
+            .parent()
+            .map(|p| p.to_string_lossy().to_string());
+        if let Some(parent_path) = parent {
+            if !settings.known_engine_paths.iter().any(|p| p.to_lowercase() == parent_path.to_lowercase()) {
+                settings.known_engine_paths.push(parent_path);
+            }
+        }
+    }
+    let config_storage = get_config_storage(&app);
+    let _ = config_storage.save("settings.json", &settings);
 
     let _ = app.emit("engines-discovered", &discovered);
 

@@ -302,6 +302,8 @@ pub struct Settings {
     pub custom_data_dir: String,
     #[serde(default)]
     pub selected_mirror_id: String,
+    #[serde(default)]
+    pub known_engine_paths: Vec<String>,
 }
 
 fn default_true() -> bool { true }
@@ -330,6 +332,7 @@ impl Default for Settings {
             engine_mirrors: default_engine_mirrors(),
             custom_data_dir: String::new(),
             selected_mirror_id: String::new(),
+            known_engine_paths: Vec::new(),
         }
     }
 }
