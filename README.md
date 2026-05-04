@@ -1,6 +1,8 @@
 # Godot Harbor
 
-Godot Harbor 是一款独立桌面应用，用于为 Godot 开发者提供统一的插件仓库、项目绑定关系管理和环境信息管理能力。
+**[English](README.en.md)** | 中文
+
+Godot Harbor 是一款独立桌面应用，用于为 Godot 开发者提供统一的插件仓库、项目绑定关系管理和引擎下载管理能力。
 
 ## 功能特性
 
@@ -8,6 +10,7 @@ Godot Harbor 是一款独立桌面应用，用于为 Godot 开发者提供统一
 - **项目管理**：自动扫描或手动添加 Godot 项目
 - **插件绑定**：为项目选择需要的插件和版本
 - **一键应用**：将插件挂载到项目 addons 目录
+- **引擎管理**：发现、下载、注册 Godot 引擎
 
 ## 技术栈
 
@@ -202,7 +205,7 @@ godot-harbor/
 | [更新系统](docs/update-system.md) | 更新策略、架构设计、发布流程（全量/热更新）、Worker配置 |
 | [UI风格指南](docs/design/UI风格指南.md) | 界面设计规范与主题方案 |
 | [插件管理分析](docs/technical/插件管理分析.md) | 插件系统技术架构 |
-| [引擎自动发现](docs/technical/引擎自动发现.md) | Godot引擎识别与绑定 |
+| [引擎自动发现](docs/technical/引擎自动发现.md) | Godot引擎识别与发现 |
 | [产品规划 v0.1](docs/planning/产品规划_v0.1.md) | 初期产品规划 |
 | [迭代计划 v0.2](docs/planning/迭代计划_v0.2.md) | v0.2迭代计划 |
 
