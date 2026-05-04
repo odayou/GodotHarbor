@@ -517,7 +517,11 @@ impl EngineDownloader {
 
         loop {
             attempt += 1;
-            let mut response = match client.get(url).send().await {
+            let mut request = client.get(url);
+            if url.contains("github.com") || url.contains("githubusercontent.com") {
+                request = request.header("Accept", "application/octet-stream");
+            }
+            let mut response = match request.send().await {
                 Ok(resp) => resp,
                 Err(e) => {
                     if attempt < max_retries && (e.is_connect() || e.is_timeout() || e.is_request()) {
