@@ -3,12 +3,12 @@ export default {
   nav: {
     home: '首页',
     projects: '项目管理',
-    pluginsNav: '插件生态',
+    plugins: '插件生态',
     linkerNav: '插件绑定',
-    enginesNav: '引擎管理',
+    engines: '引擎管理',
     updates: '更新中心',
     about: '关于',
-    settingsNav: '设置'
+    settings: '设置'
   },
   projects: {
     title: '项目管理',
@@ -755,9 +755,7 @@ export default {
     },
     storage: {
       title: '数据存储',
-      pathHierarchy: '数据目录决定所有数据的根位置。插件存储路径可单独覆盖，否则跟随数据目录。',
-      pluginOverridePath: '插件存储路径（覆盖）',
-      pluginOverrideDesc: '单独指定插件存储位置，不填则使用数据目录下的 plugins 子目录。',
+      pathHierarchy: '数据目录决定所有数据（插件、引擎、缓存、日志等）的存储根位置。',
       currentPaths: '当前路径一览',
       pathName: '名称',
       pathValue: '路径',
@@ -808,16 +806,7 @@ export default {
       autoCheckPluginUpdates: '自动检查插件更新',
       autoCheckAppUpdates: '自动检查应用更新',
       autoCheckEngineUpdates: '自动检查引擎更新',
-      checkInterval: '检查间隔（小时）',
-      migrateTitle: '插件存储路径变更',
-      migrateDesc: '检测到存储路径已变更，是否将已有插件文件迁移到新路径？',
-      migrateFrom: '原路径',
-      migrateTo: '新路径',
-      skipMigration: '跳过迁移',
-      startMigration: '开始迁移',
-      migrating: '迁移中...',
-      migrateSuccess: '插件文件迁移成功',
-      migrateFailed: '迁移失败: {error}'
+      checkInterval: '检查间隔（小时）'
     },
     language: {
       zhCN: '简体中文',

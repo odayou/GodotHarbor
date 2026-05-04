@@ -158,10 +158,6 @@ export const api = {
     return await invoke('batch_update_plugins', { pluginIds })
   },
 
-  async migratePluginStorage(oldPath: string, newPath: string): Promise<void> {
-    return await invoke('migrate_plugin_storage', { oldPath, newPath })
-  },
-
   async getTotalStorageStats(): Promise<TotalStorageStats> {
     return await invoke('get_total_storage_stats')
   },

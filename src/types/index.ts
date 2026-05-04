@@ -78,7 +78,6 @@ export interface Settings {
   sidebar_collapsed?: boolean
   auto_discover_engines?: boolean
   onboarding_completed?: boolean
-  plugin_storage_path?: string
   auto_check_plugin_updates?: boolean
   auto_check_app_updates?: boolean
   auto_check_engine_updates?: boolean

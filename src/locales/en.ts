@@ -3,12 +3,12 @@ export default {
   nav: {
     home: 'Home',
     projects: 'Projects',
-    pluginsNav: 'Plugin Ecosystem',
+    plugins: 'Plugin Ecosystem',
     linkerNav: 'Plugin Binding',
-    enginesNav: 'Engines',
+    engines: 'Engines',
     updates: 'Updates',
     about: 'About',
-    settingsNav: 'Settings'
+    settings: 'Settings'
   },
   projects: {
     title: 'Project Management',
@@ -755,9 +755,7 @@ export default {
     },
     storage: {
       title: 'Data Storage',
-      pathHierarchy: 'The data directory determines the root location for all data. Plugin storage path can override separately, otherwise follows the data directory.',
-      pluginOverridePath: 'Plugin Storage Path (Override)',
-      pluginOverrideDesc: 'Specify a separate plugin storage location. Leave empty to use the plugins subdirectory under the data directory.',
+      pathHierarchy: 'The data directory determines the root storage location for all data (plugins, engines, cache, logs, etc.).',
       currentPaths: 'Current Paths',
       pathName: 'Name',
       pathValue: 'Path',
@@ -808,16 +806,7 @@ export default {
       autoCheckPluginUpdates: 'Auto check plugin updates',
       autoCheckAppUpdates: 'Auto check app updates',
       autoCheckEngineUpdates: 'Auto check engine updates',
-      checkInterval: 'Check interval (hours)',
-      migrateTitle: 'Plugin Storage Path Changed',
-      migrateDesc: 'The plugin storage path has been changed. Would you like to migrate existing plugin files to the new path?',
-      migrateFrom: 'From',
-      migrateTo: 'To',
-      skipMigration: 'Skip Migration',
-      startMigration: 'Start Migration',
-      migrating: 'Migrating...',
-      migrateSuccess: 'Plugin files migrated successfully',
-      migrateFailed: 'Migration failed: {error}'
+      checkInterval: 'Check interval (hours)'
     },
     language: {
       zhCN: '简体中文',

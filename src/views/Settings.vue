@@ -14,7 +14,7 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 const toast = useToast()
 const { t, locale } = useI18n()
 const { setTheme, initTheme } = useTheme()
-const settings = ref<Settings>({ scan_directories: [], mount_strategy: 'Symlink', language: 'zh-CN', theme: 'system', auto_scan_on_startup: true, auto_discover_engines: true, plugin_storage_path: '', auto_check_plugin_updates: false, auto_check_app_updates: true, auto_check_engine_updates: true, update_check_interval_hours: 4, skipped_app_version: '' })
+const settings = ref<Settings>({ scan_directories: [], mount_strategy: 'Symlink', language: 'zh-CN', theme: 'system', auto_scan_on_startup: true, auto_discover_engines: true, auto_check_plugin_updates: false, auto_check_app_updates: true, auto_check_engine_updates: true, update_check_interval_hours: 4, skipped_app_version: '' })
 const originalSettings = ref<string>('')
 const isLoading = ref(false)
 const isDirty = computed(() => {
@@ -83,8 +83,7 @@ const loadSettings = async () => {
   isLoading.value = true
   try {
     const result = await api.getSettings()
-    settings.value = { scan_directories: result.scan_directories || [], mount_strategy: result.mount_strategy || 'Symlink', language: result.language || 'zh-CN', theme: result.theme || 'system', auto_scan_on_startup: result.auto_scan_on_startup ?? true, auto_discover_engines: result.auto_discover_engines ?? true, plugin_storage_path: result.plugin_storage_path || '', auto_check_plugin_updates: result.auto_check_plugin_updates ?? false, auto_check_app_updates: result.auto_check_app_updates ?? true, auto_check_engine_updates: result.auto_check_engine_updates ?? true, update_check_interval_hours: result.update_check_interval_hours ?? 4, skipped_app_version: result.skipped_app_version || '' }
-    oldPluginStoragePath.value = settings.value.plugin_storage_path || ''
+    settings.value = { scan_directories: result.scan_directories || [], mount_strategy: result.mount_strategy || 'Symlink', language: result.language || 'zh-CN', theme: result.theme || 'system', auto_scan_on_startup: result.auto_scan_on_startup ?? true, auto_discover_engines: result.auto_discover_engines ?? true, auto_check_plugin_updates: result.auto_check_plugin_updates ?? false, auto_check_app_updates: result.auto_check_app_updates ?? true, auto_check_engine_updates: result.auto_check_engine_updates ?? true, update_check_interval_hours: result.update_check_interval_hours ?? 4, skipped_app_version: result.skipped_app_version || '' }
     const localStorageLang = localStorage.getItem('godotharbor-language')
     if (localStorageLang && localStorageLang !== settings.value.language) {
       settings.value.language = localStorageLang
@@ -131,30 +130,6 @@ const saveSettingsWithMigrationCheck = async () => {
   if (checkDataDirChange()) {
     return
   }
-  if (settings.value.plugin_storage_path && oldPluginStoragePath.value &&
-      settings.value.plugin_storage_path !== oldPluginStoragePath.value) {
-    showMigrateDialog.value = true
-    return
-  }
-  await saveSettings()
-}
-
-const migratePlugins = async () => {
-  isMigrating.value = true
-  try {
-    await api.migratePluginStorage(oldPluginStoragePath.value, settings.value.plugin_storage_path || '')
-    await saveSettings()
-    toast.success(t('settings.pluginRepo.migrateSuccess'))
-  } catch (error) {
-    toast.error(t('settings.pluginRepo.migrateFailed', { error }))
-  } finally {
-    isMigrating.value = false
-    showMigrateDialog.value = false
-  }
-}
-
-const skipMigration = async () => {
-  showMigrateDialog.value = false
   await saveSettings()
 }
 
@@ -184,15 +159,6 @@ const selectBackupPath = async () => {
     const selected = await open({ directory: true, multiple: false, title: t('settings.backup.selectDir') })
     if (selected && typeof selected === 'string') {
       backupPath.value = selected
-    }
-  } catch (error) { toast.error(t('settings.messages.selectDirFailed', { error })) }
-}
-
-const selectPluginStoragePath = async () => {
-  try {
-    const selected = await open({ directory: true, multiple: false, title: t('settings.pluginRepo.storagePath') })
-    if (selected && typeof selected === 'string') {
-      settings.value.plugin_storage_path = selected
     }
   } catch (error) { toast.error(t('settings.messages.selectDirFailed', { error })) }
 }
@@ -252,12 +218,8 @@ const executeDataMigration = async () => {
   }
 }
 
-const oldPluginStoragePath = ref('')
-const showMigrateDialog = ref(false)
-const isMigrating = ref(false)
 const storagePaths = ref<StoragePaths | null>(null)
 
-useDialogEscape(showMigrateDialog)
 useDialogEscape(showDataMigrateDialog)
 
 const performBackup = async () => {
@@ -665,16 +627,6 @@ const toggleMirrorEnabled = (mirrorId: string) => {
               <button v-if="settings.custom_data_dir" @click="settings.custom_data_dir = ''" class="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.storage.resetToDefault') }}</button>
             </div>
             <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">{{ t('settings.storage.customDataDirHint') }}</p>
-          </div>
-          <div class="mb-4 p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
-            <label class="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">{{ t('settings.storage.pluginOverridePath') }}</label>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ t('settings.storage.pluginOverrideDesc') }}</p>
-            <div class="flex gap-2">
-              <input type="text" v-model="settings.plugin_storage_path"
-                     :placeholder="t('settings.pluginRepo.placeholder')"
-                     class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm" />
-              <button @click="selectPluginStoragePath" class="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">{{ t('settings.pluginRepo.browse') }}</button>
-            </div>
           </div>
           <div class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ t('settings.storage.currentPaths') }}</div>
           <div class="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
@@ -1099,27 +1051,6 @@ const toggleMirrorEnabled = (mirrorId: string) => {
       @confirm="performRestore"
     />
 
-  </Teleport>
-
-  <Teleport to="body">
-    <div v-if="showMigrateDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showMigrateDialog = false">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('settings.pluginRepo.migrateTitle') }}</h3>
-        <p class="text-sm text-gray-600 dark:text-content-secondary mb-3">
-          {{ t('settings.pluginRepo.migrateDesc') }}
-        </p>
-        <div class="bg-gray-50 dark:bg-surface-layer rounded-lg p-3 mb-4 text-xs font-mono space-y-1">
-          <div class="text-red-500 dark:text-red-400">{{ t('settings.pluginRepo.migrateFrom') }}: {{ oldPluginStoragePath }}</div>
-          <div class="text-green-500 dark:text-green-400">{{ t('settings.pluginRepo.migrateTo') }}: {{ settings.plugin_storage_path }}</div>
-        </div>
-        <div class="flex justify-end gap-3">
-          <button @click="skipMigration" :disabled="isMigrating" class="btn-secondary">{{ t('settings.pluginRepo.skipMigration') }}</button>
-          <button @click="migratePlugins" :disabled="isMigrating" class="btn-primary disabled:opacity-50">
-            {{ isMigrating ? t('settings.pluginRepo.migrating') : t('settings.pluginRepo.startMigration') }}
-          </button>
-        </div>
-      </div>
-    </div>
   </Teleport>
 
   <Teleport to="body">

@@ -19,10 +19,10 @@ const asideClass = computed(() => {
 const menuItems = [
   { path: '/', icon: 'home', labelKey: 'nav.home' },
   { path: '/projects', icon: 'folder', labelKey: 'nav.projects' },
-  { path: '/plugins', icon: 'puzzle', labelKey: 'nav.pluginsNav' },
-  { path: '/engines', icon: 'engine', labelKey: 'nav.enginesNav' },
+  { path: '/plugins', icon: 'puzzle', labelKey: 'nav.plugins' },
+  { path: '/engines', icon: 'engine', labelKey: 'nav.engines' },
   { path: '/updates', icon: 'updates', labelKey: 'nav.updates' },
-  { path: '/settings', icon: 'settings', labelKey: 'nav.settingsNav' },
+  { path: '/settings', icon: 'settings', labelKey: 'nav.settings' },
   { path: '/about', icon: 'about', labelKey: 'nav.about' }
 ]
 

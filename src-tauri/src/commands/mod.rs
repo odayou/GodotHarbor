@@ -62,12 +62,7 @@ fn save_settings_to_config(app: &AppHandle, settings: &Settings) -> Result<(), S
 }
 
 fn get_plugin_manager(app: &AppHandle) -> PluginManager {
-    let settings = load_settings(app);
-    let plugins_dir = if settings.plugin_storage_path.is_empty() {
-        get_data_dir(app).join("plugins")
-    } else {
-        PathBuf::from(&settings.plugin_storage_path)
-    };
+    let plugins_dir = get_data_dir(app).join("plugins");
     PluginManager::new(plugins_dir)
 }
 
@@ -201,6 +196,22 @@ pub fn save_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(windows)]
+fn detached_cmd(program: impl AsRef<std::ffi::OsStr>) -> std::process::Command {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
+    const DETACHED_PROCESS: u32 = 0x00000008;
+    let mut cmd = std::process::Command::new(program);
+    cmd.creation_flags(CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS);
+    cmd
+}
+
+#[cfg(not(windows))]
+fn detached_cmd(program: impl AsRef<std::ffi::OsStr>) -> std::process::Command {
+    let mut cmd = std::process::Command::new(program);
+    cmd
+}
+
 #[tauri::command]
 pub fn launch_engine(app: AppHandle, engine_id: String) -> Result<(), String> {
     let storage = get_storage(&app);
@@ -213,7 +224,7 @@ pub fn launch_engine(app: AppHandle, engine_id: String) -> Result<(), String> {
     let exe_path = crate::engine::EngineManager::find_executable_in_dir(std::path::Path::new(&engine.path))
         .ok_or("未找到引擎可执行文件".to_string())?;
 
-    std::process::Command::new(&exe_path)
+    detached_cmd(&exe_path)
         .spawn()
         .map_err(|e| format!("启动引擎失败: {}", e))?;
 
@@ -401,12 +412,7 @@ pub fn migrate_data_dir(app: AppHandle, new_data_dir: String) -> Result<(), Stri
 pub fn get_storage_paths(app: AppHandle) -> Result<StoragePaths, String> {
     let config_dir = get_config_dir(&app);
     let data_dir = get_data_dir(&app);
-    let settings = load_settings(&app);
-    let plugins_dir = if settings.plugin_storage_path.is_empty() {
-        data_dir.join("plugins")
-    } else {
-        PathBuf::from(&settings.plugin_storage_path)
-    };
+    let plugins_dir = data_dir.join("plugins");
     Ok(StoragePaths {
         app_data_dir: data_dir.to_string_lossy().to_string(),
         plugins_dir: plugins_dir.to_string_lossy().to_string(),
@@ -1601,12 +1607,7 @@ pub fn check_binding_health(app: AppHandle, project_id: String) -> Result<Vec<Pr
     }
     let project = project.unwrap();
 
-    let settings = load_settings(&app);
-    let plugin_base_path = if settings.plugin_storage_path.is_empty() {
-        get_data_dir(&app).join("plugins")
-    } else {
-        PathBuf::from(&settings.plugin_storage_path)
-    };
+    let plugin_base_path = get_data_dir(&app).join("plugins");
 
     let mut results = Vec::new();
     for mut binding in project_bindings {
@@ -1669,11 +1670,7 @@ pub fn repair_binding(app: AppHandle, project_id: String, plugin_id: String) -> 
 
     let settings = load_settings(&app);
     let linker = Linker::new(settings.mount_strategy.clone());
-    let plugin_base_path = if settings.plugin_storage_path.is_empty() {
-        get_data_dir(&app).join("plugins")
-    } else {
-        PathBuf::from(&settings.plugin_storage_path)
-    };
+    let plugin_base_path = get_data_dir(&app).join("plugins");
 
     let current_bindings: Vec<ProjectBinding> = Vec::new();
     let desired_bindings = vec![binding.clone()];
@@ -1691,55 +1688,6 @@ pub fn repair_binding(app: AppHandle, project_id: String, plugin_id: String) -> 
 
     log_operation(&app, "repair_binding", &project_id,
         &format!("已修复插件 {} 的符号链接", plugin_id));
-
-    Ok(())
-}
-
-#[tauri::command]
-pub fn migrate_plugin_storage(app: AppHandle, old_path: String, new_path: String) -> Result<(), String> {
-    let old = Path::new(&old_path);
-    let new = Path::new(&new_path);
-
-    if !old.exists() {
-        return Err("原路径不存在".to_string());
-    }
-
-    if !new.exists() {
-        fs::create_dir_all(new)
-            .map_err(|e| format!("创建新路径失败: {}", e))?;
-    }
-
-    let entries = fs::read_dir(old)
-        .map_err(|e| format!("读取原路径失败: {}", e))?;
-
-    for entry in entries {
-        let entry = entry.map_err(|e| format!("读取目录条目失败: {}", e))?;
-        let src = entry.path();
-        let file_name = entry.file_name();
-        let dst = new.join(&file_name);
-
-        if src.is_dir() {
-            copy_dir_all(&src, &dst)?;
-        } else {
-            fs::copy(&src, &dst)
-                .map_err(|e| format!("复制文件失败: {}", e))?;
-        }
-    }
-
-    let old_backup_path = format!("{}.migration_backup", old_path);
-    let old_backup = Path::new(&old_backup_path);
-    fs::rename(old, old_backup)
-        .map_err(|e| format!("重命名原目录失败: {}", e))?;
-
-    match fs::remove_dir_all(old_backup) {
-        Ok(_) => {}
-        Err(_) => {
-            eprintln!("Warning: failed to remove migration backup at {}.migration_backup", old_path);
-        }
-    }
-
-    log_operation(&app, "migrate_plugin_storage", "",
-        &format!("已将插件存储从 {} 迁移到 {}", old_path, new_path));
 
     Ok(())
 }
@@ -2608,12 +2556,7 @@ pub fn backup_data(app: AppHandle, backup_path: String) -> Result<String, String
         }
     }
 
-    let settings = load_settings(&app);
-    let plugins_src_dir = if settings.plugin_storage_path.is_empty() {
-        data_dir.join("plugins")
-    } else {
-        std::path::PathBuf::from(&settings.plugin_storage_path)
-    };
+    let plugins_src_dir = data_dir.join("plugins");
     let plugins_dst_dir = backup_dir.join("plugins");
     
     if plugins_src_dir.exists() {
@@ -2669,12 +2612,7 @@ pub fn restore_data(app: AppHandle, backup_path: String) -> Result<String, Strin
         }
     }
 
-    let settings = load_settings(&app);
-    let plugins_dst_dir = if settings.plugin_storage_path.is_empty() {
-        data_dir.join("plugins")
-    } else {
-        std::path::PathBuf::from(&settings.plugin_storage_path)
-    };
+    let plugins_dst_dir = data_dir.join("plugins");
     let plugins_src_dir = backup_dir.join("plugins");
     
     if plugins_src_dir.exists() {
@@ -2715,12 +2653,7 @@ pub fn reset_data(app: AppHandle, backup_path: String) -> Result<String, String>
         }
     }
 
-    let settings = load_settings(&app);
-    let plugins_src_dir = if settings.plugin_storage_path.is_empty() {
-        data_dir.join("plugins")
-    } else {
-        std::path::PathBuf::from(&settings.plugin_storage_path)
-    };
+    let plugins_src_dir = data_dir.join("plugins");
     let plugins_dst_dir = backup_dir.join("plugins");
     
     if plugins_src_dir.exists() {

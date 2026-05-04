@@ -334,7 +334,6 @@ pub fn run() {
             commands::get_plugin_bindings,
             commands::check_binding_health,
             commands::repair_binding,
-            commands::migrate_plugin_storage,
             commands::check_plugin_duplicate,
             commands::get_total_storage_stats,
             commands::cleanup_orphaned_plugin_dirs,
