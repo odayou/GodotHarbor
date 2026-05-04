@@ -477,6 +477,7 @@ const startDownload = async (version: RemoteEngineVersion) => {
         }
         return v
       })
+      await loadEngines()
     } else if (result.error) {
       toast.error(t('engines.download.downloadFailed', { error: result.error }))
     }
