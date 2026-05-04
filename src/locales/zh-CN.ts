@@ -96,7 +96,26 @@ export default {
     confirmDelete: '确认删除',
     projectAlreadyExists: '项目已存在: {name}',
     clearGroup: '清除分组',
-    invalidRelocatePath: '所选路径不是有效的 Godot 项目（缺少 project.godot）'
+    invalidRelocatePath: '所选路径不是有效的 Godot 项目（缺少 project.godot）',
+    addLocal: '本地目录',
+    addLocalDesc: '选择本地已有的项目目录',
+    addFromGit: '从 Git 克隆',
+    addFromGitDesc: '从 Git 仓库克隆项目',
+    gitImport: {
+      title: '从 Git 克隆项目',
+      desc: '克隆 Git 仓库到本地并添加为 Godot 项目',
+      urlLabel: 'Git 仓库地址',
+      urlPlaceholder: 'https://github.com/user/godot-project.git',
+      targetDirLabel: '存储目录（可选）',
+      targetDirPlaceholder: '留空则使用默认项目目录',
+      targetDirHint: '项目将克隆到该目录下的子文件夹中。若目录中已存在同名项目，将直接注册而无需重新克隆。',
+      selectTargetDir: '选择存储目录',
+      clone: '克隆并添加',
+      cloning: '正在克隆...',
+      enterUrl: '请输入 Git 仓库地址',
+      success: '项目 {name} 克隆成功',
+      failed: '克隆项目失败: {error}'
+    }
   },
   plugins: {
     title: '插件生态',

@@ -28,12 +28,12 @@ fn no_window_cmd(program: impl AsRef<std::ffi::OsStr>) -> std::process::Command 
 }
 use crate::utils::{copy_dir_all, create_http_client};
 
-fn get_config_dir(app: &AppHandle) -> PathBuf {
+pub fn get_config_dir(app: &AppHandle) -> PathBuf {
     app.path().app_data_dir()
         .expect("Failed to get app data directory")
 }
 
-fn get_data_dir(app: &AppHandle) -> PathBuf {
+pub fn get_data_dir(app: &AppHandle) -> PathBuf {
     let config_dir = get_config_dir(app);
     let config_storage = Storage::new(config_dir.clone());
     let settings: Settings = config_storage.load_or_default("settings.json");
@@ -295,7 +295,7 @@ pub fn migrate_data_dir(app: AppHandle, new_data_dir: String) -> Result<(), Stri
     std::fs::create_dir_all(new_path)
         .map_err(|e| format!("创建目录失败: {}", e))?;
 
-    let dirs_to_migrate = ["plugins", "engines", "cache", "logs", "hot_updates", "hotupdate_overlay", "backups"];
+    let dirs_to_migrate = ["plugins", "engines", "cache", "logs", "hot_updates", "hotupdate_overlay", "backups", "downloads"];
     for dir_name in &dirs_to_migrate {
         let src = old_data_dir.join(dir_name);
         if src.exists() {
@@ -303,7 +303,7 @@ pub fn migrate_data_dir(app: AppHandle, new_data_dir: String) -> Result<(), Stri
         }
     }
 
-    let files_to_migrate = ["projects.json", "engines.json", "team_configs.json"];
+    let files_to_migrate = ["projects.json", "engines.json", "team_configs.json", "plugins.json", "bindings.json", "operation_logs.json", "update_logs.json"];
     for file_name in &files_to_migrate {
         let src = old_data_dir.join(file_name);
         if src.exists() {
@@ -346,6 +346,48 @@ pub fn migrate_data_dir(app: AppHandle, new_data_dir: String) -> Result<(), Stri
         }
         if changed {
             let _ = new_storage.save("projects.json", &projects);
+        }
+    }
+
+    let new_plugins_json = new_data_dir_path.join("plugins.json");
+    if new_plugins_json.exists() {
+        let new_storage = Storage::new(new_data_dir_path.clone());
+        let mut plugins: Vec<Plugin> = new_storage.load_or_default("plugins.json");
+        let mut changed = false;
+        for plugin in &mut plugins {
+            for version in &mut plugin.versions {
+                if version.path.starts_with(&old_str) {
+                    version.path = version.path.replacen(&old_str, &new_data_dir, 1);
+                    changed = true;
+                }
+                for unit in &mut version.units {
+                    if unit.plugin_cfg_path.starts_with(&old_str) {
+                        unit.plugin_cfg_path = unit.plugin_cfg_path.replacen(&old_str, &new_data_dir, 1);
+                        changed = true;
+                    }
+                }
+            }
+        }
+        if changed {
+            let _ = new_storage.save("plugins.json", &plugins);
+        }
+    }
+
+    let new_team_configs_json = new_data_dir_path.join("team_configs.json");
+    if new_team_configs_json.exists() {
+        let new_storage = Storage::new(new_data_dir_path.clone());
+        let mut configs: Vec<TeamSharedConfig> = new_storage.load_or_default("team_configs.json");
+        let mut changed = false;
+        for config in &mut configs {
+            for binding in &mut config.bindings {
+                if binding.mount_path.starts_with(&old_str) {
+                    binding.mount_path = binding.mount_path.replacen(&old_str, &new_data_dir, 1);
+                    changed = true;
+                }
+            }
+        }
+        if changed {
+            let _ = new_storage.save("team_configs.json", &configs);
         }
     }
 
@@ -556,9 +598,7 @@ pub async fn download_engine_from_url(
     let variant = "standard";
     crate::engine_downloader::reset_cancel(&version_key, variant);
 
-    let download_dir = app.path().app_data_dir()
-        .map_err(|e| format!("获取应用数据目录失败: {}", e))?
-        .join("downloads");
+    let download_dir = get_data_dir(&app).join("downloads");
     std::fs::create_dir_all(&download_dir)
         .map_err(|e| format!("创建下载目录失败: {}", e))?;
 
@@ -782,6 +822,127 @@ pub fn add_project(app: AppHandle, path: String) -> Result<Project, String> {
         .map_err(|e| format!("保存项目失败: {}", e))?;
 
     log_operation(&app, "add_project", &path, &format!("已添加项目: {}", project_name));
+    Ok(project)
+}
+
+#[tauri::command]
+pub async fn import_project_from_git(
+    app: AppHandle,
+    git_url: String,
+    target_dir: Option<String>,
+) -> Result<Project, String> {
+    if git_url.is_empty() {
+        return Err("请输入 Git 仓库地址".to_string());
+    }
+
+    let repo_name = git_url
+        .split('/')
+        .last()
+        .unwrap_or("unknown")
+        .trim_end_matches(".git")
+        .to_string();
+
+    let data_dir = get_data_dir(&app);
+    let clone_base = if let Some(dir) = &target_dir {
+        if !dir.is_empty() {
+            std::path::PathBuf::from(dir)
+        } else {
+            data_dir.join("projects")
+        }
+    } else {
+        data_dir.join("projects")
+    };
+
+    std::fs::create_dir_all(&clone_base)
+        .map_err(|e| format!("创建项目目录失败: {}", e))?;
+
+    let clone_target = clone_base.join(&repo_name);
+
+    if clone_target.exists() {
+        let project_godot = clone_target.join("project.godot");
+        if project_godot.exists() {
+            let storage = get_storage(&app);
+            let projects: Vec<Project> = storage.load_or_default("projects.json");
+            let existing_path = clone_target.to_string_lossy().to_string();
+            if projects.iter().any(|p| p.path == existing_path) {
+                return Err("该项目已存在，请勿重复添加".to_string());
+            }
+            let project = ProjectScanner::parse_project(&project_godot)
+                .map_err(|e| format!("解析项目失败: {}", e))?;
+            let project_name = project.name.clone();
+            let mut all_projects: Vec<Project> = storage.load_or_default("projects.json");
+            all_projects.push(project.clone());
+            storage.save("projects.json", &all_projects)
+                .map_err(|e| format!("保存项目失败: {}", e))?;
+            log_operation(&app, "import_project_from_git", &git_url,
+                &format!("从 Git 导入项目（目录已存在）: {}", project_name));
+            let _ = app.emit("projects-changed", ());
+            return Ok(project);
+        }
+        return Err(format!("目标目录已存在但不是有效的 Godot 项目: {}", clone_target.display()));
+    }
+
+    let mut callbacks = git2::RemoteCallbacks::new();
+    let app_handle_clone = app.clone();
+    let git_url_for_callback = git_url.clone();
+    callbacks.transfer_progress(move |progress| {
+        let received = progress.received_objects();
+        let total = progress.total_objects();
+        let percentage = if total > 0 {
+            (received as f64 / total as f64 * 100.0) as u32
+        } else {
+            0
+        };
+        let _ = app_handle_clone.emit("git-clone-progress", serde_json::json!({
+            "url": git_url_for_callback,
+            "received_objects": received,
+            "total_objects": total,
+            "percentage": percentage,
+        }));
+        true
+    });
+
+    let mut fetch_options = git2::FetchOptions::new();
+    fetch_options.remote_callbacks(callbacks);
+
+    let mut builder = git2::build::RepoBuilder::new();
+    builder.fetch_options(fetch_options);
+
+    if let Err(e) = builder.clone(&git_url, &clone_target) {
+        let _ = std::fs::remove_dir_all(&clone_target);
+        return Err(format!("克隆 Git 仓库失败: {}", e));
+    }
+
+    let project_godot = clone_target.join("project.godot");
+    if !project_godot.exists() {
+        let _ = std::fs::remove_dir_all(&clone_target);
+        return Err("克隆成功但未找到 project.godot 文件，不是有效的 Godot 项目".to_string());
+    }
+
+    let project = ProjectScanner::parse_project(&project_godot)
+        .map_err(|e| {
+            let _ = std::fs::remove_dir_all(&clone_target);
+            format!("解析项目失败: {}", e)
+        })?;
+
+    let project_name = project.name.clone();
+    let storage = get_storage(&app);
+    let mut all_projects: Vec<Project> = storage.load_or_default("projects.json");
+
+    if all_projects.iter().any(|p| p.path == project.path) {
+        let _ = std::fs::remove_dir_all(&clone_target);
+        return Err("该项目已存在，请勿重复添加".to_string());
+    }
+
+    all_projects.push(project.clone());
+    storage.save("projects.json", &all_projects)
+        .map_err(|e| format!("保存项目失败: {}", e))?;
+
+    log_operation(&app, "import_project_from_git", &git_url,
+        &format!("从 Git 导入项目: {}", project_name));
+
+    let _ = app.emit("projects-changed", ());
+
     Ok(project)
 }
 

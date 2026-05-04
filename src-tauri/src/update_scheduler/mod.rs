@@ -1,6 +1,7 @@
+use crate::commands::get_data_dir;
 use crate::models::Settings;
 use crate::storage::Storage;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 static LAST_CHECK: AtomicBool = AtomicBool::new(false);
@@ -13,8 +14,7 @@ pub fn start_update_scheduler(app: AppHandle) {
         check_and_notify(&scheduler_app).await;
 
         let mut interval_hours = 4u64;
-        let data_dir = scheduler_app.path().app_data_dir()
-            .expect("Failed to get app data directory");
+        let data_dir = get_data_dir(&scheduler_app);
         let storage = Storage::new(data_dir);
         let settings: Settings = storage.load_or_default("settings.json");
         if settings.update_check_interval_hours > 0 {
@@ -24,8 +24,7 @@ pub fn start_update_scheduler(app: AppHandle) {
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(interval_hours * 3600)).await;
 
-            let data_dir = scheduler_app.path().app_data_dir()
-                .expect("Failed to get app data directory");
+            let data_dir = get_data_dir(&scheduler_app);
             let storage = Storage::new(data_dir);
             let settings: Settings = storage.load_or_default("settings.json");
 
@@ -43,8 +42,7 @@ pub fn start_update_scheduler(app: AppHandle) {
 }
 
 async fn check_and_notify(app: &AppHandle) {
-    let data_dir = app.path().app_data_dir()
-        .expect("Failed to get app data directory");
+    let data_dir = get_data_dir(app);
     let storage = Storage::new(data_dir);
     let settings: Settings = storage.load_or_default("settings.json");
 

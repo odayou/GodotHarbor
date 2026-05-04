@@ -280,6 +280,7 @@ pub fn run() {
             commands::scan_projects,
             commands::get_projects,
             commands::add_project,
+            commands::import_project_from_git,
             commands::remove_project,
             commands::import_plugin_from_local,
             commands::import_plugin_from_git,

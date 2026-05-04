@@ -61,6 +61,10 @@ export const api = {
     return await invoke('add_project', { path })
   },
 
+  async importProjectFromGit(gitUrl: string, targetDir?: string): Promise<Project> {
+    return await invoke('import_project_from_git', { gitUrl, targetDir: targetDir || null })
+  },
+
   async removeProject(projectId: string): Promise<void> {
     return await invoke('remove_project', { projectId })
   },

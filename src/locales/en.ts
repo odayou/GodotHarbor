@@ -96,7 +96,26 @@ export default {
     confirmDelete: 'Confirm Delete',
     projectAlreadyExists: 'Project already exists: {name}',
     clearGroup: 'Clear Group',
-    invalidRelocatePath: 'Selected path is not a valid Godot project (missing project.godot)'
+    invalidRelocatePath: 'Selected path is not a valid Godot project (missing project.godot)',
+    addLocal: 'Local Directory',
+    addLocalDesc: 'Select an existing local project directory',
+    addFromGit: 'Clone from Git',
+    addFromGitDesc: 'Clone a project from a Git repository',
+    gitImport: {
+      title: 'Clone Project from Git',
+      desc: 'Clone a Git repository and add it as a Godot project',
+      urlLabel: 'Git Repository URL',
+      urlPlaceholder: 'https://github.com/user/godot-project.git',
+      targetDirLabel: 'Target Directory (optional)',
+      targetDirPlaceholder: 'Leave empty to use default project directory',
+      targetDirHint: 'The project will be cloned into a subfolder of this directory. If a project with the same name already exists there, it will be registered directly without re-cloning.',
+      selectTargetDir: 'Select Target Directory',
+      clone: 'Clone & Add',
+      cloning: 'Cloning...',
+      enterUrl: 'Please enter a Git repository URL',
+      success: 'Project {name} cloned successfully',
+      failed: 'Failed to clone project: {error}'
+    }
   },
   plugins: {
     title: 'Plugin Ecosystem',

@@ -3,7 +3,7 @@ use crate::models::{
 };
 use crate::utils::{create_http_client, parse_version};
 use std::path::{Path, PathBuf};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -454,8 +454,7 @@ impl EngineDownloader {
                 .map_err(|e| format!("删除旧引擎目录失败: {}", e))?;
         }
 
-        let download_dir = app.path().app_data_dir()
-            .map_err(|e| format!("获取应用数据目录失败: {}", e))?
+        let download_dir = crate::commands::get_data_dir(&app)
             .join("downloads");
         std::fs::create_dir_all(&download_dir)
             .map_err(|e| format!("创建下载目录失败: {}", e))?;
