@@ -254,7 +254,6 @@ function updateTypeClass(type: string): string {
 
 onMounted(async () => {
   await store.initListeners()
-  store.checkAll()
 })
 
 onUnmounted(() => {
