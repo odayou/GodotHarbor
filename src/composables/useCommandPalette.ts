@@ -9,15 +9,37 @@ import { useSidebar } from '@/composables/useSidebar'
 export interface SearchItem {
   id: string
   label: string
-  category: 'project' | 'plugin' | 'engine' | 'setting' | 'command'
+  category: 'project' | 'plugin' | 'engine' | 'setting' | 'command' | 'navigation'
   icon: string
   keywords: string
   action: () => void
+  shortcutKey?: string
 }
 
 const isOpen = ref(false)
 const query = ref('')
 const selectedIndex = ref(0)
+
+let globalListenerRegistered = false
+function ensureGlobalListener() {
+  if (globalListenerRegistered) return
+  globalListenerRegistered = true
+  window.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key.toLowerCase() === 'k' && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
+      e.preventDefault()
+      if (isOpen.value) {
+        isOpen.value = false
+        query.value = ''
+        selectedIndex.value = 0
+      } else {
+        isOpen.value = true
+        query.value = ''
+        selectedIndex.value = 0
+      }
+    }
+  })
+}
+ensureGlobalListener()
 
 const PINYIN_MAP: Record<string, string> = {
   '首': 'shou', '页': 'ye', '项': 'xiang', '目': 'mu', '管': 'guan', '理': 'li',
@@ -137,55 +159,80 @@ export function useCommandPalette() {
 
   const allItems = computed<SearchItem[]>(() => {
     const items: SearchItem[] = []
+    const shortcutKeys = ['1', '2', '3', '4', '5', '6', '7', '8', '9']
 
     items.push(
       {
         id: 'nav-home',
         label: t('nav.home'),
-        category: 'command',
+        category: 'navigation',
         icon: 'home',
         keywords: `${t('nav.home')} home`,
-        action: () => router.push('/')
+        action: () => { router.push('/'); closePalette() },
+        shortcutKey: shortcutKeys[0]
       },
       {
         id: 'nav-projects',
         label: t('nav.projects'),
-        category: 'command',
+        category: 'navigation',
         icon: 'folder',
         keywords: `${t('nav.projects')} projects`,
-        action: () => router.push('/projects')
+        action: () => { router.push('/projects'); closePalette() },
+        shortcutKey: shortcutKeys[1]
       },
       {
         id: 'nav-plugins',
         label: t('nav.pluginsNav'),
-        category: 'command',
+        category: 'navigation',
         icon: 'puzzle',
         keywords: `${t('nav.pluginsNav')} plugins`,
-        action: () => router.push('/plugins')
+        action: () => { router.push('/plugins'); closePalette() },
+        shortcutKey: shortcutKeys[2]
       },
       {
         id: 'nav-linker',
         label: t('nav.linkerNav'),
-        category: 'command',
+        category: 'navigation',
         icon: 'link',
-        keywords: `${t('nav.linkerNav')} linker`,
-        action: () => router.push('/linker')
+        keywords: `${t('nav.linkerNav')} linker bind mount`,
+        action: () => { router.push('/plugins?tab=bindings'); closePalette() },
+        shortcutKey: shortcutKeys[3]
       },
       {
         id: 'nav-engines',
         label: t('nav.enginesNav'),
-        category: 'command',
+        category: 'navigation',
         icon: 'engine',
         keywords: `${t('nav.enginesNav')} engines`,
-        action: () => router.push('/engines')
+        action: () => { router.push('/engines'); closePalette() },
+        shortcutKey: shortcutKeys[4]
+      },
+      {
+        id: 'nav-updates',
+        label: t('nav.updates'),
+        category: 'navigation',
+        icon: 'updates',
+        keywords: `${t('nav.updates')} updates`,
+        action: () => { router.push('/updates'); closePalette() },
+        shortcutKey: shortcutKeys[5]
       },
       {
         id: 'nav-settings',
         label: t('nav.settingsNav'),
-        category: 'setting',
+        category: 'navigation',
         icon: 'settings',
         keywords: `${t('nav.settingsNav')} settings`,
-        action: () => router.push('/settings')
+        action: () => { router.push('/settings'); closePalette() },
+        shortcutKey: shortcutKeys[6]
+      },
+      {
+        id: 'nav-about',
+        label: t('nav.about'),
+        category: 'navigation',
+        icon: 'about',
+        keywords: `${t('nav.about')} about`,
+        action: () => { router.push('/about'); closePalette() },
+        shortcutKey: shortcutKeys[7]
       },
       {
         id: 'cmd-toggle-theme',
@@ -216,7 +263,7 @@ export function useCommandPalette() {
         icon: 'scan',
         keywords: `${t('commandPalette.scanProjects')} scan`,
         action: () => {
-          router.push('/projects')
+          router.push('/projects?action=scan')
           closePalette()
         }
       },
@@ -227,7 +274,7 @@ export function useCommandPalette() {
         icon: 'import',
         keywords: `${t('commandPalette.importPlugin')} import plugin`,
         action: () => {
-          router.push('/plugins')
+          router.push('/plugins?action=import')
           closePalette()
         }
       },
@@ -238,7 +285,7 @@ export function useCommandPalette() {
         icon: 'engine',
         keywords: `${t('commandPalette.registerEngine')} register engine`,
         action: () => {
-          router.push('/engines')
+          router.push('/engines?action=register')
           closePalette()
         }
       },
@@ -262,7 +309,7 @@ export function useCommandPalette() {
         category: 'project',
         icon: 'folder',
         keywords: `${p.name} ${p.path} ${p.godot_version} ${p.group || ''}`,
-        action: () => router.push('/projects')
+        action: () => { router.push('/projects'); closePalette() }
       })
     })
 
@@ -274,7 +321,7 @@ export function useCommandPalette() {
         category: 'plugin',
         icon: 'puzzle',
         keywords: `${p.name} ${p.description} ${p.author} ${versionStr}`,
-        action: () => router.push('/plugins')
+        action: () => { router.push('/plugins'); closePalette() }
       })
     })
 
@@ -283,7 +330,7 @@ export function useCommandPalette() {
 
   const filteredItems = computed(() => {
     if (!query.value.trim()) {
-      return allItems.value.slice(0, 20)
+      return allItems.value.slice(0, 30)
     }
 
     const results: { item: SearchItem; score: number }[] = []
@@ -302,7 +349,7 @@ export function useCommandPalette() {
 
   const groupedResults = computed(() => {
     const groups: { category: SearchItem['category']; items: SearchItem[] }[] = []
-    const categoryOrder: SearchItem['category'][] = ['command', 'project', 'plugin', 'engine', 'setting']
+    const categoryOrder: SearchItem['category'][] = ['navigation', 'command', 'project', 'plugin', 'engine', 'setting']
     const categoryMap = new Map<SearchItem['category'], SearchItem[]>()
 
     for (const item of filteredItems.value) {
@@ -354,7 +401,6 @@ export function useCommandPalette() {
 
   function selectItem(item: SearchItem) {
     item.action()
-    closePalette()
   }
 
   function moveSelection(delta: number) {
@@ -370,6 +416,15 @@ export function useCommandPalette() {
     }
   }
 
+  function selectByShortcutKey(key: string): boolean {
+    const item = filteredItems.value.find(i => i.shortcutKey === key)
+    if (item) {
+      selectItem(item)
+      return true
+    }
+    return false
+  }
+
   return {
     isOpen,
     query,
@@ -382,6 +437,7 @@ export function useCommandPalette() {
     selectItem,
     moveSelection,
     selectCurrentItem,
+    selectByShortcutKey,
     t
   }
 }

@@ -550,15 +550,14 @@ const toggleMirrorEnabled = (mirrorId: string) => {
       </div>
     </div>
     <div v-if="isLoading" class="flex justify-center py-12"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div></div>
-    <div v-else class="flex gap-6">
+    <div v-else class="flex gap-6 items-start">
       <nav class="w-44 shrink-0 hidden lg:block">
         <div class="sticky top-6 space-y-1">
           <button v-for="section in [
             { id: 'general', label: t('settings.general'), icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
-            { id: 'storage', label: t('settings.storage.title'), icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4' },
+            { id: 'data', label: t('settings.data'), icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4' },
             { id: 'mount', label: t('settings.mount'), icon: 'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1' },
-            { id: 'updates', label: t('settings.updates.title'), icon: 'M13 10V3L4 14h7v7l9-11h-7z' },
-            { id: 'dataManagement', label: t('settings.dataManagement'), icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4' }
+            { id: 'updates', label: t('settings.updates.title'), icon: 'M13 10V3L4 14h7v7l9-11h-7z' }
           ]" :key="section.id" @click="activeSection = section.id"
             :class="[
               'flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors w-full text-left',
@@ -577,10 +576,9 @@ const toggleMirrorEnabled = (mirrorId: string) => {
       <div class="lg:hidden flex gap-1.5 overflow-x-auto pb-2 -mx-1 px-1">
         <button v-for="section in [
           { id: 'general', label: t('settings.general') },
-          { id: 'storage', label: t('settings.storage.title') },
+          { id: 'data', label: t('settings.data') },
           { id: 'mount', label: t('settings.mount') },
-          { id: 'updates', label: t('settings.updates.title') },
-          { id: 'dataManagement', label: t('settings.dataManagement') }
+          { id: 'updates', label: t('settings.updates.title') }
         ]" :key="section.id" @click="activeSection = section.id"
           :class="[
             'px-3 py-1.5 text-xs rounded-full whitespace-nowrap transition-colors',
@@ -652,10 +650,10 @@ const toggleMirrorEnabled = (mirrorId: string) => {
           <span v-else-if="settings.mount_strategy === 'Copy'">{{ t('settings.copyDesc') }}</span>
         </p>
       </div>
-      <div v-if="storagePaths" v-show="activeSection === 'storage'" class="space-y-6">
+      <div v-if="storagePaths" v-show="activeSection === 'data'" class="space-y-6">
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ t('settings.storage.title') }}</h2>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">{{ t('settings.storage.description') }}</p>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">{{ t('settings.storage.pathHierarchy') }}</p>
           <div class="mb-4 p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
             <label class="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">{{ t('settings.storage.customDataDir') }}</label>
             <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ t('settings.storage.customDataDirDesc') }}</p>
@@ -669,51 +667,77 @@ const toggleMirrorEnabled = (mirrorId: string) => {
             <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">{{ t('settings.storage.customDataDirHint') }}</p>
           </div>
           <div class="mb-4 p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
-            <label class="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">{{ t('settings.pluginRepo.storagePath') }}</label>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ t('settings.pluginRepo.storageHint') }}</p>
+            <label class="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">{{ t('settings.storage.pluginOverridePath') }}</label>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ t('settings.storage.pluginOverrideDesc') }}</p>
             <div class="flex gap-2">
-              <input
-                type="text"
-                v-model="settings.plugin_storage_path"
-                :placeholder="t('settings.pluginRepo.placeholder')"
-                class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
-              />
-              <button
-                @click="selectPluginStoragePath"
-                class="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
-              >
-                {{ t('settings.pluginRepo.browse') }}
-              </button>
+              <input type="text" v-model="settings.plugin_storage_path"
+                     :placeholder="t('settings.pluginRepo.placeholder')"
+                     class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm" />
+              <button @click="selectPluginStoragePath" class="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">{{ t('settings.pluginRepo.browse') }}</button>
             </div>
           </div>
-          <div class="space-y-3">
-            <div v-for="item in [
-              { key: 'appDataDir', path: storagePaths.app_data_dir },
-              { key: 'pluginsDir', path: storagePaths.plugins_dir },
-              { key: 'enginesDir', path: storagePaths.engines_dir },
-              { key: 'cacheDir', path: storagePaths.cache_dir },
-              { key: 'logsDir', path: storagePaths.logs_dir },
-              { key: 'hotUpdatesDir', path: storagePaths.hot_updates_dir }
-            ]" :key="item.key" class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-              <div class="flex-1 min-w-0">
-                <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t(`settings.storage.${item.key}`) }}</div>
-                <div class="text-xs text-gray-500 dark:text-gray-400">{{ t(`settings.storage.${item.key}Desc`) }}</div>
-                <div class="text-xs font-mono text-gray-600 dark:text-gray-300 mt-1 break-all">{{ item.path }}</div>
+          <div class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ t('settings.storage.currentPaths') }}</div>
+          <div class="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
+            <table class="w-full text-xs">
+              <thead class="bg-gray-50 dark:bg-gray-700/50">
+                <tr>
+                  <th class="text-left px-3 py-1.5 font-medium text-gray-500 dark:text-gray-400 w-24">{{ t('settings.storage.pathName') }}</th>
+                  <th class="text-left px-3 py-1.5 font-medium text-gray-500 dark:text-gray-400">{{ t('settings.storage.pathValue') }}</th>
+                  <th class="text-right px-3 py-1.5 font-medium text-gray-500 dark:text-gray-400 w-16"></th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                <tr v-for="item in [
+                  { key: 'appDataDir', path: storagePaths.app_data_dir },
+                  { key: 'pluginsDir', path: storagePaths.plugins_dir },
+                  { key: 'enginesDir', path: storagePaths.engines_dir },
+                  { key: 'cacheDir', path: storagePaths.cache_dir },
+                  { key: 'logsDir', path: storagePaths.logs_dir },
+                  { key: 'hotUpdatesDir', path: storagePaths.hot_updates_dir },
+                  { key: 'settingsFile', path: storagePaths.settings_file },
+                  { key: 'projectsFile', path: storagePaths.projects_file },
+                  { key: 'enginesFile', path: storagePaths.engines_file }
+                ]" :key="item.key">
+                  <td class="px-3 py-1.5 text-gray-700 dark:text-gray-300 whitespace-nowrap">{{ t(`settings.storage.${item.key}`) }}</td>
+                  <td class="px-3 py-1.5 font-mono text-gray-600 dark:text-gray-400 break-all">{{ item.path }}</td>
+                  <td class="px-3 py-1.5 text-right"><button @click="openPath(item.path)" class="text-primary-600 dark:text-primary-400 hover:underline">{{ t('settings.storage.open') }}</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.dataOps') }}</h2>
+          <div class="space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.buttons.backup') }}</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ t('settings.backup.desc') }}</p>
               </div>
-              <button @click="openPath(item.path)" class="shrink-0 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.storage.openInFileManager') }}</button>
+              <div class="flex gap-2">
+                <button @click="showBackupDialog = true" class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors text-sm">{{ t('settings.buttons.backup') }}</button>
+                <button @click="showRestoreDialog = true" class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors text-sm">{{ t('settings.backup.restore') }}</button>
+              </div>
             </div>
-            <div class="pt-2 border-t border-gray-200 dark:border-gray-700">
-              <div v-for="item in [
-                { key: 'settingsFile', path: storagePaths.settings_file },
-                { key: 'projectsFile', path: storagePaths.projects_file },
-                { key: 'enginesFile', path: storagePaths.engines_file }
-              ]" :key="item.key" class="mb-2 last:mb-0">
-                <div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ t(`settings.storage.${item.key}`) }}</div>
-                <div class="flex items-center gap-3 p-2 bg-gray-50 dark:bg-gray-700/50 rounded">
-                  <div class="flex-1 min-w-0 text-xs font-mono text-gray-600 dark:text-gray-300 break-all">{{ item.path }}</div>
-                  <button @click="openPath(item.path)" class="shrink-0 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.storage.openInFileManager') }}</button>
-                </div>
+            <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+              <div>
+                <p class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.buttons.teamConfig') }}</p>
               </div>
+              <button @click="showTeamConfigDialog = true" class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors text-sm">{{ t('settings.buttons.teamConfig') }}</button>
+            </div>
+            <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+              <div>
+                <p class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.showOnboarding') }}</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ t('settings.showOnboardingDesc') }}</p>
+              </div>
+              <button @click="resetOnboarding" class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors text-sm">{{ t('settings.showOnboarding') }}</button>
+            </div>
+            <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+              <div>
+                <p class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.resetDataLabel') }}</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ t('settings.resetDataDesc') }}</p>
+              </div>
+              <button @click="confirmResetData" class="px-4 py-2 border border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-800/20 transition-colors text-sm">{{ t('settings.resetDataLabel') }}</button>
             </div>
           </div>
         </div>
@@ -786,66 +810,6 @@ const toggleMirrorEnabled = (mirrorId: string) => {
               class="px-4 py-2 border border-dashed border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm w-full"
             >
               + {{ t('settings.engineMirror.addMirror') }}
-            </button>
-          </div>
-        </div>
-      </div>
-      <div v-show="activeSection === 'dataManagement'" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.dataManagement') }}</h2>
-        <div class="space-y-4">
-          <div class="flex items-center justify-between">
-            <div>
-              <p class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.buttons.backup') }}</p>
-              <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ t('settings.backup.desc') }}</p>
-            </div>
-            <div class="flex gap-2">
-              <button
-                @click="showBackupDialog = true"
-                class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors text-sm"
-              >
-                {{ t('settings.buttons.backup') }}
-              </button>
-              <button
-                @click="showRestoreDialog = true"
-                class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors text-sm"
-              >
-                {{ t('settings.backup.restore') }}
-              </button>
-            </div>
-          </div>
-          <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
-            <div>
-              <p class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.buttons.teamConfig') }}</p>
-            </div>
-            <button
-              @click="showTeamConfigDialog = true"
-              class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors text-sm"
-            >
-              {{ t('settings.buttons.teamConfig') }}
-            </button>
-          </div>
-          <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
-            <div>
-              <p class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.showOnboarding') }}</p>
-              <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ t('settings.showOnboardingDesc') }}</p>
-            </div>
-            <button
-              @click="resetOnboarding"
-              class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors text-sm"
-            >
-              {{ t('settings.showOnboarding') }}
-            </button>
-          </div>
-          <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
-            <div>
-              <p class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.resetDataLabel') }}</p>
-              <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ t('settings.resetDataDesc') }}</p>
-            </div>
-            <button
-              @click="confirmResetData"
-              class="px-4 py-2 border border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-800/20 transition-colors text-sm"
-            >
-              {{ t('settings.resetDataLabel') }}
             </button>
           </div>
         </div>

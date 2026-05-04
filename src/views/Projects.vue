@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { api } from '@/api'
 import type { Project, Engine, MovedProjectCandidate, ProjectBinding, Plugin } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
@@ -14,6 +14,7 @@ import { preloadIcons, getIconUrl, getIconDebugInfo } from '@/composables/useIco
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const router = useRouter()
+const route = useRoute()
 const toast = useToast()
 const { t } = useI18n()
 const { isRunning: isAutoSetupRunning, stepMessage: autoSetupMessage, runAutoSetup } = useAutoSetup()
@@ -157,6 +158,11 @@ onMounted(async () => {
     loadProjects()
     loadEngines()
   })
+  if (route.query.action === 'scan') {
+    await nextTick()
+    showScanDialog.value = true
+    router.replace({ path: '/projects' })
+  }
 })
 
 onUnmounted(() => {

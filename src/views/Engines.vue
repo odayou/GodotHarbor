@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter, useRoute } from 'vue-router'
 import { api } from '@/api'
 import type { Engine, RemoteEngineVersion, EngineMirrorConfig, EngineDownloadProgress, EngineReleaseChannel } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
@@ -11,6 +12,8 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const toast = useToast()
 const { t } = useI18n()
+const router = useRouter()
+const route = useRoute()
 const engines = ref<Engine[]>([])
 const isLoading = ref(false)
 const isDiscovering = ref(false)
@@ -89,6 +92,11 @@ onMounted(async () => {
     activeDownloads.value = newMap
   })
   document.addEventListener('click', handleGlobalClick)
+  if (route.query.action === 'register') {
+    await nextTick()
+    showAddDialog.value = true
+    router.replace({ path: '/engines' })
+  }
 })
 
 onUnmounted(() => {

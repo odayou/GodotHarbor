@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/api'
 import type { Plugin, Project, PluginDependency, PluginStorageStats, ProjectBinding, TotalStorageStats, DuplicateCheckResult, ScannedPlugin, TeamSharedConfig } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
@@ -18,6 +18,7 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const pluginStore = usePluginStore()
 const route = useRoute()
+const router = useRouter()
 
 const toast = useToast()
 const { isRunning: isAutoSetupRunning, stepMessage: autoSetupMessage } = useAutoSetup()
@@ -347,6 +348,11 @@ onMounted(async () => {
       }
       showQuickBindDialog.value = true
     }
+  }
+  if (route.query.action === 'import') {
+    await nextTick()
+    showImportModeDialog.value = true
+    router.replace({ path: '/plugins' })
   }
 })
 
