@@ -162,6 +162,157 @@ impl PluginManager {
         Ok(())
     }
 
+    pub fn import_from_url(&self, url: &str, app_handle: &AppHandle) -> Result<Plugin> {
+        let url_path = url.split('?').next().unwrap_or(url);
+        let file_name = url_path
+            .split('/')
+            .last()
+            .unwrap_or("plugin")
+            .to_string();
+
+        let plugin_name = if file_name.contains('.') {
+            file_name.rsplitn(2, '.').last().unwrap_or("plugin").to_string()
+        } else {
+            file_name.clone()
+        };
+
+        let plugin_source = PluginSource {
+            source_type: SourceType::Url,
+            url: url.to_string(),
+            imported_at: chrono::Utc::now(),
+        };
+
+        let mut plugin = Plugin::new(plugin_name.clone(), plugin_source);
+
+        let version_id = Uuid::new_v4().to_string();
+        let version_dir = self.plugins_dir.join(&plugin.plugin_id).join(&version_id);
+        let payload_dir = version_dir.join("payload");
+
+        fs::create_dir_all(&version_dir)
+            .context("Failed to create version directory")?;
+
+        let download_dir = version_dir.join("download");
+        let archive_path = download_dir.join(&file_name);
+
+        let rt = tokio::runtime::Runtime::new()
+            .context("Failed to create tokio runtime")?;
+        rt.block_on(async {
+            let client = crate::utils::create_http_client(None)
+                .map_err(|e| anyhow::anyhow!(e))?;
+            let resp = client.get(url).send().await
+                .map_err(|e| anyhow::anyhow!("下载失败: {}", e))?;
+            if !resp.status().is_success() {
+                return Err(anyhow::anyhow!("下载失败，HTTP 状态码: {}", resp.status()));
+            }
+            fs::create_dir_all(&download_dir)
+                .context("Failed to create download directory")?;
+            let bytes = resp.bytes().await
+                .map_err(|e| anyhow::anyhow!("读取响应内容失败: {}", e))?;
+            fs::write(&archive_path, &bytes)
+                .context("Failed to write downloaded file")?;
+            Ok(())
+        }).map_err(|e: anyhow::Error| {
+            let _ = fs::remove_dir_all(&version_dir);
+            e
+        })?;
+
+        let is_archive = file_name.ends_with(".zip")
+            || file_name.ends_with(".tar.gz")
+            || file_name.ends_with(".tgz")
+            || file_name.ends_with(".tar.bz2")
+            || file_name.ends_with(".gz");
+
+        if is_archive {
+            fs::create_dir_all(&payload_dir)
+                .context("Failed to create payload directory")?;
+
+            let extract_result = if file_name.ends_with(".zip") {
+                Self::extract_zip(&archive_path, &payload_dir)
+            } else {
+                Self::extract_tar(&archive_path, &payload_dir)
+            };
+
+            let _ = fs::remove_dir_all(&download_dir);
+
+            if let Err(e) = extract_result {
+                let _ = fs::remove_dir_all(&version_dir);
+                return Err(e.context("解压插件文件失败，已清理"));
+            }
+
+            let actual_payload = if let Some(single_dir) = Self::find_single_subdir(&payload_dir) {
+                single_dir
+            } else {
+                payload_dir.clone()
+            };
+
+            self.finalize_import(&mut plugin, &actual_payload, &version_id, &plugin_name)?;
+        } else {
+            let _ = fs::remove_dir_all(&download_dir);
+            let _ = fs::remove_dir_all(&version_dir);
+            return Err(anyhow::anyhow!("不支持的文件格式，请提供 .zip 或 .tar.gz 压缩包"));
+        }
+
+        let _ = app_handle.emit("plugin-import-progress", serde_json::json!({
+            "status": "complete",
+            "plugin_name": plugin.name,
+        }));
+
+        Ok(plugin)
+    }
+
+    fn extract_zip(archive_path: &Path, target_dir: &Path) -> Result<()> {
+        let file = fs::File::open(archive_path)
+            .context("Failed to open zip archive")?;
+        let mut archive = zip::ZipArchive::new(file)
+            .context("Failed to read zip archive")?;
+        archive.extract(target_dir)
+            .map_err(|e| anyhow::anyhow!("解压 zip 失败: {}", e))?;
+        Ok(())
+    }
+
+    fn extract_tar(archive_path: &Path, target_dir: &Path) -> Result<()> {
+        let file = fs::File::open(archive_path)
+            .context("Failed to open tar archive")?;
+        let file_name = archive_path.file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("");
+        if file_name.ends_with(".tar.gz") || file_name.ends_with(".tgz") {
+            let gz = flate2::read::GzDecoder::new(file);
+            let mut archive = tar::Archive::new(gz);
+            archive.unpack(target_dir)
+                .map_err(|e| anyhow::anyhow!("解压 tar.gz 失败: {}", e))?;
+        } else if file_name.ends_with(".tar.bz2") {
+            let bz = bzip2::read::BzDecoder::new(file);
+            let mut archive = tar::Archive::new(bz);
+            archive.unpack(target_dir)
+                .map_err(|e| anyhow::anyhow!("解压 tar.bz2 失败: {}", e))?;
+        } else if file_name.ends_with(".gz") {
+            let gz = flate2::read::GzDecoder::new(file);
+            let mut archive = tar::Archive::new(gz);
+            archive.unpack(target_dir)
+                .map_err(|e| anyhow::anyhow!("解压 gz 失败: {}", e))?;
+        } else {
+            let mut archive = tar::Archive::new(file);
+            archive.unpack(target_dir)
+                .map_err(|e| anyhow::anyhow!("解压 tar 失败: {}", e))?;
+        }
+        Ok(())
+    }
+
+    fn find_single_subdir(dir: &Path) -> Option<PathBuf> {
+        if let Ok(entries) = fs::read_dir(dir) {
+            let subdirs: Vec<PathBuf> = entries
+                .filter_map(|e| e.ok())
+                .filter(|e| e.path().is_dir())
+                .map(|e| e.path())
+                .collect();
+            if subdirs.len() == 1 {
+                return Some(subdirs.into_iter().next().unwrap());
+            }
+        }
+        None
+    }
+
     pub fn import_from_git(&self, git_url: &str, app_handle: &AppHandle) -> Result<Plugin> {
         let plugin_name = git_url
             .split('/')

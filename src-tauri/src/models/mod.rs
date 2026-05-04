@@ -60,6 +60,7 @@ pub enum SourceType {
     Git,
     Local,
     AssetLibrary,
+    Url,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -607,6 +608,14 @@ pub struct CachedRemoteVersions {
     pub cached_at: String,
     pub mirror_id: String,
     pub versions: Vec<RemoteEngineVersion>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CachedPluginUpdates {
+    #[serde(default)]
+    pub cache_version: u32,
+    pub cached_at: String,
+    pub updates: Vec<PluginUpdateInfo>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

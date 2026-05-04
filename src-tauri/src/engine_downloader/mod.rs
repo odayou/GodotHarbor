@@ -45,7 +45,7 @@ fn is_cancelled(version: &str, variant: &str) -> bool {
     false
 }
 
-fn reset_cancel(version: &str, variant: &str) {
+pub fn reset_cancel(version: &str, variant: &str) {
     let key = download_key(version, variant);
     if let Ok(mut map) = CANCEL_FLAGS.lock() {
         map.insert(key, AtomicBool::new(false));
@@ -66,7 +66,7 @@ fn clear_active_download(version: &str, variant: &str) {
     }
 }
 
-fn cleanup_on_error(path_to_remove: &Path, is_dir: bool, version: &str, variant: &str) {
+pub fn cleanup_on_error(path_to_remove: &Path, is_dir: bool, version: &str, variant: &str) {
     if is_dir {
         let _ = std::fs::remove_dir_all(path_to_remove);
     } else {
@@ -500,7 +500,7 @@ impl EngineDownloader {
         Ok(target_dir)
     }
 
-    async fn download_file(
+    pub async fn download_file(
         app: &AppHandle,
         url: &str,
         path: &Path,
@@ -595,7 +595,7 @@ impl EngineDownloader {
         }
     }
 
-    fn extract_archive(app: &AppHandle, version: &str, variant: &str, archive_path: &Path, target_dir: &Path) -> Result<(), String> {
+    pub fn extract_archive(app: &AppHandle, version: &str, variant: &str, archive_path: &Path, target_dir: &Path) -> Result<(), String> {
         let file = std::fs::File::open(archive_path)
             .map_err(|e| format!("打开压缩包失败: {}", e))?;
 

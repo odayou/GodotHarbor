@@ -18,6 +18,10 @@ const showAddDialog = ref(false)
 const newEnginePath = ref('')
 const newEngineName = ref('')
 const isRegistering = ref(false)
+const engineUrl = ref('')
+const engineUrlName = ref('')
+const isDownloadingFromUrl = ref(false)
+const downloadTab = ref<'mirror' | 'url'>('mirror')
 const showDeleteConfirm = ref(false)
 const deleteAlsoFiles = ref(false)
 const deleteTargetId = ref('')
@@ -333,6 +337,32 @@ const launchEngine = async (engineId: string) => {
     toast.success(t('engines.launchSuccess'))
   } catch (error) {
     toast.error(t('engines.launchFailed', { error }))
+  }
+}
+
+const downloadEngineFromUrl = async () => {
+  if (!engineUrl.value) {
+    toast.warning(t('engines.urlDownload.enterUrl'))
+    return
+  }
+  isDownloadingFromUrl.value = true
+  try {
+    const result = await api.downloadEngineFromUrl(engineUrl.value, engineUrlName.value)
+    if (result.success && result.engine) {
+      toast.success(t('engines.registerSuccess', { name: result.engine.name }))
+      showDownloadDialog.value = false
+      engineUrl.value = ''
+      engineUrlName.value = ''
+      await loadEngines()
+    } else if (result.cancelled) {
+      toast.info(t('engines.download.downloadCancelled'))
+    } else if (result.error) {
+      toast.error(result.error)
+    }
+  } catch (error) {
+    toast.error(t('engines.urlDownload.failed', { error }))
+  } finally {
+    isDownloadingFromUrl.value = false
   }
 }
 
@@ -858,9 +888,25 @@ const initCollapsedGroups = () => {
         </div>
 
         <div class="px-6 pb-4 space-y-3">
+          <div class="flex border-b border-gray-200 dark:border-gray-700 mb-2">
+            <button
+              @click="downloadTab = 'mirror'"
+              :class="['px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors', downloadTab === 'mirror' ? 'border-primary-600 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300']"
+            >
+              {{ t('engines.download.mirrorTab') }}
+            </button>
+            <button
+              @click="downloadTab = 'url'"
+              :class="['px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors', downloadTab === 'url' ? 'border-primary-600 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300']"
+            >
+              {{ t('engines.download.urlTab') }}
+            </button>
+          </div>
+
+          <template v-if="downloadTab === 'mirror'">
           <div class="flex gap-3 items-end">
             <div class="flex-1">
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ t('engines.download.mirror') }}</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ t('engines.download.mirrorTab') }}</label>
               <select
                 v-model="selectedMirrorId"
                 @change="onMirrorChange"
@@ -937,8 +983,43 @@ const initCollapsedGroups = () => {
               </div>
             </div>
           </div>
+          </template>
+
+          <template v-if="downloadTab === 'url'">
+            <div class="space-y-4 py-2">
+              <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('engines.urlDownload.desc') }}</p>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('engines.urlDownload.urlLabel') }}</label>
+                <input
+                  v-model="engineUrl"
+                  type="text"
+                  :placeholder="t('engines.urlDownload.urlPlaceholder')"
+                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('engines.engineName') }}</label>
+                <input
+                  v-model="engineUrlName"
+                  type="text"
+                  :placeholder="t('engines.urlDownload.namePlaceholder')"
+                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+                />
+              </div>
+              <div class="flex justify-end">
+                <button
+                  @click="downloadEngineFromUrl"
+                  :disabled="isDownloadingFromUrl || !engineUrl"
+                  class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm"
+                >
+                  {{ isDownloadingFromUrl ? t('engines.registering') : t('engines.urlDownload.download') }}
+                </button>
+              </div>
+            </div>
+          </template>
         </div>
 
+        <template v-if="downloadTab === 'mirror'">
         <div class="flex-1 overflow-y-auto px-6 pb-6">
           <div v-if="isFetchingVersions" class="flex justify-center py-12">
             <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
@@ -1065,6 +1146,7 @@ const initCollapsedGroups = () => {
             </div>
           </div>
         </div>
+        </template>
       </div>
     </div>
   </Teleport>

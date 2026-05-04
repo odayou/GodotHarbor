@@ -1,5 +1,5 @@
 export interface PluginSource {
-  source_type: 'Git' | 'Local' | 'AssetLibrary'
+  source_type: 'Git' | 'Local' | 'AssetLibrary' | 'Url'
   url: string
   imported_at: string
 }

@@ -27,8 +27,8 @@ const plugins = computed(() => pluginStore.plugins)
 const isLoading = ref(false)
 const hasLoaded = ref(false)
 let unlistenAutoSetup: UnlistenFn | null = null
-const gitUrl = ref('')
-const showGitDialog = ref(false)
+const remoteUrl = ref('')
+const showRemoteDialog = ref(false)
 const showPluginDetail = ref(false)
 const selectedPlugin = ref<Plugin | null>(null)
 const pluginDependencies = ref<PluginDependency[]>([])
@@ -256,6 +256,7 @@ const importFromLocal = async () => {
   }
 }
 
+
 const importFromFile = async () => {
   try {
     const selected = await open({
@@ -279,17 +280,21 @@ const importFromFile = async () => {
   }
 }
 
-const importFromGit = async () => {
-  if (!gitUrl.value) {
-    toast.warning(t('plugins.enterGitUrl'))
+const importFromRemote = async () => {
+  if (!remoteUrl.value) {
+    toast.warning(t('plugins.enterRemoteUrl'))
     return
   }
   isLoading.value = true
   try {
-    const result = await api.importPluginFromGit(gitUrl.value)
+    const url = remoteUrl.value.trim()
+    const isGitUrl = url.endsWith('.git') || (url.includes('github.com') && !url.includes('/archive/') && !url.endsWith('.zip') && !url.endsWith('.tar.gz'))
+    const result = isGitUrl
+      ? await api.importPluginFromGit(url)
+      : await api.importPluginFromUrl(url)
     toast.success(t('plugins.importPluginSuccess', { name: result.name }))
-    gitUrl.value = ''
-    showGitDialog.value = false
+    remoteUrl.value = ''
+    showRemoteDialog.value = false
     await loadPlugins(true)
     showPostImportGuide(result.name, result)
   } catch (error) {
@@ -364,7 +369,7 @@ const showDuplicateConfirm = ref(false)
 const duplicateCheckResult = ref<DuplicateCheckResult | null>(null)
 const pendingImportAction = ref<(() => Promise<void>) | null>(null)
 
-useDialogEscape(showGitDialog)
+useDialogEscape(showRemoteDialog)
 useDialogEscape(showPluginDetail)
 useDialogEscape(showImportModeDialog)
 useDialogEscape(showDuplicateConfirm)
@@ -1608,15 +1613,15 @@ const retryBatchFailed = async () => {
               </div>
             </button>
             <button
-              @click="showGitDialog = true; showAddMenu = false"
+              @click="showRemoteDialog = true; showAddMenu = false"
               class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2.5"
             >
               <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
               </svg>
               <div>
-                <div class="font-medium">{{ t('plugins.fromGit') }}</div>
-                <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('plugins.addMenu.fromGitDesc') }}</div>
+                <div class="font-medium">{{ t('plugins.fromRemote') }}</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('plugins.addMenu.fromRemoteDesc') }}</div>
               </div>
             </button>
             <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
@@ -1741,7 +1746,7 @@ const retryBatchFailed = async () => {
           </div>
         </button>
         <button
-          @click="showGitDialog = true"
+          @click="showRemoteDialog = true"
           :disabled="isLoading"
           class="w-full flex items-center gap-3 p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-left"
         >
@@ -1751,8 +1756,8 @@ const retryBatchFailed = async () => {
             </svg>
           </div>
           <div>
-            <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('plugins.onboarding.fromGit') }}</div>
-            <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('plugins.onboarding.fromGitDesc') }}</div>
+            <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('plugins.onboarding.fromRemote') }}</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('plugins.onboarding.fromRemoteDesc') }}</div>
           </div>
         </button>
         <button
@@ -1916,28 +1921,28 @@ const retryBatchFailed = async () => {
     </div>
 
   <Teleport to="body">
-    <div v-if="showGitDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showGitDialog = false; gitUrl = ''">
+    <div v-if="showRemoteDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showRemoteDialog = false; remoteUrl = ''">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('plugins.importFromGit') }}</h3>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('plugins.importFromRemote') }}</h3>
         <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">
-          {{ t('plugins.gitImport.desc') }}
+          {{ t('plugins.remoteImport.desc') }}
         </p>
         <input
-          v-model="gitUrl"
+          v-model="remoteUrl"
           type="text"
-          :placeholder="t('plugins.gitImport.placeholder')"
+          :placeholder="t('plugins.remoteImport.placeholder')"
           class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
         />
         <div class="flex justify-end space-x-3 mt-6">
           <button
-            @click="showGitDialog = false; gitUrl = ''"
+            @click="showRemoteDialog = false; remoteUrl = ''"
             class="btn-secondary"
           >
             {{ t('common.cancel') }}
           </button>
           <button
-            @click="importFromGit"
-            :disabled="isLoading || !gitUrl"
+            @click="importFromRemote"
+            :disabled="isLoading || !remoteUrl"
             class="btn-primary disabled:opacity-50"
           >
             {{ t('plugins.importFromProject.startImport') }}

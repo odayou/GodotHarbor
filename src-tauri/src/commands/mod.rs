@@ -520,6 +520,130 @@ pub async fn download_engine(
 }
 
 #[tauri::command]
+pub async fn download_engine_from_url(
+    app: AppHandle,
+    url: String,
+    engine_name: Option<String>,
+) -> Result<crate::models::DownloadEngineResult, String> {
+    if url.is_empty() {
+        return Err("请输入下载地址".to_string());
+    }
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return Err("请输入有效的 HTTP/HTTPS 地址".to_string());
+    }
+
+    let data_dir = get_data_dir(&app);
+    let engines_dir = data_dir.join("engines");
+    std::fs::create_dir_all(&engines_dir)
+        .map_err(|e| format!("创建引擎目录失败: {}", e))?;
+
+    let url_path = url.split('?').next().unwrap_or(&url);
+    let file_name = url_path.split('/').last().unwrap_or("engine").to_string();
+
+    let version_key = format!("url_{}", Uuid::new_v4());
+    let variant = "standard";
+    crate::engine_downloader::reset_cancel(&version_key, variant);
+
+    let download_dir = app.path().app_data_dir()
+        .map_err(|e| format!("获取应用数据目录失败: {}", e))?
+        .join("downloads");
+    std::fs::create_dir_all(&download_dir)
+        .map_err(|e| format!("创建下载目录失败: {}", e))?;
+
+    let archive_path = download_dir.join(&file_name);
+
+    let download_result = crate::engine_downloader::EngineDownloader::download_file(
+        &app, &url, &archive_path, &version_key, variant, 0,
+    ).await;
+
+    if let Err(e) = download_result {
+        crate::engine_downloader::cleanup_on_error(&archive_path, false, &version_key, variant);
+        return Ok(crate::models::DownloadEngineResult {
+            success: false,
+            cancelled: e == "下载已取消",
+            engine: None,
+            error: Some(e),
+        });
+    }
+
+    let target_dir_name = format!("custom_{}", version_key.replace('-', "_"));
+    let target_dir = engines_dir.join(&target_dir_name);
+
+    if target_dir.exists() {
+        let _ = std::fs::remove_dir_all(&target_dir);
+    }
+    std::fs::create_dir_all(&target_dir)
+        .map_err(|e| format!("创建引擎目录失败: {}", e))?;
+
+    let extract_result = crate::engine_downloader::EngineDownloader::extract_archive(
+        &app, &version_key, variant, &archive_path, &target_dir,
+    );
+    let _ = std::fs::remove_file(&archive_path);
+
+    if let Err(e) = extract_result {
+        crate::engine_downloader::cleanup_on_error(&target_dir, true, &version_key, variant);
+        return Ok(crate::models::DownloadEngineResult {
+            success: false,
+            cancelled: false,
+            engine: None,
+            error: Some(format!("解压引擎文件失败: {}", e)),
+        });
+    }
+
+    let path_str = target_dir.to_string_lossy().to_string();
+    let engine = match crate::engine::EngineManager::get_engine_info(&path_str) {
+        Ok(e) => e,
+        Err(detail) => {
+            let _ = std::fs::remove_dir_all(&target_dir);
+            return Ok(crate::models::DownloadEngineResult {
+                success: false,
+                cancelled: false,
+                engine: None,
+                error: Some(format!("下载的引擎文件无效: {}", detail)),
+            });
+        }
+    };
+
+    let mut registered_engine = engine;
+    if let Some(name) = engine_name {
+        if !name.is_empty() {
+            registered_engine.name = name;
+        }
+    }
+
+    let storage = get_storage(&app);
+    let mut engines: Vec<Engine> = storage.load_or_default("engines.json");
+    engines.retain(|e| e.path != registered_engine.path);
+    engines.push(registered_engine.clone());
+    storage.save("engines.json", &engines)
+        .map_err(|e| format!("保存引擎信息失败: {}", e))?;
+
+    let mut settings = load_settings(&app);
+    let parent = std::path::Path::new(&path_str)
+        .parent()
+        .map(|p| p.to_string_lossy().to_string());
+    if let Some(parent_path) = parent {
+        if !settings.known_engine_paths.iter().any(|p| p.to_lowercase() == parent_path.to_lowercase()) {
+            settings.known_engine_paths.push(parent_path);
+            let config_storage = get_config_storage(&app);
+            let _ = config_storage.save("settings.json", &settings);
+        }
+    }
+
+    log_operation(&app, "download_engine_from_url", &url,
+        &format!("从 URL 下载并注册引擎: {}", registered_engine.name));
+
+    let _ = app.emit("engines-discovered", ());
+
+    Ok(crate::models::DownloadEngineResult {
+        success: true,
+        cancelled: false,
+        engine: Some(registered_engine),
+        error: None,
+    })
+}
+
+#[tauri::command]
 pub fn cancel_engine_download(version: String, variant: String) -> Result<(), String> {
     crate::engine_downloader::request_cancel_download(&version, &variant);
     Ok(())
@@ -697,6 +821,21 @@ pub fn import_plugin_from_git(app: AppHandle, url: String) -> Result<Plugin, Str
     let new_plugin = manager.import_from_git(&url, &app)
         .map_err(|e| format!("从 Git 导入插件失败: {}，请检查仓库地址是否正确", e))?;
     upsert_plugin(&app, &new_plugin, "import_plugin_git", &url)
+}
+
+#[tauri::command]
+pub fn import_plugin_from_url(app: AppHandle, url: String) -> Result<Plugin, String> {
+    if url.is_empty() {
+        return Err("请输入下载地址".to_string());
+    }
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return Err("请输入有效的 HTTP/HTTPS 地址".to_string());
+    }
+
+    let manager = get_plugin_manager(&app);
+    let new_plugin = manager.import_from_url(&url, &app)
+        .map_err(|e| format!("从 URL 导入插件失败: {}", e))?;
+    upsert_plugin(&app, &new_plugin, "import_plugin_url", &url)
 }
 
 #[tauri::command]
@@ -2561,7 +2700,31 @@ pub fn remove_engine(app: AppHandle, engine_id: String, delete_files: bool) -> R
 }
 
 #[tauri::command]
-pub async fn check_plugin_updates(app: AppHandle) -> Result<Vec<PluginUpdateInfo>, String> {
+pub async fn check_plugin_updates(app: AppHandle, force_refresh: Option<bool>) -> Result<Vec<PluginUpdateInfo>, String> {
+    let force = force_refresh.unwrap_or(false);
+    let cache_version: u32 = 1;
+
+    let cache_dir = get_data_dir(&app).join("cache");
+    let cache_file = cache_dir.join("plugin_updates.json");
+
+    if !force && cache_file.exists() {
+        if let Ok(content) = fs::read_to_string(&cache_file) {
+            if let Ok(cached) = serde_json::from_str::<crate::models::CachedPluginUpdates>(&content) {
+                if cached.cache_version == cache_version {
+                    if let Ok(cached_time) = chrono::DateTime::parse_from_rfc3339(&cached.cached_at) {
+                        let elapsed = chrono::Utc::now().signed_duration_since(cached_time.with_timezone(&chrono::Utc));
+                        if elapsed.num_minutes() < 30 {
+                            log_operation(&app, "check_plugin_updates", "", &format!("使用缓存，{} 个插件更新信息", cached.updates.len()));
+                            return Ok(cached.updates);
+                        }
+                    }
+                } else {
+                    let _ = fs::remove_file(&cache_file);
+                }
+            }
+        }
+    }
+
     let storage = get_storage(&app);
     let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
 
@@ -2619,6 +2782,16 @@ pub async fn check_plugin_updates(app: AppHandle) -> Result<Vec<PluginUpdateInfo
     });
 
     let update_infos: Vec<PluginUpdateInfo> = futures::future::join_all(futures).await;
+
+    let _ = fs::create_dir_all(&cache_dir);
+    let cached = crate::models::CachedPluginUpdates {
+        cache_version,
+        cached_at: chrono::Utc::now().to_rfc3339(),
+        updates: update_infos.clone(),
+    };
+    if let Ok(json) = serde_json::to_string_pretty(&cached) {
+        let _ = fs::write(&cache_file, json);
+    }
 
     log_operation(&app, "check_plugin_updates", "", &format!("检查了 {} 个插件的更新", update_infos.len()));
     Ok(update_infos)

@@ -109,6 +109,10 @@ export default {
     fromFile: 'Import from File',
     fromGit: 'Import from Git',
     importFromGit: 'Import from Git',
+    fromUrl: 'Import from URL',
+    importFromUrl: 'Import from URL',
+    fromRemote: 'Import from Remote',
+    importFromRemote: 'Import from Remote',
     empty: 'No Plugins',
     searchNoResult: 'No matching plugins found',
     emptyDesc: 'Try adjusting your search or import new plugins',
@@ -159,12 +163,16 @@ export default {
       fromDirDesc: 'Import plugin from local directory',
       fromFileDesc: 'Import from plugin.cfg file',
       fromGitDesc: 'Clone from Git repository',
+      fromUrlDesc: 'Download archive from URL',
+      fromRemoteDesc: 'Auto-detect Git repo or archive URL',
       fromProjectsDesc: 'Scan plugins from existing projects',
       fromAssetLibDesc: 'Search and download from Godot Asset Library'
     },
     selectPluginDir: 'Select Godot plugin directory',
     selectPluginFile: 'Select plugin config file (plugin.cfg)',
     enterGitUrl: 'Please enter Git URL',
+    enterUrl: 'Please enter download URL',
+    enterRemoteUrl: 'Please enter remote URL',
     addedToFavorites: 'Added to favorites',
     removedFromFavorites: 'Removed from favorites',
     noNewPluginsFound: 'No new plugins found to import',
@@ -196,9 +204,17 @@ export default {
       }
     },
     gitImport: {
-      title: 'Import from Git',
-      desc: 'Enter Git repository URL, will clone and import Godot plugins from it',
+      title: 'Import from Remote',
+      desc: 'Enter Git repo or archive URL to auto-import',
       placeholder: 'https://github.com/user/plugin-repo.git'
+    },
+    urlImport: {
+      desc: 'Enter plugin archive download URL (supports .zip, .tar.gz)',
+      placeholder: 'https://example.com/plugin.zip'
+    },
+    remoteImport: {
+      desc: 'Enter Git repo URL or archive download URL, auto-detect and import',
+      placeholder: 'https://github.com/user/plugin.git or https://example.com/plugin.zip'
     },
     pluginDetail: {
       versionList: 'Version list ({count})',
@@ -563,6 +579,16 @@ export default {
     launch: 'Launch Engine',
     launchSuccess: 'Engine launched',
     launchFailed: 'Failed to launch engine: {error}',
+    urlDownload: {
+      title: 'Download from URL',
+      desc: 'Enter engine archive download URL, will auto download, extract and register',
+      urlLabel: 'Download URL',
+      urlPlaceholder: 'https://example.com/Godot_v4.3_stable_linux.x86_64.zip',
+      namePlaceholder: 'Leave empty to auto-detect',
+      download: 'Download & Register',
+      enterUrl: 'Please enter download URL',
+      failed: 'Failed to download engine from URL: {error}'
+    },
     checkUpdates: 'Check Updates',
     updatesAvailable: '{count} engine updates available',
     noUpdates: 'All engines are up to date',
@@ -573,7 +599,8 @@ export default {
       title: 'Download Engine',
       cancelled: 'Download cancelled',
       cancelFailed: 'Failed to cancel download: {error}',
-      mirror: 'Mirror Repository',
+      mirrorTab: 'Mirror',
+      urlTab: 'Custom URL',
       refresh: 'Refresh',
       fetching: 'Fetching...',
       searchPlaceholder: 'Search version...',
@@ -658,6 +685,9 @@ export default {
       mirrorUrl: 'API URL',
       mirrorUrlPlaceholder: 'e.g. https://mirrors.tuna.tsinghua.edu.cn/github-api',
       urlHint: 'Must be compatible with GitHub API format, path /repos/godotengine/godot/releases',
+      mirrorType: 'Mirror Type',
+      mirrorTypeDirect: 'Direct Mirror',
+      mirrorTypeHint: 'GitHub API type fetches version list from API; Direct mirror type fetches list from GitHub API but downloads from mirror URL',
       enableMirror: 'Enable this mirror',
       nameUrlRequired: 'Mirror name and URL are required',
       saveHint: 'Changes will take effect after saving settings'

@@ -102,6 +102,10 @@ export const api = {
     return await invoke('import_plugin_from_git', { url })
   },
 
+  async importPluginFromUrl(url: string): Promise<Plugin> {
+    return await invoke('import_plugin_from_url', { url })
+  },
+
   async getPlugins(): Promise<Plugin[]> {
     return await invoke('get_plugins')
   },
@@ -255,6 +259,10 @@ export const api = {
     return await invoke('download_engine', { remoteVersion })
   },
 
+  async downloadEngineFromUrl(url: string, engineName?: string): Promise<DownloadEngineResult> {
+    return await invoke('download_engine_from_url', { url, engineName: engineName || null })
+  },
+
   async cancelEngineDownload(version: string, variant: string): Promise<void> {
     return await invoke('cancel_engine_download', { version, variant })
   },
@@ -310,8 +318,8 @@ export const api = {
   },
 
   // ─── Updates ───
-  async checkPluginUpdates(): Promise<PluginUpdateInfo[]> {
-    return await invoke('check_plugin_updates')
+  async checkPluginUpdates(forceRefresh?: boolean): Promise<PluginUpdateInfo[]> {
+    return await invoke('check_plugin_updates', { forceRefresh: forceRefresh || null })
   },
 
   async checkGodotUpdates(): Promise<GodotVersionCheckResult> {

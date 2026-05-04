@@ -455,6 +455,7 @@ const editingMirror = ref<EngineMirrorConfig | null>(null)
 const mirrorFormName = ref('')
 const mirrorFormUrl = ref('')
 const mirrorFormEnabled = ref(true)
+const mirrorFormType = ref('github_api')
 
 useDialogEscape(showMirrorDialog)
 
@@ -463,15 +464,16 @@ const openAddMirror = () => {
   mirrorFormName.value = ''
   mirrorFormUrl.value = ''
   mirrorFormEnabled.value = true
+  mirrorFormType.value = 'github_api'
   showMirrorDialog.value = true
 }
 
 const openEditMirror = (mirror: EngineMirrorConfig) => {
-  if (mirror.is_official) return
   editingMirror.value = mirror
   mirrorFormName.value = mirror.name
   mirrorFormUrl.value = mirror.base_url
   mirrorFormEnabled.value = mirror.enabled
+  mirrorFormType.value = mirror.mirror_type || 'github_api'
   showMirrorDialog.value = true
 }
 
@@ -491,6 +493,7 @@ const saveMirror = () => {
       mirror.name = mirrorFormName.value.trim()
       mirror.base_url = mirrorFormUrl.value.trim()
       mirror.enabled = mirrorFormEnabled.value
+      mirror.mirror_type = mirrorFormType.value
     }
   } else {
     const newMirror: EngineMirrorConfig = {
@@ -499,7 +502,7 @@ const saveMirror = () => {
       base_url: mirrorFormUrl.value.trim(),
       enabled: mirrorFormEnabled.value,
       is_official: false,
-      mirror_type: 'github_api',
+      mirror_type: mirrorFormType.value,
     }
     settings.value.engine_mirrors.push(newMirror)
   }
@@ -664,7 +667,6 @@ const toggleMirrorEnabled = (mirrorId: string) => {
                 {{ mirror.enabled ? t('settings.engineMirror.enabled') : t('settings.engineMirror.disabled') }}
               </button>
               <button
-                v-if="!mirror.is_official"
                 @click="openEditMirror(mirror)"
                 class="text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
                 :title="t('settings.engineMirror.edit')"
@@ -1213,6 +1215,17 @@ const toggleMirrorEnabled = (mirrorId: string) => {
               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
             />
             <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ t('settings.engineMirror.urlHint') }}</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.engineMirror.mirrorType') }}</label>
+            <select
+              v-model="mirrorFormType"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+            >
+              <option value="github_api">GitHub API</option>
+              <option value="direct">{{ t('settings.engineMirror.mirrorTypeDirect') }}</option>
+            </select>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ t('settings.engineMirror.mirrorTypeHint') }}</p>
           </div>
           <label class="flex items-center gap-3 cursor-pointer">
             <input type="checkbox" v-model="mirrorFormEnabled" class="w-4 h-4 text-primary-600 rounded" />
