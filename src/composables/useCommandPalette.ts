@@ -5,6 +5,7 @@ import { useProjectStore } from '@/stores'
 import { usePluginStore } from '@/stores'
 import { useTheme } from '@/composables/useTheme'
 import { useSidebar } from '@/composables/useSidebar'
+import { api } from '@/api'
 
 export interface SearchItem {
   id: string
@@ -153,7 +154,7 @@ export function useCommandPalette() {
   const router = useRouter()
   const projectStore = useProjectStore()
   const pluginStore = usePluginStore()
-  const { currentTheme, setTheme } = useTheme()
+  const { setTheme, cycleTheme, ALL_THEMES } = useTheme()
   const { toggleSidebar } = useSidebar()
   const { t, locale } = useI18n()
 
@@ -182,10 +183,10 @@ export function useCommandPalette() {
       },
       {
         id: 'nav-plugins',
-        label: t('nav.pluginsNav'),
+        label: t('nav.plugins'),
         category: 'navigation',
         icon: 'puzzle',
-        keywords: `${t('nav.pluginsNav')} plugins`,
+        keywords: `${t('nav.plugins')} plugins`,
         action: () => { router.push('/plugins'); closePalette() },
         shortcutKey: shortcutKeys[2]
       },
@@ -200,10 +201,10 @@ export function useCommandPalette() {
       },
       {
         id: 'nav-engines',
-        label: t('nav.enginesNav'),
+        label: t('nav.engines'),
         category: 'navigation',
         icon: 'engine',
-        keywords: `${t('nav.enginesNav')} engines`,
+        keywords: `${t('nav.engines')} engines`,
         action: () => { router.push('/engines'); closePalette() },
         shortcutKey: shortcutKeys[4]
       },
@@ -218,10 +219,10 @@ export function useCommandPalette() {
       },
       {
         id: 'nav-settings',
-        label: t('nav.settingsNav'),
+        label: t('nav.settings'),
         category: 'navigation',
         icon: 'settings',
-        keywords: `${t('nav.settingsNav')} settings`,
+        keywords: `${t('nav.settings')} settings`,
         action: () => { router.push('/settings'); closePalette() },
         shortcutKey: shortcutKeys[6]
       },
@@ -235,16 +236,27 @@ export function useCommandPalette() {
         shortcutKey: shortcutKeys[7]
       },
       {
-        id: 'cmd-toggle-theme',
-        label: t('commandPalette.toggleTheme'),
+        id: 'cmd-cycle-theme',
+        label: t('commandPalette.cycleTheme'),
         category: 'command',
         icon: 'theme',
-        keywords: `${t('commandPalette.toggleTheme')} theme dark light`,
+        keywords: `${t('commandPalette.cycleTheme')} theme dark light system volcano`,
         action: () => {
-          setTheme(currentTheme.value === 'dark' ? 'light' : 'dark')
+          cycleTheme()
           closePalette()
         }
       },
+      ...ALL_THEMES.map((theme): SearchItem => ({
+        id: `cmd-set-theme-${theme}`,
+        label: t(`commandPalette.theme.${theme}`),
+        category: 'command',
+        icon: theme === 'volcano' ? 'volcano' : theme === 'dark' ? 'theme' : theme === 'light' ? 'theme' : 'settings',
+        keywords: `${t(`commandPalette.theme.${theme}`)} ${theme}`,
+        action: () => {
+          setTheme(theme)
+          closePalette()
+        }
+      })),
       {
         id: 'cmd-toggle-sidebar',
         label: t('commandPalette.toggleSidebar'),
@@ -296,7 +308,13 @@ export function useCommandPalette() {
         icon: 'language',
         keywords: `language english chinese ${t('commandPalette.chineseEnglish')} ${t('commandPalette.switchLanguage')}`,
         action: () => {
-          locale.value = locale.value === 'zh-CN' ? 'en' : 'zh-CN'
+          const newLang = locale.value === 'zh-CN' ? 'en' : 'zh-CN'
+          locale.value = newLang
+          localStorage.setItem('godotharbor-language', newLang)
+          api.getSettings().then(settings => {
+            settings.language = newLang
+            return api.saveSettings(settings)
+          }).catch(() => {})
           closePalette()
         }
       }

@@ -1015,6 +1015,13 @@ export default {
       settings: '设置'
     },
     quickSelect: '快捷选择',
+    cycleTheme: '轮换主题',
+    theme: {
+      light: '浅色主题',
+      dark: '深色主题',
+      system: '跟随系统',
+      volcano: '火山主题'
+    },
     toggleTheme: '切换深色/浅色主题',
     toggleSidebar: '切换侧边栏折叠',
     scanProjects: '扫描项目',

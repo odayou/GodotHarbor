@@ -9,7 +9,6 @@ import type {
   Engine,
   PluginUpdateInfo,
   PluginDependency,
-  TeamSharedConfig,
   DashboardStats,
   MovedProjectCandidate,
   GodotVersionCheckResult,
@@ -296,27 +295,6 @@ export const api = {
     return await invoke('import_from_asset_library_with_progress', { assetId })
   },
 
-  // ─── Team Config ───
-  async exportTeamConfig(
-    name: string,
-    description: string,
-    projectIds: string[]
-  ): Promise<TeamSharedConfig> {
-    return await invoke('export_team_config', { name, description, projectIds })
-  },
-
-  async getTeamConfigs(): Promise<TeamSharedConfig[]> {
-    return await invoke('get_team_configs')
-  },
-
-  async importTeamConfig(configId: string, targetProjectIds: string[]): Promise<void> {
-    return await invoke('import_team_config', { configId, targetProjectIds })
-  },
-
-  async deleteTeamConfig(configId: string): Promise<void> {
-    return await invoke('delete_team_config', { configId })
-  },
-
   // ─── Updates ───
   async checkPluginUpdates(forceRefresh?: boolean): Promise<PluginUpdateInfo[]> {
     return await invoke('check_plugin_updates', { forceRefresh: forceRefresh || null })
@@ -414,10 +392,6 @@ export const api = {
     } catch (e) {
       console.error('Failed to log client error:', e)
     }
-  },
-
-  async getDashboardStats(): Promise<DashboardStats> {
-    return await invoke('get_dashboard_stats')
   },
 
   async getAppVersion(): Promise<string> {

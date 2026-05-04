@@ -412,28 +412,6 @@ pub struct PluginUpdateInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TeamSharedConfig {
-    pub config_id: String,
-    pub name: String,
-    pub description: String,
-    pub bindings: Vec<ProjectBinding>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
-
-impl TeamSharedConfig {
-    pub fn new(name: String, description: String) -> Self {
-        let now = Utc::now();
-        Self {
-            config_id: Uuid::new_v4().to_string(),
-            name,
-            description,
-            bindings: Vec::new(),
-            created_at: now,
-            updated_at: now,
-        }
-    }
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BatchResult {

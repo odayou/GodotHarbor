@@ -386,24 +386,6 @@ pub fn migrate_data_dir(app: AppHandle, new_data_dir: String) -> Result<(), Stri
         }
     }
 
-    let new_team_configs_json = new_data_dir_path.join("team_configs.json");
-    if new_team_configs_json.exists() {
-        let new_storage = Storage::new(new_data_dir_path.clone());
-        let mut configs: Vec<TeamSharedConfig> = new_storage.load_or_default("team_configs.json");
-        let mut changed = false;
-        for config in &mut configs {
-            for binding in &mut config.bindings {
-                if binding.mount_path.starts_with(&old_str) {
-                    binding.mount_path = binding.mount_path.replacen(&old_str, &new_data_dir, 1);
-                    changed = true;
-                }
-            }
-        }
-        if changed {
-            let _ = new_storage.save("team_configs.json", &configs);
-        }
-    }
-
     log_operation(&app, "migrate_data_dir", &new_data_dir,
         &format!("数据目录已迁移: {} -> {}", old_str, new_data_dir));
     Ok(())
@@ -2921,84 +2903,6 @@ fn compare_versions(current: &str, latest: &str) -> i32 {
         }
     }
     0
-}
-
-#[tauri::command]
-pub fn export_team_config(app: AppHandle, name: String, description: String, project_ids: Vec<String>) -> Result<TeamSharedConfig, String> {
-    let storage = get_storage(&app);
-
-    let bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
-
-    let selected_bindings: Vec<ProjectBinding> = bindings.into_iter()
-        .filter(|b| project_ids.contains(&b.project_id))
-        .collect();
-
-    let mut config = TeamSharedConfig::new(name, description);
-    config.bindings = selected_bindings;
-
-    let mut configs: Vec<TeamSharedConfig> = storage.load_or_default("team_configs.json");
-    configs.push(config.clone());
-
-    storage.save("team_configs.json", &configs)
-        .map_err(|e| format!("保存团队配置失败: {}", e))?;
-
-    log_operation(&app, "export_team_config", &config.config_id, &format!("已导出团队配置: {}", config.name));
-    Ok(config)
-}
-
-#[tauri::command]
-pub fn get_team_configs(app: AppHandle) -> Result<Vec<TeamSharedConfig>, String> {
-    let storage = get_storage(&app);
-    let configs: Vec<TeamSharedConfig> = storage.load_or_default("team_configs.json");
-    Ok(configs)
-}
-
-#[tauri::command]
-pub fn import_team_config(app: AppHandle, config_id: String, target_project_ids: Vec<String>) -> Result<(), String> {
-    let storage = get_storage(&app);
-    let configs: Vec<TeamSharedConfig> = storage.load_or_default("team_configs.json");
-
-    let config = configs.iter()
-        .find(|c| c.config_id == config_id)
-        .ok_or("未找到指定的团队配置".to_string())?;
-
-    let mut bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
-
-    let mut imported_count = 0;
-
-    for binding in &config.bindings {
-        if target_project_ids.contains(&binding.project_id) {
-            bindings.retain(|b| !(b.project_id == binding.project_id && b.plugin_id == binding.plugin_id));
-            let mut new_binding = binding.clone();
-            new_binding.created_at = chrono::Utc::now();
-            bindings.push(new_binding);
-            imported_count += 1;
-        }
-    }
-
-    storage.save("bindings.json", &bindings)
-        .map_err(|e| format!("保存绑定关系失败: {}", e))?;
-
-    log_operation(&app, "import_team_config", &config_id, &format!("导入了 {} 个绑定到目标项目", imported_count));
-    Ok(())
-}
-
-#[tauri::command]
-pub fn delete_team_config(app: AppHandle, config_id: String) -> Result<(), String> {
-    let storage = get_storage(&app);
-    let mut configs: Vec<TeamSharedConfig> = storage.load_or_default("team_configs.json");
-
-    let config = configs.iter().find(|c| c.config_id == config_id)
-        .ok_or("未找到指定的团队配置".to_string())?;
-    let config_name = config.name.clone();
-
-    configs.retain(|c| c.config_id != config_id);
-
-    storage.save("team_configs.json", &configs)
-        .map_err(|e| format!("删除团队配置失败: {}", e))?;
-
-    log_operation(&app, "delete_team_config", &config_id, &format!("已删除团队配置: {}", config_name));
-    Ok(())
 }
 
 #[tauri::command]

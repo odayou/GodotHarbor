@@ -31,7 +31,7 @@ let unlistenScanComplete: any = null
 let unlistenEnginesDiscovered: any = null
 
 const { registerShortcut } = useKeyboardShortcuts()
-const { currentTheme, setTheme } = useTheme()
+const { currentTheme, setTheme, cycleTheme } = useTheme()
 const { initSidebarState, toggleSidebar } = useSidebar()
 const { openPalette } = useCommandPalette()
 
@@ -114,10 +114,7 @@ registerShortcut({
   key: 't',
   ctrl: true,
   handler: () => {
-    const themes = ['light', 'dark', 'system'] as const
-    const currentIndex = themes.indexOf(currentTheme.value as typeof themes[number])
-    const nextIndex = (currentIndex + 1) % themes.length
-    setTheme(themes[nextIndex])
+    cycleTheme()
   },
   description: t('sidebar.toggleThemeShortcut')
 })

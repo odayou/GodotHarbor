@@ -3,7 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave } from 'vue-router'
 import { api } from '@/api'
-import type { Settings, LogEntry, TeamSharedConfig, Project, EngineMirrorConfig, StoragePaths } from '@/types'
+import type { Settings, LogEntry, Project, EngineMirrorConfig, StoragePaths } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useToast } from '@/composables/useToast'
 import { useTheme } from '@/composables/useTheme'
@@ -36,20 +36,12 @@ const showRestoreDialog = ref(false)
 const backupPath = ref('')
 const isBackingUp = ref(false)
 const isRestoring = ref(false)
-const showTeamConfigDialog = ref(false)
-const teamConfigs = ref<TeamSharedConfig[]>([])
 const projects = ref<Project[]>([])
-const showExportDialog = ref(false)
-const exportConfigName = ref('')
-const exportConfigDescription = ref('')
-const selectedProjectIds = ref<string[]>([])
-const isExporting = ref(false)
-const isImporting = ref(false)
 
 const activeSection = ref('general')
 
 onMounted(() => {
-  initTheme(); loadSettings(); loadTeamConfigs(); loadProjects(); loadStoragePaths()
+  initTheme(); loadSettings(); loadProjects(); loadStoragePaths()
 })
 
 onBeforeRouteLeave((_to, _from, next) => {
@@ -262,14 +254,6 @@ const performRestore = async () => {
   }
 }
 
-const loadTeamConfigs = async () => {
-  try {
-    teamConfigs.value = await api.getTeamConfigs()
-  } catch (error) {
-    console.error('Failed to load team configs:', error)
-  }
-}
-
 const loadProjects = async () => {
   try {
     projects.value = await api.getProjects()
@@ -278,66 +262,7 @@ const loadProjects = async () => {
   }
 }
 
-const openExportDialog = () => {
-  exportConfigName.value = ''
-  exportConfigDescription.value = ''
-  selectedProjectIds.value = []
-  showExportDialog.value = true
-}
-
-const exportTeamConfig = async () => {
-  if (!exportConfigName.value) {
-    toast.warning(t('settings.messages.enterConfigName'))
-    return
-  }
-  if (selectedProjectIds.value.length === 0) {
-    toast.warning(t('settings.messages.selectAtLeastOneProject'))
-    return
-  }
-  isExporting.value = true
-  try {
-    await api.exportTeamConfig(exportConfigName.value, exportConfigDescription.value, selectedProjectIds.value)
-    toast.success(t('settings.messages.exportSuccess'))
-    showExportDialog.value = false
-    await loadTeamConfigs()
-  } catch (error) {
-    toast.error(t('settings.messages.exportFailed', { error }))
-  } finally {
-    isExporting.value = false
-  }
-}
-
-const importTeamConfig = async (configId: string) => {
-  if (selectedProjectIds.value.length === 0) {
-    toast.warning(t('settings.messages.selectAtLeastOneTarget'))
-    return
-  }
-  isImporting.value = true
-  try {
-    await api.importTeamConfig(configId, selectedProjectIds.value)
-    toast.success(t('settings.messages.importSuccess'))
-    showImportSelectDialog.value = false
-    showTeamConfigDialog.value = false
-    await loadTeamConfigs()
-  } catch (error) {
-    toast.error(t('settings.messages.importFailed', { error }))
-  } finally {
-    isImporting.value = false
-  }
-}
-
-const showImportSelectDialog = ref(false)
-const importingConfigId = ref('')
-
-const openImportSelect = (configId: string) => {
-  importingConfigId.value = configId
-  selectedProjectIds.value = []
-  showImportSelectDialog.value = true
-}
-
-const showDeleteTeamConfigConfirm = ref(false)
 const showRestoreConfirm = ref(false)
-const deleteTeamConfigId = ref('')
 const showResetConfirm = ref(false)
 const isResetting = ref(false)
 const backupFingerprint = ref('')
@@ -345,8 +270,6 @@ const resetStep = ref(1)
 
 useDialogEscape(showLogs)
 useDialogEscape(showBackupDialog)
-useDialogEscape(showTeamConfigDialog)
-useDialogEscape(showExportDialog)
 useDialogEscape(showResetConfirm)
 
 const confirmResetData = () => {
@@ -385,21 +308,6 @@ const performReset = async () => {
     toast.error(t('settings.messages.resetFailed', { error }))
   } finally {
     isResetting.value = false
-  }
-}
-
-const confirmDeleteTeamConfig = (configId: string) => {
-  deleteTeamConfigId.value = configId
-  showDeleteTeamConfigConfirm.value = true
-}
-
-const onDeleteTeamConfigConfirm = async () => {
-  try {
-    await api.deleteTeamConfig(deleteTeamConfigId.value)
-    toast.success(t('settings.messages.deleteSuccess'))
-    await loadTeamConfigs()
-  } catch (error) {
-    toast.error(t('settings.messages.deleteFailed', { error }))
   }
 }
 
@@ -673,12 +581,6 @@ const toggleMirrorEnabled = (mirrorId: string) => {
             </div>
             <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
               <div>
-                <p class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.buttons.teamConfig') }}</p>
-              </div>
-              <button @click="showTeamConfigDialog = true" class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors text-sm">{{ t('settings.buttons.teamConfig') }}</button>
-            </div>
-            <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
-              <div>
                 <p class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.showOnboarding') }}</p>
                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ t('settings.showOnboardingDesc') }}</p>
               </div>
@@ -894,154 +796,6 @@ const toggleMirrorEnabled = (mirrorId: string) => {
   </Teleport>
 
   <Teleport to="body">
-    <div v-if="showTeamConfigDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showTeamConfigDialog = false">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl shadow-xl max-h-[80vh] flex flex-col" @click.stop>
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ t('settings.teamConfig.title') }}</h3>
-          <button @click="showTeamConfigDialog = false" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
-            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        <div class="mb-4">
-          <button
-            @click="openExportDialog"
-            class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm"
-          >
-            {{ t('settings.teamConfig.export') }}
-          </button>
-        </div>
-        <div class="flex-1 overflow-y-auto">
-          <div v-if="teamConfigs.length === 0" class="text-center py-8 text-gray-500 dark:text-gray-400">
-            {{ t('settings.teamConfig.empty') }}
-          </div>
-          <div v-else class="space-y-4">
-            <div v-for="config in teamConfigs" :key="config.config_id" class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-              <div class="flex justify-between items-start">
-                <div>
-                  <h4 class="font-medium text-gray-900 dark:text-gray-100">{{ config.name }}</h4>
-                  <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ config.description || t('settings.teamConfig.description') }}</p>
-                  <p class="text-xs text-gray-400 dark:text-gray-500 mt-2">{{ t('settings.teamConfig.created', { date: formatDate(config.created_at) }) }}</p>
-                </div>
-                <div class="flex gap-2">
-                  <button
-                    @click="openImportSelect(config.config_id)"
-                    :disabled="isImporting || projects.length === 0"
-                    class="px-3 py-1 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors text-sm"
-                  >
-                    {{ t('settings.teamConfig.import') }}
-                  </button>
-                  <button
-                    @click="confirmDeleteTeamConfig(config.config_id)"
-                    class="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
-                  >
-                    {{ t('settings.teamConfig.delete') }}
-                  </button>
-                </div>
-              </div>
-              <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                {{ t('settings.teamConfig.stats', { bindings: config.bindings.length }) }}
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="flex justify-end mt-4">
-          <button
-            @click="showTeamConfigDialog = false"
-            class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
-          >
-            {{ t('settings.teamConfig.close') }}
-          </button>
-        </div>
-      </div>
-    </div>
-  </Teleport>
-
-  <Teleport to="body">
-    <div v-if="showImportSelectDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showImportSelectDialog = false">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.teamConfig.importSelectTitle') }}</h3>
-        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">{{ t('settings.teamConfig.importSelectDesc') }}</p>
-        <div class="space-y-2 max-h-48 overflow-y-auto bg-gray-50 dark:bg-gray-700 rounded-lg p-3 mb-4">
-          <div v-for="project in projects" :key="project.project_id" class="flex items-center gap-2">
-            <input type="checkbox" :value="project.project_id" v-model="selectedProjectIds" class="w-4 h-4 text-primary-600 rounded" />
-            <span class="text-sm text-gray-900 dark:text-gray-100">{{ project.name }}</span>
-          </div>
-          <div v-if="projects.length === 0" class="text-sm text-gray-500 dark:text-gray-400 text-center py-2">{{ t('settings.teamConfig.noProjects') }}</div>
-        </div>
-        <div class="flex justify-end space-x-3">
-          <button @click="showImportSelectDialog = false" class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500">{{ t('common.cancel') }}</button>
-          <button @click="importTeamConfig(importingConfigId)" :disabled="isImporting || selectedProjectIds.length === 0" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50">{{ isImporting ? t('settings.teamConfig.importing') : t('settings.teamConfig.importAction') }}</button>
-        </div>
-      </div>
-    </div>
-  </Teleport>
-
-  <Teleport to="body">
-    <div v-if="showExportDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showExportDialog = false">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.teamConfig.exportTitle') }}</h3>
-        <div class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.teamConfig.name') }}</label>
-            <input
-              v-model="exportConfigName"
-              type="text"
-              :placeholder="t('settings.teamConfig.namePlaceholder')"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
-            />
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.teamConfig.descriptionLabel') }}</label>
-            <input
-              v-model="exportConfigDescription"
-              type="text"
-              :placeholder="t('settings.teamConfig.descriptionPlaceholder')"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
-            />
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.teamConfig.selectProjects') }}</label>
-            <div class="space-y-2 max-h-40 overflow-y-auto bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
-              <div v-for="project in projects" :key="project.project_id" class="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  :value="project.project_id"
-                  v-model="selectedProjectIds"
-                  class="w-4 h-4 text-primary-600 rounded"
-                />
-                <span class="text-sm text-gray-900 dark:text-gray-100">{{ project.name }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="flex justify-end space-x-3 mt-6">
-          <button
-            @click="showExportDialog = false"
-            class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
-          >
-            {{ t('settings.teamConfig.cancel') }}
-          </button>
-          <button
-            @click="exportTeamConfig"
-            :disabled="isExporting || !exportConfigName || selectedProjectIds.length === 0"
-            class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
-          >
-            {{ isExporting ? t('settings.teamConfig.exporting') : t('settings.teamConfig.exportAction') }}
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <ConfirmDialog
-      v-model="showDeleteTeamConfigConfirm"
-      :title="t('settings.teamConfig.deleteConfirmTitle')"
-      :description="t('settings.teamConfig.deleteConfirmDesc')"
-      :confirm-text="t('settings.teamConfig.delete')"
-      @confirm="onDeleteTeamConfigConfirm"
-    />
-
     <ConfirmDialog
       v-model="showRestoreConfirm"
       :title="t('settings.storage.backup.restoreConfirm')"

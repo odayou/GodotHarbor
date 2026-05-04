@@ -1015,6 +1015,13 @@ export default {
       settings: 'Settings'
     },
     quickSelect: 'Quick select',
+    cycleTheme: 'Cycle theme',
+    theme: {
+      light: 'Light theme',
+      dark: 'Dark theme',
+      system: 'Follow system',
+      volcano: 'Volcano theme'
+    },
     toggleTheme: 'Toggle dark/light theme',
     toggleSidebar: 'Toggle sidebar collapse',
     scanProjects: 'Scan projects',

@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/api'
-import type { Plugin, Project, PluginDependency, PluginStorageStats, ProjectBinding, TotalStorageStats, DuplicateCheckResult, ScannedPlugin, TeamSharedConfig } from '@/types'
+import type { Plugin, Project, PluginDependency, PluginStorageStats, ProjectBinding, TotalStorageStats, DuplicateCheckResult, ScannedPlugin } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
@@ -58,16 +58,7 @@ const contextMenuX = ref(0)
 const contextMenuY = ref(0)
 const contextMenuPlugin = ref<Plugin | null>(null)
 
-const showTeamConfigExportDialog = ref(false)
-const showTeamConfigImportDialog = ref(false)
-const teamConfigs = ref<TeamSharedConfig[]>([])
-const teamConfigName = ref('')
-const teamConfigDescription = ref('')
-const teamConfigSelectedProjectIds = ref<Set<string>>(new Set())
-const teamConfigImportTargetIds = ref<Set<string>>(new Set())
-const selectedTeamConfigId = ref('')
-const isExportingConfig = ref(false)
-const isImportingConfig = ref(false)
+
 
 const showVersionSwitchDialog = ref(false)
 const versionSwitchBinding = ref<ProjectBinding | null>(null)
@@ -844,7 +835,6 @@ const loadLinkerData = async () => {
     if (!hasLoaded.value) {
       await loadPlugins(true)
     }
-    await loadTeamConfigs()
     try {
       const settings = await api.getSettings()
       mountStrategyDisplay.value = settings.mount_strategy || 'Symlink'
@@ -1260,8 +1250,6 @@ useDialogEscape(showLinkerApplyResult)
 useDialogEscape(showLinkerBatchApplyResult)
 useDialogEscape(showQuickBindDialog)
 useDialogEscape(showVersionSwitchDialog)
-useDialogEscape(showTeamConfigExportDialog)
-useDialogEscape(showTeamConfigImportDialog)
 useDialogEscape(showVersionDeleteConfirm)
 
 const doQuickBind = async () => {
@@ -1368,85 +1356,6 @@ const handleContextMenuAction = async (action: string) => {
     case 'goToBindings':
       await goToBindings(plugin)
       break
-  }
-}
-
-const loadTeamConfigs = async () => {
-  try {
-    teamConfigs.value = await api.getTeamConfigs()
-  } catch {
-    teamConfigs.value = []
-  }
-}
-
-const openTeamConfigExport = async () => {
-  teamConfigName.value = ''
-  teamConfigDescription.value = ''
-  teamConfigSelectedProjectIds.value = new Set()
-  try {
-    const projects = await api.getProjects()
-    linkerProjects.value = projects
-  } catch {}
-  showTeamConfigExportDialog.value = true
-}
-
-const doExportTeamConfig = async () => {
-  if (!teamConfigName.value.trim()) {
-    toast.warning(t('plugins.teamConfig.configName'))
-    return
-  }
-  isExportingConfig.value = true
-  try {
-    await api.exportTeamConfig(
-      teamConfigName.value.trim(),
-      teamConfigDescription.value.trim(),
-      Array.from(teamConfigSelectedProjectIds.value)
-    )
-    toast.success(t('plugins.teamConfig.exportSuccess'))
-    showTeamConfigExportDialog.value = false
-    await loadTeamConfigs()
-  } catch (error) {
-    toast.error(t('common.loadFailed', { error }))
-  } finally {
-    isExportingConfig.value = false
-  }
-}
-
-const openTeamConfigImport = async (configId: string) => {
-  selectedTeamConfigId.value = configId
-  teamConfigImportTargetIds.value = new Set()
-  try {
-    const projects = await api.getProjects()
-    linkerProjects.value = projects
-  } catch {}
-  showTeamConfigImportDialog.value = true
-}
-
-const doImportTeamConfig = async () => {
-  if (teamConfigImportTargetIds.value.size === 0) {
-    toast.warning(t('plugins.teamConfig.selectTargetProjects'))
-    return
-  }
-  isImportingConfig.value = true
-  try {
-    await api.importTeamConfig(selectedTeamConfigId.value, Array.from(teamConfigImportTargetIds.value))
-    toast.success(t('plugins.teamConfig.importSuccess', { count: teamConfigImportTargetIds.value.size }))
-    showTeamConfigImportDialog.value = false
-    await loadLinkerData()
-  } catch (error) {
-    toast.error(t('common.loadFailed', { error }))
-  } finally {
-    isImportingConfig.value = false
-  }
-}
-
-const deleteTeamConfig = async (configId: string) => {
-  try {
-    await api.deleteTeamConfig(configId)
-    toast.success(t('common.projectDeleted'))
-    await loadTeamConfigs()
-  } catch (error) {
-    toast.error(t('common.deleteFailed', { error }))
   }
 }
 
@@ -2712,40 +2621,6 @@ const retryBatchFailed = async () => {
         </svg>
       </div>
 
-      <div class="card">
-        <div class="flex items-center justify-between mb-3">
-          <h3 class="text-sm font-semibold text-gray-900 dark:text-content-primary">{{ t('linker.teamConfigSection') }}</h3>
-          <button
-            @click="openTeamConfigExport"
-            class="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors"
-          >
-            {{ t('plugins.teamConfig.export') }}
-          </button>
-        </div>
-        <div v-if="teamConfigs.length === 0" class="text-center py-6">
-          <p class="text-sm text-gray-500 dark:text-content-secondary">{{ t('linker.noTeamConfigs') }}</p>
-          <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">{{ t('linker.noTeamConfigsDesc') }}</p>
-        </div>
-        <div v-else class="space-y-2">
-          <div v-for="config in teamConfigs" :key="config.config_id" class="flex items-center justify-between p-3 bg-gray-50 dark:bg-surface-layer rounded-lg">
-            <div class="min-w-0 flex-1">
-              <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate">{{ config.name }}</div>
-              <div class="text-xs text-gray-500 dark:text-content-secondary mt-0.5">
-                {{ config.description || '' }}
-                <span v-if="config.bindings?.length" class="ml-2">{{ new Set(config.bindings.map(b => b.project_id)).size }} {{ t('linker.projects') }}</span>
-              </div>
-            </div>
-            <div class="flex items-center gap-1 ml-2 flex-shrink-0">
-              <button @click="openTeamConfigImport(config.config_id)" class="px-2 py-1 text-primary-600 dark:text-primary-400 text-xs hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded">
-                {{ t('plugins.teamConfig.import') }}
-              </button>
-              <button @click="deleteTeamConfig(config.config_id)" class="px-2 py-1 text-red-600 dark:text-red-400 text-xs hover:bg-red-50 dark:hover:bg-red-900/20 rounded">
-                {{ t('plugins.teamConfig.delete') }}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
     </div>
   </div>
@@ -3185,65 +3060,4 @@ const retryBatchFailed = async () => {
     </div>
   </Teleport>
 
-  <Teleport to="body">
-    <div v-if="showTeamConfigExportDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showTeamConfigExportDialog = false">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl max-h-[85vh] flex flex-col" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('plugins.teamConfig.exportTitle') }}</h3>
-        <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">{{ t('plugins.teamConfig.exportDesc') }}</p>
-        <div class="space-y-3 mb-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ t('plugins.teamConfig.configName') }}</label>
-            <input v-model="teamConfigName" type="text" :placeholder="t('plugins.teamConfig.configNamePlaceholder')" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm" />
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ t('plugins.teamConfig.configDesc') }}</label>
-            <input v-model="teamConfigDescription" type="text" :placeholder="t('plugins.teamConfig.configDescPlaceholder')" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm" />
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ t('plugins.teamConfig.selectProjects') }}</label>
-            <div class="max-h-48 overflow-y-auto space-y-1 border border-gray-200 dark:border-gray-700 rounded-lg p-2">
-              <div v-for="project in linkerProjects" :key="project.project_id" @click="(() => { const s = new Set(teamConfigSelectedProjectIds); s.has(project.project_id) ? s.delete(project.project_id) : s.add(project.project_id); teamConfigSelectedProjectIds = s; })()" :class="['flex items-center gap-2 p-2 rounded cursor-pointer transition-colors', teamConfigSelectedProjectIds.has(project.project_id) ? 'bg-primary-50 dark:bg-primary-900/20' : 'hover:bg-gray-50 dark:hover:bg-surface-layer']">
-                <div class="w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center" :class="teamConfigSelectedProjectIds.has(project.project_id) ? 'bg-primary-600 border-primary-600' : 'border-gray-300 dark:border-gray-600'">
-                  <svg v-if="teamConfigSelectedProjectIds.has(project.project_id)" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-                </div>
-                <span class="text-sm text-gray-900 dark:text-content-primary">{{ project.name }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="flex justify-end gap-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-          <button @click="showTeamConfigExportDialog = false" class="btn-secondary">{{ t('common.cancel') }}</button>
-          <button @click="doExportTeamConfig" :disabled="isExportingConfig || !teamConfigName.trim()" class="btn-primary disabled:opacity-50">
-            {{ isExportingConfig ? t('common.save') + '...' : t('plugins.teamConfig.export') }}
-          </button>
-        </div>
-      </div>
-    </div>
-  </Teleport>
-
-  <Teleport to="body">
-    <div v-if="showTeamConfigImportDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showTeamConfigImportDialog = false">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl max-h-[85vh] flex flex-col" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('plugins.teamConfig.importTitle') }}</h3>
-        <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">{{ t('plugins.teamConfig.importDesc') }}</p>
-        <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ t('plugins.teamConfig.selectTargetProjects') }}</label>
-          <div class="max-h-48 overflow-y-auto space-y-1 border border-gray-200 dark:border-gray-700 rounded-lg p-2">
-            <div v-for="project in linkerProjects" :key="project.project_id" @click="(() => { const s = new Set(teamConfigImportTargetIds); s.has(project.project_id) ? s.delete(project.project_id) : s.add(project.project_id); teamConfigImportTargetIds = s; })()" :class="['flex items-center gap-2 p-2 rounded cursor-pointer transition-colors', teamConfigImportTargetIds.has(project.project_id) ? 'bg-primary-50 dark:bg-primary-900/20' : 'hover:bg-gray-50 dark:hover:bg-surface-layer']">
-              <div class="w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center" :class="teamConfigImportTargetIds.has(project.project_id) ? 'bg-primary-600 border-primary-600' : 'border-gray-300 dark:border-gray-600'">
-                <svg v-if="teamConfigImportTargetIds.has(project.project_id)" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-              </div>
-              <span class="text-sm text-gray-900 dark:text-content-primary">{{ project.name }}</span>
-            </div>
-          </div>
-        </div>
-        <div class="flex justify-end gap-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-          <button @click="showTeamConfigImportDialog = false" class="btn-secondary">{{ t('common.cancel') }}</button>
-          <button @click="doImportTeamConfig" :disabled="isImportingConfig || teamConfigImportTargetIds.size === 0" class="btn-primary disabled:opacity-50">
-            {{ isImportingConfig ? t('common.confirm') + '...' : t('plugins.teamConfig.import') }}
-          </button>
-        </div>
-      </div>
-    </div>
-  </Teleport>
 </template>
