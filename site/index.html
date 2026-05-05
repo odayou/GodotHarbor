@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Godot Harbor — Godot 开发者的统一工作台</title>
+  <meta name="description" content="Godot Harbor 是一款独立桌面应用，为 Godot 开发者提供统一的插件仓库、项目绑定关系管理和引擎下载管理能力。">
+  <link rel="icon" href="favicon.ico">
+  <style>
+    :root {
+      --bg: #f5f2ed;
+      --bg-card: #fffdf9;
+      --text: #2c2a26;
+      --text-muted: #7a7568;
+      --text-light: #a09a8e;
+      --border: #d8d3c8;
+      --border-light: #e8e4db;
+      --accent: #3d5a3e;
+      --accent-hover: #2e4630;
+      --accent-light: #e8ede8;
+      --divider: #c8c2b5;
+      --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+      --shadow-md: 0 2px 8px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06);
+      --max-w: 1080px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html { font-size: 16px; scroll-behavior: smooth; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .container { max-width: var(--max-w); margin: 0 auto; padding: 0 24px; }
+
+    /* ── Nav ── */
+    nav {
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    nav .container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+    }
+    .nav-brand {
+      font-weight: 700;
+      font-size: 1.05rem;
+      color: var(--text);
+      text-decoration: none;
+      letter-spacing: -0.02em;
+    }
+    .nav-brand span { color: var(--accent); }
+    .nav-links { display: flex; gap: 28px; }
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: color 0.15s;
+    }
+    .nav-links a:hover { color: var(--text); }
+
+    /* ── Hero ── */
+    .hero {
+      padding: 80px 0 64px;
+      border-bottom: 1px solid var(--border);
+    }
+    .hero-inner {
+      max-width: 680px;
+    }
+    .hero-label {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      background: var(--accent-light);
+      padding: 3px 10px;
+      border: 1px solid var(--accent);
+      margin-bottom: 20px;
+    }
+    .hero h1 {
+      font-size: 2.75rem;
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+      margin-bottom: 16px;
+    }
+    .hero p {
+      font-size: 1.125rem;
+      color: var(--text-muted);
+      line-height: 1.65;
+      margin-bottom: 32px;
+      max-width: 560px;
+    }
+    .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 22px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-decoration: none;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s;
+      background: var(--bg-card);
+      color: var(--text);
+    }
+    .btn:hover { border-color: var(--text-muted); }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+    .btn svg { width: 16px; height: 16px; }
+
+    /* ── Section ── */
+    section { padding: 64px 0; }
+    section + section { border-top: 1px solid var(--border); }
+    .section-label {
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-light);
+      margin-bottom: 8px;
+    }
+    .section-title {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 12px;
+    }
+    .section-desc {
+      color: var(--text-muted);
+      max-width: 560px;
+      margin-bottom: 40px;
+    }
+
+    /* ── Features ── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+    }
+    .feature-card {
+      background: var(--bg-card);
+      padding: 28px 24px;
+    }
+    .feature-icon {
+      width: 36px;
+      height: 36px;
+      margin-bottom: 14px;
+      color: var(--accent);
+    }
+    .feature-card h3 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .feature-card p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* ── Screenshots ── */
+    .screenshots-scroll {
+      display: flex;
+      gap: 16px;
+      overflow-x: auto;
+      padding-bottom: 12px;
+      scroll-snap-type: x mandatory;
+    }
+    .screenshots-scroll::-webkit-scrollbar { height: 4px; }
+    .screenshots-scroll::-webkit-scrollbar-track { background: var(--border-light); }
+    .screenshots-scroll::-webkit-scrollbar-thumb { background: var(--divider); border-radius: 2px; }
+    .screenshot-item {
+      flex: 0 0 auto;
+      width: 480px;
+      scroll-snap-align: start;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+    .screenshot-item img {
+      width: 100%;
+      display: block;
+    }
+    .screenshot-caption {
+      padding: 8px 12px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      background: var(--bg-card);
+      border-top: 1px solid var(--border-light);
+    }
+
+    /* ── Download ── */
+    .download-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .download-card {
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      padding: 24px;
+      background: var(--bg-card);
+      box-shadow: var(--shadow);
+    }
+    .download-card h3 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .download-card .platform-sub {
+      font-size: 0.78rem;
+      color: var(--text-light);
+      margin-bottom: 16px;
+    }
+    .download-card .btn { width: 100%; justify-content: center; }
+
+    /* ── Newsletter ── */
+    .newsletter {
+      background: var(--accent-light);
+      border: 1px solid var(--accent);
+      border-radius: 2px;
+      padding: 40px;
+      margin-top: 48px;
+    }
+    .newsletter h3 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .newsletter p {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+    }
+    .newsletter-form {
+      display: flex;
+      gap: 8px;
+      max-width: 440px;
+    }
+    .newsletter-form input {
+      flex: 1;
+      padding: 9px 14px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 0.875rem;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .newsletter-form input:focus { border-color: var(--accent); }
+    .newsletter-form input::placeholder { color: var(--text-light); }
+    .newsletter-success {
+      display: none;
+      color: var(--accent);
+      font-size: 0.875rem;
+      font-weight: 600;
+      padding-top: 4px;
+    }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 32px 0;
+    }
+    .footer-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+      color: var(--text-light);
+    }
+    .footer-links { display: flex; gap: 20px; }
+    .footer-links a { color: var(--text-muted); text-decoration: none; }
+    .footer-links a:hover { color: var(--text); }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      .hero h1 { font-size: 2rem; }
+      .hero { padding: 48px 0 40px; }
+      section { padding: 40px 0; }
+      .features-grid { grid-template-columns: 1fr; }
+      .download-grid { grid-template-columns: 1fr; }
+      .screenshot-item { width: 320px; }
+      .newsletter { padding: 24px; }
+      .newsletter-form { flex-direction: column; }
+      .nav-links { gap: 16px; }
+      .footer-inner { flex-direction: column; gap: 12px; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <div class="container">
+      <a href="/" class="nav-brand">Godot <span>Harbor</span></a>
+      <div class="nav-links">
+        <a href="#features">功能</a>
+        <a href="#screenshots">截图</a>
+        <a href="#download">下载</a>
+        <a href="https://github.com/odayou/GodotHarbor" target="_blank" rel="noopener">GitHub</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <section class="hero">
+      <div class="hero-inner">
+        <div class="hero-label">开源免费</div>
+        <h1>Godot 开发者的<br>统一工作台</h1>
+        <p>插件仓库、项目绑定、引擎管理——一个应用搞定。不再手动拷贝插件、不再遗忘版本、不再迷失在 Godot 引擎版本列表里。</p>
+        <div class="hero-actions">
+          <a href="#download" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            免费下载
+          </a>
+          <a href="https://github.com/odayou/GodotHarbor" target="_blank" rel="noopener" class="btn">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+            查看源码
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <section id="features">
+      <div class="section-label">核心功能</div>
+      <h2 class="section-title">一个应用，覆盖完整工作流</h2>
+      <p class="section-desc">从插件发现到项目绑定，从引擎下载到版本管理，Godot Harbor 让每一步都有条不紊。</p>
+      <div class="features-grid">
+        <div class="feature-card">
+          <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+          <h3>插件仓库</h3>
+          <p>从本地目录、Git 仓库或 Godot Asset Library 导入插件，统一管理所有版本。</p>
+        </div>
+        <div class="feature-card">
+          <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+          <h3>项目绑定</h3>
+          <p>为每个项目选择需要的插件和版本，图形化展示绑定关系，一键应用到 addons 目录。</p>
+        </div>
+        <div class="feature-card">
+          <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          <h3>引擎管理</h3>
+          <p>发现、下载、注册 Godot 引擎。支持 Stable、Beta、RC 全通道，standard 和 mono 双变体。</p>
+        </div>
+        <div class="feature-card">
+          <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+          <h3>自动更新</h3>
+          <p>自动检测插件和引擎的新版本，热更新前端无需重新安装，始终使用最新版本。</p>
+        </div>
+        <div class="feature-card">
+          <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/></svg>
+          <h3>数据备份</h3>
+          <p>一键备份与恢复所有数据，包括项目信息、插件配置、引擎注册和用户设置。</p>
+        </div>
+        <div class="feature-card">
+          <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+          <h3>暗黑主题</h3>
+          <p>内置亮色与暗色主题，支持系统偏好自动切换，深夜编码也舒适。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="screenshots">
+      <div class="section-label">产品预览</div>
+      <h2 class="section-title">界面一览</h2>
+      <p class="section-desc">简洁、实用、不干扰。每个功能都在该在的位置。</p>
+      <div class="screenshots-scroll">
+        <div class="screenshot-item">
+          <img src="https://raw.githubusercontent.com/odayou/GodotHarbor/main/docs/screenshots/图像s-16.jpeg" alt="用户引导" loading="lazy">
+          <div class="screenshot-caption">用户引导 — 首次使用快速上手</div>
+        </div>
+        <div class="screenshot-item">
+          <img src="https://raw.githubusercontent.com/odayou/GodotHarbor/main/docs/screenshots/图像s-02.jpeg" alt="项目管理" loading="lazy">
+          <div class="screenshot-caption">项目管理 — 扫描、分组、启动</div>
+        </div>
+        <div class="screenshot-item">
+          <img src="https://raw.githubusercontent.com/odayou/GodotHarbor/main/docs/screenshots/图像s-08.jpeg" alt="Asset Library" loading="lazy">
+          <div class="screenshot-caption">Asset Library — 浏览官方资产库</div>
+        </div>
+        <div class="screenshot-item">
+          <img src="https://raw.githubusercontent.com/odayou/GodotHarbor/main/docs/screenshots/图像s-06.jpeg" alt="插件绑定" loading="lazy">
+          <div class="screenshot-caption">插件绑定 — 图形化绑定关系</div>
+        </div>
+        <div class="screenshot-item">
+          <img src="https://raw.githubusercontent.com/odayou/GodotHarbor/main/docs/screenshots/图像s-09.jpeg" alt="引擎管理" loading="lazy">
+          <div class="screenshot-caption">引擎管理 — 全通道版本下载</div>
+        </div>
+        <div class="screenshot-item">
+          <img src="https://raw.githubusercontent.com/odayou/GodotHarbor/main/docs/screenshots/theme_black.jpeg" alt="暗黑主题" loading="lazy">
+          <div class="screenshot-caption">暗黑主题 — 深夜编码伴侣</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="download">
+      <div class="section-label">立即获取</div>
+      <h2 class="section-title">免费下载</h2>
+      <p class="section-desc">开源免费，MIT 协议。支持 Windows、macOS、Linux 三大平台。</p>
+      <div class="download-grid">
+        <div class="download-card">
+          <h3>Windows</h3>
+          <div class="platform-sub">Windows 10 / 11 · x86_64</div>
+          <a id="dl-win" href="https://github.com/odayou/GodotHarbor/releases/latest" class="btn btn-primary" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            下载安装包
+          </a>
+          <div style="margin-top:8px;font-size:1rem;color:var(--text-light)">
+            <a href="https://gitee.com/odayou/godot-harbor/releases" target="_blank" rel="noopener" style="color:var(--text-muted)">国内镜像下载</a>
+          </div>
+        </div>
+        <div class="download-card">
+          <h3>macOS</h3>
+          <div class="platform-sub">macOS 10.15+ · Universal (ARM + Intel)</div>
+          <a id="dl-mac" href="https://github.com/odayou/GodotHarbor/releases/latest" class="btn btn-primary" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            下载 DMG
+          </a>
+        </div>
+        <div class="download-card">
+          <h3>Linux</h3>
+          <div class="platform-sub">Ubuntu 22.04+ · x86_64</div>
+          <a id="dl-linux" href="https://github.com/odayou/GodotHarbor/releases/latest" class="btn btn-primary" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            下载 DEB
+          </a>
+        </div>
+      </div>
+
+      <div class="newsletter">
+        <h3>订阅更新通知</h3>
+        <p>新版本发布时收到邮件提醒，不打扰，不推销。</p>
+        <form class="newsletter-form" id="newsletter-form">
+          <input type="email" placeholder="your@email.com" required id="newsletter-email">
+          <button type="submit" class="btn btn-primary">订阅</button>
+        </form>
+        <div class="newsletter-success" id="newsletter-success">✓ 订阅成功，感谢关注！</div>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    <div class="container">
+      <div class="footer-inner">
+        <div>Godot Harbor · MIT License · Made for Godot developers</div>
+        <div class="footer-links">
+          <a href="https://github.com/odayou/GodotHarbor" target="_blank" rel="noopener">GitHub</a>
+          <a href="https://gitee.com/odayou/godot-harbor" target="_blank" rel="noopener">Gitee</a>
+          <a href="https://github.com/odayou/GodotHarbor/issues" target="_blank" rel="noopener">反馈问题</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function() {
+      var form = document.getElementById('newsletter-form');
+      var successEl = document.getElementById('newsletter-success');
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var email = document.getElementById('newsletter-email').value;
+        if (!email) return;
+        fetch('https://buttondown.com/api/emails/embed-subscribe/godot-harbor', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email })
+        }).then(function() {
+          form.style.display = 'none';
+          successEl.style.display = 'block';
+        }).catch(function() {
+          successEl.textContent = '订阅失败，请稍后重试';
+          successEl.style.display = 'block';
+          successEl.style.color = '#a04040';
+        });
+      });
+    })();
+  </script>
+
+</body>
+</html>
