@@ -1,8 +1,103 @@
 # Godot Harbor
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) [![GitHub Stars](https://img.shields.io/github/stars/odayou/GodotHarbor?style=social)](https://github.com/odayou/GodotHarbor) [![GitHub Downloads](https://img.shields.io/github/downloads/odayou/GodotHarbor/total?color=brightgreen)](https://github.com/odayou/GodotHarbor/releases) [![Gitee Downloads](https://img.shields.io/badge/Gitee-China_CDN-orange)](https://gitee.com/odayou/godot-harbor/releases)
+
 中文 | **[English](README.md)**
 
 Godot Harbor is a standalone desktop application that provides Godot developers with a unified plugin repository, project binding management, and engine download management.
+
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center"><b>Onboarding</b></td>
+    <td align="center"><b>Quick Actions</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/图像s-16.jpeg" width="480"/></td>
+    <td><img src="docs/screenshots/图像s-17.jpeg" width="480"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Projects</b></td>
+    <td align="center"><b>Asset Library</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/图像s-02.jpeg" width="480"/></td>
+    <td><img src="docs/screenshots/图像s-08.jpeg" width="480"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Engines</b></td>
+    <td align="center"><b>Install / Upgrade Engine</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/图像s-09.jpeg" width="480"/></td>
+    <td><img src="docs/screenshots/图像s-12.jpeg" width="480"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Plugin Import</b></td>
+    <td align="center"><b>Dark Theme</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/图像s-04.jpeg" width="480"/></td>
+    <td><img src="docs/screenshots/theme_black.jpeg" width="480"/></td>
+  </tr>
+</table>
+
+<details>
+<summary>📸 More Screenshots</summary>
+
+<table>
+  <tr>
+    <td align="center"><b>Dashboard</b></td>
+    <td align="center"><b>Command Palette</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/图像s-00.jpeg" width="480"/></td>
+    <td><img src="docs/screenshots/图像s-01.jpeg" width="480"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Plugin Binding</b></td>
+    <td align="center"><b>Project Details</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/图像s-06.jpeg" width="480"/></td>
+    <td><img src="docs/screenshots/图像s-03.jpeg" width="480"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Backup & Restore</b></td>
+    <td align="center"><b>Quick Bind</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/图像s-15.jpeg" width="480"/></td>
+    <td><img src="docs/screenshots/图像s-05.jpeg" width="480"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Binding Graph View</b></td>
+    <td align="center"><b>Launch Engine</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/图像s-07.jpeg" width="480"/></td>
+    <td><img src="docs/screenshots/图像s-10.jpeg" width="480"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Settings</b></td>
+    <td align="center"><b>Storage Info</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/图像s-14.jpeg" width="480"/></td>
+    <td><img src="docs/screenshots/图像s-18.jpeg" width="480"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>About</b></td>
+    <td align="center"><b>Credits</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/图像s-19.jpeg" width="480"/></td>
+    <td><img src="docs/screenshots/图像s-20.jpeg" width="480"/></td>
+  </tr>
+</table>
+
+</details>
 
 ## Features
 
@@ -303,8 +398,9 @@ MIT License
 
 ## Contact
 
-- Project: [GitHub Repository](https://github.com/odayou/GodotHarbor)
-- Issues: [GitHub Issues](https://github.com/odayou/GodotHarbor/issues)
+- Project: [GitHub](https://github.com/odayou/GodotHarbor) | [Gitee (China Mirror)](https://gitee.com/odayou/godot-harbor)
+- Issues: [GitHub Issues](https://github.com/odayou/GodotHarbor/issues) | [Gitee Issues](https://gitee.com/odayou/godot-harbor/issues)
+- Downloads: [GitHub Releases](https://github.com/odayou/GodotHarbor/releases) | [Gitee Releases (China CDN)](https://gitee.com/odayou/godot-harbor/releases)
 - Email: gbytl@sina.cn
 
 ---

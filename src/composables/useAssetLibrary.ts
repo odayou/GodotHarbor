@@ -32,6 +32,7 @@ export function useAssetLibrary(options: {
   const showAssetDetailDialog = ref(false)
   const searchCache = ref<Map<string, { data: AssetLibrarySearchResponse; timestamp: number }>>(new Map())
   const categoriesLoaded = ref(false)
+  const hasSearched = ref(false)
   let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
   onUnmounted(() => {
@@ -76,6 +77,7 @@ export function useAssetLibrary(options: {
         assetSearchResults.value = cached.data.result
         assetTotalPages.value = cached.data.pages
         assetTotalItems.value = cached.data.total_items
+        hasSearched.value = true
         isSearchingAssets.value = false
         return
       }
@@ -88,11 +90,12 @@ export function useAssetLibrary(options: {
         godot_version: assetFilterGodotVersion.value !== 'any' ? assetFilterGodotVersion.value : undefined,
         sort: assetSortBy.value as 'rating' | 'cost' | 'name' | 'updated',
         max_results: 20,
-        page: assetCurrentPage.value || undefined
+        page: assetCurrentPage.value
       })
       assetSearchResults.value = result.result
       assetTotalPages.value = result.pages
       assetTotalItems.value = result.total_items
+      hasSearched.value = true
       if (searchCache.value.size > 50) {
         const oldest = Array.from(searchCache.value.entries()).sort((a, b) => a[1].timestamp - b[1].timestamp)
         for (let i = 0; i < oldest.length - 30; i++) {
@@ -107,16 +110,18 @@ export function useAssetLibrary(options: {
     }
   }
 
-  const searchAssets = (immediate = false) => {
+  const searchAssets = (immediate = false): Promise<void> => {
     if (searchDebounceTimer) {
       clearTimeout(searchDebounceTimer)
     }
     if (immediate) {
-      doSearch()
+      return doSearch()
     } else {
-      searchDebounceTimer = setTimeout(() => {
-        doSearch()
-      }, 400)
+      return new Promise(resolve => {
+        searchDebounceTimer = setTimeout(() => {
+          doSearch().then(resolve)
+        }, 400)
+      })
     }
   }
 
@@ -200,21 +205,23 @@ export function useAssetLibrary(options: {
   }
 
   const openAssetLibraryTab = async () => {
-    if (!categoriesLoaded.value || assetCategories.value.length === 0) {
-      try {
-        const config = await api.getAssetLibraryConfigure()
-        assetCategories.value = config.categories || []
-        categoriesLoaded.value = true
-      } catch (error) {
-        console.error('Failed to load categories:', error)
-        toast.error(t('assetLibrary.searchFailed'))
-        return
+    const loadCategories = async () => {
+      if (!categoriesLoaded.value || assetCategories.value.length === 0) {
+        try {
+          const config = await api.getAssetLibraryConfigure()
+          assetCategories.value = config.categories || []
+          categoriesLoaded.value = true
+        } catch (error) {
+          console.error('Failed to load categories:', error)
+        }
       }
     }
-    if (assetSearchResults.value.length === 0 && !isSearchingAssets.value) {
+
+    if (assetSearchResults.value.length === 0 && !isSearchingAssets.value && !hasSearched.value) {
       assetFilterSupport.value = 'featured'
-      await searchAssets(true)
-      assetFilterSupport.value = ''
+      await Promise.all([loadCategories(), searchAssets(true)])
+    } else {
+      await loadCategories()
     }
   }
 
@@ -226,6 +233,7 @@ export function useAssetLibrary(options: {
     assetCurrentPage.value = 0
     assetTotalPages.value = 0
     assetTotalItems.value = 0
+    hasSearched.value = false
     await openAssetLibraryTab()
   }
 
@@ -246,6 +254,7 @@ export function useAssetLibrary(options: {
     assetDetail,
     showAssetDetailDialog,
     importedAssetIds,
+    hasSearched,
     openAssetLibrary,
     searchAssets,
     assetPrevPage,

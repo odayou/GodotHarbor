@@ -145,7 +145,9 @@ export default {
       fromAssetLib: '从资产库搜索',
       fromAssetLibDesc: '浏览 Godot 官方资产库',
       fromProjects: '从已有项目扫描',
-      fromProjectsDesc: '自动扫描项目中的插件'
+      fromProjectsDesc: '自动扫描项目中的插件',
+      fromRemote: '从远程仓库导入',
+      fromRemoteDesc: '输入远程仓库地址自动克隆并导入插件'
     },
     gitTitle: '从 Git 导入',
     gitDesc: '输入 Git 仓库 URL，将克隆并导入其中的 Godot 插件',
@@ -393,7 +395,7 @@ export default {
     searching: '搜索中...',
     searchFailed: '无法连接到 Asset Library，请检查网络连接后重试',
     noResults: '没有找到匹配的资产',
-    featuredHint: '显示精选推荐插件，输入关键词搜索更多',
+    featuredHint: '正在加载精选推荐插件...',
     type: '资产类型',
     typeAny: '全部',
     typeAddon: '插件',
@@ -772,7 +774,12 @@ export default {
       enginesFileDesc: '引擎注册信息',
       openInFileManager: '打开',
       customizable: '可在上方插件存储区域修改',
-      notExist: '尚未创建'
+      notExist: '尚未创建',
+      backup: {
+        restoreConfirm: '确认恢复',
+        restoreConfirmDesc: '恢复操作将覆盖当前所有数据，此操作不可逆。确认继续？',
+        restore: '恢复'
+      }
     },
     pluginRepo: {
       title: '插件存储',
@@ -1046,6 +1053,7 @@ export default {
     tailwindCSS: 'CSS 框架',
     openSource: 'Godot Harbor 是开源软件，基于 Apache-2.0 / MIT 许可证发布',
     githubRepo: 'GitHub 仓库',
+    giteeRepo: 'Gitee 镜像',
     issueReport: '问题反馈',
     contribute: '参与贡献',
     email: '邮箱',
@@ -1111,7 +1119,8 @@ export default {
     hotUpdateFailed: '热更新失败: {error}',
     manualDownload: '手动下载安装包',
     offlineUpdateTip: '如遇在线更新失败，可手动下载安装包替换：',
-    githubRelease: '查看 GitHub Release 页面',
+    githubRelease: 'GitHub Release',
+    giteeRelease: 'Gitee Release（国内加速）',
     goToEngines: '前往引擎管理',
     checksumFailed: '更新包校验失败，文件可能已损坏'
   },

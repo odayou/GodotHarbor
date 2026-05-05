@@ -145,7 +145,9 @@ export default {
       fromAssetLib: 'Search Asset Library',
       fromAssetLibDesc: 'Browse the official Godot Asset Library',
       fromProjects: 'Scan from Existing Projects',
-      fromProjectsDesc: 'Automatically scan plugins in your projects'
+      fromProjectsDesc: 'Automatically scan plugins in your projects',
+      fromRemote: 'Import from Remote Repository',
+      fromRemoteDesc: 'Enter remote repository URL to clone and import plugin'
     },
     gitTitle: 'Import from Git',
     gitDesc: 'Enter Git repository URL to clone and import Godot plugins',
@@ -393,7 +395,7 @@ export default {
     searching: 'Searching...',
     searchFailed: 'Unable to connect to Asset Library. Please check your network connection and try again.',
     noResults: 'No matching assets found',
-    featuredHint: 'Showing featured plugins. Enter keywords to search for more.',
+    featuredHint: 'Loading featured plugins...',
     type: 'Asset Type',
     typeAny: 'Any',
     typeAddon: 'Addon',
@@ -772,7 +774,12 @@ export default {
       enginesFileDesc: 'Engine registration information',
       openInFileManager: 'Open',
       customizable: 'Can be modified in the Plugin Storage section above',
-      notExist: 'Not yet created'
+      notExist: 'Not yet created',
+      backup: {
+        restoreConfirm: 'Confirm Restore',
+        restoreConfirmDesc: 'Restoring will overwrite all current data. This action cannot be undone. Continue?',
+        restore: 'Restore'
+      }
     },
     pluginRepo: {
       title: 'Plugin Storage',
@@ -1046,6 +1053,7 @@ export default {
     tailwindCSS: 'CSS Framework',
     openSource: 'Godot Harbor is open source software, released under Apache-2.0 / MIT license',
     githubRepo: 'GitHub Repository',
+    giteeRepo: 'Gitee Mirror',
     issueReport: 'Report Issues',
     contribute: 'Contribute',
     email: 'Email',
@@ -1111,7 +1119,8 @@ export default {
     hotUpdateFailed: 'Hot update failed: {error}',
     manualDownload: 'Download installer manually',
     offlineUpdateTip: 'If online update fails, you can download the installer manually:',
-    githubRelease: 'View GitHub Release page',
+    githubRelease: 'GitHub Release',
+    giteeRelease: 'Gitee Release (China CDN)',
     goToEngines: 'Go to Engine Management',
     checksumFailed: 'Update package checksum verification failed, file may be corrupted'
   },

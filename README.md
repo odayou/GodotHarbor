@@ -1,8 +1,103 @@
 # Godot Harbor
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) [![GitHub Stars](https://img.shields.io/github/stars/odayou/GodotHarbor?style=social)](https://github.com/odayou/GodotHarbor) [![GitHub Downloads](https://img.shields.io/github/downloads/odayou/GodotHarbor/total?color=brightgreen)](https://github.com/odayou/GodotHarbor/releases) [![Gitee Downloads](https://img.shields.io/badge/Gitee-国内下载-orange)](https://gitee.com/odayou/godot-harbor/releases)
+
 **[English](README.en.md)** | 中文
 
 Godot Harbor 是一款独立桌面应用，用于为 Godot 开发者提供统一的插件仓库、项目绑定关系管理和引擎下载管理能力。
+
+## 截图预览
+
+<table>
+  <tr>
+    <td align="center"><b>用户引导</b></td>
+    <td align="center"><b>快捷操作</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/图像s-16.jpeg" width="480"/></td>
+    <td><img src="docs/screenshots/图像s-17.jpeg" width="480"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>项目管理</b></td>
+    <td align="center"><b>Asset Library</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/图像s-02.jpeg" width="480"/></td>
+    <td><img src="docs/screenshots/图像s-08.jpeg" width="480"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>引擎管理</b></td>
+    <td align="center"><b>安装/升级引擎</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/图像s-09.jpeg" width="480"/></td>
+    <td><img src="docs/screenshots/图像s-12.jpeg" width="480"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>插件导入</b></td>
+    <td align="center"><b>暗黑主题</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/图像s-04.jpeg" width="480"/></td>
+    <td><img src="docs/screenshots/theme_black.jpeg" width="480"/></td>
+  </tr>
+</table>
+
+<details>
+<summary>📸 更多截图</summary>
+
+<table>
+  <tr>
+    <td align="center"><b>首页仪表盘</b></td>
+    <td align="center"><b>快捷指令</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/图像s-00.jpeg" width="480"/></td>
+    <td><img src="docs/screenshots/图像s-01.jpeg" width="480"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>插件绑定</b></td>
+    <td align="center"><b>项目详情</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/图像s-06.jpeg" width="480"/></td>
+    <td><img src="docs/screenshots/图像s-03.jpeg" width="480"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>备份与恢复</b></td>
+    <td align="center"><b>插件快捷绑定</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/图像s-15.jpeg" width="480"/></td>
+    <td><img src="docs/screenshots/图像s-05.jpeg" width="480"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>绑定图形视图</b></td>
+    <td align="center"><b>引擎启动</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/图像s-07.jpeg" width="480"/></td>
+    <td><img src="docs/screenshots/图像s-10.jpeg" width="480"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>设置</b></td>
+    <td align="center"><b>存储信息</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/图像s-14.jpeg" width="480"/></td>
+    <td><img src="docs/screenshots/图像s-18.jpeg" width="480"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>软件信息</b></td>
+    <td align="center"><b>鸣谢</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/图像s-19.jpeg" width="480"/></td>
+    <td><img src="docs/screenshots/图像s-20.jpeg" width="480"/></td>
+  </tr>
+</table>
+
+</details>
 
 ## 功能特性
 
@@ -303,8 +398,9 @@ MIT License
 
 ## 联系方式
 
-- 项目主页：[GitHub Repository](https://github.com/odayou/GodotHarbor)
-- 问题反馈：[GitHub Issues](https://github.com/odayou/GodotHarbor/issues)
+- 项目主页：[GitHub](https://github.com/odayou/GodotHarbor) | [Gitee（国内镜像）](https://gitee.com/odayou/godot-harbor)
+- 问题反馈：[GitHub Issues](https://github.com/odayou/GodotHarbor/issues) | [Gitee Issues](https://gitee.com/odayou/godot-harbor/issues)
+- 下载安装：[GitHub Releases](https://github.com/odayou/GodotHarbor/releases) | [Gitee Releases（国内加速）](https://gitee.com/odayou/godot-harbor/releases)
 - 邮箱：gbytl@sina.cn
 
 ---

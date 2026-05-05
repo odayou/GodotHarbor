@@ -15,7 +15,7 @@ jobs:
     steps:
       - name: Clone from Gitee
         run: |
-          git clone --bare https://gitee.com/odayou/GodotHarbor.git repo
+          git clone --bare https://gitee.com/odayou/godot-harbor.git repo
           cd repo
 
       - name: Push to GitHub

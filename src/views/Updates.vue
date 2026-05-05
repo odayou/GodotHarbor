@@ -43,7 +43,11 @@
         <p class="text-xs text-gray-400 dark:text-gray-500">{{ t('updates.offlineUpdateTip') }}</p>
         <a :href="githubReleaseUrl" target="_blank" class="inline-flex items-center gap-1 mt-1 text-xs text-primary-600 dark:text-primary-400 hover:underline">
           <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-          {{ t('updates.manualDownload') }}
+          {{ t('updates.githubRelease') }}
+        </a>
+        <a :href="giteeReleaseUrl" target="_blank" class="inline-flex items-center gap-1 mt-1 text-xs text-primary-600 dark:text-primary-400 hover:underline">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+          {{ t('updates.giteeRelease') }}
         </a>
       </div>
     </div>
@@ -147,6 +151,10 @@
         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
         {{ t('updates.githubRelease') }}
       </a>
+      <a :href="giteeReleaseUrl" target="_blank" class="inline-flex items-center gap-1 mt-3 text-xs text-primary-600 dark:text-primary-400 hover:underline">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+        {{ t('updates.giteeRelease') }}
+      </a>
     </div>
 
     <div v-if="store.updateHistory.length > 0" class="card">
@@ -235,6 +243,7 @@ const showClearHistoryConfirm = ref(false)
 const showSkipVersionConfirm = ref(false)
 
 const githubReleaseUrl = 'https://github.com/odayou/GodotHarbor/releases'
+const giteeReleaseUrl = 'https://gitee.com/odayou/godot-harbor/releases'
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return bytes + ' B'

@@ -249,6 +249,9 @@ const inspirationDeps = [
           <a href="https://github.com/odayou/GodotHarbor" target="_blank" class="text-primary-600 dark:text-primary-400 hover:underline text-sm">
             {{ t('about.githubRepo') }}
           </a>
+          <a href="https://gitee.com/odayou/godot-harbor" target="_blank" class="text-primary-600 dark:text-primary-400 hover:underline text-sm">
+            {{ t('about.giteeRepo') }}
+          </a>
           <a href="https://github.com/odayou/GodotHarbor/issues" target="_blank" class="text-primary-600 dark:text-primary-400 hover:underline text-sm">
             {{ t('about.issueReport') }}
           </a>

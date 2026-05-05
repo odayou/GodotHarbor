@@ -127,4 +127,4 @@ Windows 上创建符号链接需要管理员权限或开发者模式：
 
 ### 如何反馈问题
 
-前往 [GitHub Issues](https://github.com/odayou/GodotHarbor/issues) 提交问题反馈。
+前往 [GitHub Issues](https://github.com/odayou/GodotHarbor/issues) 或 [Gitee Issues](https://gitee.com/odayou/godot-harbor/issues) 提交问题反馈。

@@ -264,8 +264,11 @@ jobs:
     needs: [resolve-version, create-release, build, hotupdate-manifest]
     runs-on: ubuntu-latest
     if: ${{ always() && needs.build.result != 'cancelled' }}
+    outputs:
+      published: ${{ steps.check.outputs.published }}
     steps:
       - name: Publish Release
+        id: check
         uses: actions/github-script@v7
         env:
           RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
@@ -276,6 +279,7 @@ jobs:
 
             if (buildResult === 'failure') {
               core.info('Build failed, keeping release as draft');
+              core.setOutput('published', 'false');
               return;
             }
 
@@ -286,3 +290,136 @@ jobs:
               draft: false
             });
             core.info('Release published successfully');
+            core.setOutput('published', 'true');
+
+  sync-to-gitee:
+    name: Sync Release to Gitee
+    needs: [resolve-version, create-release, publish-release]
+    runs-on: ubuntu-latest
+    if: ${{ needs.publish-release.outputs.published == 'true' }}
+    steps:
+      - name: Sync Release to Gitee
+        uses: actions/github-script@v7
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          TAG: ${{ needs.resolve-version.outputs.tag }}
+          GITEE_OWNER: odayou
+          GITEE_REPO: GodotHarbor
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const tag = process.env.TAG;
+            const giteeToken = process.env.GITEE_TOKEN;
+            const giteeOwner = process.env.GITEE_OWNER;
+            const giteeRepo = process.env.GITEE_REPO;
+
+            if (!giteeToken) {
+              core.warning('GITEE_TOKEN not configured, skipping sync');
+              return;
+            }
+
+            const { data: release } = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
+            core.info(`Found GitHub release: ${release.tag_name} (${release.assets.length} assets)`);
+
+            let giteeReleaseId;
+            const giteeApiBase = 'https://gitee.com/api/v5';
+
+            try {
+              const resp = await fetch(`${giteeApiBase}/repos/${giteeOwner}/${giteeRepo}/releases/tags/${tag}`, {
+                headers: { 'Authorization': `token ${giteeToken}` }
+              });
+              if (resp.ok) {
+                const existing = await resp.json();
+                giteeReleaseId = existing.id;
+                core.info(`Gitee release already exists, id=${giteeReleaseId}`);
+              } else {
+                core.info('Creating Gitee release...');
+                const createResp = await fetch(`${giteeApiBase}/repos/${giteeOwner}/${giteeRepo}/releases`, {
+                  method: 'POST',
+                  headers: { 'Authorization': `token ${giteeToken}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    tag_name: tag,
+                    name: release.name || tag,
+                    body: release.body || '',
+                    prerelease: release.prerelease,
+                    draft: false,
+                    target_commitish: 'main'
+                  })
+                });
+                if (!createResp.ok) {
+                  const err = await createResp.text();
+                  core.setFailed(`Failed to create Gitee release: ${err}`);
+                  return;
+                }
+                const created = await createResp.json();
+                giteeReleaseId = created.id;
+                core.info(`Created Gitee release, id=${giteeReleaseId}`);
+              }
+            } catch (err) {
+              core.setFailed(`Gitee API error: ${err.message}`);
+              return;
+            }
+
+            const { data: existingAssets } = await fetch(
+              `${giteeApiBase}/repos/${giteeOwner}/${giteeRepo}/releases/${giteeReleaseId}/assets`,
+              { headers: { 'Authorization': `token ${giteeToken}` } }
+            ).then(r => r.json()).catch(() => []);
+            const existingNames = new Set((existingAssets || []).map(a => a.name));
+
+            let uploaded = 0;
+            let skipped = 0;
+            for (const asset of release.assets) {
+              if (existingNames.has(asset.name)) {
+                core.info(`Skipping ${asset.name} (already exists on Gitee)`);
+                skipped++;
+                continue;
+              }
+
+              core.info(`Downloading ${asset.name} from GitHub...`);
+              const downloadResp = await fetch(asset.url, {
+                headers: { 'Authorization': `token ${process.env.GITHUB_TOKEN}`, 'Accept': 'application/octet-stream' },
+                redirect: 'manual'
+              });
+              const downloadUrl = downloadResp.headers.get('location') || downloadResp.url;
+              const fileResp = await fetch(downloadUrl);
+              if (!fileResp.ok) {
+                core.warning(`Failed to download ${asset.name}: ${fileResp.status}`);
+                continue;
+              }
+              const fileBuffer = Buffer.from(await fileResp.arrayBuffer());
+
+              core.info(`Uploading ${asset.name} to Gitee...`);
+              const FormData = await import('form-data');
+              const form = new FormData.default();
+              form.append('file', fileBuffer, { filename: asset.name, contentType: asset.content_type || 'application/octet-stream' });
+              form.append('name', asset.name);
+
+              const uploadResp = await fetch(
+                `${giteeApiBase}/repos/${giteeOwner}/${giteeRepo}/releases/${giteeReleaseId}/attach_files`,
+                {
+                  method: 'POST',
+                  headers: { 'Authorization': `token ${giteeToken}`, ...form.getHeaders() },
+                  body: form
+                }
+              );
+
+              if (uploadResp.ok) {
+                core.info(`Uploaded ${asset.name} to Gitee`);
+                uploaded++;
+              } else {
+                const err = await uploadResp.text();
+                core.warning(`Failed to upload ${asset.name}: ${err}`);
+              }
+            }
+
+            core.info(`Sync complete: ${uploaded} uploaded, ${skipped} skipped, ${release.assets.length} total`);
+
+      - name: Summary
+        run: |
+          echo "## Gitee Release Sync ✅" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag**: ${{ needs.resolve-version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Gitee Repo**: odayou/GodotHarbor" >> $GITHUB_STEP_SUMMARY
+          echo "- **URL**: https://gitee.com/odayou/godot-harbor/releases/${{ needs.resolve-version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY

@@ -581,6 +581,7 @@ const {
   assetDetail,
   showAssetDetailDialog,
   importedAssetIds,
+  hasSearched,
   openAssetLibrary,
   searchAssets,
   assetPrevPage,
@@ -2070,7 +2071,7 @@ const retryBatchFailed = async () => {
         </button>
       </div>
 
-      <div v-if="assetSearchResults.length === 0 && !isSearchingAssets && assetFilterSupport === 'featured'" class="text-center py-2">
+      <div v-if="assetSearchResults.length === 0 && !isSearchingAssets && !hasSearched" class="text-center py-2">
         <p class="text-xs text-gray-400 dark:text-gray-500">{{ t('assetLibrary.featuredHint') }}</p>
       </div>
 
@@ -2129,7 +2130,7 @@ const retryBatchFailed = async () => {
       </div>
 
       <div class="space-y-2">
-        <div v-if="assetSearchResults.length === 0 && !isSearchingAssets" class="text-center py-8 text-gray-500 dark:text-content-secondary">
+        <div v-if="assetSearchResults.length === 0 && !isSearchingAssets && hasSearched" class="text-center py-8 text-gray-500 dark:text-content-secondary">
           {{ t('assetLibrary.noResults') }}
         </div>
         <div v-if="isSearchingAssets" class="flex justify-center py-8">

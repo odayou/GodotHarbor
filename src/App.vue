@@ -159,7 +159,7 @@ registerShortcut({
     <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
       <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">选择语言 / Select Language</h3>
       <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">请选择您偏好的语言 / Please select your preferred language</p>
-      <p class="text-xs text-gray-400 dark:text-gray-500 mb-4">💡 可在「设置 → 外观」中随时切换 / Switch anytime in Settings → Appearance</p>
+      <p class="text-xs text-gray-400 dark:text-gray-500 mb-4">💡 可在「设置 → 外观」中切换 / Switch in Settings → Appearance</p>
       <div class="space-y-3">
         <button
           @click="selectLanguage('zh-CN')"

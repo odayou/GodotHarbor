@@ -12,7 +12,7 @@
 
 ### 从 Release 下载
 
-1. 前往 [GitHub Releases](https://github.com/odayou/GodotHarbor/releases) 页面
+1. 前往 [GitHub Releases](https://github.com/odayou/GodotHarbor/releases) 或 [Gitee Releases（国内加速）](https://gitee.com/odayou/godot-harbor/releases) 页面
 2. 下载对应平台的安装包：
    - **Windows**: `.exe` (NSIS 安装包)
    - **macOS**: `.dmg`
