@@ -201,8 +201,8 @@ impl EngineDownloader {
         let client = create_http_client(Some(std::time::Duration::from_secs(30)))?;
 
         let mut all_versions = Vec::new();
-        let max_pages = 10;
-        let per_page = 100;
+        let max_pages = 20;
+        let per_page = 50;
 
         let api_base = if mirror.mirror_type == "direct" {
             "https://api.github.com"
@@ -240,6 +240,10 @@ impl EngineDownloader {
                     Ok(resp) => {
                         let status = resp.status().as_u16();
                         if status == 403 {
+                            if !all_versions.is_empty() {
+                                eprintln!("第 {} 页触发限流，已有 {} 个版本，返回已获取数据", page, all_versions.len());
+                                break;
+                            }
                             let reset_header = resp.headers()
                                 .get("x-ratelimit-reset")
                                 .and_then(|v| v.to_str().ok())
@@ -260,14 +264,22 @@ impl EngineDownloader {
                             }
                             return Err("RATE_LIMITED".to_string());
                         }
-                        eprintln!("获取 {} 返回状态码: {}", url, resp.status());
+                        eprintln!("获取 {} 返回状态码: {}，已有 {} 个版本", url, resp.status(), all_versions.len());
                         break;
                     }
                     Err(e) => {
-                        if e.is_connect() || e.is_timeout() || e.is_request() {
+                        if e.is_connect() {
+                            if !all_versions.is_empty() {
+                                eprintln!("第 {} 页连接失败，已有 {} 个版本，返回已获取数据", page, all_versions.len());
+                                break;
+                            }
                             return Err("NETWORK_ERROR".to_string());
                         }
-                        eprintln!("获取 {} 失败: {}", url, e);
+                        if e.is_timeout() {
+                            eprintln!("第 {} 页请求超时，已有 {} 个版本，返回已获取数据", page, all_versions.len());
+                            break;
+                        }
+                        eprintln!("获取 {} 失败: {}，已有 {} 个版本", url, e, all_versions.len());
                         break;
                     }
                 }

@@ -411,6 +411,8 @@ pub async fn fetch_remote_engine_versions(
     let cache_dir = get_data_dir(&app).join("cache");
     let cache_file = cache_dir.join(format!("remote_versions_{}.json", mirror_id));
 
+    let mut expired_cache: Option<crate::models::CachedRemoteVersions> = None;
+
     if force {
         let _ = fs::remove_file(&cache_file);
     } else if cache_file.exists() {
@@ -427,6 +429,9 @@ pub async fn fetch_remote_engine_versions(
                             &format!("使用缓存，共 {} 个版本", cached.versions.len()));
                         return Ok(cached.versions);
                     }
+                    if !cached.versions.is_empty() {
+                        expired_cache = Some(cached);
+                    }
                 }
             }
         }
@@ -436,25 +441,46 @@ pub async fn fetch_remote_engine_versions(
     let engines: Vec<Engine> = storage.load_or_default("engines.json");
     let local_versions: Vec<String> = engines.iter().map(|e| e.version.clone()).collect();
 
-    let versions = crate::engine_downloader::EngineDownloader::fetch_remote_versions(mirror, &local_versions).await?;
+    match crate::engine_downloader::EngineDownloader::fetch_remote_versions(mirror, &local_versions).await {
+        Ok(versions) => {
+            if versions.is_empty() {
+                if let Some(ref cached) = expired_cache {
+                    log_operation(&app, "fetch_remote_engine_versions", &mirror_id,
+                        "API 返回空结果，使用过期缓存");
+                    return Ok(cached.versions.clone());
+                }
+                log_operation(&app, "fetch_remote_engine_versions", &mirror_id,
+                    "API 返回空结果且无缓存");
+                return Ok(versions);
+            }
 
-    let cache_dir = get_data_dir(&app).join("cache");
-    let _ = fs::create_dir_all(&cache_dir);
-    let cache_file = cache_dir.join(format!("remote_versions_{}.json", mirror_id));
-    let cached = crate::models::CachedRemoteVersions {
-        cache_version: current_cache_version,
-        cached_at: chrono::Utc::now().to_rfc3339(),
-        mirror_id: mirror_id.clone(),
-        versions: versions.clone(),
-    };
-    if let Ok(json) = serde_json::to_string_pretty(&cached) {
-        let _ = fs::write(&cache_file, json);
+            let cache_dir = get_data_dir(&app).join("cache");
+            let _ = fs::create_dir_all(&cache_dir);
+            let cache_file = cache_dir.join(format!("remote_versions_{}.json", mirror_id));
+            let cached = crate::models::CachedRemoteVersions {
+                cache_version: current_cache_version,
+                cached_at: chrono::Utc::now().to_rfc3339(),
+                mirror_id: mirror_id.clone(),
+                versions: versions.clone(),
+            };
+            if let Ok(json) = serde_json::to_string_pretty(&cached) {
+                let _ = fs::write(&cache_file, json);
+            }
+
+            log_operation(&app, "fetch_remote_engine_versions", &mirror_id,
+                &format!("获取远程引擎版本列表，共 {} 个版本", versions.len()));
+
+            Ok(versions)
+        }
+        Err(e) => {
+            if let Some(ref cached) = expired_cache {
+                log_operation(&app, "fetch_remote_engine_versions", &mirror_id,
+                    &format!("API 请求失败({}), 使用过期缓存，共 {} 个版本", e, cached.versions.len()));
+                return Ok(cached.versions.clone());
+            }
+            Err(e)
+        }
     }
-
-    log_operation(&app, "fetch_remote_engine_versions", &mirror_id,
-        &format!("获取远程引擎版本列表，共 {} 个版本", versions.len()));
-
-    Ok(versions)
 }
 
 #[tauri::command]
