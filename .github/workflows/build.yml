@@ -305,7 +305,7 @@ jobs:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
           TAG: ${{ needs.resolve-version.outputs.tag }}
           GITEE_OWNER: odayou
-          GITEE_REPO: GodotHarbor
+          GITEE_REPO: godot-harbor
         with:
           script: |
             const owner = context.repo.owner;
