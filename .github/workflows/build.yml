@@ -174,7 +174,7 @@ jobs:
           args: '--target ${{ matrix.platform.target }} --bundles ${{ matrix.platform.bundle }}'
 
       - name: Code sign Windows installer
-        if: matrix.platform.os == 'windows-latest' && secrets.CERTIFICATE_BASE64 != ''
+        if: matrix.platform.os == 'windows-latest' && ${{ secrets.CERTIFICATE_BASE64 != '' }}
         env:
           CERTIFICATE_BASE64: ${{ secrets.CERTIFICATE_BASE64 }}
           CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
@@ -189,7 +189,7 @@ jobs:
           Remove-Item -Force $certPath
 
       - name: Notarize macOS app
-        if: matrix.platform.os == 'macos-latest' && secrets.APPLE_ID != ''
+        if: matrix.platform.os == 'macos-latest' && ${{ secrets.APPLE_ID != '' }}
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
