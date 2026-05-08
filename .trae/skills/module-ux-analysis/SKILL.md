@@ -3,166 +3,284 @@ name: "module-ux-analysis"
 description: "Analyzes a module's UX completeness across 7 dimensions (simplification, convenience, feature completeness, flow completeness, conflict tolerance, edge cases, reverse flow). Invoke when user asks to review/analyze a module's UX or find improvement opportunities."
 ---
 
-# Module UX Analysis Skill
+# Module UX Analysis Skill (Godot Harbor 定制版)
 
-Systematically analyze a software module's user experience across 7 dimensions to identify improvement opportunities and prioritize fixes.
+针对 Godot Harbor 桌面应用的 UX 分析框架，支持前后端分离视角、项目代码结构绑定、智能优先级评估。
 
-## When to Invoke
+## 触发条件
 
-- User asks to review/analyze a module's UX quality
-- User wants to find improvement opportunities in a feature area
-- User asks for a comprehensive audit of a functional module
-- User mentions "分析", "梳理", "体验", "流程" in context of a module
+- 用户要求分析/审查某模块的 UX 质量
+- 用户想发现功能改进机会
+- 用户提到"分析"、"梳理"、"体验"、"流程"、"优化"等关键词
+- 用户要求对某页面/功能进行全面审计
 
-## Analysis Procedure
+## 分析流程
 
-### Step 1: Code Survey (代码梳理)
+### 第一步：代码调研（代码梳理）
 
-Read all relevant source files for the target module:
+按以下结构读取目标模块的所有相关文件：
 
-1. **View files** (`src/views/`): Main page components, all dialogs, user interactions
-2. **Store files** (`src/stores/`): State management, data flow, API calls
-3. **API layer** (`src/api/`): Backend interface surface, available commands
-4. **Type definitions** (`src/types/`): Data models, enums, interfaces
-5. **i18n files** (`src/locales/`): Feature text, hints, error messages — reveals intended UX
-6. **Router** (`src/router/`): Navigation structure, page relationships
+#### 前端文件（Vue 3）
 
-Output: A complete flow diagram showing all user-facing operations and their connections.
+| 目录 | 内容 | 关键关注点 |
+|------|------|-----------|
+| `src/views/*.vue` | 页面组件 | 用户交互、按钮入口、对话框、状态展示 |
+| `src/components/*.vue` | 通用组件 | 可复用性、props/emit 设计 |
+| `src/stores/index.ts` | Pinia 状态管理 | 数据流、API 调用、缓存策略 |
+| `src/api/index.ts` | Tauri 命令封装 | 可用命令列表、参数类型 |
+| `src/types/index.ts` | TypeScript 类型 | 数据模型、枚举、接口定义 |
+| `src/locales/*.ts` | 国际化文件 | 功能文本、提示语、错误信息 |
+| `src/router/index.ts` | 路由配置 | 页面关系、导航结构 |
 
-### Step 2: 7-Dimension Analysis (七维度分析)
+#### 后端文件（Rust/Tauri）
 
-Analyze each dimension below. For every issue found, assign severity:
-- 🔴 High: Blocks core workflow or causes data loss/confusion
-- 🟡 Medium: Degrades experience significantly
-- 🟢 Low: Nice-to-have improvement
+| 目录 | 内容 | 关键关注点 |
+|------|------|-----------|
+| `src-tauri/src/commands/` | Tauri 命令 | 暴露给前端的 API |
+| `src-tauri/src/models/` | 数据模型 | 结构体、枚举定义 |
+| `src-tauri/src/{module}/` | 业务模块 | 核心逻辑、错误处理 |
 
-#### Dimension 1: Operation Simplification (操作简化)
+**输出**：生成模块功能流程图（ASCII），标注涉及文件路径。
 
-Check:
-- [ ] Are there redundant steps that can be merged?
-- [ ] Are there too many buttons/entries for the same goal?
-- [ ] Can multi-step operations be combined into one-click?
-- [ ] Is drag-and-drop supported where applicable?
-- [ ] Are there unnecessary confirmation dialogs?
+---
 
-#### Dimension 2: Convenience Maximization (便利性最大化)
+### 第二步：十维度分析
 
-Check:
-- [ ] Can users perform the most common action from the current context without navigation?
-- [ ] Is there quick access from item cards (not just detail pages)?
-- [ ] Are recent/frequent items surfaced?
-- [ ] Do search/filter states persist across sessions?
-- [ ] Are context menus (right-click) available?
-- [ ] Are keyboard shortcuts provided?
-- [ ] Can users customize default behaviors?
+针对桌面应用特性，扩展为 **10 个分析维度**：
 
-#### Dimension 3: Feature Completeness (功能实现完成度)
+#### 维度 1：操作简化（Operation Simplification）
 
-Check:
-- [ ] Are all backend APIs exposed in the UI?
-- [ ] Are there features implied by data models but not implemented in UI?
-- [ ] Are there "view-only" features that should be actionable?
-- [ ] Are there missing features that competitors/reference apps have?
-- [ ] Are batch operations supported where applicable?
-- [ ] Is there a recommendation/discovery mechanism?
+| 检查项 | 说明 |
+|--------|------|
+| 冗余步骤合并 | 是否存在可合并的多步操作？ |
+| 入口精简 | 同一目标是否有过多个按钮/入口？ |
+| 一键操作 | 多步流程是否可简化为一键完成？ |
+| 拖拽支持 | 文件/目录操作是否支持拖拽？ |
+| 确认对话框 | 是否存在不必要的确认弹窗？ |
 
-#### Dimension 4: Flow Completeness (流程完备性)
+#### 维度 2：便利性最大化（Convenience Maximization）
 
-Check:
-- [ ] Is there a guided onboarding for first-time users?
-- [ ] Is the end-to-end workflow connected or fragmented?
-- [ ] Is there verification/feedback after critical operations?
-- [ ] Is undo/rollback supported?
-- [ ] Are downstream impacts shown before destructive operations?
-- [ ] Are change logs/release notes displayed where relevant?
+| 检查项 | 说明 |
+|--------|------|
+| 上下文快捷入口 | 卡片/列表项是否有快捷操作按钮？ |
+| 最近/常用项 | 是否展示最近使用或高频项目？ |
+| 状态持久化 | 搜索/筛选状态是否跨会话保留？ |
+| 右键菜单 | 是否提供上下文菜单快捷操作？ |
+| 键盘快捷键 | 是否支持键盘快捷操作？ |
+| 默认行为定制 | 用户是否可自定义默认行为？ |
 
-#### Dimension 5: Conflict Tolerance (冲突容错)
+#### 维度 3：功能实现完成度（Feature Completeness）
 
-Check:
-- [ ] Are health checks performed on existing state (e.g., broken symlinks)?
-- [ ] Are path/resource conflicts detected before operations?
-- [ ] Are duplicate checks performed during import?
-- [ ] Is there recovery from failed operations (resume/retry)?
-- [ ] Are compatibility constraints enforced (e.g., version mismatch warnings)?
-- [ ] Are dependency requirements validated before operations?
+| 检查项 | 说明 |
+|--------|------|
+| API 暴露完整性 | 后端 API 是否全部在前端暴露？ |
+| 数据模型隐含功能 | 类型定义中是否有 UI 未实现的功能？ |
+| 只读→可操作 | 是否有"仅展示"但应支持操作的功能？ |
+| 批量操作 | 是否支持批量处理？ |
+| 推荐/发现机制 | 是否有内容推荐或发现入口？ |
+| 竞品对标 | 与同类工具相比是否有缺失功能？ |
 
-#### Dimension 6: Edge Cases (场景边界情况)
+#### 维度 4：流程完备性（Flow Completeness）
 
-Check:
-- [ ] What happens when storage paths change?
-- [ ] Is offline mode supported or gracefully degraded?
-- [ ] Are orphaned resources cleaned up when parent is deleted?
-- [ ] Is concurrent access handled?
-- [ ] Are there performance concerns at scale (virtual scrolling, pagination)?
-- [ ] What happens when external resources become unavailable?
+| 检查项 | 说明 |
+|--------|------|
+| 新手引导 | 是否有首次使用的引导流程？ |
+| 端到端工作流 | 核心流程是否连贯完整？ |
+| 操作反馈 | 关键操作后是否有验证/反馈？ |
+| 撤销/回滚 | 是否支持撤销或回滚操作？ |
+| 影响预览 | 破坏性操作前是否展示下游影响？ |
+| 变更日志 | 是否展示更新日志/发布说明？ |
 
-#### Dimension 7: Reverse Flow Analysis (逆向流程分析)
+#### 维度 5：冲突容错（Conflict Tolerance）
 
-Traverse every forward operation in reverse — for each "create/add/bind" action, verify the corresponding "delete/remove/unbind" action exists and is complete. This dimension catches asymmetries where setup flows are well-designed but teardown flows are neglected.
+| 检查项 | 说明 |
+|--------|------|
+| 状态健康检查 | 是否检测已有状态的完整性？ |
+| 冲突预警 | 操作前是否检测资源冲突？ |
+| 重复检测 | 导入/添加时是否检测重复？ |
+| 失败恢复 | 操作失败后是否支持重试/恢复？ |
+| 兼容性校验 | 是否强制执行兼容性约束？ |
+| 依赖验证 | 操作前是否验证依赖条件？ |
 
-Check:
-- [ ] For every "add" operation, is there a corresponding "remove" that fully cleans up?
-- [ ] For every "bind/link" operation, is there a corresponding "unbind/unlink" that restores the original state?
-- [ ] For every "create" operation, is "delete" accessible from the same context (not buried in settings)?
-- [ ] Does the reverse operation clean up ALL side effects (files, symlinks, cache, registry, references)?
-- [ ] Are reverse operations discoverable from the same UI location as forward operations?
-- [ ] Do reverse operations provide adequate warnings about what will be lost?
-- [ ] Can users undo a reverse operation (e.g., re-create after delete, re-bind after unbind)?
-- [ ] Are there forward operations that have NO reverse path (one-way doors)?
-- [ ] Does the reverse flow have the same quality of feedback as the forward flow?
-- [ ] Are batch reverse operations supported where batch forward operations exist?
+#### 维度 6：场景边界情况（Edge Cases）
 
-### Step 3: Priority Ranking (优先级排序)
+| 检查项 | 说明 |
+|--------|------|
+| 路径变更处理 | 存储路径变更后数据如何处理？ |
+| 离线可用 | 无网络时功能是否可用/降级？ |
+| 孤立资源清理 | 父项删除后子资源是否清理？ |
+| 并发访问 | 多实例/多线程操作是否安全？ |
+| 大规模性能 | 大数据量时是否有虚拟滚动/分页？ |
+| 外部资源失效 | 外部依赖不可用时如何处理？ |
 
-Rank ALL discovered improvements using this framework:
+#### 维度 7：逆向流程分析（Reverse Flow）
 
-| Priority | Criteria |
-|----------|----------|
-| **P0** | Blocks core workflow, causes data loss, or makes the app's value proposition questionable |
-| **P1** | Significantly degrades experience, causes confusion, or creates risk of errors |
-| **P2** | Improves efficiency, reduces friction, or enhances discoverability |
-| **P3** | Polish, nice-to-have, or optimization for edge cases |
+对每个"创建/添加/绑定"操作，验证对应的"删除/移除/解绑"操作：
 
-**IMPORTANT**: ALL discovered issues must be ranked and addressed, not just the top N. Every issue found across all 6 dimensions must have a corresponding fix in the implementation plan.
+| 检查项 | 说明 |
+|--------|------|
+| 正向→逆向映射 | 每个"添加"是否有对应的"移除"？ |
+| 副作用清理 | 逆向操作是否清理所有副作用？ |
+| 上下文一致性 | 逆向操作入口是否与正向在同一位置？ |
+| 警告充分性 | 逆向操作是否有充分的风险提示？ |
+| 可恢复性 | 逆向操作后是否可恢复？ |
+| 批量逆向 | 批量正向操作是否有批量逆向？ |
 
-### Step 4: Output Format (输出格式)
+#### 维度 8：桌面应用特性（Desktop-Specific）
 
-Structure the analysis as:
+| 检查项 | 说明 |
+|--------|------|
+| 窗口状态记忆 | 窗口大小/位置是否跨会话保留？ |
+| 系统托盘 | 是否支持最小化到托盘/托盘操作？ |
+| 文件关联 | 是否关联 .godot / .gd 文件打开？ |
+| 系统通知 | 是否使用系统原生通知？ |
+| 开机自启 | 是否支持开机自启动选项？ |
+| 多显示器 | 多显示器环境下窗口行为是否正常？ |
+| 高DPI适配 | 高分辨率屏幕下 UI 是否清晰？ |
+
+#### 维度 9：离线与本地优先（Offline & Local-First）
+
+| 检查项 | 说明 |
+|--------|------|
+| 核心功能离线可用 | 主要功能是否无需联网即可使用？ |
+| 数据本地存储 | 用户数据是否完全本地可控？ |
+| 缓存策略 | 网络数据是否有本地缓存？ |
+| 同步冲突处理 | 多设备同步时冲突如何处理？ |
+| 数据导出 | 是否支持数据导出/备份？ |
+| 数据导入恢复 | 是否支持数据导入/恢复？ |
+
+#### 维度 10：性能与响应（Performance & Responsiveness）
+
+| 检查项 | 说明 |
+|--------|------|
+| 启动速度 | 应用冷启动是否在 3 秒内？ |
+| 操作响应 | 用户操作是否有即时反馈？ |
+| 后台任务 | 耗时操作是否异步执行？ |
+| 进度展示 | 长时间操作是否有进度指示？ |
+| 内存占用 | 内存占用是否合理？ |
+| CPU 占用 | 空闲时 CPU 占用是否接近 0？ |
+
+---
+
+### 第三步：前后端分离视角
+
+对每个发现的问题，标注责任归属：
+
+| 标签 | 说明 | 示例 |
+|------|------|------|
+| `[FE]` | 前端改动即可解决 | UI 布局、交互逻辑、状态管理 |
+| `[BE]` | 需要后端新增/修改 API | 数据处理、文件操作、系统调用 |
+| `[FE+BE]` | 前后端需协同改动 | 新功能开发、流程重构 |
+
+---
+
+### 第四步：优先级评估（智能分级）
+
+根据项目阶段和影响范围综合评估：
+
+#### 评估维度
+
+| 因子 | 权重 | 说明 |
+|------|------|------|
+| **影响范围** | 40% | 影响多少用户/多少核心流程 |
+| **严重程度** | 30% | 是否阻塞核心功能、导致数据丢失 |
+| **实现成本** | 20% | 改动量、风险、依赖 |
+| **项目阶段** | 10% | MVP 阶段优先核心功能，成熟期优先体验优化 |
+
+#### 优先级定义
+
+| 优先级 | 条件 | 处理要求 |
+|--------|------|----------|
+| **P0** | 阻塞核心工作流 / 导致数据丢失 / 安全问题 | 必须立即修复 |
+| **P1** | 显著降低体验 / 造成用户困惑 / 有错误风险 | 本迭代修复 |
+| **P2** | 提升效率 / 减少摩擦 / 增强可发现性 | 下迭代修复 |
+| **P3** | 打磨优化 / 边缘场景 / 锦上添花 | 有空再修 |
+
+#### 项目阶段调整
 
 ```
-## [模块名] UX分析报告
+MVP 阶段（v0.x）：
+  - P0/P1 聚焦核心功能可用性
+  - P2/P3 可延后
 
-### 一、当前功能流程全景图
-(ASCII flow diagram)
+成熟期（v1.x+）：
+  - P0/P1 聚焦稳定性和用户反馈
+  - P2 提升竞争力
+  - P3 差异化体验
+```
+
+---
+
+### 第五步：输出格式
+
+```markdown
+## [模块名] UX 分析报告
+
+> 分析日期：YYYY-MM-DD
+> 分析范围：[涉及文件列表]
+> 项目阶段：[MVP/成熟期]
+
+### 一、功能流程全景图
+
+(ASCII 流程图，标注文件路径)
 
 ### 二、各环节详细梳理
-(Table: 环节 | 已实现功能 | 涉及文件)
 
-### 三、七维度问题分析
-(7 tables, one per dimension, with columns: 问题 | 严重度 | 说明)
+| 环节 | 已实现功能 | 前端文件 | 后端模块 |
+|------|-----------|---------|---------|
+| ... | ... | `src/views/X.vue` | `src-tauri/src/x/` |
+
+### 三、十维度问题分析
+
+#### 维度 N：[维度名]
+
+| # | 问题 | 严重度 | 责任 | 说明 |
+|---|------|--------|------|------|
+| X1 | ... | 🔴高 | [FE] | ... |
 
 ### 四、优先级排序（全部改进项）
-(Table: 优先级 | 改进项 | 预期收益)
+
+| 优先级 | 编号 | 改进项 | 责任 | 预期收益 | 实现成本 |
+|--------|------|--------|------|---------|---------|
+| P0 | X1 | ... | [FE] | ... | 低 |
+
+### 五、实施建议
+
+- 前端改动清单
+- 后端改动清单
+- 需协调事项
 ```
 
-## Key Principles
+---
 
-1. **Evidence-based**: Every issue must reference specific code (file path + line number)
-2. **User-centric**: Evaluate from the user's perspective, not developer's
-3. **Actionable**: Every issue should have a clear remediation direction
-4. **Prioritized**: Not all issues are equal; focus on what matters most
-5. **Holistic**: Consider the full lifecycle, not just individual features
-6. **Comparative**: Reference similar tools (e.g., for Godot Harbor: gd-plug, GodotEnv, godam) when evaluating completeness
+## 执行规则
 
-## Create Optimization Plan and Execute It
+1. **自动执行**：分析完成后立即创建 Todo 列表并开始实施，无需询问用户
+2. **构建验证**：每步完成后运行 `npm run type-check` 和 `cargo check` 验证
+3. **自动提交**：所有修复完成后自动 git commit，提交信息格式：`fix(ux): [模块名] 解决 [问题简述]`
+4. **失败处理**：构建失败时自动修复，2 次失败后才询问用户
 
-- Fix ALL discovered issues, not just the top N
-- Do it step by step, and check the result after each step to ensure the optimization is effective and efficient
-- Every issue from the 7-dimension analysis must have a corresponding fix in the implementation plan
-- P0 and P1 issues must be fixed; P2 and P3 issues should be fixed unless technically infeasible
+---
 
-### Execution Rules
+## 关键原则
 
-1. **Auto-fix without asking**: After completing the analysis and priority ranking, immediately create a todo list and start implementing fixes. Do NOT ask the user "是否按计划执行" or wait for confirmation — proceed directly.
-2. **Auto-commit on success**: After all fixes are implemented, run build verification (frontend typecheck + backend cargo check). If both pass, automatically commit to git with a descriptive commit message. Do NOT ask the user for permission to commit.
-3. **Build failure handling**: If the build fails, fix the errors and retry. Only ask the user if the error cannot be resolved after 2 attempts.
+1. **证据驱动**：每个问题必须引用具体代码位置
+2. **用户视角**：从用户角度而非开发者角度评估
+3. **可操作性**：每个问题都应有明确的解决方向
+4. **优先级分明**：不是所有问题都同等重要
+5. **全生命周期**：考虑完整流程，不仅是单个功能点
+6. **前后端分离**：明确责任归属，便于分工协作
+7. **阶段适配**：根据项目阶段调整优先级策略
+
+---
+
+## 参考对标
+
+分析时参考以下同类工具的功能完整性：
+
+| 工具 | 定位 | 可借鉴点 |
+|------|------|---------|
+| gd-plug | Godot 插件管理器 | 命令行体验、版本锁定 |
+| GodotEnv | Godot 环境管理 | 引擎版本管理 |
+| godam | Godot 资源管理 | 资源组织方式 |
+| Unity Hub | Unity 项目/引擎管理 | 整体 UX 设计 |
