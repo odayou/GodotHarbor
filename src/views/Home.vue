@@ -90,19 +90,14 @@ const openInFileManager = async (path: string) => {
     toast.error(t('projects.openInFileManagerFailed', { error }))
   }
 }
+
+const healthyCount = computed(() => stats.value.recent_projects.filter(p => p.status === 'Ready').length)
+const warningCount = computed(() => stats.value.recent_projects.filter(p => p.status === 'Warning').length)
+const errorCount = computed(() => stats.value.recent_projects.filter(p => p.status !== 'Ready' && p.status !== 'Warning').length)
 </script>
 
 <template>
   <div class="space-y-6">
-    <div class="mb-2">
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-content-primary">
-        {{ t('home.welcome') }}
-      </h1>
-      <p class="text-sm text-gray-500 dark:text-content-secondary mt-1">
-        {{ t('home.desc') }}
-      </p>
-    </div>
-
     <div v-if="isLoading" class="flex justify-center py-12">
       <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
     </div>
@@ -112,14 +107,16 @@ const openInFileManager = async (path: string) => {
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
       </svg>
       <p class="text-gray-500 dark:text-gray-400 mb-3">{{ t('common.loadFailed', { error: '' }) }}</p>
-      <button @click="loadStats" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm">
-        {{ t('home.retry') }}
-      </button>
+      <button @click="loadStats" class="btn-primary text-sm">{{ t('home.retry') }}</button>
     </div>
 
     <template v-else>
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('home.overview') }}</h2>
+      <!-- Dashboard Header -->
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900 dark:text-content-primary">{{ t('home.welcome') }}</h1>
+          <p class="text-sm text-gray-500 dark:text-content-secondary mt-1">{{ t('home.desc') }}</p>
+        </div>
         <button
           v-if="hasData && !isAutoSetupRunning"
           @click="runAutoSetup()"
@@ -132,108 +129,116 @@ const openInFileManager = async (path: string) => {
           {{ t('home.reconfigure') }}
         </button>
       </div>
+
+      <!-- Stat Cards Row -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div
-          class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 cursor-pointer hover:shadow-md transition-shadow group"
-          @click="navigateTo('/projects')"
-        >
-          <div class="flex items-center">
-            <div class="p-3 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+        <div class="stat-card group" @click="navigateTo('/projects')">
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center shrink-0">
               <svg class="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
               </svg>
             </div>
-            <div class="ml-4 flex-1">
-              <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('home.projects') }}</h3>
-              <p class="text-2xl font-bold text-gray-700 dark:text-content-primary">{{ stats.project_count }}</p>
+            <div class="flex-1 min-w-0">
+              <p class="info-label">{{ t('home.projects') }}</p>
+              <p class="text-2xl font-bold text-gray-900 dark:text-content-primary mt-0.5">{{ stats.project_count }}</p>
             </div>
-            <svg class="w-5 h-5 text-gray-400 group-hover:text-primary-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-5 h-5 text-gray-300 dark:text-gray-600 group-hover:text-primary-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
             </svg>
           </div>
         </div>
 
-        <div
-          class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 cursor-pointer hover:shadow-md transition-shadow group"
-          @click="navigateTo('/plugins')"
-        >
-          <div class="flex items-center">
-            <div class="p-3 rounded-lg bg-green-100 dark:bg-green-900/30">
+        <div class="stat-card group" @click="navigateTo('/plugins')">
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 rounded-xl bg-green-50 dark:bg-green-900/20 flex items-center justify-center shrink-0">
               <svg class="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
               </svg>
             </div>
-            <div class="ml-4 flex-1">
-              <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('home.plugins') }}</h3>
-              <p class="text-2xl font-bold text-gray-700 dark:text-content-primary">{{ stats.plugin_count }}</p>
+            <div class="flex-1 min-w-0">
+              <p class="info-label">{{ t('home.plugins') }}</p>
+              <p class="text-2xl font-bold text-gray-900 dark:text-content-primary mt-0.5">{{ stats.plugin_count }}</p>
             </div>
-            <svg class="w-5 h-5 text-gray-400 group-hover:text-primary-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-5 h-5 text-gray-300 dark:text-gray-600 group-hover:text-primary-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
             </svg>
           </div>
         </div>
 
-        <div
-          class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 cursor-pointer hover:shadow-md transition-shadow group"
-          @click="navigateTo('/plugins?tab=bindings')"
-        >
-          <div class="flex items-center">
-            <div class="p-3 rounded-lg bg-purple-100 dark:bg-purple-900/30">
+        <div class="stat-card group" @click="navigateTo('/plugins?tab=bindings')">
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 rounded-xl bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center shrink-0">
               <svg class="w-6 h-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
               </svg>
             </div>
-            <div class="ml-4 flex-1">
-              <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('home.bindings') }}</h3>
-              <p class="text-2xl font-bold text-gray-700 dark:text-content-primary">{{ stats.binding_count }}</p>
+            <div class="flex-1 min-w-0">
+              <p class="info-label">{{ t('home.bindings') }}</p>
+              <p class="text-2xl font-bold text-gray-900 dark:text-content-primary mt-0.5">{{ stats.binding_count }}</p>
             </div>
-            <svg class="w-5 h-5 text-gray-400 group-hover:text-primary-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-5 h-5 text-gray-300 dark:text-gray-600 group-hover:text-primary-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
             </svg>
           </div>
         </div>
 
-        <div
-          class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 cursor-pointer hover:shadow-md transition-shadow group"
-          @click="navigateTo('/engines')"
-        >
-          <div class="flex items-center">
-            <div class="p-3 rounded-lg bg-amber-100 dark:bg-amber-900/30">
+        <div class="stat-card group" @click="navigateTo('/engines')">
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 rounded-xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center shrink-0">
               <svg class="w-6 h-6 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </div>
-            <div class="ml-4 flex-1">
-              <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('home.engines') }}</h3>
-              <p class="text-2xl font-bold text-gray-700 dark:text-content-primary">{{ stats.engine_count }}</p>
+            <div class="flex-1 min-w-0">
+              <p class="info-label">{{ t('home.engines') }}</p>
+              <p class="text-2xl font-bold text-gray-900 dark:text-content-primary mt-0.5">{{ stats.engine_count }}</p>
             </div>
-            <svg class="w-5 h-5 text-gray-400 group-hover:text-primary-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-5 h-5 text-gray-300 dark:text-gray-600 group-hover:text-primary-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
             </svg>
           </div>
         </div>
       </div>
 
-      <div class="card">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('home.recentProjects') }}</h2>
-        <div v-if="stats.recent_projects.length > 0" class="space-y-2">
+      <!-- Project Health Overview -->
+      <div v-if="stats.recent_projects.length > 0" class="card">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('home.recentProjects') }}</h2>
+          <div class="flex items-center gap-3">
+            <div v-if="healthyCount > 0" class="flex items-center gap-1">
+              <span class="w-2 h-2 rounded-full bg-status-healthy"></span>
+              <span class="text-xs text-gray-500 dark:text-content-secondary">{{ healthyCount }}</span>
+            </div>
+            <div v-if="warningCount > 0" class="flex items-center gap-1">
+              <span class="w-2 h-2 rounded-full bg-status-warning"></span>
+              <span class="text-xs text-gray-500 dark:text-content-secondary">{{ warningCount }}</span>
+            </div>
+            <div v-if="errorCount > 0" class="flex items-center gap-1">
+              <span class="w-2 h-2 rounded-full bg-status-error"></span>
+              <span class="text-xs text-gray-500 dark:text-content-secondary">{{ errorCount }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-1">
           <div
             v-for="project in stats.recent_projects"
             :key="project.project_id"
-            class="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors"
+            class="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors group"
           >
             <div
               class="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
               @click="openInFileManager(project.path)"
             >
-              <div class="w-8 h-8 rounded bg-gray-100 dark:bg-surface-layer flex items-center justify-center shrink-0 overflow-hidden">
+              <div class="w-10 h-10 rounded-lg bg-gray-50 dark:bg-surface-layer flex items-center justify-center shrink-0 overflow-hidden border border-gray-100 dark:border-surface-border">
                 <img
                   v-if="project.icon_path && getIconUrl(project.icon_path)"
                   :src="getIconUrl(project.icon_path)"
                   :alt="project.name"
                   class="w-full h-full object-cover"
                 />
-                <svg v-else class="w-4 h-4 text-gray-500 dark:text-content-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg v-else class="w-5 h-5 text-gray-400 dark:text-content-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                 </svg>
               </div>
@@ -243,7 +248,9 @@ const openInFileManager = async (path: string) => {
               </div>
               <div class="min-w-0">
                 <h4 class="text-sm font-medium text-gray-900 dark:text-content-primary truncate">{{ project.name }}</h4>
-                <p class="text-xs text-gray-500 dark:text-content-secondary">Godot {{ project.godot_version }}</p>
+                <div class="flex items-center gap-2 mt-0.5">
+                  <span class="text-xs text-gray-500 dark:text-content-secondary">Godot {{ project.godot_version }}</span>
+                </div>
               </div>
             </div>
             <div class="flex items-center gap-2 shrink-0 ml-3">
@@ -252,8 +259,6 @@ const openInFileManager = async (path: string) => {
                   'badge',
                   project.status === 'Ready' ? 'badge-success' :
                   project.status === 'Warning' ? 'badge-warning' :
-                  project.status === 'MissingSource' ? 'badge-error' :
-                  project.status === 'Conflict' ? 'badge-error' :
                   'badge-error'
                 ]"
               >
@@ -262,30 +267,22 @@ const openInFileManager = async (path: string) => {
             </div>
           </div>
         </div>
-        <div v-else class="text-center py-8">
-          <svg class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-          </svg>
-          <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">{{ t('home.noRecentProjects') }}</p>
-          <button @click="navigateTo('/projects')" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm">
-            {{ t('home.goToProjects') }}
-          </button>
-        </div>
       </div>
 
+      <!-- Empty State / Quick Start -->
       <div v-if="!hasData" class="card">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('home.quickStart') }}</h2>
           <button
             v-if="!isAutoSetupRunning"
             @click="runAutoSetup()"
-            class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium flex items-center gap-2"
+            class="btn-primary text-sm flex items-center gap-2"
             :title="t('home.autoSetupDesc')"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 5.803A3.42 3.42 0 0016.862 18a3.42 3.42 0 01-2.273-3.953 3.42 3.42 0 00-.483 1.968 3.42 3.42 0 01-1.946.806 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-1.946-.806 3.42 3.42 0 00-.483-1.968 3.42 3.42 0 01-2.273 3.953 3.42 3.42 0 00-2.957-1.047 3.42 3.42 0 01-3.138-5.803 3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806z" />
             </svg>
-            {{ hasData ? t('home.reconfigure') : t('home.oneClickSetup') }}
+            {{ t('home.oneClickSetup') }}
           </button>
           <div v-else class="flex items-center gap-2 text-sm text-primary-600 dark:text-primary-400">
             <div class="animate-spin rounded-full h-4 w-4 border-2 border-primary-600 border-t-transparent"></div>
@@ -299,40 +296,60 @@ const openInFileManager = async (path: string) => {
         </div>
         <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div
-            class="p-4 border border-gray-200 dark:border-surface-border rounded-lg cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors"
+            class="p-4 border border-gray-200 dark:border-surface-border rounded-xl cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-colors"
             @click="navigateTo('/projects')"
           >
-            <h3 class="font-medium text-gray-900 dark:text-content-primary mb-2">{{ t('home.step1') }}</h3>
-            <p class="text-sm text-gray-600 dark:text-content-secondary">
-              {{ t('home.step1Desc') }}
-            </p>
+            <div class="flex items-center gap-3 mb-2">
+              <div class="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center">
+                <svg class="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                </svg>
+              </div>
+              <h3 class="font-medium text-gray-900 dark:text-content-primary">{{ t('home.step1') }}</h3>
+            </div>
+            <p class="text-sm text-gray-600 dark:text-content-secondary pl-11">{{ t('home.step1Desc') }}</p>
           </div>
           <div
-            class="p-4 border border-gray-200 dark:border-surface-border rounded-lg cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors"
+            class="p-4 border border-gray-200 dark:border-surface-border rounded-xl cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-colors"
             @click="navigateTo('/plugins')"
           >
-            <h3 class="font-medium text-gray-900 dark:text-content-primary mb-2">{{ t('home.step2') }}</h3>
-            <p class="text-sm text-gray-600 dark:text-content-secondary">
-              {{ t('home.step2Desc') }}
-            </p>
+            <div class="flex items-center gap-3 mb-2">
+              <div class="w-8 h-8 rounded-lg bg-green-50 dark:bg-green-900/20 flex items-center justify-center">
+                <svg class="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
+                </svg>
+              </div>
+              <h3 class="font-medium text-gray-900 dark:text-content-primary">{{ t('home.step2') }}</h3>
+            </div>
+            <p class="text-sm text-gray-600 dark:text-content-secondary pl-11">{{ t('home.step2Desc') }}</p>
           </div>
           <div
-            class="p-4 border border-gray-200 dark:border-surface-border rounded-lg cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors"
+            class="p-4 border border-gray-200 dark:border-surface-border rounded-xl cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-colors"
             @click="navigateTo('/plugins')"
           >
-            <h3 class="font-medium text-gray-900 dark:text-content-primary mb-2">{{ t('home.step3') }}</h3>
-            <p class="text-sm text-gray-600 dark:text-content-secondary">
-              {{ t('home.step3Desc') }}
-            </p>
+            <div class="flex items-center gap-3 mb-2">
+              <div class="w-8 h-8 rounded-lg bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center">
+                <svg class="w-4 h-4 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+              </div>
+              <h3 class="font-medium text-gray-900 dark:text-content-primary">{{ t('home.step3') }}</h3>
+            </div>
+            <p class="text-sm text-gray-600 dark:text-content-secondary pl-11">{{ t('home.step3Desc') }}</p>
           </div>
           <div
-            class="p-4 border border-gray-200 dark:border-surface-border rounded-lg cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors"
+            class="p-4 border border-gray-200 dark:border-surface-border rounded-xl cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-colors"
             @click="navigateTo('/engines')"
           >
-            <h3 class="font-medium text-gray-900 dark:text-content-primary mb-2">{{ t('home.step4') }}</h3>
-            <p class="text-sm text-gray-600 dark:text-content-secondary">
-              {{ t('home.step4Desc') }}
-            </p>
+            <div class="flex items-center gap-3 mb-2">
+              <div class="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">
+                <svg class="w-4 h-4 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <h3 class="font-medium text-gray-900 dark:text-content-primary">{{ t('home.step4') }}</h3>
+            </div>
+            <p class="text-sm text-gray-600 dark:text-content-secondary pl-11">{{ t('home.step4Desc') }}</p>
           </div>
         </div>
       </div>

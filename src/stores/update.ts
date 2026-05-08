@@ -101,7 +101,7 @@ export const useUpdateStore = defineStore('updates', () => {
     try {
       const result = await api.checkAllUpdates()
       appUpdate.value = result.app_update
-      pluginUpdates.value = result.plugin_updates
+      pluginUpdates.value = result.plugin_updates.filter(u => u.update_available)
       engineUpdates.value = result.engine_updates
       lastCheckedAt.value = result.checked_at
 

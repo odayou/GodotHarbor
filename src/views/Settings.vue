@@ -424,9 +424,9 @@ const toggleMirrorEnabled = (mirrorId: string) => {
   <div class="relative">
     <div class="space-y-6">
       <div class="flex justify-between items-center">
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ t('settings.title') }}</h1>
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-content-primary">{{ t('settings.title') }}</h1>
       <div class="flex gap-2">
-        <button @click="loadLogs" class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm">{{ t('settings.buttons.viewLogs') }}</button>
+        <button @click="loadLogs" class="px-4 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-card text-gray-700 dark:text-content-secondary rounded-lg hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors text-sm">{{ t('settings.buttons.viewLogs') }}</button>
       </div>
     </div>
     <div v-if="isLoading" class="flex justify-center py-12"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div></div>
@@ -443,7 +443,7 @@ const toggleMirrorEnabled = (mirrorId: string) => {
               'flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors w-full text-left',
               activeSection === section.id
                 ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 font-medium'
-                : 'text-gray-600 dark:text-gray-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 hover:text-primary-600 dark:hover:text-primary-400'
+                : 'text-gray-600 dark:text-content-muted hover:bg-primary-50 dark:hover:bg-primary-900/20 hover:text-primary-600 dark:hover:text-primary-400'
             ]"
           >
             <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -464,7 +464,7 @@ const toggleMirrorEnabled = (mirrorId: string) => {
             'px-3 py-1.5 text-xs rounded-full whitespace-nowrap transition-colors',
             activeSection === section.id
               ? 'bg-primary-600 text-white font-medium'
-              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+              : 'bg-gray-100 dark:bg-surface-hover text-gray-600 dark:text-content-muted'
           ]"
         >
           {{ section.label }}
@@ -472,19 +472,19 @@ const toggleMirrorEnabled = (mirrorId: string) => {
       </div>
       <div class="flex-1 min-w-0 space-y-6">
       <div v-show="activeSection === 'general'" class="space-y-6">
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.appearance') }}</h2>
+        <div class="card p-6">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('settings.appearance') }}</h2>
           <div class="space-y-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.languageLabel') }}</label>
-              <select v-model="settings.language" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+              <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-2">{{ t('settings.languageLabel') }}</label>
+              <select v-model="settings.language" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary">
                 <option value="zh-CN">{{ t('settings.language.zhCN') }}</option>
                 <option value="en">English</option>
               </select>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.theme') }}</label>
-              <select v-model="settings.theme" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+              <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-2">{{ t('settings.theme') }}</label>
+              <select v-model="settings.theme" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary">
                 <option value="light">{{ t('settings.themeLight') }}</option>
                 <option value="dark">{{ t('settings.themeDark') }}</option>
                 <option value="system">{{ t('settings.themeSystem') }}</option>
@@ -493,72 +493,72 @@ const toggleMirrorEnabled = (mirrorId: string) => {
             </div>
           </div>
         </div>
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.scan') }}</h2>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.scanDirs') }}</label>
+        <div class="card p-6">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('settings.scan') }}</h2>
+          <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-2">{{ t('settings.scanDirs') }}</label>
           <div class="space-y-2">
             <div v-for="(dir, index) in settings.scan_directories" :key="index" class="flex items-center space-x-2">
-              <input type="text" readonly :value="dir" class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm" />
+              <input type="text" readonly :value="dir" class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-gray-50 dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm" />
               <button @click="removeScanDirectory(index)" class="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm">{{ t('settings.remove') }}</button>
             </div>
-            <div v-if="!settings.scan_directories?.length" class="text-sm text-gray-500 dark:text-gray-400 py-2">{{ t('settings.noDirs') }}</div>
-            <button @click="addScanDirectory" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm">{{ t('settings.addDir') }}</button>
+            <div v-if="!settings.scan_directories?.length" class="text-sm text-gray-500 dark:text-content-muted py-2">{{ t('settings.noDirs') }}</div>
+            <button @click="addScanDirectory" class="btn-primary text-sm">{{ t('settings.addDir') }}</button>
           </div>
           <div class="mt-4 space-y-3">
             <label class="flex items-center gap-3 cursor-pointer">
               <input type="checkbox" v-model="settings.auto_scan_on_startup" class="w-4 h-4 text-primary-600 rounded" />
-              <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.autoScanOnStartup') }}</span>
+              <span class="text-sm text-gray-700 dark:text-content-secondary">{{ t('settings.autoScanOnStartup') }}</span>
             </label>
             <label class="flex items-center gap-3 cursor-pointer">
               <input type="checkbox" v-model="settings.auto_discover_engines" class="w-4 h-4 text-primary-600 rounded" />
-              <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.autoDiscoverEngines') }}</span>
+              <span class="text-sm text-gray-700 dark:text-content-secondary">{{ t('settings.autoDiscoverEngines') }}</span>
             </label>
             <label class="flex items-center gap-3 cursor-pointer">
               <input type="checkbox" v-model="settings.auto_apply" class="w-4 h-4 text-primary-600 rounded" />
-              <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.autoApply') }}</span>
+              <span class="text-sm text-gray-700 dark:text-content-secondary">{{ t('settings.autoApply') }}</span>
             </label>
-            <p v-if="settings.auto_apply" class="text-xs text-gray-500 dark:text-gray-400 ml-7">{{ t('settings.autoApplyDesc') }}</p>
+            <p v-if="settings.auto_apply" class="text-xs text-gray-500 dark:text-content-muted ml-7">{{ t('settings.autoApplyDesc') }}</p>
           </div>
         </div>
       </div>
-      <div v-show="activeSection === 'mount'" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.mount') }}</h2>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.mountStrategy') }}</label>
-        <select v-model="settings.mount_strategy" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+      <div v-show="activeSection === 'mount'" class="card p-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('settings.mount') }}</h2>
+        <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-2">{{ t('settings.mountStrategy') }}</label>
+        <select v-model="settings.mount_strategy" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary">
           <option value="Symlink">{{ t('settings.symlink') }}</option>
           <option value="Junction">{{ t('settings.junction') }}</option>
           <option value="Copy">{{ t('settings.copy') }}</option>
         </select>
-        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+        <p class="text-xs text-gray-500 dark:text-content-muted mt-1.5">
           <span v-if="settings.mount_strategy === 'Symlink'">{{ t('settings.symlinkDesc') }}</span>
           <span v-else-if="settings.mount_strategy === 'Junction'">{{ t('settings.junctionDesc') }}</span>
           <span v-else-if="settings.mount_strategy === 'Copy'">{{ t('settings.copyDesc') }}</span>
         </p>
       </div>
       <div v-if="storagePaths" v-show="activeSection === 'data'" class="space-y-6">
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ t('settings.storage.title') }}</h2>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">{{ t('settings.storage.pathHierarchy') }}</p>
-          <div class="mb-4 p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
-            <label class="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">{{ t('settings.storage.customDataDir') }}</label>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ t('settings.storage.customDataDirDesc') }}</p>
+        <div class="card p-6">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('settings.storage.title') }}</h2>
+          <p class="text-xs text-gray-500 dark:text-content-muted mb-4">{{ t('settings.storage.pathHierarchy') }}</p>
+          <div class="mb-4 p-3 border border-gray-200 dark:border-surface-border rounded-lg">
+            <label class="block text-sm font-medium text-gray-900 dark:text-content-primary mb-1">{{ t('settings.storage.customDataDir') }}</label>
+            <p class="text-xs text-gray-500 dark:text-content-muted mb-2">{{ t('settings.storage.customDataDirDesc') }}</p>
             <div class="flex gap-2">
               <input type="text" v-model="settings.custom_data_dir"
                      :placeholder="t('settings.storage.customDataDirPlaceholder')"
-                     class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-              <button @click="selectCustomDataDir" class="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.pluginRepo.browse') }}</button>
-              <button v-if="settings.custom_data_dir" @click="settings.custom_data_dir = ''" class="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">{{ t('settings.storage.resetToDefault') }}</button>
+                     class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+              <button @click="selectCustomDataDir" class="px-3 py-2 text-sm border border-gray-300 dark:border-surface-border rounded-lg hover:bg-gray-100 dark:hover:bg-surface-layer text-gray-700 dark:text-content-secondary transition-colors">{{ t('settings.pluginRepo.browse') }}</button>
+              <button v-if="settings.custom_data_dir" @click="settings.custom_data_dir = ''" class="px-3 py-2 text-sm border border-gray-300 dark:border-surface-border rounded-lg hover:bg-gray-100 dark:hover:bg-surface-layer text-gray-700 dark:text-content-secondary transition-colors">{{ t('settings.storage.resetToDefault') }}</button>
             </div>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">{{ t('settings.storage.customDataDirHint') }}</p>
+            <p class="text-xs text-gray-500 dark:text-content-muted mt-2">{{ t('settings.storage.customDataDirHint') }}</p>
           </div>
-          <div class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ t('settings.storage.currentPaths') }}</div>
-          <div class="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
+          <div class="text-xs text-gray-500 dark:text-content-muted mb-2">{{ t('settings.storage.currentPaths') }}</div>
+          <div class="border border-gray-200 dark:border-surface-border rounded-lg overflow-hidden">
             <table class="w-full text-xs">
-              <thead class="bg-gray-50 dark:bg-gray-700/50">
+              <thead class="bg-gray-50 dark:bg-surface-hover/50">
                 <tr>
-                  <th class="text-left px-3 py-1.5 font-medium text-gray-500 dark:text-gray-400 w-24">{{ t('settings.storage.pathName') }}</th>
-                  <th class="text-left px-3 py-1.5 font-medium text-gray-500 dark:text-gray-400">{{ t('settings.storage.pathValue') }}</th>
-                  <th class="text-right px-3 py-1.5 font-medium text-gray-500 dark:text-gray-400 w-16"></th>
+                  <th class="text-left px-3 py-1.5 font-medium text-gray-500 dark:text-content-muted w-24">{{ t('settings.storage.pathName') }}</th>
+                  <th class="text-left px-3 py-1.5 font-medium text-gray-500 dark:text-content-muted">{{ t('settings.storage.pathValue') }}</th>
+                  <th class="text-right px-3 py-1.5 font-medium text-gray-500 dark:text-content-muted w-16"></th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
@@ -573,38 +573,38 @@ const toggleMirrorEnabled = (mirrorId: string) => {
                   { key: 'projectsFile', path: storagePaths.projects_file },
                   { key: 'enginesFile', path: storagePaths.engines_file }
                 ]" :key="item.key">
-                  <td class="px-3 py-1.5 text-gray-700 dark:text-gray-300 whitespace-nowrap">{{ t(`settings.storage.${item.key}`) }}</td>
-                  <td class="px-3 py-1.5 font-mono text-gray-600 dark:text-gray-400 break-all">{{ item.path }}</td>
+                  <td class="px-3 py-1.5 text-gray-700 dark:text-content-secondary whitespace-nowrap">{{ t(`settings.storage.${item.key}`) }}</td>
+                  <td class="px-3 py-1.5 font-mono text-gray-600 dark:text-content-muted break-all">{{ item.path }}</td>
                   <td class="px-3 py-1.5 text-right"><button @click="openPath(item.path)" class="text-primary-600 dark:text-primary-400 hover:underline">{{ t('settings.storage.open') }}</button></td>
                 </tr>
               </tbody>
             </table>
           </div>
         </div>
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.dataOps') }}</h2>
+        <div class="card p-6">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('settings.dataOps') }}</h2>
           <div class="space-y-4">
             <div class="flex items-center justify-between">
               <div>
-                <p class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.buttons.backup') }}</p>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ t('settings.backup.desc') }}</p>
+                <p class="text-sm text-gray-700 dark:text-content-secondary">{{ t('settings.buttons.backup') }}</p>
+                <p class="text-xs text-gray-500 dark:text-content-muted mt-0.5">{{ t('settings.backup.desc') }}</p>
               </div>
               <div class="flex gap-2">
-                <button @click="showBackupDialog = true" class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors text-sm">{{ t('settings.buttons.backup') }}</button>
-                <button @click="showRestoreDialog = true" class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors text-sm">{{ t('settings.backup.restore') }}</button>
+                <button @click="showBackupDialog = true" class="px-4 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-hover text-gray-700 dark:text-content-secondary rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors text-sm">{{ t('settings.buttons.backup') }}</button>
+                <button @click="showRestoreDialog = true" class="px-4 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-hover text-gray-700 dark:text-content-secondary rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors text-sm">{{ t('settings.backup.restore') }}</button>
               </div>
             </div>
-            <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+            <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-surface-border">
               <div>
-                <p class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.showOnboarding') }}</p>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ t('settings.showOnboardingDesc') }}</p>
+                <p class="text-sm text-gray-700 dark:text-content-secondary">{{ t('settings.showOnboarding') }}</p>
+                <p class="text-xs text-gray-500 dark:text-content-muted mt-0.5">{{ t('settings.showOnboardingDesc') }}</p>
               </div>
-              <button @click="resetOnboarding" class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors text-sm">{{ t('settings.showOnboarding') }}</button>
+              <button @click="resetOnboarding" class="px-4 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-hover text-gray-700 dark:text-content-secondary rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors text-sm">{{ t('settings.showOnboarding') }}</button>
             </div>
-            <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+            <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-surface-border">
               <div>
-                <p class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.resetDataLabel') }}</p>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ t('settings.resetDataDesc') }}</p>
+                <p class="text-sm text-gray-700 dark:text-content-secondary">{{ t('settings.resetDataLabel') }}</p>
+                <p class="text-xs text-gray-500 dark:text-content-muted mt-0.5">{{ t('settings.resetDataDesc') }}</p>
               </div>
               <button @click="confirmResetData" class="px-4 py-2 border border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-800/20 transition-colors text-sm">{{ t('settings.resetDataLabel') }}</button>
             </div>
@@ -612,77 +612,77 @@ const toggleMirrorEnabled = (mirrorId: string) => {
         </div>
       </div>
       <div v-show="activeSection === 'updates'" class="space-y-6">
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.updates.autoCheck') }}</h2>
+        <div class="card p-6">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('settings.updates.autoCheck') }}</h2>
           <div class="space-y-3">
             <label class="flex items-center gap-3 cursor-pointer">
               <input type="checkbox" v-model="settings.auto_check_app_updates" class="w-4 h-4 text-primary-600 rounded" />
-              <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.pluginRepo.autoCheckAppUpdates') }}</span>
+              <span class="text-sm text-gray-700 dark:text-content-secondary">{{ t('settings.pluginRepo.autoCheckAppUpdates') }}</span>
             </label>
             <label class="flex items-center gap-3 cursor-pointer">
               <input type="checkbox" v-model="settings.auto_check_plugin_updates" class="w-4 h-4 text-primary-600 rounded" />
-              <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.pluginRepo.autoCheckPluginUpdates') }}</span>
+              <span class="text-sm text-gray-700 dark:text-content-secondary">{{ t('settings.pluginRepo.autoCheckPluginUpdates') }}</span>
             </label>
             <label class="flex items-center gap-3 cursor-pointer">
               <input type="checkbox" v-model="settings.auto_check_engine_updates" class="w-4 h-4 text-primary-600 rounded" />
-              <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.pluginRepo.autoCheckEngineUpdates') }}</span>
+              <span class="text-sm text-gray-700 dark:text-content-secondary">{{ t('settings.pluginRepo.autoCheckEngineUpdates') }}</span>
             </label>
             <div class="pt-2">
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.pluginRepo.checkInterval') }}</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-2">{{ t('settings.pluginRepo.checkInterval') }}</label>
               <input type="number" v-model.number="settings.update_check_interval_hours" min="1" max="168"
-                class="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm" />
+                class="w-32 px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm" />
             </div>
           </div>
         </div>
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.engineMirror.title') }}</h2>
-          <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ t('settings.engineMirror.desc') }}</p>
+        <div class="card p-6">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('settings.engineMirror.title') }}</h2>
+          <p class="text-sm text-gray-500 dark:text-content-muted mb-4">{{ t('settings.engineMirror.desc') }}</p>
 
-          <div class="mb-5 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.networkProxy.githubApiProxy') }}</label>
+          <div class="mb-5 p-4 rounded-lg border border-gray-200 dark:border-surface-border">
+            <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-2">{{ t('settings.networkProxy.githubApiProxy') }}</label>
             <input
               v-model="settings.github_api_proxy"
               type="text"
               :placeholder="t('settings.networkProxy.githubApiProxyPlaceholder')"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
             />
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ t('settings.networkProxy.githubApiProxyHint') }}</p>
+            <p class="text-xs text-gray-500 dark:text-content-muted mt-1">{{ t('settings.networkProxy.githubApiProxyHint') }}</p>
           </div>
 
-          <div class="mb-5 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.networkProxy.assetLibraryMirror') }}</label>
+          <div class="mb-5 p-4 rounded-lg border border-gray-200 dark:border-surface-border">
+            <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-2">{{ t('settings.networkProxy.assetLibraryMirror') }}</label>
             <input
               v-model="settings.asset_library_mirror"
               type="text"
               :placeholder="t('settings.networkProxy.assetLibraryMirrorPlaceholder')"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
             />
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ t('settings.networkProxy.assetLibraryMirrorHint') }}</p>
+            <p class="text-xs text-gray-500 dark:text-content-muted mt-1">{{ t('settings.networkProxy.assetLibraryMirrorHint') }}</p>
           </div>
 
           <div class="space-y-3">
             <div v-for="mirror in (settings.engine_mirrors || [])" :key="mirror.id"
-              class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-600"
+              class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-surface-border"
               :class="{ 'opacity-60': !mirror.enabled }"
             >
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2">
-                  <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ mirror.name }}</span>
+                  <span class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ mirror.name }}</span>
                   <span v-if="mirror.is_official" class="px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">{{ t('settings.engineMirror.official') }}</span>
-                  <span v-else class="px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">{{ t('settings.engineMirror.custom') }}</span>
+                  <span v-else class="px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-surface-hover dark:text-content-muted">{{ t('settings.engineMirror.custom') }}</span>
                 </div>
-                <span class="text-xs text-gray-500 dark:text-gray-400 truncate block mt-0.5">{{ mirror.base_url }}</span>
+                <span class="text-xs text-gray-500 dark:text-content-muted truncate block mt-0.5">{{ mirror.base_url }}</span>
               </div>
               <div class="flex items-center gap-2">
                 <button
                   @click="toggleMirrorEnabled(mirror.id)"
-                  :class="['px-2 py-1 rounded text-xs font-medium transition-colors', mirror.enabled ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400']"
+                  :class="['px-2 py-1 rounded text-xs font-medium transition-colors', mirror.enabled ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-500 dark:bg-surface-hover dark:text-content-muted']"
                 >
                   {{ mirror.enabled ? t('settings.engineMirror.enabled') : t('settings.engineMirror.disabled') }}
                 </button>
                 <button
                   @click="openEditMirror(mirror)"
-                  class="text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                  class="text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 p-1 rounded hover:bg-gray-100 dark:hover:bg-surface-layer transition-colors"
                   :title="t('settings.engineMirror.edit')"
                 >
                   <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
@@ -699,7 +699,7 @@ const toggleMirrorEnabled = (mirrorId: string) => {
             </div>
             <button
               @click="openAddMirror"
-              class="px-4 py-2 border border-dashed border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm w-full"
+              class="px-4 py-2 border border-dashed border-gray-300 dark:border-surface-border text-gray-600 dark:text-content-muted rounded-lg hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors text-sm w-full"
             >
               + {{ t('settings.engineMirror.addMirror') }}
             </button>
@@ -718,10 +718,10 @@ const toggleMirrorEnabled = (mirrorId: string) => {
       leave-from-class="translate-y-0 opacity-100"
       leave-to-class="translate-y-full opacity-0"
     >
-      <div v-if="isDirty" class="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-primary-200 dark:border-primary-800 shadow-lg z-40 px-6 py-3 flex items-center justify-between">
-        <p class="text-sm text-gray-600 dark:text-gray-400">{{ t('settings.unsavedChanges') }}</p>
+      <div v-if="isDirty" class="fixed bottom-0 left-0 right-0 bg-white dark:bg-surface-card border-t border-primary-200 dark:border-primary-800 shadow-lg z-40 px-6 py-3 flex items-center justify-between">
+        <p class="text-sm text-gray-600 dark:text-content-muted">{{ t('settings.unsavedChanges') }}</p>
         <div class="flex gap-3">
-          <button @click="loadSettings" class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm">{{ t('settings.discardChanges') }}</button>
+          <button @click="loadSettings" class="px-4 py-2 border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-secondary rounded-lg hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors text-sm">{{ t('settings.discardChanges') }}</button>
           <button @click="saveSettingsWithMigrationCheck" :disabled="isLoading" class="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 text-sm">{{ t('settings.save') }}</button>
         </div>
       </div>
@@ -730,9 +730,9 @@ const toggleMirrorEnabled = (mirrorId: string) => {
 
   <Teleport to="body">
   <div v-if="showLogs" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showLogs = false">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-3xl shadow-xl max-h-[80vh] flex flex-col" @click.stop>
+      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-3xl shadow-xl max-h-[80vh] flex flex-col" @click.stop>
         <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ t('settings.logs.title') }}</h3>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('settings.logs.title') }}</h3>
           <div class="flex items-center gap-3">
             <button
               @click="logSortOrder = logSortOrder === 'newest' ? 'oldest' : 'newest'"
@@ -747,20 +747,20 @@ const toggleMirrorEnabled = (mirrorId: string) => {
           </div>
         </div>
         <div class="flex-1 overflow-y-auto space-y-2">
-          <div v-if="sortedLogs.length === 0" class="text-center py-8 text-gray-500 dark:text-gray-400">{{ t('settings.logs.empty') }}</div>
-          <div v-for="(log, index) in sortedLogs" :key="index" :class="['p-3 rounded-lg border', log.level === 'error' ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600']">
+          <div v-if="sortedLogs.length === 0" class="text-center py-8 text-gray-500 dark:text-content-muted">{{ t('settings.logs.empty') }}</div>
+          <div v-for="(log, index) in sortedLogs" :key="index" :class="['p-3 rounded-lg border', log.level === 'error' ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-gray-50 dark:bg-surface-hover border-gray-200 dark:border-surface-border']">
             <div class="flex justify-between items-start">
               <div class="flex items-center gap-2">
                 <span :class="['px-2 py-0.5 rounded text-xs font-medium', log.level === 'error' ? 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300' : 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300']">{{ log.level === 'error' ? t('settings.logs.error') : t('settings.logs.success') }}</span>
-                <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ log.action }}</span>
+                <span class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ log.action }}</span>
               </div>
               <div class="flex items-center gap-2">
-                <span class="text-xs text-gray-500 dark:text-gray-400">{{ formatTime(log.timestamp) }}</span>
+                <span class="text-xs text-gray-500 dark:text-content-muted">{{ formatTime(log.timestamp) }}</span>
                 <button v-if="log.level === 'error'" @click="copyError(log)" class="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400">{{ t('settings.logs.copy') }}</button>
               </div>
             </div>
-            <p v-if="log.target" class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ t('settings.logs.target', { target: log.target }) }}</p>
-            <p :class="['text-sm mt-1', log.level === 'error' ? 'text-red-700 dark:text-red-300' : 'text-gray-600 dark:text-gray-400']">{{ log.detail }}</p>
+            <p v-if="log.target" class="text-xs text-gray-500 dark:text-content-muted mt-1">{{ t('settings.logs.target', { target: log.target }) }}</p>
+            <p :class="['text-sm mt-1', log.level === 'error' ? 'text-red-700 dark:text-red-300' : 'text-gray-600 dark:text-content-muted']">{{ log.detail }}</p>
           </div>
         </div>
       </div>
@@ -769,9 +769,9 @@ const toggleMirrorEnabled = (mirrorId: string) => {
 
   <Teleport to="body">
     <div v-if="showBackupDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showBackupDialog = false; backupPath = ''">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.backup.title') }}</h3>
-        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('settings.backup.title') }}</h3>
+        <p class="text-sm text-gray-600 dark:text-content-muted mb-4">
           {{ t('settings.backup.desc') }}
         </p>
         <div class="flex gap-2 mb-4">
@@ -780,11 +780,11 @@ const toggleMirrorEnabled = (mirrorId: string) => {
             type="text"
             readonly
             :placeholder="t('settings.backup.selectDir')"
-            class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+            class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-gray-50 dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
           />
           <button
             @click="selectBackupPath"
-            class="px-4 py-2 bg-gray-100 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 text-sm whitespace-nowrap"
+            class="btn-secondary text-sm whitespace-nowrap"
           >
             {{ t('settings.backup.browse') }}
           </button>
@@ -797,14 +797,14 @@ const toggleMirrorEnabled = (mirrorId: string) => {
         <div class="flex justify-end space-x-3">
           <button
             @click="showBackupDialog = false; backupPath = ''"
-            class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+            class="btn-secondary"
           >
             {{ t('settings.backup.cancel') }}
           </button>
           <button
             @click="performBackup"
             :disabled="isBackingUp || !backupPath"
-            class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
+            class="btn-primary disabled:opacity-50"
           >
             {{ isBackingUp ? t('settings.backup.backupping') : t('settings.backup.backup') }}
           </button>
@@ -815,19 +815,19 @@ const toggleMirrorEnabled = (mirrorId: string) => {
 
   <Teleport to="body">
     <div v-if="showRestoreDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showRestoreDialog = false; backupPath = ''">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.backup.restoreTitle') }}</h3>
-        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">{{ t('settings.backup.restoreDesc') }}</p>
+      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('settings.backup.restoreTitle') }}</h3>
+        <p class="text-sm text-gray-600 dark:text-content-muted mb-4">{{ t('settings.backup.restoreDesc') }}</p>
         <div class="flex gap-2 mb-4">
-          <input v-model="backupPath" type="text" readonly :placeholder="t('settings.backup.selectDir')" class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm" />
-          <button @click="selectBackupPath" class="px-4 py-2 bg-gray-100 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 text-sm whitespace-nowrap">{{ t('settings.backup.browse') }}</button>
+          <input v-model="backupPath" type="text" readonly :placeholder="t('settings.backup.selectDir')" class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-gray-50 dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm" />
+          <button @click="selectBackupPath" class="btn-secondary text-sm whitespace-nowrap">{{ t('settings.backup.browse') }}</button>
         </div>
         <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 mb-4">
           <p class="text-xs text-yellow-800 dark:text-yellow-200"><strong>{{ t('settings.backup.restoreWarning') }}</strong></p>
         </div>
         <div class="flex justify-end space-x-3">
-          <button @click="showRestoreDialog = false; backupPath = ''" class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500">{{ t('settings.backup.cancel') }}</button>
-          <button @click="showRestoreConfirm = true" :disabled="isRestoring || !backupPath" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors">{{ isRestoring ? t('settings.backup.restoring') : t('settings.backup.restore') }}</button>
+          <button @click="showRestoreDialog = false; backupPath = ''" class="btn-secondary">{{ t('settings.backup.cancel') }}</button>
+          <button @click="showRestoreConfirm = true" :disabled="isRestoring || !backupPath" class="btn-primary disabled:opacity-50">{{ isRestoring ? t('settings.backup.restoring') : t('settings.backup.restore') }}</button>
         </div>
       </div>
     </div>
@@ -882,9 +882,9 @@ const toggleMirrorEnabled = (mirrorId: string) => {
         </div>
 
         <div class="flex items-center justify-center gap-2 mb-6">
-          <div :class="['w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold', resetStep >= 1 ? 'bg-primary-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400']">1</div>
-          <div :class="['flex-1 h-1', resetStep >= 2 ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-700']"></div>
-          <div :class="['w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold', resetStep >= 2 ? 'bg-primary-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400']">2</div>
+          <div :class="['w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold', resetStep >= 1 ? 'bg-primary-600 text-white' : 'bg-gray-200 dark:bg-surface-hover text-gray-500 dark:text-content-muted']">1</div>
+          <div :class="['flex-1 h-1', resetStep >= 2 ? 'bg-primary-600' : 'bg-gray-200 dark:bg-surface-hover']"></div>
+          <div :class="['w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold', resetStep >= 2 ? 'bg-primary-600 text-white' : 'bg-gray-200 dark:bg-surface-hover text-gray-500 dark:text-content-muted']">2</div>
         </div>
 
         <div v-if="resetStep === 1" class="mb-6">
@@ -917,9 +917,9 @@ const toggleMirrorEnabled = (mirrorId: string) => {
               v-model="backupFingerprint"
               type="text"
               :placeholder="t('settings.resetDataStep2NewPlaceholder')"
-              class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400"
+              class="flex-1 px-4 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary placeholder-gray-400"
             />
-            <button @click="selectResetBackupPath" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors">
+            <button @click="selectResetBackupPath" class="px-4 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-gray-50 dark:bg-surface-hover hover:bg-gray-100 dark:hover:bg-surface-layer text-gray-700 dark:text-content-secondary transition-colors">
               {{ t('settings.buttons.select') }}
             </button>
           </div>
@@ -931,7 +931,7 @@ const toggleMirrorEnabled = (mirrorId: string) => {
           </div>
         </div>
 
-        <button @click="showResetConfirm = false" class="w-full mt-4 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
+        <button @click="showResetConfirm = false" class="w-full mt-4 text-sm text-gray-500 dark:text-content-muted hover:text-gray-700 dark:hover:text-gray-200">
           {{ t('common.cancel') }}
         </button>
       </div>
@@ -940,55 +940,55 @@ const toggleMirrorEnabled = (mirrorId: string) => {
 
   <Teleport to="body">
     <div v-if="showMirrorDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showMirrorDialog = false">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ editingMirror ? t('settings.engineMirror.editMirror') : t('settings.engineMirror.addMirror') }}</h3>
+      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ editingMirror ? t('settings.engineMirror.editMirror') : t('settings.engineMirror.addMirror') }}</h3>
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.engineMirror.mirrorName') }}</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-2">{{ t('settings.engineMirror.mirrorName') }}</label>
             <input
               v-model="mirrorFormName"
               type="text"
               :placeholder="t('settings.engineMirror.mirrorNamePlaceholder')"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
             />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.engineMirror.mirrorUrl') }}</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-2">{{ t('settings.engineMirror.mirrorUrl') }}</label>
             <input
               v-model="mirrorFormUrl"
               type="text"
               :placeholder="t('settings.engineMirror.mirrorUrlPlaceholder')"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
             />
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ t('settings.engineMirror.urlHint') }}</p>
+            <p class="text-xs text-gray-500 dark:text-content-muted mt-1">{{ t('settings.engineMirror.urlHint') }}</p>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.engineMirror.mirrorType') }}</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-2">{{ t('settings.engineMirror.mirrorType') }}</label>
             <select
               v-model="mirrorFormType"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
             >
               <option value="github_api">GitHub API</option>
               <option value="direct">{{ t('settings.engineMirror.mirrorTypeDirect') }}</option>
             </select>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ t('settings.engineMirror.mirrorTypeHint') }}</p>
+            <p class="text-xs text-gray-500 dark:text-content-muted mt-1">{{ t('settings.engineMirror.mirrorTypeHint') }}</p>
           </div>
           <label class="flex items-center gap-3 cursor-pointer">
             <input type="checkbox" v-model="mirrorFormEnabled" class="w-4 h-4 text-primary-600 rounded" />
-            <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.engineMirror.enableMirror') }}</span>
+            <span class="text-sm text-gray-700 dark:text-content-secondary">{{ t('settings.engineMirror.enableMirror') }}</span>
           </label>
         </div>
         <div class="flex justify-end space-x-3 mt-6">
           <button
             @click="showMirrorDialog = false"
-            class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+            class="btn-secondary"
           >
             {{ t('common.cancel') }}
           </button>
           <button
             @click="saveMirror"
             :disabled="!mirrorFormName.trim() || !mirrorFormUrl.trim()"
-            class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+            class="btn-primary disabled:opacity-50"
           >
             {{ t('common.confirm') }}
           </button>
@@ -999,12 +999,12 @@ const toggleMirrorEnabled = (mirrorId: string) => {
 
   <Teleport to="body">
     <div v-if="showUnsavedDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showUnsavedDialog = false">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">{{ t('settings.unsavedTitle') }}</h3>
-        <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">{{ t('settings.unsavedDesc') }}</p>
+      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-3">{{ t('settings.unsavedTitle') }}</h3>
+        <p class="text-sm text-gray-600 dark:text-content-muted mb-6">{{ t('settings.unsavedDesc') }}</p>
         <div class="flex justify-end gap-3">
-          <button @click="discardChanges" class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm">{{ t('settings.discardChanges') }}</button>
-          <button @click="saveAndLeave" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm">{{ t('settings.saveAndLeave') }}</button>
+          <button @click="discardChanges" class="px-4 py-2 border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-secondary rounded-lg hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors text-sm">{{ t('settings.discardChanges') }}</button>
+          <button @click="saveAndLeave" class="btn-primary text-sm">{{ t('settings.saveAndLeave') }}</button>
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 ---
 name: "module-ux-analysis"
-description: "Analyzes a module's UX completeness across 7 dimensions (simplification, convenience, feature completeness, flow completeness, conflict tolerance, edge cases, reverse flow). Invoke when user asks to review/analyze a module's UX or find improvement opportunities."
+description: "Analyzes a module's UX completeness across 11 dimensions (simplification, convenience, feature completeness, flow completeness, conflict tolerance, edge cases, reverse flow, desktop-specific, offline & local-first, performance & responsiveness, experience consistency). Invoke when user asks to review/analyze a module's UX or find improvement opportunities."
 ---
 
 # Module UX Analysis Skill (Godot Harbor 定制版)
@@ -44,9 +44,9 @@ description: "Analyzes a module's UX completeness across 7 dimensions (simplific
 
 ---
 
-### 第二步：十维度分析
+### 第二步：十一维度分析
 
-针对桌面应用特性，扩展为 **10 个分析维度**：
+针对桌面应用特性，扩展为 **11 个分析维度**：
 
 #### 维度 1：操作简化（Operation Simplification）
 
@@ -160,6 +160,23 @@ description: "Analyzes a module's UX completeness across 7 dimensions (simplific
 | 内存占用 | 内存占用是否合理？ |
 | CPU 占用 | 空闲时 CPU 占用是否接近 0？ |
 
+#### 维度 11：体验一致性（Experience Consistency）
+
+核心原则：不同模块在相同或类似场景下的视觉、交互、术语等表现应保持一致。
+
+| 检查项 | 说明 |
+|--------|------|
+| 视觉风格统一 | 同类元素（按钮、卡片、列表、标签页）在不同模块中是否使用相同的样式、尺寸、间距？ |
+| 交互模式一致 | 相同类型的操作（新增、删除、确认、搜索）在不同模块中是否采用相同的交互方式（弹窗/内联/抽屉）？ |
+| 术语与文案统一 | 同一概念在不同模块中是否使用相同的术语和文案（如"项目"vs"工程"、"删除"vs"移除"）？ |
+| 状态表示一致 | 相同状态（加载中、空状态、错误、成功）在不同模块中是否使用相同的视觉表达？ |
+| 导航结构一致 | 不同模块的页面导航层级和返回逻辑是否遵循相同模式？ |
+| 反馈机制一致 | 同类操作的结果反馈（成功提示、错误提示、确认弹窗）在不同模块中是否形式统一？ |
+| 表单规范一致 | 表单布局、校验提示、必填标记、提交按钮位置在不同模块中是否一致？ |
+| 图标与色彩语义 | 图标含义和色彩语义（红=危险、绿=成功、蓝=信息）在不同模块中是否一致？ |
+
+
+
 ---
 
 ### 第三步：前后端分离视角
@@ -230,7 +247,7 @@ MVP 阶段（v0.x）：
 |------|-----------|---------|---------|
 | ... | ... | `src/views/X.vue` | `src-tauri/src/x/` |
 
-### 三、十维度问题分析
+### 三、十一维度问题分析
 
 #### 维度 N：[维度名]
 

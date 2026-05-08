@@ -261,7 +261,7 @@ const finish = async () => {
 
 <template>
   <div v-if="isVisible" class="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4">
-    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden">
+    <div class="bg-white dark:bg-surface-card rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden">
       <div class="bg-primary-600 h-1.5">
         <div
           class="bg-primary-400 h-full transition-all duration-300"
@@ -279,8 +279,8 @@ const finish = async () => {
               </svg>
             </div>
           </div>
-          <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100 text-center mb-3">{{ t('onboarding.welcome.title') }}</h2>
-          <p class="text-sm text-gray-600 dark:text-gray-400 text-center whitespace-pre-line mb-8">{{ t('onboarding.welcome.desc') }}</p>
+          <h2 class="text-xl font-bold text-gray-900 dark:text-content-primary text-center mb-3">{{ t('onboarding.welcome.title') }}</h2>
+          <p class="text-sm text-gray-600 dark:text-content-muted text-center whitespace-pre-line mb-8">{{ t('onboarding.welcome.desc') }}</p>
         </template>
 
         <!-- Step 1: Select Projects (multi-select) -->
@@ -292,14 +292,14 @@ const finish = async () => {
               </svg>
             </div>
           </div>
-          <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100 text-center mb-3">{{ t('onboarding.interactive.selectProject') }}</h2>
-          <p class="text-sm text-gray-600 dark:text-gray-400 text-center mb-6">{{ t('onboarding.interactive.selectProjectDescMulti') }}</p>
+          <h2 class="text-xl font-bold text-gray-900 dark:text-content-primary text-center mb-3">{{ t('onboarding.interactive.selectProject') }}</h2>
+          <p class="text-sm text-gray-600 dark:text-content-muted text-center mb-6">{{ t('onboarding.interactive.selectProjectDescMulti') }}</p>
 
           <div class="space-y-3 mb-4">
             <button @click="doScanProjects" :disabled="isScanning" class="w-full px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium disabled:opacity-50">
               {{ isScanning ? t('common.loading') : t('onboarding.interactive.scanProjects') }}
             </button>
-            <button @click="doSelectProjectDir" :disabled="isScanning" class="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm disabled:opacity-50">
+            <button @click="doSelectProjectDir" :disabled="isScanning" class="w-full px-4 py-2.5 border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-secondary rounded-lg hover:bg-gray-50 dark:hover:bg-surface-hover text-sm disabled:opacity-50">
               {{ t('onboarding.interactive.selectProjectDir') }}
             </button>
           </div>
@@ -313,18 +313,18 @@ const finish = async () => {
                 'p-3 rounded-lg cursor-pointer transition-colors border',
                 selectedProjectIds.has(project.project_id)
                   ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
-                  : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                  : 'border-gray-200 dark:border-surface-border hover:bg-gray-50 dark:hover:bg-surface-hover/50'
               ]"
             >
               <div class="flex items-center gap-2">
-                <div :class="['w-4 h-4 rounded border flex items-center justify-center flex-shrink-0', selectedProjectIds.has(project.project_id) ? 'bg-primary-600 border-primary-600' : 'border-gray-300 dark:border-gray-600']">
+                <div :class="['w-4 h-4 rounded border flex items-center justify-center flex-shrink-0', selectedProjectIds.has(project.project_id) ? 'bg-primary-600 border-primary-600' : 'border-gray-300 dark:border-surface-border']">
                   <svg v-if="selectedProjectIds.has(project.project_id)" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
                 <div class="min-w-0">
-                  <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ project.name }}</p>
-                  <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ project.path }}</p>
+                  <p class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ project.name }}</p>
+                  <p class="text-xs text-gray-500 dark:text-content-muted truncate">{{ project.path }}</p>
                 </div>
               </div>
             </div>
@@ -345,12 +345,12 @@ const finish = async () => {
               </svg>
             </div>
           </div>
-          <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100 text-center mb-3">{{ t('onboarding.interactive.importPlugin') }}</h2>
-          <p class="text-sm text-gray-600 dark:text-gray-400 text-center mb-6">{{ t('onboarding.interactive.importPluginDesc') }}</p>
+          <h2 class="text-xl font-bold text-gray-900 dark:text-content-primary text-center mb-3">{{ t('onboarding.interactive.importPlugin') }}</h2>
+          <p class="text-sm text-gray-600 dark:text-content-muted text-center mb-6">{{ t('onboarding.interactive.importPluginDesc') }}</p>
 
           <div v-if="isScanning" class="text-center py-4">
             <div class="animate-spin w-6 h-6 border-2 border-primary-600 border-t-transparent rounded-full mx-auto mb-2"></div>
-            <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('common.loading') }}</p>
+            <p class="text-sm text-gray-500 dark:text-content-muted">{{ t('common.loading') }}</p>
           </div>
 
           <div v-else-if="scannedPlugins.length > 0" class="max-h-48 overflow-y-auto space-y-1.5 mb-4">
@@ -362,25 +362,25 @@ const finish = async () => {
                 'p-3 rounded-lg cursor-pointer transition-colors border',
                 selectedPluginPaths.has(plugin.path)
                   ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
-                  : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                  : 'border-gray-200 dark:border-surface-border hover:bg-gray-50 dark:hover:bg-surface-hover/50'
               ]"
             >
               <div class="flex items-center gap-2">
-                <div :class="['w-4 h-4 rounded border flex items-center justify-center', selectedPluginPaths.has(plugin.path) ? 'bg-green-500 border-green-500' : 'border-gray-300 dark:border-gray-600']">
+                <div :class="['w-4 h-4 rounded border flex items-center justify-center', selectedPluginPaths.has(plugin.path) ? 'bg-green-500 border-green-500' : 'border-gray-300 dark:border-surface-border']">
                   <svg v-if="selectedPluginPaths.has(plugin.path)" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
                 <div>
-                  <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ plugin.plugin_name }}</p>
-                  <p class="text-xs text-gray-500 dark:text-gray-400">{{ plugin.project_name }}</p>
+                  <p class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ plugin.plugin_name }}</p>
+                  <p class="text-xs text-gray-500 dark:text-content-muted">{{ plugin.project_name }}</p>
                 </div>
               </div>
             </div>
           </div>
 
           <div v-else class="text-center py-4">
-            <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('onboarding.interactive.noPluginsFound') }}</p>
+            <p class="text-sm text-gray-500 dark:text-content-muted">{{ t('onboarding.interactive.noPluginsFound') }}</p>
           </div>
 
           <p v-if="errorMessage" class="text-xs text-red-500 dark:text-red-400 text-center">{{ errorMessage }}</p>
@@ -395,21 +395,21 @@ const finish = async () => {
               </svg>
             </div>
           </div>
-          <h2 class="text-lg font-bold text-gray-900 dark:text-gray-100 text-center mb-2">{{ t('onboarding.interactive.configureBindings') }}</h2>
-          <p class="text-xs text-gray-600 dark:text-gray-400 text-center mb-4">{{ t('onboarding.interactive.configureBindingsDesc') }}</p>
+          <h2 class="text-lg font-bold text-gray-900 dark:text-content-primary text-center mb-2">{{ t('onboarding.interactive.configureBindings') }}</h2>
+          <p class="text-xs text-gray-600 dark:text-content-muted text-center mb-4">{{ t('onboarding.interactive.configureBindingsDesc') }}</p>
 
-          <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+          <div class="border border-gray-200 dark:border-surface-border rounded-lg overflow-hidden">
             <div class="overflow-x-auto">
               <table class="w-full text-sm">
                 <thead>
-                  <tr class="bg-gray-50 dark:bg-gray-900/50">
-                    <th class="text-left px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 sticky left-0 bg-gray-50 dark:bg-gray-900/50 min-w-[100px]">
+                  <tr class="bg-gray-50 dark:bg-surface-base/50">
+                    <th class="text-left px-3 py-2 text-xs font-medium text-gray-500 dark:text-content-muted sticky left-0 bg-gray-50 dark:bg-surface-base/50 min-w-[100px]">
                       {{ t('onboarding.interactive.projectLabel') }}
                     </th>
                     <th
                       v-for="plugin in importedPlugins"
                       :key="plugin.plugin_id"
-                      class="px-2 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 text-center min-w-[80px] max-w-[120px]"
+                      class="px-2 py-2 text-xs font-medium text-gray-500 dark:text-content-muted text-center min-w-[80px] max-w-[120px]"
                     >
                       <span class="block truncate" :title="plugin.name">{{ plugin.name }}</span>
                     </th>
@@ -419,11 +419,11 @@ const finish = async () => {
                   <tr
                     v-for="project in scannedProjects.filter(p => selectedProjectIds.has(p.project_id))"
                     :key="project.project_id"
-                    class="border-t border-gray-100 dark:border-gray-800"
+                    class="border-t border-gray-100 dark:border-surface-border"
                   >
-                    <td class="px-3 py-2 sticky left-0 bg-white dark:bg-gray-800">
+                    <td class="px-3 py-2 sticky left-0 bg-white dark:bg-surface-card">
                       <div class="flex items-center gap-1.5">
-                        <span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate max-w-[80px]" :title="project.name">{{ project.name }}</span>
+                        <span class="text-sm font-medium text-gray-900 dark:text-content-primary truncate max-w-[80px]" :title="project.name">{{ project.name }}</span>
                         <span class="text-xs text-gray-400">({{ getBindingCount(project.project_id) }})</span>
                       </div>
                       <div class="flex gap-1 mt-0.5">
@@ -449,7 +449,7 @@ const finish = async () => {
             </div>
           </div>
 
-          <p class="text-xs text-gray-500 dark:text-gray-400 text-center mt-3">
+          <p class="text-xs text-gray-500 dark:text-content-muted text-center mt-3">
             {{ t('onboarding.interactive.totalBindings', { count: totalBindings }) }}
           </p>
           <p v-if="errorMessage" class="text-xs text-red-500 dark:text-red-400 text-center">{{ errorMessage }}</p>
@@ -464,8 +464,8 @@ const finish = async () => {
               </svg>
             </div>
           </div>
-          <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100 text-center mb-3">{{ t('onboarding.interactive.bindAndApply') }}</h2>
-          <p class="text-sm text-gray-600 dark:text-gray-400 text-center mb-6">{{ t('onboarding.interactive.bindAndApplyDesc') }}</p>
+          <h2 class="text-xl font-bold text-gray-900 dark:text-content-primary text-center mb-3">{{ t('onboarding.interactive.bindAndApply') }}</h2>
+          <p class="text-sm text-gray-600 dark:text-content-muted text-center mb-6">{{ t('onboarding.interactive.bindAndApplyDesc') }}</p>
 
           <div v-if="!applyResult" class="text-center">
             <button @click="doBindAndApply" :disabled="isApplying" class="px-6 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium disabled:opacity-50">
@@ -481,7 +481,7 @@ const finish = async () => {
               </svg>
             </div>
             <p class="text-sm font-medium text-green-600 dark:text-green-400 mb-2">{{ t('onboarding.interactive.success') }}</p>
-            <p class="text-xs text-gray-500 dark:text-gray-400">
+            <p class="text-xs text-gray-500 dark:text-content-muted">
               {{ t('onboarding.interactive.successDesc', { count: totalBindings }) }}
             </p>
           </div>
@@ -493,7 +493,7 @@ const finish = async () => {
         <div class="flex items-center justify-between mt-6">
           <button
             @click="skip"
-            class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+            class="text-sm text-gray-500 dark:text-content-muted hover:text-gray-700 dark:hover:text-gray-200"
           >
             {{ t('onboarding.skip') }}
           </button>
@@ -504,7 +504,7 @@ const finish = async () => {
                 :key="idx"
                 :class="[
                   'w-2 h-2 rounded-full transition-colors',
-                  idx === currentStep ? 'bg-primary-600' : idx < currentStep ? 'bg-primary-300' : 'bg-gray-300 dark:bg-gray-600'
+                  idx === currentStep ? 'bg-primary-600' : idx < currentStep ? 'bg-primary-300' : 'bg-gray-300 dark:bg-surface-layer'
                 ]"
               />
             </div>
@@ -512,7 +512,7 @@ const finish = async () => {
               v-if="currentStep === 2 && selectedPluginPaths.size > 0"
               @click="doImportPlugins"
               :disabled="isImporting"
-              class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium disabled:opacity-50"
+              class="btn-primary text-sm font-medium disabled:opacity-50"
             >
               {{ isImporting ? t('common.loading') : t('onboarding.interactive.importSelected') }}
             </button>
@@ -520,14 +520,14 @@ const finish = async () => {
               <button
                 v-if="totalBindings > 0"
                 @click="currentStep = 4"
-                class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium"
+                class="btn-primary text-sm font-medium"
               >
                 {{ t('onboarding.next') }}
               </button>
               <button
                 @click="finish"
                 class="px-4 py-2 text-sm font-medium"
-                :class="totalBindings > 0 ? 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200' : 'bg-primary-600 text-white rounded-lg hover:bg-primary-700'"
+                :class="totalBindings > 0 ? 'text-gray-500 dark:text-content-muted hover:text-gray-700 dark:hover:text-gray-200' : 'bg-primary-600 text-white rounded-lg hover:bg-primary-700'"
               >
                 {{ totalBindings > 0 ? t('onboarding.interactive.skipBinding') : t('onboarding.startUsing') }}
               </button>
@@ -535,14 +535,14 @@ const finish = async () => {
             <button
               v-else-if="isLastStep && applyResult"
               @click="finish"
-              class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium"
+              class="btn-primary text-sm font-medium"
             >
               {{ t('onboarding.startUsing') }}
             </button>
             <button
               v-else-if="currentStep === 0 || (currentStep === 1 && selectedProjectIds.size > 0)"
               @click="next"
-              class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium"
+              class="btn-primary text-sm font-medium"
             >
               {{ t('onboarding.next') }}
             </button>

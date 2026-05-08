@@ -11,7 +11,7 @@ const { isCollapsed, toggleSidebar } = useSidebar()
 
 const asideClass = computed(() => {
   return [
-    'bg-white dark:bg-surface-card shadow-lg flex flex-col shrink-0 transition-all duration-200 ease-in-out',
+    'sidebar-acrylic shadow-lg flex flex-col shrink-0 transition-all duration-200 ease-in-out border-r border-gray-200/50 dark:border-surface-border',
     isCollapsed.value ? 'w-16' : 'w-54'
   ]
 })

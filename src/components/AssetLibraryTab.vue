@@ -69,7 +69,7 @@ const {
     </div>
 
     <div v-if="assetSearchResults.length === 0 && !isSearchingAssets && !hasSearched" class="text-center py-2">
-      <p class="text-xs text-gray-400 dark:text-gray-500">{{ t('assetLibrary.featuredHint') }}</p>
+      <p class="text-xs text-gray-400 dark:text-content-muted">{{ t('assetLibrary.featuredHint') }}</p>
     </div>
 
     <div class="flex flex-wrap gap-2 mb-3">
@@ -118,7 +118,7 @@ const {
         <span>{{ pluginStore.importProgress.message }}</span>
         <span>{{ Math.round(pluginStore.importProgress.progress * 100) }}%</span>
       </div>
-      <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+      <div class="w-full bg-gray-200 dark:bg-surface-hover rounded-full h-2">
         <div
           class="bg-primary-600 h-2 rounded-full transition-all duration-300"
           :style="{ width: `${pluginStore.importProgress.progress * 100}%` }"
@@ -137,7 +137,7 @@ const {
         v-for="asset in assetSearchResults"
         :key="asset.asset_id"
         :class="[
-          'bg-white dark:bg-surface-card rounded-lg shadow hover:shadow-md p-3 transition-colors',
+          'bg-white dark:bg-surface-card rounded-xl shadow hover:shadow-md p-3 transition-colors',
           selectedAssetIds.has(asset.asset_id) ? 'ring-2 ring-primary-500' : ''
         ]"
       >
@@ -156,7 +156,7 @@ const {
             loading="lazy"
             @error="($event.target as HTMLImageElement).style.display = 'none'"
           />
-          <div v-else class="w-10 h-10 rounded bg-gray-200 dark:bg-gray-600 flex items-center justify-center flex-shrink-0">
+          <div v-else class="w-10 h-10 rounded bg-gray-200 dark:bg-surface-layer flex items-center justify-center flex-shrink-0">
             <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
             </svg>
@@ -184,7 +184,7 @@ const {
       </div>
     </div>
 
-    <div v-if="assetTotalPages > 0" class="flex items-center justify-between mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+    <div v-if="assetTotalPages > 0" class="flex items-center justify-between mt-4 pt-3 border-t border-gray-200 dark:border-surface-border">
       <span class="text-xs text-gray-500 dark:text-content-secondary">
         {{ t('assetLibrary.totalItems', { count: assetTotalItems }) }}
       </span>
@@ -192,7 +192,7 @@ const {
         <button
           @click="assetPrevPage"
           :disabled="assetCurrentPage === 0"
-          class="px-3 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-surface-layer text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-card disabled:opacity-50"
+          class="px-3 py-1 text-xs border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-card disabled:opacity-50"
         >
           {{ t('assetLibrary.prevPage') }}
         </button>
@@ -202,7 +202,7 @@ const {
         <button
           @click="assetNextPage"
           :disabled="assetCurrentPage >= assetTotalPages - 1"
-          class="px-3 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-surface-layer text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-card disabled:opacity-50"
+          class="px-3 py-1 text-xs border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-card disabled:opacity-50"
         >
           {{ t('assetLibrary.nextPage') }}
         </button>

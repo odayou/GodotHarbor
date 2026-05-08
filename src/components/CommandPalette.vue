@@ -113,11 +113,11 @@ function getHighlightSegments(text: string, searchQuery: string): Array<{ text: 
       @click="onOverlayClick"
     >
       <div
-        class="w-full max-w-lg bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden"
+        class="w-full max-w-lg bg-white dark:bg-surface-card rounded-xl shadow-2xl border border-gray-200 dark:border-surface-border overflow-hidden"
         @keydown="onKeyDown"
       >
-        <div class="flex items-center px-4 border-b border-gray-200 dark:border-gray-700">
-          <svg class="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="flex items-center px-4 border-b border-gray-200 dark:border-surface-border">
+          <svg class="w-5 h-5 text-gray-400 dark:text-content-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
@@ -125,9 +125,9 @@ function getHighlightSegments(text: string, searchQuery: string): Array<{ text: 
             v-model="query"
             type="text"
             :placeholder="t('commandPalette.placeholder')"
-            class="w-full px-3 py-3 bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none text-sm"
+            class="w-full px-3 py-3 bg-transparent text-gray-900 dark:text-content-primary placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none text-sm"
           />
-          <kbd class="hidden sm:inline-flex items-center px-2 py-0.5 text-xs text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600 shrink-0">
+          <kbd class="hidden sm:inline-flex items-center px-2 py-0.5 text-xs text-gray-400 dark:text-content-muted bg-gray-100 dark:bg-surface-hover rounded border border-gray-200 dark:border-surface-border shrink-0">
             Esc
           </kbd>
         </div>
@@ -135,7 +135,7 @@ function getHighlightSegments(text: string, searchQuery: string): Array<{ text: 
         <div ref="scrollContainer" class="max-h-80 overflow-y-auto">
           <template v-if="groupedResults.length > 0">
             <template v-for="group in groupedResults" :key="group.category">
-              <div class="px-4 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/30 sticky top-0">
+              <div class="px-4 py-1.5 text-xs font-medium text-gray-500 dark:text-content-muted bg-gray-50 dark:bg-surface-layer/50 sticky top-0">
                 {{ categoryLabels[group.category] || group.category }}
               </div>
               <button
@@ -144,7 +144,7 @@ function getHighlightSegments(text: string, searchQuery: string): Array<{ text: 
                 :data-palette-index="getFlatIndex(item)"
                 :class="[
                   'w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors',
-                  getFlatIndex(item) === selectedIndex ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 palette-selected' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                  getFlatIndex(item) === selectedIndex ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 palette-selected' : 'text-gray-700 dark:text-content-secondary hover:bg-gray-50 dark:hover:bg-surface-hover/50'
                 ]"
                 @click="selectItem(item)"
                 @mouseenter="selectedIndex = getFlatIndex(item)"
@@ -152,7 +152,7 @@ function getHighlightSegments(text: string, searchQuery: string): Array<{ text: 
                 <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
                   :class="getFlatIndex(item) === selectedIndex
                     ? 'bg-primary-100 dark:bg-primary-800/30'
-                    : 'bg-gray-100 dark:bg-gray-700'"
+                    : 'bg-gray-100 dark:bg-surface-hover'"
                 >
                   <svg v-if="item.icon === 'home'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
@@ -211,7 +211,7 @@ function getHighlightSegments(text: string, searchQuery: string): Array<{ text: 
                   </span>
                 </div>
                 <kbd v-if="item.shortcutKey && !query.trim()"
-                  class="px-1.5 py-0.5 text-[11px] font-mono text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600 shrink-0 min-w-[20px] text-center"
+                  class="px-1.5 py-0.5 text-[11px] font-mono text-gray-400 dark:text-content-muted bg-gray-100 dark:bg-surface-hover rounded border border-gray-200 dark:border-surface-border shrink-0 min-w-[20px] text-center"
                 >{{ item.shortcutKey }}</kbd>
                 <svg
                   v-if="getFlatIndex(item) === selectedIndex && !item.shortcutKey"
@@ -225,28 +225,28 @@ function getHighlightSegments(text: string, searchQuery: string): Array<{ text: 
           </template>
 
           <div v-else class="px-4 py-8 text-center">
-            <svg class="w-10 h-10 mx-auto text-gray-300 dark:text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-10 h-10 mx-auto text-gray-300 dark:text-content-muted mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
-            <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('commandPalette.noResults') }}</p>
+            <p class="text-sm text-gray-500 dark:text-content-muted">{{ t('commandPalette.noResults') }}</p>
           </div>
         </div>
 
-        <div class="px-4 py-2 border-t border-gray-200 dark:border-gray-700 flex items-center gap-4 text-xs text-gray-400 dark:text-gray-500">
+        <div class="px-4 py-2 border-t border-gray-200 dark:border-surface-border flex items-center gap-4 text-xs text-gray-400 dark:text-content-muted">
           <span class="flex items-center gap-1">
-            <kbd class="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600 text-[10px]">↑↓</kbd>
+            <kbd class="px-1 py-0.5 bg-gray-100 dark:bg-surface-hover rounded border border-gray-200 dark:border-surface-border text-[10px]">↑↓</kbd>
             {{ t('commandPalette.navigate') }}
           </span>
           <span class="flex items-center gap-1">
-            <kbd class="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600 text-[10px]">↵</kbd>
+            <kbd class="px-1 py-0.5 bg-gray-100 dark:bg-surface-hover rounded border border-gray-200 dark:border-surface-border text-[10px]">↵</kbd>
             {{ t('commandPalette.select') }}
           </span>
           <span class="flex items-center gap-1">
-            <kbd class="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600 text-[10px]">1-9</kbd>
+            <kbd class="px-1 py-0.5 bg-gray-100 dark:bg-surface-hover rounded border border-gray-200 dark:border-surface-border text-[10px]">1-9</kbd>
             {{ t('commandPalette.quickSelect') }}
           </span>
           <span class="flex items-center gap-1">
-            <kbd class="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600 text-[10px]">Esc</kbd>
+            <kbd class="px-1 py-0.5 bg-gray-100 dark:bg-surface-hover rounded border border-gray-200 dark:border-surface-border text-[10px]">Esc</kbd>
             {{ t('commandPalette.close') }}
           </span>
         </div>

@@ -18,6 +18,11 @@
   --surface-card: #1a1b28;
   --surface-border: #2d2d42;
   --surface-hover: #222236;
+  --surface-light-base: #f0f4ff;
+  --surface-light-layer: #f8faff;
+  --surface-light-card: #ffffff;
+  --surface-light-border: #dce4f0;
+  --surface-light-hover: #e8f0fe;
   --content-primary: #F7FAFC;
   --content-secondary: #CBD5E0;
   --content-muted: #718096;
@@ -31,7 +36,6 @@
   --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
 }
 
-/* 自定义滚动条样式 - 桌面应用风格 */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -65,12 +69,6 @@
   background: rgba(255, 255, 255, 0.25);
 }
 
-/* 禁止文本选择（桌面应用习惯） */
-/* * {
-  user-select: none;
-} */
-
-/* 需要复制的区域允许选择 */
 input, textarea, select, [contenteditable="true"], .selectable {
   user-select: text;
 }
@@ -298,7 +296,6 @@ body {
     @apply bg-gray-100 text-gray-700 dark:bg-surface-card dark:text-content-secondary;
   }
   
-  /* 桌面软件风格增强 */
   .desktop-focus {
     @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-surface-base;
   }
@@ -307,7 +304,6 @@ body {
     @apply hover:shadow-md transition-shadow duration-200;
   }
   
-  /* 毛玻璃效果 */
   .glass {
     background: rgba(255, 255, 255, 0.7);
     backdrop-filter: blur(12px);
@@ -320,14 +316,12 @@ body {
     -webkit-backdrop-filter: blur(12px);
   }
   
-  /* 模态框背景毛玻璃 */
   .modal-backdrop {
     background: rgba(0, 0, 0, 0.4);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
   }
   
-  /* Fluent Design 风格阴影 */
   .shadow-fluent-sm {
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.03);
   }
@@ -342,5 +336,55 @@ body {
   
   .shadow-fluent-xl {
     box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1), 0 6px 12px rgba(0, 0, 0, 0.05);
+  }
+
+  .sidebar-acrylic {
+    background: linear-gradient(180deg, rgba(255,255,255,0.82) 0%, rgba(240,244,255,0.78) 100%);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+  }
+
+  .dark .sidebar-acrylic {
+    background: linear-gradient(180deg, rgba(15,16,24,0.88) 0%, rgba(26,27,40,0.85) 100%);
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+  }
+
+  .header-acrylic {
+    background: linear-gradient(90deg, rgba(255,255,255,0.85) 0%, rgba(248,250,255,0.80) 100%);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+  }
+
+  .dark .header-acrylic {
+    background: linear-gradient(90deg, rgba(15,16,24,0.90) 0%, rgba(26,27,40,0.85) 100%);
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+  }
+
+  .stat-card {
+    @apply bg-white dark:bg-surface-card rounded-xl p-5 border border-gray-100 dark:border-surface-border cursor-pointer transition-all duration-200;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+  }
+
+  .stat-card:hover {
+    box-shadow: 0 8px 24px rgba(37, 99, 235, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
+    transform: translateY(-1px);
+  }
+
+  .info-label {
+    @apply text-xs text-gray-500 dark:text-content-muted uppercase tracking-wider font-medium;
+  }
+
+  .info-value {
+    @apply text-sm text-gray-900 dark:text-content-primary font-medium;
+  }
+
+  .storage-bar {
+    @apply w-full h-2 rounded-full overflow-hidden bg-gray-100 dark:bg-surface-border;
+  }
+
+  .storage-bar-fill {
+    @apply h-full rounded-full transition-all duration-500;
   }
 }

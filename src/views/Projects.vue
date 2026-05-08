@@ -10,15 +10,20 @@ import { useToast } from '@/composables/useToast'
 import { useBatchSelection } from '@/composables/useBatchSelection'
 import { useDialogEscape } from '@/composables/useDialogEscape'
 import { useAutoSetup } from '@/composables/useAutoSetup'
+import { useFileManager } from '@/composables/useFileManager'
+import { getStatusBadgeClass, getStatusInlineClass } from '@/utils/statusBadge'
 import { preloadIcons, getIconUrl, getIconDebugInfo } from '@/composables/useIconCache'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import SkeletonList from '@/components/SkeletonList.vue'
+import ErrorState from '@/components/ErrorState.vue'
+import EmptyState from '@/components/EmptyState.vue'
 
 const router = useRouter()
 const route = useRoute()
 const toast = useToast()
 const { t } = useI18n()
 const { isRunning: isAutoSetupRunning, stepMessage: autoSetupMessage, runAutoSetup } = useAutoSetup()
+const { openInFileManager } = useFileManager()
 const debugMode = ref(false)
 const toggleDebug = (e: KeyboardEvent) => {
   if (e.ctrlKey && e.shiftKey && e.key === 'D') {
@@ -29,6 +34,7 @@ const projects = ref<Project[]>([])
 const engines = ref<Engine[]>([])
 const projectBindingMap = ref<Map<string, ProjectBinding[]>>(new Map())
 const isLoading = ref(false)
+const loadError = ref<string | null>(null)
 const showScanDialog = ref(false)
 const scanDirInput = ref('')
 const showProjectDetail = ref(false)
@@ -295,19 +301,19 @@ const showProjectDetails = async (project: Project) => {
 
 const loadProjects = async () => {
   isLoading.value = true
+  loadError.value = null
   try {
     const result = await api.getProjects()
     projects.value = result
     preloadIcons(result.map(p => p.icon_path).filter(Boolean))
-    await loadGroups()
-    await checkMovedProjects()
-    await loadAllProjectBindings()
-    try {
-      allPlugins.value = await api.getPlugins()
-    } catch {
-      allPlugins.value = []
-    }
+    await Promise.all([
+      loadGroups(),
+      checkMovedProjects(),
+      loadAllProjectBindings(),
+      api.getPlugins().then(p => { allPlugins.value = p }).catch(() => { allPlugins.value = [] })
+    ])
   } catch (error) {
+    loadError.value = String(error)
     toast.error(t('common.loadFailed', { error }))
   } finally {
     isLoading.value = false
@@ -583,14 +589,6 @@ const removeProject = async (projectId: string) => {
   })
 }
 
-const openInFileManager = async (path: string) => {
-  try {
-    await api.openInFileManager(path)
-  } catch (error) {
-    toast.error(t('projects.openInFileManagerFailed', { error }))
-  }
-}
-
 const syncProject = async (project: Project) => {
   try {
     await api.syncProjects()
@@ -751,12 +749,12 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
 <template>
   <div class="relative">
     <div v-if="isDragging" class="fixed inset-0 bg-primary-500/10 border-4 border-dashed border-primary-500 z-40 flex items-center justify-center pointer-events-none">
-      <div class="bg-white dark:bg-gray-800 rounded-xl p-8 shadow-2xl">
+      <div class="bg-white dark:bg-surface-card rounded-xl p-8 shadow-2xl">
         <svg class="mx-auto h-12 w-12 text-primary-500 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
         </svg>
         <p class="text-lg font-semibold text-primary-600 dark:text-primary-400">{{ t('projects.dragTitle') }}</p>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ t('projects.dragDesc') }}</p>
+        <p class="text-sm text-gray-500 dark:text-content-muted mt-1">{{ t('projects.dragDesc') }}</p>
       </div>
     </div>
     <div
@@ -767,12 +765,12 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
       @drop="onDrop"
     >
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ t('projects.title') }}</h1>
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-content-primary">{{ t('projects.title') }}</h1>
       <div class="flex flex-wrap gap-2">
         <button
           @click="showScanDialog = true"
           :disabled="isLoading"
-          class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 text-sm"
+          class="btn-primary disabled:opacity-50 text-sm"
         >
           {{ t('projects.scan') }}
         </button>
@@ -780,30 +778,30 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
           <button
             @click="showAddMenu = !showAddMenu"
             :disabled="isLoading"
-            class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 text-sm flex items-center gap-1.5"
+            class="btn-secondary disabled:opacity-50 text-sm flex items-center gap-1.5"
           >
             {{ t('projects.add') }}
             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
           </button>
-          <div v-if="showAddMenu" class="absolute right-0 mt-1 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1">
+          <div v-if="showAddMenu" class="absolute right-0 mt-1 w-48 bg-white dark:bg-surface-card border border-gray-200 dark:border-surface-border rounded-xl shadow-lg z-20 py-1">
             <button
               @click="showAddMenu = false; addProject()"
-              class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+              class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-100 dark:hover:bg-surface-hover flex items-center gap-2"
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
               <div>
                 <div class="font-medium">{{ t('projects.addLocal') }}</div>
-                <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('projects.addLocalDesc') }}</div>
+                <div class="text-xs text-gray-500 dark:text-content-muted">{{ t('projects.addLocalDesc') }}</div>
               </div>
             </button>
             <button
               @click="showAddMenu = false; showGitDialog = true"
-              class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+              class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-100 dark:hover:bg-surface-hover flex items-center gap-2"
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
               <div>
                 <div class="font-medium">{{ t('projects.addFromGit') }}</div>
-                <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('projects.addFromGitDesc') }}</div>
+                <div class="text-xs text-gray-500 dark:text-content-muted">{{ t('projects.addFromGitDesc') }}</div>
               </div>
             </button>
           </div>
@@ -811,7 +809,7 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
         <button
           @click="syncAllProjects"
           :disabled="isLoading"
-          class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 text-sm flex items-center gap-1.5"
+          class="btn-secondary disabled:opacity-50 text-sm flex items-center gap-1.5"
           :title="t('projects.syncAllHint')"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -829,13 +827,13 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
             v-model="searchQuery"
             type="text"
             :placeholder="t('projects.search')"
-            class="w-full px-4 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
+            class="w-full px-4 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
           />
         </div>
         <div class="flex flex-wrap gap-2 items-center">
           <select
             v-model="filterGroup"
-            class="px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
+            class="px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
           >
             <option value="all">{{ t('projects.allGroups') }}</option>
             <option value="ungrouped">{{ t('projects.ungrouped') }}</option>
@@ -843,7 +841,7 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
           </select>
           <select
             v-model="filterStatus"
-            class="px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
+            class="px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
           >
             <option value="all">{{ t('projects.allStatus') }}</option>
             <option value="Ready">{{ t('projects.status.ready') }}</option>
@@ -854,7 +852,7 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
           </select>
           <select
             v-model="sortBy"
-            class="px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
+            class="px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
           >
             <option value="name">{{ t('projects.sortByName') }}</option>
             <option value="path">{{ t('projects.sortByPath') }}</option>
@@ -864,7 +862,7 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
           </select>
           <button
             @click="sortOrder = sortOrder === 'asc' ? 'desc' : 'asc'"
-            class="px-2 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm"
+            class="px-2 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-700 dark:text-content-secondary hover:bg-gray-50 dark:hover:bg-surface-layer text-sm"
             :title="sortOrder === 'asc' ? t('projects.ascending') : t('projects.descending')"
           >
             <svg v-if="sortOrder === 'asc'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -889,7 +887,7 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
         </button>
         <button
           @click="clearSelection"
-          class="text-xs text-gray-500 dark:text-gray-400 hover:underline"
+          class="text-xs text-gray-500 dark:text-content-muted hover:underline"
         >
           {{ t('common.deselectAll') }}
         </button>
@@ -921,21 +919,28 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
       <SkeletonList :count="4" type="project" />
     </div>
 
+    <ErrorState
+      v-else-if="loadError"
+      :title="t('common.loadFailed', { error: '' })"
+      :description="loadError"
+      :retryLabel="t('common.retry')"
+      @retry="loadProjects"
+    />
+
     <div v-else-if="isAutoSetupRunning && filteredProjects.length === 0" class="text-center py-16">
       <div class="animate-spin rounded-full h-10 w-10 border-2 border-primary-600 border-t-transparent mx-auto"></div>
-      <h3 class="mt-4 text-sm font-medium text-gray-900 dark:text-gray-100">{{ autoSetupMessage }}</h3>
-      <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('autoSetup.pleaseWait') }}</p>
+      <h3 class="mt-4 text-sm font-medium text-gray-900 dark:text-content-primary">{{ autoSetupMessage }}</h3>
+      <p class="mt-1 text-xs text-gray-500 dark:text-content-muted">{{ t('autoSetup.pleaseWait') }}</p>
     </div>
 
-    <div v-else-if="filteredProjects.length === 0" class="text-center py-12">
-      <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-content-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-      </svg>
-      <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-content-primary">{{ t('projects.empty') }}</h3>
-      <p class="mt-1 text-sm text-gray-500 dark:text-content-secondary">
-        {{ t('projects.emptyDesc') }}
-      </p>
-      <div class="mt-4 flex justify-center gap-3">
+    <EmptyState
+      v-else-if="filteredProjects.length === 0"
+      :title="t('projects.empty')"
+      :description="t('projects.emptyDesc')"
+      :actionLabel="t('projects.scan')"
+      @action="showScanDialog = true"
+    >
+      <template #actions>
         <button
           @click="showScanDialog = true"
           :disabled="isLoading"
@@ -966,8 +971,8 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
           </svg>
           {{ t('projects.addFromGit') }}
         </button>
-      </div>
-    </div>
+      </template>
+    </EmptyState>
 
     <div v-else class="space-y-6">
       <div v-for="(groupProjects, groupName) in (filterGroup === 'all' ? groupedProjects : { all: filteredProjects })" :key="groupName" class="space-y-3">
@@ -992,7 +997,7 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
               @click.stop="toggleProjectSelection(project, $event)"
               class="w-4 h-4 text-primary-600 rounded flex-shrink-0 cursor-pointer"
             />
-            <div class="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
+            <div class="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 dark:bg-surface-hover flex items-center justify-center flex-shrink-0">
               <img
                 v-if="project.icon_path && getIconUrl(project.icon_path)"
                 :src="getIconUrl(project.icon_path)"
@@ -1025,7 +1030,7 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
                 <button
                   v-else
                   @click.stop="openGroupDialog(project)"
-                  class="text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 p-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                  class="text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 p-0.5 rounded hover:bg-gray-100 dark:hover:bg-surface-hover"
                   :title="t('projects.setGroup')"
                 >
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1033,14 +1038,7 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
                   </svg>
                 </button>
                 <span
-                  :class="[
-                    'badge',
-                    project.status === 'Ready' ? 'badge-success' :
-                    project.status === 'Warning' ? 'badge-warning' :
-                    project.status === 'Conflict' ? 'badge-error' :
-                    project.status === 'MissingSource' ? 'badge-neutral' :
-                    'badge-error'
-                  ]"
+                  :class="getStatusBadgeClass(project.status)"
                 >
                   {{ t(`projects.status.${project.status.toLowerCase()}`) }}
                 </span>
@@ -1079,7 +1077,7 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
               <div class="project-menu-wrapper" style="position: relative; display: inline-block">
                 <button
                   @click.stop="toggleProjectMenu(project.project_id)"
-                  class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                  class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-surface-layer transition-colors"
                   :title="t('projects.moreActions')"
                 >
                   <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1088,16 +1086,16 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
                 </button>
                 <div
                   v-if="projectMenuId === project.project_id"
-                  class="absolute right-0 top-full mt-1 bg-white dark:bg-gray-700 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 py-1 z-20 whitespace-nowrap"
+                  class="absolute right-0 top-full mt-1 bg-white dark:bg-surface-hover rounded-xl shadow-lg border border-gray-200 dark:border-surface-border py-1 z-20 whitespace-nowrap"
                 >
                   <button
                     @click.stop="openInFileManager(project.path); projectMenuId = ''"
-                    class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 flex items-center gap-2"
+                    class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-content-primary hover:bg-gray-100 dark:hover:bg-surface-layer flex items-center gap-2"
                   >
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                     {{ t('projects.openInFileManager') }}
                   </button>
-                  <hr class="my-1 border-gray-200 dark:border-gray-600" />
+                  <hr class="my-1 border-gray-200 dark:border-surface-border" />
                   <button
                     @click.stop="removeProject(project.project_id); projectMenuId = ''"
                     class="w-full text-left px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
@@ -1117,9 +1115,9 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
 
   <Teleport to="body">
   <div v-if="showProjectDetail && selectedProject" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showProjectDetail = false; selectedProject = null">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto" @click.stop>
+      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto" @click.stop>
         <div class="flex items-center gap-4 mb-4">
-          <div class="flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+          <div class="flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-gray-100 dark:bg-surface-hover flex items-center justify-center">
             <img
               v-if="selectedProject.icon_path && getIconUrl(selectedProject.icon_path)"
               :src="getIconUrl(selectedProject.icon_path)"
@@ -1131,18 +1129,18 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
             </svg>
           </div>
           <div>
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">
               {{ selectedProject.name }}
             </h3>
-            <span class="text-sm text-gray-500 dark:text-gray-400">
+            <span class="text-sm text-gray-500 dark:text-content-muted">
               Godot {{ selectedProject.godot_version }}
             </span>
           </div>
         </div>
         <div class="mb-4">
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('projects.projectPath') }}</h4>
+          <h4 class="text-sm font-medium text-gray-700 dark:text-content-secondary mb-2">{{ t('projects.projectPath') }}</h4>
           <div class="flex items-center gap-2">
-            <p class="text-sm text-gray-600 dark:text-gray-400 break-all bg-gray-50 dark:bg-gray-700 rounded-lg p-3 flex-1">
+            <p class="text-sm text-gray-600 dark:text-content-muted break-all bg-gray-50 dark:bg-surface-hover rounded-lg p-3 flex-1">
               {{ selectedProject.path }}
             </p>
             <button
@@ -1157,26 +1155,19 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
           </div>
         </div>
         <div class="mb-4">
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('projects.statusLabel') }}</h4>
+          <h4 class="text-sm font-medium text-gray-700 dark:text-content-secondary mb-2">{{ t('projects.statusLabel') }}</h4>
           <span
-            :class="[
-              'px-3 py-1 rounded text-sm font-medium',
-              selectedProject.status === 'Ready' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
-              selectedProject.status === 'Warning' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' :
-              selectedProject.status === 'Conflict' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
-              selectedProject.status === 'MissingSource' ? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' :
-              'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-            ]"
+            :class="['px-3 py-1 rounded text-sm font-medium', getStatusInlineClass(selectedProject.status)]"
           >
             {{ t(`projects.status.${selectedProject.status.toLowerCase()}`) }}
           </span>
-          <span v-if="selectedProject.last_synced_at" class="text-xs text-gray-400 dark:text-gray-500 ml-3">
+          <span v-if="selectedProject.last_synced_at" class="text-xs text-gray-400 dark:text-content-muted ml-3">
             {{ t('projects.lastSynced') }} {{ new Date(selectedProject.last_synced_at).toLocaleString() }}
           </span>
         </div>
         <div class="mb-4">
           <div class="flex items-center justify-between mb-2">
-            <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('projects.pluginBindings') }}</h4>
+            <h4 class="text-sm font-medium text-gray-700 dark:text-content-secondary">{{ t('projects.pluginBindings') }}</h4>
             <div class="flex items-center gap-2">
               <button
                 @click="bindPluginToProject(selectedProject!)"
@@ -1189,7 +1180,7 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
               </button>
               <button
                 @click="goToPluginBindings(selectedProject!)"
-                class="px-2.5 py-1 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-xs rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-1"
+                class="px-2.5 py-1 border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-secondary text-xs rounded hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors flex items-center gap-1"
               >
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
@@ -1198,7 +1189,7 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
               </button>
             </div>
           </div>
-          <div v-if="projectBindings.length === 0" class="text-sm text-gray-500 dark:text-gray-400">
+          <div v-if="projectBindings.length === 0" class="text-sm text-gray-500 dark:text-content-muted">
             {{ t('projects.noBindings') }}
           </div>
           <div v-else class="space-y-2 max-h-48 overflow-y-auto">
@@ -1206,7 +1197,7 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
               v-for="binding in projectBindings"
               :key="binding.plugin_id + binding.mount_path"
               class="flex items-center justify-between p-2 rounded-lg"
-              :class="binding.is_healthy === false ? 'bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800' : 'bg-gray-50 dark:bg-gray-700'"
+              :class="binding.is_healthy === false ? 'bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800' : 'bg-gray-50 dark:bg-surface-hover'"
             >
               <div class="flex items-center gap-2 min-w-0 flex-1">
                 <span v-if="binding.is_healthy === false" class="flex-shrink-0">
@@ -1220,9 +1211,9 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
                   </svg>
                 </span>
                 <div class="min-w-0 flex-1">
-                  <span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ getPluginName(binding.plugin_id) }}</span>
-                  <span class="text-xs text-gray-400 dark:text-gray-500 ml-1.5">{{ getPluginVersion(binding.plugin_id) }}</span>
-                  <span class="text-xs text-gray-500 dark:text-gray-400 ml-2 font-mono">{{ binding.mount_path }}</span>
+                  <span class="text-sm font-medium text-gray-900 dark:text-content-primary truncate">{{ getPluginName(binding.plugin_id) }}</span>
+                  <span class="text-xs text-gray-400 dark:text-content-muted ml-1.5">{{ getPluginVersion(binding.plugin_id) }}</span>
+                  <span class="text-xs text-gray-500 dark:text-content-muted ml-2 font-mono">{{ binding.mount_path }}</span>
                 </div>
               </div>
               <div class="flex items-center gap-1 ml-2 flex-shrink-0">
@@ -1247,20 +1238,20 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
           <div class="flex gap-2">
             <button
               @click="syncProject(selectedProject)"
-              class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 text-sm"
+              class="px-4 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-hover text-gray-700 dark:text-content-secondary rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer text-sm"
             >
               {{ t('projects.syncProject') }}
             </button>
             <button
               @click="showProjectDetail = false; openRelocateDialog(selectedProject)"
-              class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 text-sm"
+              class="px-4 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-hover text-gray-700 dark:text-content-secondary rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer text-sm"
             >
               {{ t('projects.relocate') }}
             </button>
           </div>
           <button
             @click="showProjectDetail = false; selectedProject = null"
-            class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+            class="btn-secondary"
           >
             {{ t('common.close') }}
           </button>
@@ -1271,9 +1262,9 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
 
   <Teleport to="body">
     <div v-if="showScanDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showScanDialog = false">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('projects.scanTitle') }}</h3>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('projects.scanTitle') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-muted mb-4">
           {{ t('projects.scanDesc') }}
         </p>
         <button
@@ -1291,26 +1282,26 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
             v-model="scanDirInput"
             type="text"
             :placeholder="t('projects.scanPlaceholder')"
-            class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+            class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
           />
           <button
-            @click="selectScanDir"
-            class="px-4 py-2 bg-gray-100 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 text-sm whitespace-nowrap"
-          >
-            {{ t('projects.browse') }}
-          </button>
+              @click="selectScanDir"
+              class="btn-secondary text-sm whitespace-nowrap"
+            >
+              {{ t('projects.browse') }}
+            </button>
         </div>
         <div class="flex justify-end space-x-3">
           <button
             @click="showScanDialog = false"
-            class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+            class="btn-secondary"
           >
             {{ t('common.cancel') }}
           </button>
           <button
             @click="startScan"
             :disabled="!scanDirInput"
-            class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+            class="btn-primary disabled:opacity-50"
           >
             {{ t('projects.startScan') }}
           </button>
@@ -1321,25 +1312,25 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
 
   <Teleport to="body">
     <div v-if="showGroupDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showGroupDialog = false; groupInput = ''; editingProjectId = null">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('projects.groupTitle') }}</h3>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('projects.groupTitle') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-muted mb-4">
           {{ t('projects.groupDesc') }}
         </p>
         <input
           v-model="groupInput"
           type="text"
           :placeholder="t('projects.groupPlaceholder')"
-          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+          class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
         />
         <div v-if="availableGroups.length > 0" class="mt-3">
-          <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">{{ t('projects.existingGroups') }}</p>
+          <p class="text-xs text-gray-500 dark:text-content-muted mb-1">{{ t('projects.existingGroups') }}</p>
           <div class="flex flex-wrap gap-1">
             <button
               v-for="group in availableGroups"
               :key="group"
               @click="groupInput = group"
-              class="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+              class="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-surface-hover text-gray-700 dark:text-content-secondary hover:bg-gray-200 dark:hover:bg-surface-layer"
             >
               {{ group }}
             </button>
@@ -1356,13 +1347,13 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
           <div class="flex-1"></div>
           <button
             @click="showGroupDialog = false; groupInput = ''; editingProjectId = null"
-            class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+            class="btn-secondary"
           >
             {{ t('common.cancel') }}
           </button>
           <button
             @click="saveGroup"
-            class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+            class="btn-primary"
           >
             {{ t('common.confirm') }}
           </button>
@@ -1373,25 +1364,25 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
 
   <Teleport to="body">
     <div v-if="showBatchGroupDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showBatchGroupDialog = false">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('projects.batchGroupTitle') }}</h3>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('projects.batchGroupTitle') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-muted mb-4">
           {{ t('projects.batchGroupDesc', { count: selectedCount }) }}
         </p>
         <input
           v-model="batchGroupInput"
           type="text"
           :placeholder="t('projects.groupPlaceholder')"
-          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+          class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
         />
         <div v-if="availableGroups.length > 0" class="mt-3">
-          <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">{{ t('projects.existingGroups') }}</p>
+          <p class="text-xs text-gray-500 dark:text-content-muted mb-1">{{ t('projects.existingGroups') }}</p>
           <div class="flex flex-wrap gap-1">
             <button
               v-for="group in availableGroups"
               :key="group"
               @click="batchGroupInput = group"
-              class="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+              class="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-surface-hover text-gray-700 dark:text-content-secondary hover:bg-gray-200 dark:hover:bg-surface-layer"
             >
               {{ group }}
             </button>
@@ -1400,13 +1391,13 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
         <div class="flex justify-end space-x-3 mt-6">
           <button
             @click="showBatchGroupDialog = false"
-            class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+            class="btn-secondary"
           >
             {{ t('common.cancel') }}
           </button>
           <button
             @click="saveBatchGroup"
-            class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+            class="btn-primary"
           >
             {{ t('common.confirm') }}
           </button>
@@ -1417,24 +1408,24 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
 
   <Teleport to="body">
     <div v-if="showRelocateDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showRelocateDialog = false">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('projects.relocateTitle') }}</h3>
-        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('projects.relocateTitle') }}</h3>
+        <p class="text-sm text-gray-600 dark:text-content-muted mb-4">
           {{ t('projects.relocateDesc') }}
         </p>
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('projects.newPath') }}</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-2">{{ t('projects.newPath') }}</label>
           <div class="flex gap-2">
             <input
               v-model="relocateNewPath"
               type="text"
               readonly
               :placeholder="t('projects.scanPlaceholder')"
-              class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+              class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-gray-50 dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
             />
             <button
               @click="selectRelocatePath"
-              class="px-4 py-2 bg-gray-100 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 text-sm whitespace-nowrap"
+              class="btn-secondary text-sm whitespace-nowrap"
             >
               {{ t('projects.browse') }}
             </button>
@@ -1443,14 +1434,14 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
         <div class="flex justify-end space-x-3 mt-6">
           <button
             @click="showRelocateDialog = false"
-            class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+            class="btn-secondary"
           >
             {{ t('common.cancel') }}
           </button>
           <button
             @click="confirmRelocate"
             :disabled="!relocateNewPath"
-            class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+            class="btn-primary disabled:opacity-50"
           >
             {{ t('projects.confirm') }}
           </button>
@@ -1469,16 +1460,16 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
 
   <Teleport to="body">
     <div v-if="showMovedDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showMovedDialog = false">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ t('projects.detectProjectMigration') }}</h3>
-        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-lg shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('projects.detectProjectMigration') }}</h3>
+        <p class="text-sm text-gray-600 dark:text-content-muted mb-4">
           {{ t('projects.migrationDesc') }}
         </p>
         <div class="space-y-3 max-h-60 overflow-y-auto">
-          <div v-for="candidate in movedCandidates" :key="candidate.project_id" class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+          <div v-for="candidate in movedCandidates" :key="candidate.project_id" class="bg-gray-50 dark:bg-surface-hover rounded-lg p-4">
             <div class="flex items-center justify-between">
               <div>
-                <h4 class="font-medium text-gray-900 dark:text-gray-100">{{ candidate.old_name }}</h4>
+                <h4 class="font-medium text-gray-900 dark:text-content-primary">{{ candidate.old_name }}</h4>
                 <p class="text-xs text-red-500 dark:text-red-400 mt-1">{{ t('projects.oldPath') }}: {{ candidate.old_path }}</p>
                 <p class="text-xs text-green-500 dark:text-green-400">{{ t('projects.newPath') }}: {{ candidate.new_path }}</p>
               </div>
@@ -1491,7 +1482,7 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
                 </button>
                 <button
                   @click="dismissMovedProject(candidate)"
-                  class="px-3 py-1 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-500 text-sm"
+                  class="btn-secondary text-sm"
                 >
                   {{ t('projects.ignore') }}
                 </button>
@@ -1502,7 +1493,7 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
         <div class="flex justify-end mt-4">
           <button
             @click="showMovedDialog = false"
-            class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+            class="btn-secondary"
           >
             {{ t('common.close') }}
           </button>
@@ -1513,50 +1504,50 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
 
   <Teleport to="body">
     <div v-if="showGitDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showGitDialog = false; gitUrl = ''; gitTargetDir = ''">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('projects.gitImport.title') }}</h3>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ t('projects.gitImport.desc') }}</p>
+      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('projects.gitImport.title') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-muted mb-4">{{ t('projects.gitImport.desc') }}</p>
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ t('projects.gitImport.urlLabel') }}</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('projects.gitImport.urlLabel') }}</label>
             <input
               v-model="gitUrl"
               type="text"
               :placeholder="t('projects.gitImport.urlPlaceholder')"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
               @keyup.enter="importProjectFromGit"
             />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ t('projects.gitImport.targetDirLabel') }}</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('projects.gitImport.targetDirLabel') }}</label>
             <div class="flex gap-2">
               <input
                 v-model="gitTargetDir"
                 type="text"
                 :placeholder="t('projects.gitImport.targetDirPlaceholder')"
-                class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+                class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
               />
               <button
                 @click="browseGitTargetDir"
-                class="px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 text-sm"
+                class="px-3 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-hover text-gray-700 dark:text-content-secondary rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer text-sm"
               >
                 {{ t('projects.browse') }}
               </button>
             </div>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('projects.gitImport.targetDirHint') }}</p>
+            <p class="mt-1 text-xs text-gray-500 dark:text-content-muted">{{ t('projects.gitImport.targetDirHint') }}</p>
           </div>
         </div>
         <div class="flex justify-end space-x-3 mt-6">
           <button
             @click="showGitDialog = false; gitUrl = ''; gitTargetDir = ''"
-            class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+            class="btn-secondary"
           >
             {{ t('common.cancel') }}
           </button>
           <button
             @click="importProjectFromGit"
             :disabled="isCloningFromGit || !gitUrl.trim()"
-            class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+            class="btn-primary disabled:opacity-50"
           >
             {{ isCloningFromGit ? t('projects.gitImport.cloning') : t('projects.gitImport.clone') }}
           </button>

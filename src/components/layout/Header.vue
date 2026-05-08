@@ -31,7 +31,7 @@ const pageTitle = computed(() => {
 </script>
 
 <template>
-  <header class="h-12 bg-white dark:bg-surface-card shadow-sm border-b border-gray-200 dark:border-surface-border flex items-center justify-between px-6">
+  <header class="h-12 header-acrylic shadow-sm border-b border-gray-200/50 dark:border-surface-border flex items-center justify-between px-6">
     <div class="flex items-center space-x-4">
       <h2 v-if="pageTitle" class="text-base font-semibold text-gray-800 dark:text-content-primary">{{ pageTitle }}</h2>
     </div>

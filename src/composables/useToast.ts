@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { friendlyErrorMessage } from '@/utils/errorMessage'
 
 export interface Toast {
   id: number
@@ -26,7 +27,11 @@ export function useToast() {
   return {
     toasts,
     success: (msg: string, duration?: number) => addToast(msg, 'success', duration),
-    error: (msg: string, duration?: number) => addToast(msg, 'error', duration ?? 5000),
+    error: (msg: string | unknown, duration?: number) => addToast(
+      typeof msg === 'string' ? msg : friendlyErrorMessage(msg),
+      'error',
+      duration ?? 5000
+    ),
     info: (msg: string, duration?: number) => addToast(msg, 'info', duration),
     warning: (msg: string, duration?: number) => addToast(msg, 'warning', duration),
     remove: removeToast

@@ -13,7 +13,7 @@ const { t } = useI18n()
         v-if="isRunning || currentStep === 'done'"
         class="fixed bottom-8 left-1/2 -translate-x-1/2 z-[80] w-full max-w-lg"
       >
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div class="bg-white dark:bg-surface-card rounded-xl shadow-2xl border border-gray-200 dark:border-surface-border overflow-hidden">
           <div class="px-4 py-3">
             <div class="flex items-center gap-3">
               <div v-if="isRunning" class="animate-spin rounded-full h-5 w-5 border-2 border-primary-600 border-t-transparent shrink-0"></div>
@@ -24,14 +24,14 @@ const { t } = useI18n()
                 <p class="text-sm font-medium text-gray-900 dark:text-content-primary truncate">
                   {{ isRunning ? stepMessage : t('autoSetup.complete', { projects: lastResult?.projectsScanned ?? 0, plugins: lastResult?.pluginsImported ?? 0, bindings: lastResult?.bindingsCreated ?? 0 }) }}
                 </p>
-                <div v-if="isRunning" class="mt-1.5 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                <div v-if="isRunning" class="mt-1.5 w-full bg-gray-200 dark:bg-surface-hover rounded-full h-1.5">
                   <div
                     class="bg-primary-600 h-1.5 rounded-full transition-all duration-500 ease-out"
                     :style="{ width: `${progressPercent}%` }"
                   ></div>
                 </div>
               </div>
-              <span v-if="isRunning" class="text-xs text-gray-500 dark:text-gray-400 shrink-0">{{ progressPercent }}%</span>
+              <span v-if="isRunning" class="text-xs text-gray-500 dark:text-content-muted shrink-0">{{ progressPercent }}%</span>
             </div>
           </div>
         </div>

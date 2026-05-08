@@ -215,7 +215,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <footer class="h-7 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between px-3 text-xs select-none shrink-0">
+  <footer class="h-7 bg-white dark:bg-surface-card border-t border-gray-200 dark:border-surface-border flex items-center justify-between px-3 text-xs select-none shrink-0">
     <div class="flex items-center gap-3 overflow-hidden">
       <template v-if="isAutoSetupRunning || autoSetupStep === 'done'">
         <div class="flex items-center gap-2 flex-1 min-w-0">
@@ -297,7 +297,7 @@ onUnmounted(() => {
     <Teleport to="body">
       <div
         v-if="showUpdatePanel"
-        class="update-panel fixed bottom-8 right-4 w-96 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden"
+        class="update-panel fixed bottom-8 right-4 w-96 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden"
       >
         <div class="px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800">
           <div class="flex items-center justify-between">

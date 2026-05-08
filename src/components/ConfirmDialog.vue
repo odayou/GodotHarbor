@@ -88,18 +88,18 @@ const confirmColorClass = computed(() => {
     class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
     @click="onOverlayClick"
   >
-    <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-      <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+    <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
+      <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-2">
         {{ resolvedTitle }}
       </h3>
-      <p v-if="description" class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+      <p v-if="description" class="text-sm text-gray-600 dark:text-content-muted mb-4">
         {{ description }}
       </p>
       <slot></slot>
       <div class="flex justify-end space-x-3 mt-6">
         <button
           @click="close"
-          class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+          class="btn-secondary"
         >
           {{ resolvedCancelText }}
         </button>

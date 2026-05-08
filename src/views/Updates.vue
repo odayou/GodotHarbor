@@ -13,7 +13,7 @@
 
     <div v-if="store.isInstallingApp" class="card">
       <h3 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">{{ t('updates.updatingApp') }}</h3>
-      <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+      <div class="w-full bg-gray-200 dark:bg-surface-hover rounded-full h-2.5">
         <div class="bg-primary-600 h-2.5 rounded-full transition-all" :style="{ width: store.installProgress + '%' }"></div>
       </div>
       <p class="text-xs text-gray-500 dark:text-content-secondary mt-1">{{ store.installMessage }}</p>
@@ -31,7 +31,7 @@
           </p>
         </div>
         <div class="flex items-center gap-2">
-          <button @click="showSkipVersionConfirm = true" class="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer text-gray-700 dark:text-content-secondary">
+          <button @click="showSkipVersionConfirm = true" class="px-3 py-1.5 text-sm border border-gray-300 dark:border-surface-border rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer text-gray-700 dark:text-content-secondary">
             {{ t('updates.skipVersion') }}
           </button>
           <button @click="store.installAppUpdate()" :disabled="store.isInstallingApp" class="btn-primary">
@@ -39,8 +39,8 @@
           </button>
         </div>
       </div>
-      <div class="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
-        <p class="text-xs text-gray-400 dark:text-gray-500">{{ t('updates.offlineUpdateTip') }}</p>
+      <div class="mt-3 pt-3 border-t border-gray-100 dark:border-surface-border">
+        <p class="text-xs text-gray-400 dark:text-content-muted">{{ t('updates.offlineUpdateTip') }}</p>
         <a :href="githubReleaseUrl" target="_blank" class="inline-flex items-center gap-1 mt-1 text-xs text-primary-600 dark:text-primary-400 hover:underline">
           <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
           {{ t('updates.githubRelease') }}
@@ -68,7 +68,7 @@
         </button>
       </div>
       <div v-if="store.isInstallingHotUpdate" class="mt-3">
-        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+        <div class="w-full bg-gray-200 dark:bg-surface-hover rounded-full h-2.5">
           <div class="bg-primary-600 h-2.5 rounded-full transition-all" :style="{ width: store.hotUpdateProgress + '%' }"></div>
         </div>
         <p class="text-xs text-gray-500 dark:text-content-secondary mt-1">{{ store.hotUpdateMessage }}</p>
@@ -91,7 +91,7 @@
         </button>
       </div>
       <div class="space-y-3">
-        <div v-for="update in store.pluginUpdates" :key="update.plugin_id" class="flex items-center justify-between py-3 border-b border-gray-200 dark:border-gray-700 last:border-0">
+        <div v-for="update in store.pluginUpdates" :key="update.plugin_id" class="flex items-center justify-between py-3 border-b border-gray-200 dark:border-surface-border last:border-0">
           <div>
             <span class="font-medium text-gray-900 dark:text-content-primary">{{ update.plugin_name }}</span>
             <div class="text-sm text-gray-500 dark:text-content-secondary">
@@ -115,7 +115,7 @@
         </router-link>
       </div>
       <div class="space-y-3">
-        <div v-for="update in store.engineUpdates" :key="update.engine_id" class="flex items-center justify-between py-3 border-b border-gray-200 dark:border-gray-700 last:border-0">
+        <div v-for="update in store.engineUpdates" :key="update.engine_id" class="flex items-center justify-between py-3 border-b border-gray-200 dark:border-surface-border last:border-0">
           <div>
             <span class="font-medium text-gray-900 dark:text-content-primary">{{ update.engine_name }}</span>
             <div class="text-sm text-gray-500 dark:text-content-secondary">
@@ -162,12 +162,12 @@
         <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">
           {{ t('updates.updateHistory') }} ({{ store.updateHistory.length }})
         </h3>
-        <button @click="showClearHistoryConfirm = true" class="px-3 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer text-gray-700 dark:text-content-secondary">
+        <button @click="showClearHistoryConfirm = true" class="px-3 py-1 text-xs border border-gray-300 dark:border-surface-border rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer text-gray-700 dark:text-content-secondary">
           {{ t('updates.clearHistory') }}
         </button>
       </div>
       <div class="space-y-2 max-h-80 overflow-y-auto">
-        <div v-for="entry in store.updateHistory" :key="entry.id" class="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700 last:border-0">
+        <div v-for="entry in store.updateHistory" :key="entry.id" class="flex items-center justify-between py-2 border-b border-gray-100 dark:border-surface-border last:border-0">
           <div class="flex items-center gap-2">
             <span class="shrink-0 w-5 h-5 flex items-center justify-center rounded text-xs"
               :class="updateTypeClass(entry.update_type)">
@@ -257,7 +257,7 @@ function updateTypeClass(type: string): string {
     case 'plugin': return 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400'
     case 'engine': return 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
     case 'hot': return 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'
-    default: return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+    default: return 'bg-gray-100 text-gray-600 dark:bg-surface-hover dark:text-content-muted'
   }
 }
 
