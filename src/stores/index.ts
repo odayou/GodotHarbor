@@ -166,11 +166,21 @@ export const useBindingStore = defineStore('bindings', () => {
   ) => withLoading(async () => {
     await api.bindPlugin(projectId, pluginId, versionId, unitId, mountPath, subdirectory)
     await loadBindings(projectId)
+    const settings = await api.getSettings()
+    if (settings.auto_apply) {
+      const result = await api.applyChanges(projectId)
+      return result
+    }
   }, error, true)
 
   const unbindPlugin = (projectId: string, pluginId: string) => withLoading(async () => {
     await api.unbindPlugin(projectId, pluginId)
     await loadBindings(projectId)
+    const settings = await api.getSettings()
+    if (settings.auto_apply) {
+      const result = await api.applyChanges(projectId)
+      return result
+    }
   }, error)
 
   const applyChanges = (projectId: string) => withLoading(async () => {
@@ -195,7 +205,8 @@ export const useSettingsStore = defineStore('settings', () => {
     language: 'zh-CN',
     theme: 'light',
     auto_scan_on_startup: true,
-    sidebar_collapsed: false
+    sidebar_collapsed: false,
+    auto_apply: false
   })
   const { loading, withLoading } = useLoadingState()
   const error = ref<string | null>(null)

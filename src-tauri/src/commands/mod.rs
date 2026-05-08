@@ -35,7 +35,7 @@ fn get_config_storage(app: &AppHandle) -> Storage {
     Storage::new(get_config_dir(app))
 }
 
-fn get_storage(app: &AppHandle) -> Storage {
+pub fn get_storage(app: &AppHandle) -> Storage {
     Storage::new(get_data_dir(app))
 }
 
@@ -135,20 +135,303 @@ fn log_error(app: &AppHandle, action: &str, target: &str, error: &str) {
     }
 }
 
-#[tauri::command]
-pub fn get_settings(app: AppHandle) -> Result<Settings, String> {
-    let mut settings = load_settings(&app);
-    let mut need_save = false;
-    for mirror in &mut settings.engine_mirrors {
-        if mirror.id == "your-objectstorage" && mirror.enabled {
-            mirror.enabled = false;
-            mirror.name = "Your ObjectStorage (CN) - Unavailable".to_string();
-            need_save = true;
+fn backup_addons_dir(addons_dir: &std::path::Path, backup_file: &std::path::Path) -> Result<(), String> {
+    let file = std::fs::File::create(backup_file)
+        .map_err(|e| format!("创建备份文件失败: {}", e))?;
+    let mut zip = zip::ZipWriter::new(file);
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
+
+    let mut stack = vec![(addons_dir.to_path_buf(), String::new())];
+    while let Some((dir, prefix)) = stack.pop() {
+        let entries = std::fs::read_dir(&dir)
+            .map_err(|e| format!("读取目录失败: {}", e))?;
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = entry.file_name().to_string_lossy().to_string();
+            let entry_path = if prefix.is_empty() {
+                name.clone()
+            } else {
+                format!("{}/{}", prefix, name)
+            };
+            if path.is_dir() {
+                zip.add_directory(&entry_path, options)
+                    .map_err(|e| format!("写入目录条目失败: {}", e))?;
+                stack.push((path, entry_path));
+            } else {
+                let data = std::fs::read(&path)
+                    .map_err(|e| format!("读取文件失败: {}", e))?;
+                zip.start_file(&entry_path, options)
+                    .map_err(|e| format!("写入文件条目失败: {}", e))?;
+                zip.write_all(&data)
+                    .map_err(|e| format!("写入文件数据失败: {}", e))?;
+            }
         }
     }
-    if need_save {
-        let _ = save_settings_to_config(&app, &settings);
+    zip.finish().map_err(|e| format!("完成压缩失败: {}", e))?;
+    Ok(())
+}
+
+fn cleanup_old_backups(backup_dir: &std::path::Path, max_keep: usize) {
+    if let Ok(entries) = std::fs::read_dir(backup_dir) {
+        let mut backups: Vec<std::path::PathBuf> = entries
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| {
+                p.extension().map(|e| e == "zip").unwrap_or(false)
+                && p.file_name()
+                    .map(|n| n.to_string_lossy().starts_with("addons_backup_"))
+                    .unwrap_or(false)
+            })
+            .collect();
+        if backups.len() > max_keep {
+            backups.sort();
+            let to_remove = backups.len() - max_keep;
+            for old_file in backups.iter().take(to_remove) {
+                let _ = std::fs::remove_file(old_file);
+            }
+        }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AddonBackupInfo {
+    pub file_name: String,
+    pub file_path: String,
+    pub file_size: u64,
+    pub created_at: String,
+}
+
+#[tauri::command]
+pub fn list_addon_backups(app: AppHandle, project_id: String) -> Result<Vec<AddonBackupInfo>, String> {
+    let storage = get_storage(&app);
+    let projects: Vec<Project> = storage.load_or_default("projects.json");
+    let project = projects.iter()
+        .find(|p| p.project_id == project_id)
+        .ok_or_else(|| "未找到指定项目".to_string())?;
+
+    let data_dir = get_data_dir(&app);
+    let backup_dir = data_dir.join("backups").join(&project.name);
+
+    if !backup_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let mut backups = Vec::new();
+    let entries = std::fs::read_dir(&backup_dir)
+        .map_err(|e| format!("读取备份目录失败: {}", e))?;
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().map(|e| e == "zip").unwrap_or(false) {
+            let file_name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+            if !file_name.starts_with("addons_backup_") {
+                continue;
+            }
+            let file_size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+            let created_at = file_name
+                .strip_prefix("addons_backup_")
+                .and_then(|s| s.strip_suffix(".zip"))
+                .unwrap_or("unknown")
+                .replace("_", " ");
+            backups.push(AddonBackupInfo {
+                file_name,
+                file_path: path.to_string_lossy().to_string(),
+                file_size,
+                created_at,
+            });
+        }
+    }
+
+    backups.sort_by(|a, b| b.file_name.cmp(&a.file_name));
+    Ok(backups)
+}
+
+#[tauri::command]
+pub fn restore_addon_backup(app: AppHandle, project_id: String, backup_file: String) -> Result<(), String> {
+    let storage = get_storage(&app);
+    let projects: Vec<Project> = storage.load_or_default("projects.json");
+    let project = projects.iter()
+        .find(|p| p.project_id == project_id)
+        .ok_or_else(|| "未找到指定项目".to_string())?;
+
+    let addons_dir = std::path::Path::new(&project.path).join("addons");
+    let backup_path = std::path::Path::new(&backup_file);
+
+    if !backup_path.exists() {
+        return Err("备份文件不存在".to_string());
+    }
+
+    if addons_dir.exists() {
+        std::fs::remove_dir_all(&addons_dir)
+            .map_err(|e| format!("删除当前 addons 目录失败: {}", e))?;
+    }
+
+    let file = std::fs::File::open(backup_path)
+        .map_err(|e| format!("打开备份文件失败: {}", e))?;
+    let mut archive = zip::ZipArchive::new(file)
+        .map_err(|e| format!("读取备份文件失败: {}", e))?;
+
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i)
+            .map_err(|e| format!("读取压缩条目失败: {}", e))?;
+        let out_path = addons_dir.join(entry.name());
+        if entry.is_dir() {
+            std::fs::create_dir_all(&out_path)
+                .map_err(|e| format!("创建目录失败: {}", e))?;
+        } else {
+            if let Some(parent) = out_path.parent() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|e| format!("创建父目录失败: {}", e))?;
+            }
+            let mut out_file = std::fs::File::create(&out_path)
+                .map_err(|e| format!("创建文件失败: {}", e))?;
+            std::io::copy(&mut entry, &mut out_file)
+                .map_err(|e| format!("写入文件失败: {}", e))?;
+        }
+    }
+
+    log_operation(&app, "restore_addon_backup", &project_id,
+        &format!("从备份恢复 addons: {}", backup_path.to_string_lossy()));
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn save_as_template(app: AppHandle, project_id: String, template_name: String) -> Result<ProjectTemplate, String> {
+    let storage = get_storage(&app);
+    let projects: Vec<Project> = storage.load_or_default("projects.json");
+    let _project = projects.iter()
+        .find(|p| p.project_id == project_id)
+        .ok_or_else(|| "未找到指定项目".to_string())?;
+
+    let bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
+    let project_bindings: Vec<&ProjectBinding> = bindings.iter()
+        .filter(|b| b.project_id == project_id)
+        .collect();
+
+    let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+
+    let template_bindings: Vec<TemplateBinding> = project_bindings.iter().map(|b| {
+        let plugin = plugins.iter().find(|p| p.plugin_id == b.plugin_id);
+        let version = plugin.and_then(|p| p.versions.iter().find(|v| v.version_id == b.version_id));
+        let unit = version.and_then(|v| v.units.iter().find(|u| u.unit_id == b.unit_id));
+        TemplateBinding {
+            plugin_id: b.plugin_id.clone(),
+            plugin_name: plugin.map(|p| p.name.clone()).unwrap_or_default(),
+            version_id: b.version_id.clone(),
+            unit_id: b.unit_id.clone(),
+            unit_name: unit.map(|u| u.name.clone()).unwrap_or_default(),
+            mount_path: b.mount_path.clone(),
+            subdirectory: b.subdirectory.clone(),
+        }
+    }).collect();
+
+    let template = ProjectTemplate {
+        template_id: uuid::Uuid::new_v4().to_string(),
+        name: template_name.clone(),
+        bindings: template_bindings,
+        created_at: chrono::Utc::now().to_rfc3339(),
+    };
+
+    let data_dir = get_data_dir(&app);
+    let templates_file = data_dir.join("templates.json");
+    let mut templates: Vec<ProjectTemplate> = if templates_file.exists() {
+        let file = std::fs::read_to_string(&templates_file)
+            .map_err(|e| format!("读取模板文件失败: {}", e))?;
+        serde_json::from_str(&file).unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+    templates.push(template.clone());
+    let json = serde_json::to_string_pretty(&templates)
+        .map_err(|e| format!("序列化模板失败: {}", e))?;
+    std::fs::write(&templates_file, json)
+        .map_err(|e| format!("保存模板文件失败: {}", e))?;
+
+    log_operation(&app, "save_as_template", &project_id,
+        &format!("保存为模板: {} ({} 个绑定)", template_name, template.bindings.len()));
+
+    Ok(template)
+}
+
+#[tauri::command]
+pub fn list_templates(app: AppHandle) -> Result<Vec<ProjectTemplate>, String> {
+    let data_dir = get_data_dir(&app);
+    let templates_file = data_dir.join("templates.json");
+    if !templates_file.exists() {
+        return Ok(Vec::new());
+    }
+    let file = std::fs::read_to_string(&templates_file)
+        .map_err(|e| format!("读取模板文件失败: {}", e))?;
+    let templates: Vec<ProjectTemplate> = serde_json::from_str(&file).unwrap_or_default();
+    Ok(templates)
+}
+
+#[tauri::command]
+pub fn delete_template(app: AppHandle, template_id: String) -> Result<(), String> {
+    let data_dir = get_data_dir(&app);
+    let templates_file = data_dir.join("templates.json");
+    if !templates_file.exists() {
+        return Ok(());
+    }
+    let file = std::fs::read_to_string(&templates_file)
+        .map_err(|e| format!("读取模板文件失败: {}", e))?;
+    let mut templates: Vec<ProjectTemplate> = serde_json::from_str(&file).unwrap_or_default();
+    templates.retain(|t| t.template_id != template_id);
+    let json = serde_json::to_string_pretty(&templates)
+        .map_err(|e| format!("序列化模板失败: {}", e))?;
+    std::fs::write(&templates_file, json)
+        .map_err(|e| format!("保存模板文件失败: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn apply_template_to_project(app: AppHandle, project_id: String, template_id: String) -> Result<ApplyResult, String> {
+    let data_dir = get_data_dir(&app);
+    let templates_file = data_dir.join("templates.json");
+    let file = std::fs::read_to_string(&templates_file)
+        .map_err(|e| format!("读取模板文件失败: {}", e))?;
+    let templates: Vec<ProjectTemplate> = serde_json::from_str(&file).unwrap_or_default();
+    let template = templates.iter()
+        .find(|t| t.template_id == template_id)
+        .ok_or_else(|| "未找到指定模板".to_string())?;
+
+    let storage = get_storage(&app);
+    let mut bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
+
+    for tb in &template.bindings {
+        if let Some(existing) = bindings.iter_mut().find(|b| b.project_id == project_id && b.plugin_id == tb.plugin_id) {
+            existing.version_id = tb.version_id.clone();
+            existing.unit_id = tb.unit_id.clone();
+            existing.mount_path = tb.mount_path.clone();
+            existing.subdirectory = tb.subdirectory.clone();
+        } else {
+            bindings.push(ProjectBinding {
+                project_id: project_id.clone(),
+                plugin_id: tb.plugin_id.clone(),
+                version_id: tb.version_id.clone(),
+                unit_id: tb.unit_id.clone(),
+                mount_path: tb.mount_path.clone(),
+                is_healthy: Some(true),
+                subdirectory: tb.subdirectory.clone(),
+                created_at: chrono::Utc::now(),
+            });
+        }
+    }
+
+    let json = serde_json::to_string_pretty(&bindings)
+        .map_err(|e| format!("序列化绑定失败: {}", e))?;
+    let data_dir = get_data_dir(&app);
+    std::fs::write(data_dir.join("bindings.json"), json)
+        .map_err(|e| format!("保存绑定文件失败: {}", e))?;
+
+    apply_changes(app, project_id)
+}
+
+#[tauri::command]
+pub fn get_settings(app: AppHandle) -> Result<Settings, String> {
+    let settings = load_settings(&app);
     Ok(settings)
 }
 
@@ -1175,7 +1458,30 @@ pub fn apply_changes(app: AppHandle, project_id: String) -> Result<ApplyResult, 
     let data_dir = get_data_dir(&app);
     let plugin_base_path = data_dir.join("plugins");
 
-    let current_bindings: Vec<ProjectBinding> = Vec::new();
+    let addons_dir = std::path::Path::new(&project.path).join("addons");
+    if addons_dir.exists() {
+        let backup_dir = data_dir.join("backups").join(&project.name);
+        if let Err(e) = std::fs::create_dir_all(&backup_dir) {
+            eprintln!("Failed to create backup dir: {}", e);
+        } else {
+            let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+            let backup_file = backup_dir.join(format!("addons_backup_{}.zip", timestamp));
+            if let Err(e) = backup_addons_dir(&addons_dir, &backup_file) {
+                eprintln!("Failed to backup addons: {}", e);
+            } else {
+                cleanup_old_backups(&backup_dir, 5);
+            }
+        }
+    }
+
+    let applied_dir = data_dir.join("applied_bindings");
+    let applied_file = applied_dir.join(format!("{}.json", project_id));
+    let current_bindings: Vec<ProjectBinding> = if applied_file.exists() {
+        let applied_storage = Storage::new(applied_dir.clone());
+        applied_storage.load_or_default::<Vec<ProjectBinding>>(&format!("{}.json", project_id))
+    } else {
+        Vec::new()
+    };
 
     let result = linker.apply_bindings(
         &project.path,
@@ -1183,6 +1489,16 @@ pub fn apply_changes(app: AppHandle, project_id: String) -> Result<ApplyResult, 
         &desired_bindings,
         &plugin_base_path.to_string_lossy()
     ).map_err(|e| format!("应用变更失败: {}", e))?;
+
+    if result.success {
+        if let Err(e) = std::fs::create_dir_all(&applied_dir) {
+            eprintln!("Failed to create applied_bindings dir: {}", e);
+        }
+        let applied_storage = Storage::new(applied_dir);
+        if let Err(e) = applied_storage.save(&format!("{}.json", project_id), &desired_bindings) {
+            eprintln!("Failed to save applied bindings: {}", e);
+        }
+    }
 
     log_operation(&app, "apply_changes", &project_id,
         &format!("应用变更完成: 创建 {} 项, 移除 {} 项, 错误 {} 项",
@@ -1849,7 +2165,30 @@ const APP_GITHUB_OWNER: &str = "odayou";
 const APP_GITHUB_REPO: &str = "GodotHarbor";
 
 #[tauri::command]
-pub async fn check_app_update(app: AppHandle) -> Result<Option<AppUpdateInfo>, String> {
+pub async fn check_app_update(app: AppHandle, force_refresh: Option<bool>) -> Result<Option<AppUpdateInfo>, String> {
+    let force = force_refresh.unwrap_or(false);
+    let cache_version: u32 = 1;
+
+    let cache_dir = get_data_dir(&app).join("cache");
+    let cache_file = cache_dir.join("app_update.json");
+
+    if !force && cache_file.exists() {
+        if let Ok(content) = fs::read_to_string(&cache_file) {
+            if let Ok(cached) = serde_json::from_str::<crate::models::CachedAppUpdate>(&content) {
+                if cached.cache_version == cache_version {
+                    if let Ok(cached_time) = chrono::DateTime::parse_from_rfc3339(&cached.cached_at) {
+                        let elapsed = chrono::Utc::now().signed_duration_since(cached_time.with_timezone(&chrono::Utc));
+                        if elapsed.num_minutes() < 30 {
+                            return Ok(cached.update_info);
+                        }
+                    }
+                } else {
+                    let _ = fs::remove_file(&cache_file);
+                }
+            }
+        }
+    }
+
     let current_version = app.config().version.clone().unwrap_or_default();
 
     let mut settings = load_settings(&app);
@@ -1866,9 +2205,10 @@ pub async fn check_app_update(app: AppHandle) -> Result<Option<AppUpdateInfo>, S
 
     let client = create_http_client(Some(std::time::Duration::from_secs(15)))?;
 
+    let github_base = crate::utils::get_github_api_base(&app);
     let api_url = format!(
-        "https://api.github.com/repos/{}/{}/releases/latest",
-        APP_GITHUB_OWNER, APP_GITHUB_REPO
+        "{}/repos/{}/{}/releases/latest",
+        github_base, APP_GITHUB_OWNER, APP_GITHUB_REPO
     );
 
     let resp = client.get(&api_url).send().await
@@ -1933,7 +2273,7 @@ pub async fn check_app_update(app: AppHandle) -> Result<Option<AppUpdateInfo>, S
         }
     }
 
-    Ok(Some(AppUpdateInfo {
+    let result = Ok(Some(AppUpdateInfo {
         current_version,
         latest_version,
         release_notes,
@@ -1941,17 +2281,42 @@ pub async fn check_app_update(app: AppHandle) -> Result<Option<AppUpdateInfo>, S
         download_size,
         is_hot_update: false,
         download_url,
-    }))
+    }));
+
+    if let Ok(ref info) = result {
+        let _ = fs::create_dir_all(&cache_dir);
+        let cached = crate::models::CachedAppUpdate {
+            cache_version,
+            cached_at: chrono::Utc::now().to_rfc3339(),
+            update_info: info.clone(),
+        };
+        if let Ok(json) = serde_json::to_string_pretty(&cached) {
+            let _ = fs::write(&cache_file, json);
+        }
+    }
+
+    result
 }
 
 #[tauri::command]
 pub async fn install_app_update(app: AppHandle) -> Result<(), String> {
-    let update_info = check_app_update(app.clone()).await
+    let update_info = check_app_update(app.clone(), Some(true)).await
         .map_err(|e| format!("检查更新失败: {}", e))?
         .ok_or("没有可用的更新".to_string())?;
 
     let download_url = update_info.download_url.clone()
         .ok_or("未找到下载链接".to_string())?;
+
+    let download_url = {
+        let storage = get_storage(&app);
+        let settings: Settings = storage.load_or_default("settings.json");
+        if !settings.github_api_proxy.is_empty() {
+            download_url.replace("https://github.com/odayou/GodotHarbor/releases/download", 
+                &format!("https://gitee.com/odayou/godot-harbor/releases/download"))
+        } else {
+            download_url
+        }
+    };
 
     let temp_dir = std::env::temp_dir().join("godot-harbor-update");
     fs::create_dir_all(&temp_dir)
@@ -2280,54 +2645,29 @@ pub fn skip_app_version(app: AppHandle, version: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn check_all_updates(app: AppHandle) -> Result<UpdateCheckResult, String> {
-    let _current_version = app.config().version.clone().unwrap_or_default();
+pub async fn check_all_updates(app: AppHandle, force_refresh: Option<bool>) -> Result<UpdateCheckResult, String> {
+    let force = force_refresh.unwrap_or(false);
 
-    let storage = get_storage(&app);
-    let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
-    let git_plugins: Vec<Plugin> = plugins.into_iter()
-        .filter(|p| p.source.source_type == SourceType::Git)
-        .collect();
+    let cache_dir = get_data_dir(&app).join("cache");
+    let rate_limit_file = cache_dir.join("last_update_check.txt");
 
-    let client = create_http_client(Some(std::time::Duration::from_secs(10)))?;
-
-    let futures = git_plugins.iter().map(|plugin| {
-        let client = client.clone();
-        let url = plugin.source.url.clone();
-        async move {
-            if let Some((owner, repo)) = parse_github_url(&url) {
-                let api_url = format!("https://api.github.com/repos/{}/{}/releases/latest", owner, repo);
-                if let Ok(resp) = client.get(&api_url).send().await {
-                    if resp.status().is_success() {
-                        if let Ok(json) = resp.json::<serde_json::Value>().await {
-                            if let Some(tag) = json.get("tag_name").and_then(|t| t.as_str()) {
-                                let latest = tag.trim_start_matches('v');
-                                let current = plugin.versions.first()
-                                    .map(|v| v.version.as_str())
-                                    .unwrap_or("0.0.0");
-                                if latest != current {
-                                    return Some(PluginUpdateInfo {
-                                        plugin_id: plugin.plugin_id.clone(),
-                                        plugin_name: plugin.name.clone(),
-                                        current_version: current.to_string(),
-                                        latest_version: latest.to_string(),
-                                        update_available: true,
-                                        release_notes: String::new(),
-                                        source_url: url.clone(),
-                                    });
-                                }
-                            }
-                        }
-                    }
+    if !force && rate_limit_file.exists() {
+        if let Ok(content) = fs::read_to_string(&rate_limit_file) {
+            if let Ok(last_time) = chrono::DateTime::parse_from_rfc3339(content.trim()) {
+                let elapsed = chrono::Utc::now().signed_duration_since(last_time.with_timezone(&chrono::Utc));
+                if elapsed.num_minutes() < 5 {
+                    return Err("更新检查过于频繁，请稍后再试".to_string());
                 }
             }
-            None
         }
-    });
+    }
 
-    let results: Vec<Option<PluginUpdateInfo>> = futures::future::join_all(futures).await;
-    let plugin_updates: Vec<PluginUpdateInfo> = results.into_iter().filter_map(|r| r).collect();
+    let _ = fs::create_dir_all(&cache_dir);
+    let _ = fs::write(&rate_limit_file, chrono::Utc::now().to_rfc3339());
 
+    let plugin_updates = check_plugin_updates(app.clone(), Some(force)).await.unwrap_or_default();
+
+    let storage = get_storage(&app);
     let engines: Vec<Engine> = storage.load_or_default("engines.json");
     let local_engines: Vec<crate::version_checker::LocalEngineVersion> = engines.iter().map(|e| {
         crate::version_checker::LocalEngineVersion {
@@ -2339,28 +2679,23 @@ pub async fn check_all_updates(app: AppHandle) -> Result<UpdateCheckResult, Stri
     }).collect();
 
     let data_dir = get_data_dir(&app);
-    let checker = crate::version_checker::VersionChecker::new(data_dir);
+    let github_base = crate::utils::get_github_api_base(&app);
+    let checker = crate::version_checker::VersionChecker::new(data_dir)
+        .with_github_api_base(github_base);
     let engine_result = checker.check_for_updates(local_engines).await.ok();
     let engine_updates = engine_result.map(|r| r.updates_available).unwrap_or_default();
 
+    let app_update = check_app_update(app.clone(), Some(force)).await.ok().flatten();
+
+    let hot_update = check_hot_update(app.clone(), None).await.ok().flatten();
+
     Ok(UpdateCheckResult {
-        app_update: None,
-        hot_update: None,
+        app_update,
+        hot_update,
         plugin_updates,
         engine_updates,
         checked_at: chrono::Utc::now().to_rfc3339(),
     })
-}
-
-fn parse_github_url(url: &str) -> Option<(String, String)> {
-    let url = url.trim_end_matches('/');
-    if url.contains("github.com") {
-        let parts: Vec<&str> = url.split("github.com/").last()?.split('/').collect();
-        if parts.len() >= 2 {
-            return Some((parts[0].to_string(), parts[1].to_string()));
-        }
-    }
-    None
 }
 
 #[tauri::command]
@@ -2587,6 +2922,25 @@ pub fn restore_data(app: AppHandle, backup_path: String) -> Result<String, Strin
     let backup_info_path = backup_dir.join("backup_info.json");
     if !backup_info_path.exists() {
         return Err("无效的备份目录，缺少 backup_info.json".to_string());
+    }
+
+    let pre_restore_backup_dir = data_dir.join("restore_backup");
+    if let Err(e) = std::fs::create_dir_all(&pre_restore_backup_dir) {
+        eprintln!("Failed to create pre-restore backup dir: {}", e);
+    } else {
+        let files = DATA_FILES;
+        for filename in files {
+            let src = data_dir.join(filename);
+            if src.exists() {
+                let dst = pre_restore_backup_dir.join(filename);
+                let _ = std::fs::copy(&src, &dst);
+            }
+        }
+        let plugins_src = data_dir.join("plugins");
+        if plugins_src.exists() {
+            let plugins_dst = pre_restore_backup_dir.join("plugins");
+            let _ = copy_dir_all(&plugins_src, &plugins_dst);
+        }
     }
 
     let files = DATA_FILES;
@@ -2827,6 +3181,7 @@ pub async fn check_plugin_updates(app: AppHandle, force_refresh: Option<bool>) -
     let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
 
     let client = create_http_client(Some(std::time::Duration::from_secs(10)))?;
+    let github_base = crate::utils::get_github_api_base(&app);
 
     let futures = plugins.iter().map(|plugin| {
         let client = client.clone();
@@ -2837,6 +3192,7 @@ pub async fn check_plugin_updates(app: AppHandle, force_refresh: Option<bool>) -
             .unwrap_or_else(|| "0.0.0".to_string());
         let source_type = plugin.source.source_type.clone();
         let url = plugin.source.url.clone();
+        let github_base = github_base.clone();
 
         async move {
             let mut latest_version = current_version.clone();
@@ -2846,6 +3202,7 @@ pub async fn check_plugin_updates(app: AppHandle, force_refresh: Option<bool>) -
                 let api_url = url.trim_end_matches(".git")
                     .replace("git@github.com:", "https://api.github.com/repos/")
                     .replace("https://github.com/", "https://api.github.com/repos/");
+                let api_url = api_url.replace("https://api.github.com", &github_base);
                 let releases_url = format!("{}/releases/latest", api_url);
 
                 if let Ok(resp) = client.get(&releases_url).send().await {
@@ -3039,7 +3396,8 @@ pub async fn search_asset_library(app: AppHandle, params: AssetLibrarySearchPara
         url_params.push("reverse".to_string());
     }
 
-    let url = format!("https://godotengine.org/asset-library/api/asset?{}", url_params.join("&"));
+    let asset_lib_base = crate::utils::get_asset_library_base(&app);
+    let url = format!("{}/asset?{}", asset_lib_base, url_params.join("&"));
 
     let client = create_http_client(None)?;
 
@@ -3063,7 +3421,8 @@ pub async fn search_asset_library(app: AppHandle, params: AssetLibrarySearchPara
 
 #[tauri::command]
 pub async fn get_asset_library_configure(app: AppHandle) -> Result<serde_json::Value, String> {
-    let url = "https://godotengine.org/asset-library/api/configure?type=any";
+    let asset_lib_base = crate::utils::get_asset_library_base(&app);
+    let url = format!("{}/configure?type=any", asset_lib_base);
 
     let client = create_http_client(None)?;
 
@@ -3083,9 +3442,10 @@ pub async fn get_asset_library_configure(app: AppHandle) -> Result<serde_json::V
 
 #[tauri::command]
 pub async fn get_asset_detail(app: AppHandle, asset_id: String) -> Result<serde_json::Value, String> {
+    let asset_lib_base = crate::utils::get_asset_library_base(&app);
     let url = format!(
-        "https://godotengine.org/asset-library/api/asset/{}",
-        asset_id
+        "{}/asset/{}",
+        asset_lib_base, asset_id
     );
 
     let client = create_http_client(None)?;
@@ -3106,9 +3466,10 @@ pub async fn get_asset_detail(app: AppHandle, asset_id: String) -> Result<serde_
 
 #[tauri::command]
 pub async fn import_from_asset_library(app: AppHandle, asset_id: String) -> Result<Plugin, String> {
+    let asset_lib_base = crate::utils::get_asset_library_base(&app);
     let url = format!(
-        "https://godotengine.org/asset-library/api/asset/{}",
-        asset_id
+        "{}/asset/{}",
+        asset_lib_base, asset_id
     );
 
     let client = create_http_client(None)?;
@@ -3248,9 +3609,10 @@ pub async fn import_from_asset_library_with_progress(app: AppHandle, asset_id: S
         message: "正在获取资产信息...".to_string(),
     });
 
+    let asset_lib_base = crate::utils::get_asset_library_base(&app);
     let url = format!(
-        "https://godotengine.org/asset-library/api/asset/{}",
-        asset_id
+        "{}/asset/{}",
+        asset_lib_base, asset_id
     );
 
     let client = create_http_client(None)?;
@@ -3309,21 +3671,28 @@ pub async fn import_from_asset_library_with_progress(app: AppHandle, asset_id: S
         .map_err(|e| format!("下载资源失败: {}", e))?;
 
     let total_size = resp.content_length().unwrap_or(0);
-    let bytes = resp.bytes().await
-        .map_err(|e| format!("读取下载数据失败: {}", e))?;
+    let mut downloaded: u64 = 0;
+    let mut file = std::fs::File::create(&temp_zip)
+        .map_err(|e| format!("创建临时文件失败: {}", e))?;
+    let mut stream = resp.bytes_stream();
+    use futures::StreamExt;
 
-    if total_size > 0 {
-        let progress = 0.7f64;
-        let _ = app.emit("asset-import-progress", AssetImportProgressPayload {
-            asset_id: asset_id.clone(),
-            stage: "downloading".to_string(),
-            progress,
-            message: format!("正在下载 {} ({:.0}%)...", asset_name, progress * 100.0),
-        });
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| format!("读取下载数据失败: {}", e))?;
+        std::io::Write::write_all(&mut file, &chunk)
+            .map_err(|e| format!("写入文件失败: {}", e))?;
+        downloaded += chunk.len() as u64;
+        if total_size > 0 {
+            let progress = 0.1 + 0.6 * (downloaded as f64 / total_size as f64);
+            let _ = app.emit("asset-import-progress", AssetImportProgressPayload {
+                asset_id: asset_id.clone(),
+                stage: "downloading".to_string(),
+                progress,
+                message: format!("正在下载 {} ({:.0}/{:.0} KB)...", asset_name, downloaded as f64 / 1024.0, total_size as f64 / 1024.0),
+            });
+        }
     }
-
-    fs::write(&temp_zip, &bytes)
-        .map_err(|e| format!("写入文件失败: {}", e))?;
+    drop(file);
 
     let _ = app.emit("asset-import-progress", AssetImportProgressPayload {
         asset_id: asset_id.clone(),
@@ -3674,7 +4043,9 @@ pub async fn check_godot_updates(app: AppHandle) -> Result<crate::version_checke
 
     let data_dir = get_data_dir(&app);
     let cache_dir = data_dir.join("cache");
-    let checker = crate::version_checker::VersionChecker::new(cache_dir);
+    let github_base = crate::utils::get_github_api_base(&app);
+    let checker = crate::version_checker::VersionChecker::new(cache_dir)
+        .with_github_api_base(github_base);
 
     let result = checker.check_for_updates(local_engines).await?;
 

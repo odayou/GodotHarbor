@@ -36,6 +36,10 @@ const routes: RouteRecordRaw[] = [
     path: '/updates',
     name: 'updates',
     component: () => import('@/views/Updates.vue')
+  },
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: '/'
   }
 ]
 

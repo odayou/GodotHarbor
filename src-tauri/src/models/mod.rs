@@ -303,12 +303,18 @@ pub struct Settings {
     pub selected_mirror_id: String,
     #[serde(default)]
     pub known_engine_paths: Vec<String>,
+    #[serde(default)]
+    pub auto_apply: bool,
+    #[serde(default)]
+    pub github_api_proxy: String,
+    #[serde(default)]
+    pub asset_library_mirror: String,
 }
 
 fn default_true() -> bool { true }
 fn default_four() -> u32 { 4 }
 fn default_engine_mirrors() -> Vec<EngineMirrorConfig> {
-    vec![EngineMirrorConfig::official(), EngineMirrorConfig::your_objectstorage()]
+    vec![EngineMirrorConfig::official()]
 }
 
 impl Default for Settings {
@@ -331,6 +337,9 @@ impl Default for Settings {
             custom_data_dir: String::new(),
             selected_mirror_id: String::new(),
             known_engine_paths: Vec::new(),
+            auto_apply: false,
+            github_api_proxy: String::new(),
+            asset_library_mirror: String::new(),
         }
     }
 }
@@ -594,6 +603,14 @@ pub struct CachedPluginUpdates {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CachedAppUpdate {
+    #[serde(default)]
+    pub cache_version: u32,
+    pub cached_at: String,
+    pub update_info: Option<AppUpdateInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StoragePaths {
     pub app_data_dir: String,
     pub plugins_dir: String,
@@ -604,4 +621,23 @@ pub struct StoragePaths {
     pub settings_file: String,
     pub projects_file: String,
     pub engines_file: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TemplateBinding {
+    pub plugin_id: String,
+    pub plugin_name: String,
+    pub version_id: String,
+    pub unit_id: String,
+    pub unit_name: String,
+    pub mount_path: String,
+    pub subdirectory: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectTemplate {
+    pub template_id: String,
+    pub name: String,
+    pub bindings: Vec<TemplateBinding>,
+    pub created_at: String,
 }

@@ -14,7 +14,7 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 const toast = useToast()
 const { t, locale } = useI18n()
 const { setTheme, initTheme } = useTheme()
-const settings = ref<Settings>({ scan_directories: [], mount_strategy: 'Symlink', language: 'zh-CN', theme: 'system', auto_scan_on_startup: true, auto_discover_engines: true, auto_check_plugin_updates: false, auto_check_app_updates: true, auto_check_engine_updates: true, update_check_interval_hours: 4, skipped_app_version: '' })
+const settings = ref<Settings>({ scan_directories: [], mount_strategy: 'Symlink', language: 'zh-CN', theme: 'system', auto_scan_on_startup: true, auto_discover_engines: true, auto_check_plugin_updates: false, auto_check_app_updates: true, auto_check_engine_updates: true, update_check_interval_hours: 4, skipped_app_version: '', auto_apply: false, github_api_proxy: '', asset_library_mirror: '' })
 const originalSettings = ref<string>('')
 const isLoading = ref(false)
 const isDirty = computed(() => {
@@ -22,6 +22,24 @@ const isDirty = computed(() => {
 })
 const showUnsavedDialog = ref(false)
 let pendingNavigation: (() => void) | null = null
+
+watch(() => settings.value.theme, async (newTheme) => {
+  try {
+    const current = await api.getSettings()
+    current.theme = newTheme
+    await api.saveSettings(current)
+    originalSettings.value = JSON.stringify(settings.value)
+  } catch {}
+})
+
+watch(() => settings.value.language, async (newLang) => {
+  try {
+    const current = await api.getSettings()
+    current.language = newLang
+    await api.saveSettings(current)
+    originalSettings.value = JSON.stringify(settings.value)
+  } catch {}
+})
 
 const logs = ref<LogEntry[]>([])
 const showLogs = ref(false)
@@ -75,7 +93,7 @@ const loadSettings = async () => {
   isLoading.value = true
   try {
     const result = await api.getSettings()
-    settings.value = { scan_directories: result.scan_directories || [], mount_strategy: result.mount_strategy || 'Symlink', language: result.language || 'zh-CN', theme: result.theme || 'system', auto_scan_on_startup: result.auto_scan_on_startup ?? true, auto_discover_engines: result.auto_discover_engines ?? true, auto_check_plugin_updates: result.auto_check_plugin_updates ?? false, auto_check_app_updates: result.auto_check_app_updates ?? true, auto_check_engine_updates: result.auto_check_engine_updates ?? true, update_check_interval_hours: result.update_check_interval_hours ?? 4, skipped_app_version: result.skipped_app_version || '' }
+    settings.value = { scan_directories: result.scan_directories || [], mount_strategy: result.mount_strategy || 'Symlink', language: result.language || 'zh-CN', theme: result.theme || 'system', auto_scan_on_startup: result.auto_scan_on_startup ?? true, auto_discover_engines: result.auto_discover_engines ?? true, auto_check_plugin_updates: result.auto_check_plugin_updates ?? false, auto_check_app_updates: result.auto_check_app_updates ?? true, auto_check_engine_updates: result.auto_check_engine_updates ?? true, update_check_interval_hours: result.update_check_interval_hours ?? 4, skipped_app_version: result.skipped_app_version || '', auto_apply: result.auto_apply ?? false, github_api_proxy: result.github_api_proxy || '', asset_library_mirror: result.asset_library_mirror || '' }
     const localStorageLang = localStorage.getItem('godotharbor-language')
     if (localStorageLang && localStorageLang !== settings.value.language) {
       settings.value.language = localStorageLang
@@ -495,6 +513,11 @@ const toggleMirrorEnabled = (mirrorId: string) => {
               <input type="checkbox" v-model="settings.auto_discover_engines" class="w-4 h-4 text-primary-600 rounded" />
               <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.autoDiscoverEngines') }}</span>
             </label>
+            <label class="flex items-center gap-3 cursor-pointer">
+              <input type="checkbox" v-model="settings.auto_apply" class="w-4 h-4 text-primary-600 rounded" />
+              <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.autoApply') }}</span>
+            </label>
+            <p v-if="settings.auto_apply" class="text-xs text-gray-500 dark:text-gray-400 ml-7">{{ t('settings.autoApplyDesc') }}</p>
           </div>
         </div>
       </div>
@@ -614,6 +637,29 @@ const toggleMirrorEnabled = (mirrorId: string) => {
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('settings.engineMirror.title') }}</h2>
           <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ t('settings.engineMirror.desc') }}</p>
+
+          <div class="mb-5 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.networkProxy.githubApiProxy') }}</label>
+            <input
+              v-model="settings.github_api_proxy"
+              type="text"
+              :placeholder="t('settings.networkProxy.githubApiProxyPlaceholder')"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+            />
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ t('settings.networkProxy.githubApiProxyHint') }}</p>
+          </div>
+
+          <div class="mb-5 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t('settings.networkProxy.assetLibraryMirror') }}</label>
+            <input
+              v-model="settings.asset_library_mirror"
+              type="text"
+              :placeholder="t('settings.networkProxy.assetLibraryMirrorPlaceholder')"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+            />
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ t('settings.networkProxy.assetLibraryMirrorHint') }}</p>
+          </div>
+
           <div class="space-y-3">
             <div v-for="mirror in (settings.engine_mirrors || [])" :key="mirror.id"
               class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-600"

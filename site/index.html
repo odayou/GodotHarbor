@@ -257,32 +257,6 @@
       color: var(--text-muted);
       margin-bottom: 20px;
     }
-    .newsletter-form {
-      display: flex;
-      gap: 8px;
-      max-width: 440px;
-    }
-    .newsletter-form input {
-      flex: 1;
-      padding: 9px 14px;
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      font-size: 0.875rem;
-      background: #fff;
-      color: var(--text);
-      outline: none;
-      transition: border-color 0.15s;
-    }
-    .newsletter-form input:focus { border-color: var(--accent); }
-    .newsletter-form input::placeholder { color: var(--text-light); }
-    .newsletter-success {
-      display: none;
-      color: var(--accent);
-      font-size: 0.875rem;
-      font-weight: 600;
-      padding-top: 4px;
-    }
-
     /* ── Footer ── */
     footer {
       border-top: 1px solid var(--border);
@@ -307,8 +281,6 @@
       .features-grid { grid-template-columns: 1fr; }
       .download-grid { grid-template-columns: 1fr; }
       .screenshot-item { width: 320px; }
-      .newsletter { padding: 24px; }
-      .newsletter-form { flex-direction: column; }
       .nav-links { gap: 16px; }
       .footer-inner { flex-direction: column; gap: 12px; text-align: center; }
     }
@@ -452,13 +424,12 @@
       </div>
 
       <div class="newsletter">
-        <h3>订阅更新通知</h3>
-        <p>新版本发布时收到邮件提醒，不打扰，不推销。</p>
-        <form class="newsletter-form" id="newsletter-form">
-          <input type="email" placeholder="your@email.com" required id="newsletter-email">
-          <button type="submit" class="btn btn-primary">订阅</button>
-        </form>
-        <div class="newsletter-success" id="newsletter-success">✓ 订阅成功，感谢关注！</div>
+        <h3>关注更新</h3>
+        <p>在 GitHub 上 Watch 本仓库，新版本发布时自动收到通知。不打扰，不推销。</p>
+        <a href="https://github.com/odayou/GodotHarbor" target="_blank" rel="noopener" class="btn btn-primary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+          前往 GitHub Watch
+        </a>
       </div>
     </section>
   </div>
@@ -475,30 +446,6 @@
       </div>
     </div>
   </footer>
-
-  <script>
-    (function() {
-      var form = document.getElementById('newsletter-form');
-      var successEl = document.getElementById('newsletter-success');
-      form.addEventListener('submit', function(e) {
-        e.preventDefault();
-        var email = document.getElementById('newsletter-email').value;
-        if (!email) return;
-        fetch('https://buttondown.com/api/emails/embed-subscribe/godot-harbor', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email })
-        }).then(function() {
-          form.style.display = 'none';
-          successEl.style.display = 'block';
-        }).catch(function() {
-          successEl.textContent = '订阅失败，请稍后重试';
-          successEl.style.display = 'block';
-          successEl.style.color = '#a04040';
-        });
-      });
-    })();
-  </script>
 
 </body>
 </html>

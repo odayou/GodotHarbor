@@ -8,7 +8,9 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
 import { useDialogEscape } from '@/composables/useDialogEscape'
+import { isOnline } from '@/composables/useNetworkStatus'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import SkeletonList from '@/components/SkeletonList.vue'
 
 const toast = useToast()
 const { t } = useI18n()
@@ -372,6 +374,10 @@ const launchEngine = async (engineId: string) => {
 }
 
 const downloadEngineFromUrl = async () => {
+  if (!isOnline.value) {
+    toast.warning(t('common.offlineNotice'))
+    return
+  }
   if (!engineUrl.value) {
     toast.warning(t('engines.urlDownload.enterUrl'))
     return
@@ -486,6 +492,10 @@ const fetchRemoteVersions = async (forceRefresh: boolean = false) => {
 }
 
 const startDownload = async (version: RemoteEngineVersion) => {
+  if (!isOnline.value) {
+    toast.warning(t('common.offlineNotice'))
+    return
+  }
   const dlKey = `${version.version}_${version.variant}`
   if (activeDownloads.value.has(dlKey)) {
     toast.info(t('engines.download.alreadyDownloading'))
@@ -694,8 +704,8 @@ const initCollapsedGroups = () => {
     </div>
     </div>
 
-    <div v-if="isLoading" class="flex justify-center py-12">
-      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+    <div v-if="isLoading" class="py-4">
+      <SkeletonList :count="4" type="engine" />
     </div>
 
     <div v-else-if="isDiscovering && engines.length === 0" class="text-center py-16">

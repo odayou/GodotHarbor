@@ -13,10 +13,13 @@ import { useAutoSetup } from '@/composables/useAutoSetup'
 import { usePluginFilter } from '@/composables/usePluginFilter'
 import { usePluginUpdate } from '@/composables/usePluginUpdate'
 import { useAssetLibrary } from '@/composables/useAssetLibrary'
-import { usePluginStore } from '@/stores'
+import { isOnline } from '@/composables/useNetworkStatus'
+import { usePluginStore, useSettingsStore } from '@/stores'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import AssetLibraryTab from '@/components/AssetLibraryTab.vue'
 
 const pluginStore = usePluginStore()
+const settingsStore = useSettingsStore()
 const route = useRoute()
 const router = useRouter()
 
@@ -25,6 +28,34 @@ const { isRunning: isAutoSetupRunning, stepMessage: autoSetupMessage } = useAuto
 const { t } = useI18n()
 
 const plugins = computed(() => pluginStore.plugins)
+const autoApplyEnabled = computed(() => settingsStore.settings.auto_apply ?? false)
+const goToAutoApplySettings = () => router.push('/settings')
+
+const loadAddonBackups = async () => {
+  if (!selectedLinkId.value) return
+  try {
+    addonBackups.value = await api.listAddonBackups(selectedLinkId.value)
+    showRollbackDialog.value = true
+  } catch (error) {
+    toast.error(t('common.loadFailed', { error }))
+  }
+}
+
+const doRestoreAddonBackup = async (backupFile: string) => {
+  if (!selectedLinkId.value) return
+  isRestoringAddon.value = true
+  try {
+    await api.restoreAddonBackup(selectedLinkId.value, backupFile)
+    toast.success(t('plugins.restoreSuccess'))
+    showRollbackDialog.value = false
+    showLinkerApplyResult.value = false
+  } catch (error) {
+    toast.error(t('plugins.restoreFailed'))
+  } finally {
+    isRestoringAddon.value = false
+  }
+}
+
 const isLoading = ref(false)
 const hasLoaded = ref(false)
 let unlistenAutoSetup: UnlistenFn | null = null
@@ -41,6 +72,8 @@ const importMode = ref<'copy' | 'move' | 'reference'>('copy')
 const totalStorageStats = ref<TotalStorageStats | null>(null)
 
 const showAddMenu = ref(false)
+const isDragOver = ref(false)
+const dragCounter = ref(0)
 
 const activeTab = ref<'repository' | 'bindings' | 'assetLibrary'>('repository')
 
@@ -96,6 +129,9 @@ const batchApplyResults = ref<any[]>([])
 const showGraphView = ref(false)
 const linkerSearchQuery = ref('')
 const linkerProjectBindingCounts = ref<Map<string, number>>(new Map())
+const addonBackups = ref<any[]>([])
+const showRollbackDialog = ref(false)
+const isRestoringAddon = ref(false)
 
 const {
   searchQuery,
@@ -104,6 +140,9 @@ const {
   showOnlyDuplicates,
   showFavoritesOnly,
   filteredPlugins,
+  displayedPlugins,
+  hasMorePlugins,
+  loadMorePlugins,
   favoritePlugins,
   checkAndShowDuplicates,
 } = usePluginFilter(plugins)
@@ -199,6 +238,52 @@ const loadPluginBindingCounts = async () => {
     pluginBindingCountMap.value = countMap
   } catch {
     // ignore binding count load errors
+  }
+}
+
+const handleDragEnter = (e: DragEvent) => {
+  e.preventDefault()
+  dragCounter.value++
+  isDragOver.value = true
+}
+
+const handleDragLeave = (e: DragEvent) => {
+  e.preventDefault()
+  dragCounter.value--
+  if (dragCounter.value <= 0) {
+    isDragOver.value = false
+    dragCounter.value = 0
+  }
+}
+
+const handleDragOver = (e: DragEvent) => {
+  e.preventDefault()
+}
+
+const handleDrop = async (e: DragEvent) => {
+  e.preventDefault()
+  isDragOver.value = false
+  dragCounter.value = 0
+
+  if (activeTab.value !== 'repository') return
+
+  const files = e.dataTransfer?.files
+  if (!files || files.length === 0) return
+
+  const file = files[0]
+  const path = (file as any).path as string | undefined
+  if (!path) return
+
+  isLoading.value = true
+  try {
+    const result = await api.importPluginFromLocal(path)
+    toast.success(t('plugins.importPluginSuccess', { name: result.name }))
+    await loadPlugins(true)
+    showPostImportGuide(result.name, result)
+  } catch (error) {
+    toast.error(t('common.loadFailed', { error: String(error) }))
+  } finally {
+    isLoading.value = false
   }
 }
 
@@ -565,32 +650,7 @@ const {
 } = usePluginUpdate({ loadPlugins })
 
 const {
-  assetSearchQuery,
-  assetSearchResults,
-  isSearchingAssets,
-  assetCategories,
-  assetFilterType,
-  assetFilterCategory,
-  assetFilterGodotVersion,
-  assetFilterSupport,
-  assetSortBy,
-  assetCurrentPage,
-  assetTotalPages,
-  assetTotalItems,
-  selectedAssetIds,
-  assetDetail,
-  showAssetDetailDialog,
-  importedAssetIds,
-  hasSearched,
   openAssetLibrary,
-  searchAssets,
-  assetPrevPage,
-  assetNextPage,
-  toggleAssetSelection,
-  importAsset,
-  batchImportAssets,
-  openAssetDetail,
-  openPreviewLink,
   openAssetLibraryTab,
 } = useAssetLibrary({
   activeTab,
@@ -598,7 +658,6 @@ const {
   showPostImportGuide,
 })
 
-useDialogEscape(showAssetDetailDialog)
 useDialogEscape(showUpdatesDialog)
 
 const loadPluginDependencies = async (pluginId: string) => {
@@ -1252,6 +1311,7 @@ useDialogEscape(showLinkerBatchApplyResult)
 useDialogEscape(showQuickBindDialog)
 useDialogEscape(showVersionSwitchDialog)
 useDialogEscape(showVersionDeleteConfirm)
+useDialogEscape(showRollbackDialog)
 
 const doQuickBind = async () => {
   if (!quickBindPlugin.value) return
@@ -1344,6 +1404,10 @@ const handleContextMenuAction = async (action: string) => {
       await toggleFavorite(plugin)
       break
     case 'checkUpdate':
+      if (!isOnline.value) {
+        toast.warning(t('common.offlineNotice'))
+        break
+      }
       await checkPluginUpdates()
       break
     case 'updatePlugin':
@@ -1461,7 +1525,15 @@ const retryBatchFailed = async () => {
 </script>
 
 <template>
-  <div class="relative">
+  <div class="relative" @dragenter="handleDragEnter" @dragleave="handleDragLeave" @dragover="handleDragOver" @drop="handleDrop">
+    <div v-if="isDragOver" class="fixed inset-0 bg-primary-500/10 border-2 border-dashed border-primary-500 z-50 flex items-center justify-center pointer-events-none">
+      <div class="bg-white dark:bg-gray-800 rounded-xl p-8 shadow-xl text-center">
+        <svg class="w-12 h-12 text-primary-500 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+        </svg>
+        <p class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('plugins.dropToImport') }}</p>
+      </div>
+    </div>
     <div class="space-y-6">
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
       <div class="flex items-center gap-4">
@@ -1503,7 +1575,8 @@ const retryBatchFailed = async () => {
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
             </svg>
           </button>
-          <div v-if="showAddMenu" class="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 py-1">
+          <div v-if="showAddMenu" class="absolute right-0 mt-2 w-60 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 py-1">
+            <div class="px-3 py-1.5 text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ t('plugins.addMenu.localLabel') }}</div>
             <button
               @click="importFromLocal(); showAddMenu = false"
               class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2.5"
@@ -1528,6 +1601,8 @@ const retryBatchFailed = async () => {
                 <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('plugins.addMenu.fromFileDesc') }}</div>
               </div>
             </button>
+            <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+            <div class="px-3 py-1.5 text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ t('plugins.addMenu.remoteLabel') }}</div>
             <button
               @click="showRemoteDialog = true; showAddMenu = false"
               class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2.5"
@@ -1540,19 +1615,6 @@ const retryBatchFailed = async () => {
                 <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('plugins.addMenu.fromRemoteDesc') }}</div>
               </div>
             </button>
-            <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-            <button
-              @click="importFromProjects(); showAddMenu = false"
-              class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2.5"
-            >
-              <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-              </svg>
-              <div>
-                <div class="font-medium">{{ t('plugins.fromProjects') }}</div>
-                <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('plugins.addMenu.fromProjectsDesc') }}</div>
-              </div>
-            </button>
             <button
               @click="openAssetLibrary(); showAddMenu = false"
               class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2.5"
@@ -1563,6 +1625,20 @@ const retryBatchFailed = async () => {
               <div>
                 <div class="font-medium">{{ t('assetLibrary.title') }}</div>
                 <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('plugins.addMenu.fromAssetLibDesc') }}</div>
+              </div>
+            </button>
+            <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+            <div class="px-3 py-1.5 text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ t('plugins.addMenu.projectLabel') }}</div>
+            <button
+              @click="importFromProjects(); showAddMenu = false"
+              class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2.5"
+            >
+              <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+              <div>
+                <div class="font-medium">{{ t('plugins.fromProjects') }}</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('plugins.addMenu.fromProjectsDesc') }}</div>
               </div>
             </button>
           </div>
@@ -1746,7 +1822,7 @@ const retryBatchFailed = async () => {
 
       <div class="space-y-3">
         <div
-          v-for="plugin in filteredPlugins"
+          v-for="plugin in displayedPlugins"
           :key="plugin.plugin_id"
           :class="[
             'bg-white dark:bg-surface-card rounded-xl shadow hover:shadow-md transition-all p-4',
@@ -1833,6 +1909,14 @@ const retryBatchFailed = async () => {
           </div>
         </div>
       </div>
+    </div>
+    <div v-if="hasMorePlugins" class="text-center py-4">
+      <button
+        @click="loadMorePlugins"
+        class="px-6 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm"
+      >
+        {{ t('common.loadMore') }}
+      </button>
     </div>
     </div>
 
@@ -2052,241 +2136,12 @@ const retryBatchFailed = async () => {
     </div>
   </Teleport>
 
-    <div v-if="activeTab === 'assetLibrary'" class="space-y-4">
-      <div class="flex gap-2 mb-3">
-        <input
-          v-model="assetSearchQuery"
-          type="text"
-          :placeholder="t('assetLibrary.searchPlaceholder')"
-          class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
-          @input="searchAssets()"
-          @keyup.enter="searchAssets(true)"
-        />
-        <button
-          @click="searchAssets(true)"
-          :disabled="isSearchingAssets"
-          class="btn-primary disabled:opacity-50 text-sm"
-        >
-          {{ isSearchingAssets ? t('assetLibrary.searching') : t('assetLibrary.search') }}
-        </button>
-      </div>
-
-      <div v-if="assetSearchResults.length === 0 && !isSearchingAssets && !hasSearched" class="text-center py-2">
-        <p class="text-xs text-gray-400 dark:text-gray-500">{{ t('assetLibrary.featuredHint') }}</p>
-      </div>
-
-      <div class="flex flex-wrap gap-2 mb-3">
-        <select v-model="assetFilterType" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
-          <option value="any">{{ t('assetLibrary.typeAny') }}</option>
-          <option value="addon">{{ t('assetLibrary.typeAddon') }}</option>
-          <option value="project">{{ t('assetLibrary.typeProject') }}</option>
-        </select>
-        <select v-model="assetFilterCategory" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
-          <option value="">{{ t('assetLibrary.categoryAll') }}</option>
-          <option v-for="cat in assetCategories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
-        </select>
-        <select v-model="assetFilterGodotVersion" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
-          <option value="any">{{ t('assetLibrary.godotVersionAny') }}</option>
-          <option value="4.0">{{ t('assetLibrary.godot4x') }}</option>
-          <option value="3.0">{{ t('assetLibrary.godot3x') }}</option>
-        </select>
-        <select v-model="assetFilterSupport" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
-          <option value="">{{ t('assetLibrary.supportAll') }}</option>
-          <option value="official">{{ t('assetLibrary.supportOfficial') }}</option>
-          <option value="featured">{{ t('assetLibrary.supportFeatured') }}</option>
-          <option value="community">{{ t('assetLibrary.supportCommunity') }}</option>
-          <option value="testing">{{ t('assetLibrary.supportTesting') }}</option>
-        </select>
-        <select v-model="assetSortBy" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
-          <option value="updated">{{ t('assetLibrary.sortUpdated') }}</option>
-          <option value="rating">{{ t('assetLibrary.sortRating') }}</option>
-          <option value="name">{{ t('assetLibrary.sortName') }}</option>
-          <option value="cost">{{ t('assetLibrary.sortCost') }}</option>
-        </select>
-      </div>
-
-      <div v-if="selectedAssetIds.size > 0" class="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-2 mb-3 flex items-center justify-between">
-        <span class="text-xs font-medium text-primary-700 dark:text-primary-300">{{ t('assetLibrary.selectedCount', { count: selectedAssetIds.size }) }}</span>
-        <button
-          @click="batchImportAssets"
-          :disabled="!!pluginStore.isImporting"
-          class="px-3 py-1 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700 disabled:opacity-50"
-        >
-          {{ t('assetLibrary.batchImport') }} ({{ selectedAssetIds.size }})
-        </button>
-      </div>
-
-      <div v-if="pluginStore.importProgress && pluginStore.isImporting" class="mb-3">
-        <div class="flex items-center justify-between text-xs text-gray-600 dark:text-content-secondary mb-1">
-          <span>{{ pluginStore.importProgress.message }}</span>
-          <span>{{ Math.round(pluginStore.importProgress.progress * 100) }}%</span>
-        </div>
-        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-          <div
-            class="bg-primary-600 h-2 rounded-full transition-all duration-300"
-            :style="{ width: `${pluginStore.importProgress.progress * 100}%` }"
-          ></div>
-        </div>
-      </div>
-
-      <div class="space-y-2">
-        <div v-if="assetSearchResults.length === 0 && !isSearchingAssets && hasSearched" class="text-center py-8 text-gray-500 dark:text-content-secondary">
-          {{ t('assetLibrary.noResults') }}
-        </div>
-        <div v-if="isSearchingAssets" class="flex justify-center py-8">
-          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-        </div>
-        <div
-          v-for="asset in assetSearchResults"
-          :key="asset.asset_id"
-          :class="[
-            'bg-white dark:bg-surface-card rounded-lg shadow hover:shadow-md p-3 transition-colors',
-            selectedAssetIds.has(asset.asset_id) ? 'ring-2 ring-primary-500' : ''
-          ]"
-        >
-          <div class="flex items-center gap-3">
-            <input
-              type="checkbox"
-              :checked="selectedAssetIds.has(asset.asset_id)"
-              @change="toggleAssetSelection(asset.asset_id)"
-              class="w-4 h-4 text-primary-600 rounded flex-shrink-0 cursor-pointer"
-            />
-            <img
-              v-if="asset.icon_url"
-              :src="asset.icon_url"
-              :alt="asset.title"
-              class="w-10 h-10 rounded object-cover flex-shrink-0"
-              loading="lazy"
-              @error="($event.target as HTMLImageElement).style.display = 'none'"
-            />
-            <div v-else class="w-10 h-10 rounded bg-gray-200 dark:bg-gray-600 flex items-center justify-center flex-shrink-0">
-              <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
-              </svg>
-            </div>
-            <div class="flex-1 min-w-0 cursor-pointer" @click="openAssetDetail(asset.asset_id)">
-              <div class="flex items-center gap-2">
-                <span class="font-medium text-gray-900 dark:text-content-primary text-sm truncate">{{ asset.title }}</span>
-                <span v-if="asset.support_level === 'official'" class="px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">{{ t('assetLibrary.supportOfficial') }}</span>
-                <span v-else-if="asset.support_level === 'featured'" class="px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">{{ t('assetLibrary.supportFeatured') }}</span>
-              </div>
-              <div class="text-xs text-gray-500 dark:text-content-secondary mt-0.5">
-                {{ asset.author }} · {{ asset.category }} · {{ asset.cost }}
-              </div>
-            </div>
-            <button
-              v-if="!importedAssetIds.has(asset.asset_id)"
-              @click="importAsset(asset.asset_id, asset.title)"
-              :disabled="pluginStore.isImporting === asset.asset_id"
-              class="btn-primary disabled:opacity-50 text-xs px-3 py-1.5 flex-shrink-0"
-            >
-              {{ pluginStore.isImporting === asset.asset_id ? t('assetLibrary.importing') : t('assetLibrary.import') }}
-            </button>
-            <span v-else class="text-xs px-3 py-1.5 text-green-600 dark:text-green-400 flex-shrink-0 font-medium">✓ {{ t('assetLibrary.alreadyImported') }}</span>
-          </div>
-        </div>
-      </div>
-
-      <div v-if="assetTotalPages > 0" class="flex items-center justify-between mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
-        <span class="text-xs text-gray-500 dark:text-content-secondary">
-          {{ t('assetLibrary.totalItems', { count: assetTotalItems }) }}
-        </span>
-        <div class="flex items-center gap-2">
-          <button
-            @click="assetPrevPage"
-            :disabled="assetCurrentPage === 0"
-            class="px-3 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-surface-layer text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-card disabled:opacity-50"
-          >
-            {{ t('assetLibrary.prevPage') }}
-          </button>
-          <span class="text-xs text-gray-600 dark:text-content-secondary">
-            {{ t('assetLibrary.page', { current: assetCurrentPage + 1, total: assetTotalPages }) }}
-          </span>
-          <button
-            @click="assetNextPage"
-            :disabled="assetCurrentPage >= assetTotalPages - 1"
-            class="px-3 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-surface-layer text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-card disabled:opacity-50"
-          >
-            {{ t('assetLibrary.nextPage') }}
-          </button>
-        </div>
-      </div>
-    </div>
-
-  <Teleport to="body">
-    <div v-if="showAssetDetailDialog && assetDetail" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showAssetDetailDialog = false; assetDetail = null">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[80vh] flex flex-col" @click.stop>
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ assetDetail.title }}</h3>
-          <button @click="showAssetDetailDialog = false; assetDetail = null" class="text-gray-500 dark:text-content-secondary hover:text-gray-700 dark:hover:text-content-primary">
-            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <div class="flex items-center gap-3 mb-4">
-          <img
-            v-if="assetDetail.icon_url"
-            :src="assetDetail.icon_url"
-            :alt="assetDetail.title"
-            class="w-12 h-12 rounded object-cover"
-          />
-          <div>
-            <div class="text-sm text-gray-600 dark:text-content-secondary">{{ t('assetLibrary.author') }}: {{ assetDetail.author }}</div>
-            <div class="text-sm text-gray-600 dark:text-content-secondary">{{ t('assetLibrary.license') }}: {{ assetDetail.cost }}</div>
-            <div class="text-sm text-gray-600 dark:text-content-secondary">{{ t('assetLibrary.rating') }}: {{ assetDetail.rating }}/5</div>
-          </div>
-        </div>
-
-        <div v-if="assetDetail.previews && assetDetail.previews.length > 0" class="mb-4">
-          <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">{{ t('assetLibrary.previews') }}</h4>
-          <div class="flex gap-2 overflow-x-auto pb-2">
-            <img
-              v-for="preview in assetDetail.previews.filter(p => p.type === 'image')"
-              :key="preview.preview_id"
-              :src="preview.thumbnail"
-              class="h-20 rounded object-cover flex-shrink-0 cursor-pointer hover:opacity-80"
-              loading="lazy"
-              @click="openPreviewLink(preview.link)"
-            />
-          </div>
-        </div>
-
-        <div class="flex-1 overflow-y-auto mb-4">
-          <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">{{ t('assetLibrary.description') }}</h4>
-          <p class="text-sm text-gray-600 dark:text-content-secondary whitespace-pre-wrap bg-gray-50 dark:bg-surface-layer rounded-lg p-3">
-            {{ assetDetail.description || t('assetLibrary.noDescription') }}
-          </p>
-        </div>
-
-        <div class="flex items-center gap-2">
-          <button
-            @click="importAsset(assetDetail.asset_id, assetDetail.title); showAssetDetailDialog = false; assetDetail = null"
-            :disabled="pluginStore.isImporting === assetDetail.asset_id"
-            class="btn-primary disabled:opacity-50 text-sm"
-          >
-            {{ pluginStore.isImporting === assetDetail.asset_id ? t('assetLibrary.importing') : t('assetLibrary.import') }}
-          </button>
-          <a
-            v-if="assetDetail.browse_url"
-            :href="assetDetail.browse_url"
-            target="_blank"
-            class="px-4 py-2 border border-gray-300 dark:border-surface-border rounded-lg text-gray-700 dark:text-content-primary text-sm hover:bg-gray-50 dark:hover:bg-surface-card"
-          >
-            {{ t('assetLibrary.detail') }}
-          </a>
-          <div class="flex-1"></div>
-          <button
-            @click="showAssetDetailDialog = false; assetDetail = null"
-            class="btn-secondary text-sm"
-          >
-            {{ t('common.close') }}
-          </button>
-        </div>
-      </div>
-    </div>
-  </Teleport>
+    <AssetLibraryTab
+      v-if="activeTab === 'assetLibrary'"
+      :active-tab="activeTab"
+      :load-plugins="loadPlugins"
+      :show-post-import-guide="showPostImportGuide"
+    />
 
   <Teleport to="body">
     <div v-if="showUpdatesDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showUpdatesDialog = false">
@@ -2752,8 +2607,37 @@ const retryBatchFailed = async () => {
             <li v-for="item in linkerApplyResult.errors" :key="item">{{ item }}</li>
           </ul>
         </div>
+        <div v-if="linkerApplyResult.errors.length === 0 && !autoApplyEnabled" class="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+          <p class="text-xs text-blue-700 dark:text-blue-300 mb-2">{{ t('plugins.autoApplyPrompt') }}</p>
+          <button @click="goToAutoApplySettings" class="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline">{{ t('plugins.autoApplyPromptAction') }} →</button>
+        </div>
+        <div v-if="linkerApplyResult.removed.length > 0 || linkerApplyResult.created.length > 0" class="mb-3">
+          <button @click="loadAddonBackups" class="text-xs font-medium text-orange-600 dark:text-orange-400 hover:underline">{{ t('plugins.rollbackAddons') }}</button>
+        </div>
         <div class="flex justify-end">
           <button @click="showLinkerApplyResult = false" class="btn-primary">{{ t('linker.close') }}</button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div v-if="showRollbackDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showRollbackDialog = false">
+      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('plugins.rollbackAddons') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">{{ t('plugins.rollbackAddonsDesc') }}</p>
+        <div v-if="addonBackups.length === 0" class="text-sm text-gray-400 dark:text-gray-500 py-4 text-center">{{ t('plugins.noBackups') }}</div>
+        <div v-else class="max-h-60 overflow-y-auto space-y-2">
+          <div v-for="backup in addonBackups" :key="backup.file_name" class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+            <div>
+              <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ backup.created_at }}</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400">{{ (backup.file_size / 1024).toFixed(1) }} KB</p>
+            </div>
+            <button @click="doRestoreAddonBackup(backup.file_path)" :disabled="isRestoringAddon" class="px-3 py-1 text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-lg hover:bg-orange-200 dark:hover:bg-orange-900/50 disabled:opacity-50">{{ t('plugins.rollbackAddons') }}</button>
+          </div>
+        </div>
+        <div class="flex justify-end mt-4">
+          <button @click="showRollbackDialog = false" class="btn-secondary">{{ t('common.close') }}</button>
         </div>
       </div>
     </div>

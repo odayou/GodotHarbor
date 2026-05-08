@@ -87,6 +87,9 @@ export interface Settings {
   custom_data_dir?: string
   selected_mirror_id?: string
   known_engine_paths?: string[]
+  auto_apply?: boolean
+  github_api_proxy?: string
+  asset_library_mirror?: string
 }
 
 export interface ApplyResult {
@@ -445,4 +448,28 @@ export interface DownloadEngineResult {
   cancelled: boolean
   engine: Engine | null
   error: string | null
+}
+
+export interface AddonBackupInfo {
+  file_name: string
+  file_path: string
+  file_size: number
+  created_at: string
+}
+
+export interface TemplateBinding {
+  plugin_id: string
+  plugin_name: string
+  version_id: string
+  unit_id: string
+  unit_name: string
+  mount_path: string
+  subdirectory: string
+}
+
+export interface ProjectTemplate {
+  template_id: string
+  name: string
+  bindings: TemplateBinding[]
+  created_at: string
 }

@@ -5,7 +5,7 @@ const STORAGE_KEY = 'godot-harbor-plugin-filter'
 
 function loadFilterState() {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) return JSON.parse(raw)
   } catch {}
   return null
@@ -13,7 +13,7 @@ function loadFilterState() {
 
 function saveFilterState(state: Record<string, any>) {
   try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
   } catch {}
 }
 
@@ -23,17 +23,20 @@ export function usePluginFilter(plugins: ComputedRef<Plugin[]>) {
   const searchQuery = ref(saved?.searchQuery ?? '')
   const filterCompatibility = ref<string>(saved?.filterCompatibility ?? 'all')
   const filterSource = ref<string>(saved?.filterSource ?? 'all')
-  const showOnlyDuplicates = ref(false)
+  const showOnlyDuplicates = ref(saved?.showOnlyDuplicates ?? false)
   const showFavoritesOnly = ref(saved?.showFavoritesOnly ?? false)
 
-  watch([searchQuery, filterCompatibility, filterSource, showFavoritesOnly], () => {
+  watch([searchQuery, filterCompatibility, filterSource, showFavoritesOnly, showOnlyDuplicates], () => {
     saveFilterState({
       searchQuery: searchQuery.value,
       filterCompatibility: filterCompatibility.value,
       filterSource: filterSource.value,
       showFavoritesOnly: showFavoritesOnly.value,
+      showOnlyDuplicates: showOnlyDuplicates.value,
     })
   })
+
+  const displayLimit = ref(50)
 
   const filteredPlugins = computed(() => {
     return plugins.value.filter(plugin => {
@@ -56,6 +59,22 @@ export function usePluginFilter(plugins: ComputedRef<Plugin[]>) {
     })
   })
 
+  const displayedPlugins = computed(() => {
+    const all = filteredPlugins.value
+    if (all.length <= displayLimit.value) return all
+    return all.slice(0, displayLimit.value)
+  })
+
+  const hasMorePlugins = computed(() => filteredPlugins.value.length > displayLimit.value)
+
+  const loadMorePlugins = () => {
+    displayLimit.value += 50
+  }
+
+  const resetDisplayLimit = () => {
+    displayLimit.value = 50
+  }
+
   const favoritePlugins = computed(() => {
     return plugins.value.filter(p => p.is_favorite).length
   })
@@ -75,6 +94,10 @@ export function usePluginFilter(plugins: ComputedRef<Plugin[]>) {
     showOnlyDuplicates,
     showFavoritesOnly,
     filteredPlugins,
+    displayedPlugins,
+    hasMorePlugins,
+    loadMorePlugins,
+    resetDisplayLimit,
     favoritePlugins,
     checkAndShowDuplicates,
   }

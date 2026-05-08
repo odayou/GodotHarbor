@@ -30,7 +30,9 @@ import type {
   StoragePaths,
   RemoteEngineVersion,
   DownloadEngineResult,
-  EngineDownloadProgress
+  EngineDownloadProgress,
+  AddonBackupInfo,
+  ProjectTemplate
 } from '@/types'
 
 export const api = {
@@ -192,6 +194,30 @@ export const api = {
     return await invoke('apply_changes', { projectId })
   },
 
+  async listAddonBackups(projectId: string): Promise<AddonBackupInfo[]> {
+    return await invoke('list_addon_backups', { projectId })
+  },
+
+  async restoreAddonBackup(projectId: string, backupFile: string): Promise<void> {
+    return await invoke('restore_addon_backup', { projectId, backupFile })
+  },
+
+  async saveAsTemplate(projectId: string, templateName: string): Promise<ProjectTemplate> {
+    return await invoke('save_as_template', { projectId, templateName })
+  },
+
+  async listTemplates(): Promise<ProjectTemplate[]> {
+    return await invoke('list_templates')
+  },
+
+  async deleteTemplate(templateId: string): Promise<void> {
+    return await invoke('delete_template', { templateId })
+  },
+
+  async applyTemplateToProject(projectId: string, templateId: string): Promise<ApplyResult> {
+    return await invoke('apply_template_to_project', { projectId, templateId })
+  },
+
   async getProjectBindings(projectId: string): Promise<ProjectBinding[]> {
     return await invoke('get_project_bindings', { projectId })
   },
@@ -304,8 +330,8 @@ export const api = {
     return await invoke('check_godot_updates')
   },
 
-  async checkAppUpdate(): Promise<AppUpdateInfo | null> {
-    return await invoke('check_app_update')
+  async checkAppUpdate(forceRefresh?: boolean): Promise<AppUpdateInfo | null> {
+    return await invoke('check_app_update', { forceRefresh })
   },
 
   async installAppUpdate(): Promise<void> {
@@ -316,8 +342,8 @@ export const api = {
     return await invoke('skip_app_version', { version })
   },
 
-  async checkAllUpdates(): Promise<UpdateCheckResult> {
-    return await invoke('check_all_updates')
+  async checkAllUpdates(forceRefresh?: boolean): Promise<UpdateCheckResult> {
+    return await invoke('check_all_updates', { forceRefresh })
   },
 
   async checkHotUpdate(manifestUrl?: string): Promise<HotUpdateInfo | null> {

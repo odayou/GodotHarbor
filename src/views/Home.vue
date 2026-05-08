@@ -51,19 +51,16 @@ const loadStats = async () => {
 
 onMounted(async () => {
   document.addEventListener('keydown', toggleDebug)
-  await loadStats()
-  unlisten = await listen('scan-complete', () => {
-    loadStats()
-  })
-  unlistenFs = await listen('project-fs-changed', () => {
-    loadStats()
-  })
-  unlistenEngines = await listen('engines-discovered', () => {
-    loadStats()
-  })
-  unlistenAutoSetup = await listen('auto-setup-complete', () => {
-    loadStats()
-  })
+  const [_, fsListener, engineListener, autoSetupListener] = await Promise.all([
+    loadStats(),
+    listen('project-fs-changed', () => loadStats()),
+    listen('engines-discovered', () => loadStats()),
+    listen('auto-setup-complete', () => loadStats())
+  ])
+  unlisten = await listen('scan-complete', () => loadStats())
+  unlistenFs = fsListener
+  unlistenEngines = engineListener
+  unlistenAutoSetup = autoSetupListener
 })
 
 onUnmounted(() => {

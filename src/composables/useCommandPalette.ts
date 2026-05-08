@@ -317,6 +317,39 @@ export function useCommandPalette() {
           }).catch(() => {})
           closePalette()
         }
+      },
+      {
+        id: 'cmd-check-updates',
+        label: t('commandPalette.checkUpdates'),
+        category: 'command',
+        icon: 'updates',
+        keywords: `${t('commandPalette.checkUpdates')} update check`,
+        action: () => {
+          router.push('/updates')
+          closePalette()
+        }
+      },
+      {
+        id: 'cmd-open-asset-library',
+        label: t('commandPalette.openAssetLibrary'),
+        category: 'command',
+        icon: 'search',
+        keywords: `${t('commandPalette.openAssetLibrary')} asset library search browse`,
+        action: () => {
+          router.push('/plugins?action=assetlib')
+          closePalette()
+        }
+      },
+      {
+        id: 'cmd-discover-engines',
+        label: t('commandPalette.discoverEngines'),
+        category: 'command',
+        icon: 'engine',
+        keywords: `${t('commandPalette.discoverEngines')} discover engine`,
+        action: () => {
+          router.push('/engines?action=discover')
+          closePalette()
+        }
       }
     )
 

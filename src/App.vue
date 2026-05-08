@@ -18,10 +18,12 @@ import ToastContainer from './components/ToastContainer.vue'
 import OnboardingGuide from './components/OnboardingGuide.vue'
 import CommandPalette from './components/CommandPalette.vue'
 import { useAutoSetup } from './composables/useAutoSetup'
+import { useNetworkStatus } from './composables/useNetworkStatus'
 import { useToast } from './composables/useToast'
 
 const { t, locale } = useI18n()
 const { isVisible: showLanguageDialog, hideLanguageDialog } = useLanguageDialog()
+const { isOnline } = useNetworkStatus()
 const toast = useToast()
 
 const pluginStore = usePluginStore()
@@ -143,6 +145,9 @@ registerShortcut({
   <div class="flex h-screen bg-white dark:bg-surface-layer" @contextmenu.prevent>
     <Sidebar />
     <div class="flex-1 flex flex-col overflow-hidden">
+      <div v-if="!isOnline" class="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs text-center py-1.5 px-4">
+        {{ t('common.offlineNotice') }}
+      </div>
       <Header />
       <main class="flex-1 overflow-x-hidden overflow-y-auto bg-white dark:bg-surface-layer p-4 md:p-6">
         <RouterView />

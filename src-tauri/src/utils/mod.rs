@@ -51,11 +51,40 @@ pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<(), 
 }
 
 pub fn create_http_client(timeout: Option<std::time::Duration>) -> Result<reqwest::Client, String> {
-    let mut builder = reqwest::Client::builder().user_agent("GodotHarbor");
-    if let Some(d) = timeout {
-        builder = builder.timeout(d);
+    let timeout_duration = timeout.unwrap_or(std::time::Duration::from_secs(30));
+    reqwest::Client::builder()
+        .user_agent("GodotHarbor")
+        .timeout(timeout_duration)
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))
+}
+
+pub fn get_github_api_base(app: &tauri::AppHandle) -> String {
+    let storage = crate::commands::get_storage(app);
+    let settings: crate::models::Settings = storage.load_or_default("settings.json");
+    if !settings.github_api_proxy.is_empty() {
+        settings.github_api_proxy.trim_end_matches('/').to_string()
+    } else {
+        "https://api.github.com".to_string()
     }
-    builder.build().map_err(|e| format!("创建 HTTP 客户端失败: {}", e))
+}
+
+pub fn get_asset_library_base(app: &tauri::AppHandle) -> String {
+    let storage = crate::commands::get_storage(app);
+    let settings: crate::models::Settings = storage.load_or_default("settings.json");
+    if !settings.asset_library_mirror.is_empty() {
+        settings.asset_library_mirror.trim_end_matches('/').to_string()
+    } else {
+        "https://godotengine.org/asset-library/api".to_string()
+    }
+}
+
+pub fn apply_github_api_proxy(url: &str, proxy_base: &str) -> String {
+    if proxy_base.is_empty() {
+        return url.to_string();
+    }
+    url.replace("https://api.github.com", proxy_base.trim_end_matches('/'))
 }
 
 pub fn parse_version(version: &str) -> (u32, u32, u32) {

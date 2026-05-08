@@ -221,7 +221,7 @@ pub fn run() {
                                 let mut has_updates = false;
                                 let mut update_parts: Vec<String> = Vec::new();
 
-                                if let Ok(result) = commands::check_all_updates(app_clone.clone()).await {
+                                if let Ok(result) = commands::check_all_updates(app_clone.clone(), None).await {
                                     if !result.plugin_updates.is_empty() {
                                         has_updates = true;
                                         update_parts.push(format!("{} 个插件更新", result.plugin_updates.len()));
@@ -234,7 +234,7 @@ pub fn run() {
                                     }
                                 }
 
-                                if let Ok(Some(update)) = commands::check_app_update(app_clone.clone()).await {
+                                if let Ok(Some(update)) = commands::check_app_update(app_clone.clone(), None).await {
                                     has_updates = true;
                                     update_parts.push(format!("应用更新 v{}", update.latest_version));
                                     let _ = app_clone.emit("app-update-available", &update);
@@ -335,6 +335,12 @@ pub fn run() {
             commands::bind_plugin,
             commands::unbind_plugin,
             commands::apply_changes,
+            commands::list_addon_backups,
+            commands::restore_addon_backup,
+            commands::save_as_template,
+            commands::list_templates,
+            commands::delete_template,
+            commands::apply_template_to_project,
             commands::get_project_bindings,
             commands::scan_project_plugins,
             commands::import_plugins_from_projects,

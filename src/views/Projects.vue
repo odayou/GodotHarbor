@@ -12,6 +12,7 @@ import { useDialogEscape } from '@/composables/useDialogEscape'
 import { useAutoSetup } from '@/composables/useAutoSetup'
 import { preloadIcons, getIconUrl, getIconDebugInfo } from '@/composables/useIconCache'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import SkeletonList from '@/components/SkeletonList.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -89,6 +90,29 @@ const hasScanDirs = ref(false)
 
 const showBatchGroupDialog = ref(false)
 const batchGroupInput = ref('')
+
+const isBatchApplying = ref(false)
+
+const batchApplyChanges = async () => {
+  const ids = Array.from(selectedProjectIds.value)
+  if (ids.length === 0) return
+  isBatchApplying.value = true
+  try {
+    const result = await api.batchApplyChanges(ids)
+    const successCount = result.results.filter(r => r.success).length
+    const failCount = result.results.filter(r => !r.success).length
+    if (failCount > 0) {
+      toast.warning(t('projects.batchApplyPartial', { success: successCount, failed: failCount }))
+    } else {
+      toast.success(t('projects.batchApplySuccess', { count: successCount }))
+    }
+    clearSelection()
+  } catch (error) {
+    toast.error(String(error))
+  } finally {
+    isBatchApplying.value = false
+  }
+}
 
 const batchRemoveProjects = async () => {
   const ids = Array.from(selectedProjectIds.value)
@@ -878,6 +902,13 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
           {{ t('projects.batchSetGroup') }} ({{ selectedCount }})
         </button>
         <button
+          @click="batchApplyChanges"
+          :disabled="isBatchApplying"
+          class="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+        >
+          {{ isBatchApplying ? t('common.loading') : t('projects.batchApplyChanges') }} ({{ selectedCount }})
+        </button>
+        <button
           @click="batchRemoveProjects"
           class="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
         >
@@ -886,8 +917,8 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
       </div>
     </div>
 
-    <div v-if="isLoading" class="flex justify-center py-12">
-      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+    <div v-if="isLoading" class="py-4">
+      <SkeletonList :count="4" type="project" />
     </div>
 
     <div v-else-if="isAutoSetupRunning && filteredProjects.length === 0" class="text-center py-16">

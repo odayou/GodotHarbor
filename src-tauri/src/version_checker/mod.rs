@@ -2,8 +2,6 @@ use serde::{Serialize, Deserialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 use crate::utils::{create_http_client, parse_version};
 
-const GODOT4_API_URL: &str = "https://api.github.com/repos/godotengine/godot/releases?per_page=20";
-const GODOT3_API_URL: &str = "https://api.github.com/repos/godotengine/godot/releases?per_page=50";
 const CACHE_DURATION_SECS: u64 = 3600;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -65,6 +63,7 @@ struct CachedVersionInfo {
 
 pub struct VersionChecker {
     cache_dir: std::path::PathBuf,
+    github_api_base: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -77,7 +76,12 @@ enum ReleaseChannel {
 impl VersionChecker {
     pub fn new(cache_dir: std::path::PathBuf) -> Self {
         std::fs::create_dir_all(&cache_dir).ok();
-        Self { cache_dir }
+        Self { cache_dir, github_api_base: "https://api.github.com".to_string() }
+    }
+
+    pub fn with_github_api_base(mut self, base: String) -> Self {
+        self.github_api_base = base;
+        self
     }
 
     fn classify_channel(version: &str) -> ReleaseChannel {
@@ -213,10 +217,13 @@ impl VersionChecker {
     async fn fetch_releases(&self) -> Result<Vec<GodotReleaseInfo>, String> {
         let client = create_http_client(Some(std::time::Duration::from_secs(15)))?;
 
+        let godot4_url = format!("{}/repos/godotengine/godot/releases?per_page=20", self.github_api_base);
+        let godot3_url = format!("{}/repos/godotengine/godot/releases?per_page=50", self.github_api_base);
+
         let mut all_releases = Vec::new();
 
-        for url in &[GODOT4_API_URL, GODOT3_API_URL] {
-            match client.get(*url).send().await {
+        for url in &[godot4_url, godot3_url] {
+            match client.get(url.as_str()).send().await {
                 Ok(resp) => {
                     if resp.status().is_success() {
                         if let Ok(json) = resp.json::<serde_json::Value>().await {

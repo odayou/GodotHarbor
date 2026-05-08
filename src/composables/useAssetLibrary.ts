@@ -4,6 +4,7 @@ import { api } from '@/api'
 import { useToast } from '@/composables/useToast'
 import { usePluginStore } from '@/stores'
 import { sendAppNotification } from '@/composables/useNotification'
+import { isOnline } from '@/composables/useNetworkStatus'
 import type { Plugin, AssetLibrarySearchResult, AssetLibrarySearchResponse, AssetLibraryCategory, AssetLibraryAsset } from '@/types'
 
 export function useAssetLibrary(options: {
@@ -28,6 +29,7 @@ export function useAssetLibrary(options: {
   const assetTotalPages = ref(0)
   const assetTotalItems = ref(0)
   const selectedAssetIds = ref<Set<string>>(new Set())
+  let searchAbortController: AbortController | null = null
   const assetDetail = ref<AssetLibraryAsset | null>(null)
   const showAssetDetailDialog = ref(false)
   const searchCache = ref<Map<string, { data: AssetLibrarySearchResponse; timestamp: number }>>(new Map())
@@ -69,11 +71,23 @@ export function useAssetLibrary(options: {
   }
 
   const doSearch = async () => {
+    if (!isOnline.value) {
+      toast.warning(t('common.offlineNotice'))
+      return
+    }
+
+    if (searchAbortController) {
+      searchAbortController.abort()
+    }
+    searchAbortController = new AbortController()
+    const currentController = searchAbortController
+
     isSearchingAssets.value = true
     try {
       const cacheKey = getCacheKey()
       const cached = searchCache.value.get(cacheKey)
       if (cached && Date.now() - cached.timestamp < 5 * 60 * 1000) {
+        if (currentController.signal.aborted) return
         assetSearchResults.value = cached.data.result
         assetTotalPages.value = cached.data.pages
         assetTotalItems.value = cached.data.total_items
@@ -150,6 +164,11 @@ export function useAssetLibrary(options: {
   }
 
   const importAsset = async (assetId: string, assetTitle: string) => {
+    if (!isOnline.value) {
+      toast.warning(t('common.offlineNotice'))
+      return
+    }
+
     pluginStore.setImporting(assetId)
     try {
       const result = await api.importFromAssetLibraryWithProgress(assetId)
