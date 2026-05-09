@@ -174,11 +174,15 @@ jobs:
           args: '--target ${{ matrix.platform.target }} --bundles ${{ matrix.platform.bundle }}'
 
       - name: Code sign Windows installer
-        if: matrix.platform.os == 'windows-latest' && secrets.CERTIFICATE_BASE64 != ''
+        if: matrix.platform.os == 'windows-latest'
         env:
           CERTIFICATE_BASE64: ${{ secrets.CERTIFICATE_BASE64 }}
           CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
         run: |
+          if ([string]::IsNullOrEmpty($env:CERTIFICATE_BASE64)) {
+            Write-Host "Skipping code signing: CERTIFICATE_BASE64 not configured"
+            exit 0
+          }
           $certPath = Join-Path $env:RUNNER_TEMP "signing-cert.pfx"
           [System.Convert]::FromBase64String($env:CERTIFICATE_BASE64) | Set-Content -Path $certPath -AsByteStream
           $installer = Get-ChildItem -Path "src-tauri\target\${{ matrix.platform.target }}\release\bundle\nsis\*.exe" | Select-Object -First 1
@@ -189,12 +193,16 @@ jobs:
           Remove-Item -Force $certPath
 
       - name: Notarize macOS app
-        if: matrix.platform.os == 'macos-latest' && secrets.APPLE_ID != ''
+        if: matrix.platform.os == 'macos-latest'
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
+          if [ -z "$APPLE_ID" ]; then
+            echo "Skipping notarization: APPLE_ID not configured"
+            exit 0
+          fi
           dmg=$(find src-tauri/target/${{ matrix.platform.target }}/release/bundle/dmg -name "*.dmg" | head -1)
           if [ -n "$dmg" ]; then
             xcrun notarytool submit "$dmg" \
