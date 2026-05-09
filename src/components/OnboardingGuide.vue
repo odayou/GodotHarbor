@@ -238,6 +238,8 @@ const next = () => {
   if (currentStep.value === 1 && selectedProjectIds.value.size > 0) {
     doScanPlugins()
     currentStep.value = 2
+  } else if (currentStep.value === 1 && selectedProjectIds.value.size === 0) {
+    finish()
   } else if (isLastStep) {
     finish()
   } else {
@@ -540,11 +542,11 @@ const finish = async () => {
               {{ t('onboarding.startUsing') }}
             </button>
             <button
-              v-else-if="currentStep === 0 || (currentStep === 1 && selectedProjectIds.size > 0)"
+              v-else-if="currentStep === 0 || currentStep === 1"
               @click="next"
               class="btn-primary text-sm font-medium"
             >
-              {{ t('onboarding.next') }}
+              {{ currentStep === 1 && selectedProjectIds.size === 0 ? t('onboarding.startUsing') : t('onboarding.next') }}
             </button>
           </div>
         </div>
