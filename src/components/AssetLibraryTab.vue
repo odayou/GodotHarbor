@@ -69,7 +69,7 @@ const {
     </div>
 
     <div v-if="assetSearchResults.length === 0 && !isSearchingAssets && !hasSearched" class="text-center py-2">
-      <p class="text-xs text-gray-400 dark:text-content-muted">{{ t('assetLibrary.featuredHint') }}</p>
+      <p class="text-xs text-gray-400 dark:text-content-muted">{{ t('assetLibrary.initialHint') }}</p>
     </div>
 
     <div class="flex flex-wrap gap-2 mb-3">

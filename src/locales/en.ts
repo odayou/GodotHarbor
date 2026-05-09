@@ -414,7 +414,7 @@ export default {
     searching: 'Searching...',
     searchFailed: 'Unable to connect to Asset Library. Please check your network connection and try again.',
     noResults: 'No matching assets found',
-    featuredHint: 'Loading featured plugins...',
+    initialHint: 'Search or adjust filters to browse the Asset Library',
     type: 'Asset Type',
     typeAny: 'Any',
     typeAddon: 'Addon',

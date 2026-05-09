@@ -417,7 +417,7 @@ export default {
     searching: '搜索中...',
     searchFailed: '无法连接到 Asset Library，请检查网络连接后重试',
     noResults: '没有找到匹配的资产',
-    featuredHint: '正在加载精选推荐插件...',
+    initialHint: '点击搜索或切换筛选条件浏览 Asset Library',
     type: '资产类型',
     typeAny: '全部',
     typeAddon: '插件',
