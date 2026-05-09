@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { onBeforeRouteLeave } from 'vue-router'
+import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import { api } from '@/api'
 import type { Settings, LogEntry, Project, EngineMirrorConfig, StoragePaths } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
@@ -13,6 +13,7 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const toast = useToast()
 const { t, locale } = useI18n()
+const router = useRouter()
 const { setTheme, initTheme } = useTheme()
 const settings = ref<Settings>({ scan_directories: [], mount_strategy: 'Symlink', language: 'zh-CN', theme: 'system', auto_scan_on_startup: true, auto_discover_engines: true, auto_check_plugin_updates: false, auto_check_app_updates: true, auto_check_engine_updates: true, update_check_interval_hours: 4, skipped_app_version: '', auto_apply: false, github_api_proxy: '', asset_library_mirror: '' })
 const originalSettings = ref<string>('')
@@ -613,7 +614,12 @@ const toggleMirrorEnabled = (mirrorId: string) => {
       </div>
       <div v-show="activeSection === 'updates'" class="space-y-6">
         <div class="card p-6">
-          <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('settings.updates.autoCheck') }}</h2>
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('settings.updates.autoCheck') }}</h2>
+            <button @click="router.push('/updates')" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium transition-colors">
+              {{ t('settings.updates.checkNow') }}
+            </button>
+          </div>
           <div class="space-y-3">
             <label class="flex items-center gap-3 cursor-pointer">
               <input type="checkbox" v-model="settings.auto_check_app_updates" class="w-4 h-4 text-primary-600 rounded" />

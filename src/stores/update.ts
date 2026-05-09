@@ -4,9 +4,11 @@ import { api } from '@/api'
 import type { AppUpdateInfo, PluginUpdateInfo, VersionUpdateInfo, HotUpdateInfo, UpdateHistoryEntry, UpdateProgress } from '@/types'
 import { listen } from '@tauri-apps/api/event'
 import { useI18n } from 'vue-i18n'
+import { useToast } from '@/composables/useToast'
 
 export const useUpdateStore = defineStore('updates', () => {
   const { t } = useI18n()
+  const toast = useToast()
   const isChecking = ref(false)
   const lastCheckedAt = ref('')
   const trayCheckMessage = ref('')
@@ -134,6 +136,7 @@ export const useUpdateStore = defineStore('updates', () => {
       }
     } catch (error) {
       console.error('Check updates failed:', error)
+      toast.error(t('updates.checkFailed', { error: String(error) }))
     } finally {
       isChecking.value = false
     }

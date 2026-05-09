@@ -2810,7 +2810,7 @@ const retryBatchFailed = async () => {
 
   <Teleport to="body">
     <div v-if="showQuickBindDialog && quickBindPlugin" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="closeQuickBind">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl max-h-[85vh] flex flex-col" @click.stop>
+      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[85vh] flex flex-col" @click.stop>
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('plugins.quickBind.title') }}</h3>
           <button @click="closeQuickBind" class="text-gray-500 dark:text-content-secondary hover:text-gray-700 dark:hover:text-content-primary">

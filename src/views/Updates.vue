@@ -141,6 +141,20 @@
       </div>
     </div>
 
+    <div v-if="store.isChecking" class="card text-center py-12">
+      <div class="animate-spin w-8 h-8 border-2 border-primary-600 border-t-transparent rounded-full mx-auto mb-3"></div>
+      <h3 class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ t('updates.checking') }}</h3>
+      <p class="mt-1 text-sm text-gray-500 dark:text-content-secondary">{{ t('updates.checkingDesc') }}</p>
+    </div>
+
+    <div v-else-if="!store.lastCheckedAt" class="card text-center py-12">
+      <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-content-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+      </svg>
+      <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-content-primary">{{ t('updates.notCheckedYet') }}</h3>
+      <p class="mt-1 text-sm text-gray-500 dark:text-content-secondary">{{ t('updates.notCheckedYetDesc') }}</p>
+    </div>
+
     <div v-if="!store.isChecking && !store.appUpdate && store.pluginUpdates.length === 0 && store.engineUpdates.length === 0 && !store.hotUpdate && store.lastCheckedAt" class="card text-center py-12">
       <svg class="mx-auto h-12 w-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -263,6 +277,9 @@ function updateTypeClass(type: string): string {
 
 onMounted(async () => {
   await store.initListeners()
+  if (!store.lastCheckedAt) {
+    store.checkAll()
+  }
 })
 
 onUnmounted(() => {

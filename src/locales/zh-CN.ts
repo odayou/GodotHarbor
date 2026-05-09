@@ -736,7 +736,8 @@ export default {
     },
     updates: {
       title: '更新',
-      autoCheck: '自动更新检查'
+      autoCheck: '自动更新检查',
+      checkNow: '检查更新'
     },
     other: '其他',
     unsavedChanges: '设置已修改但未保存',
@@ -1059,34 +1060,9 @@ export default {
       ctrlDDesc: '深色/浅色模式切换'
     },
     skip: '跳过引导',
+    prev: '上一步',
     next: '下一步',
-    startUsing: '开始使用',
-    interactive: {
-      selectProject: '选择项目',
-      selectProjectDescMulti: '选择一个或多个 Godot 项目，或扫描磁盘自动发现',
-      selectProjectDir: '手动选择项目目录',
-      scanProjects: '自动扫描项目',
-      noProjectsFound: '未找到 Godot 项目，请手动选择项目目录',
-      selectedCount: '已选择 {count} 个项目',
-      importPlugin: '导入插件',
-      importPluginDesc: '从已有项目中扫描并选择要导入的插件',
-      noPluginsFound: '未扫描到可导入的插件',
-      importSelected: '导入所选插件',
-      configureBindings: '配置绑定',
-      configureBindingsDesc: '为每个项目选择需要绑定的插件，默认全选',
-      projectLabel: '项目\\插件',
-      selectAll: '全选',
-      deselectAll: '取消全选',
-      totalBindings: '共 {count} 个绑定关系',
-      skipBinding: '跳过绑定',
-      bindAndApply: '绑定并应用',
-      bindAndApplyDesc: '将配置好的绑定关系应用到项目的 addons 目录',
-      bindAndApplyButton: '一键绑定并应用',
-      binding: '正在绑定...',
-      applying: '正在应用...',
-      success: '设置完成！',
-      successDesc: '已成功创建 {count} 个插件链接'
-    }
+    startUsing: '开始使用'
   },
   about: {
     title: '关于',
@@ -1170,6 +1146,11 @@ export default {
     skipVersion: '跳过此版本',
     bothUpdatesTip: '💡 同时有全量更新和热更新可用，建议优先安装全量更新（包含所有热更新内容）。',
     download: '下载',
+    checking: '正在检查更新',
+    checkingDesc: '正在检查应用、插件和引擎的更新...',
+    notCheckedYet: '尚未检查更新',
+    notCheckedYetDesc: '点击右上角按钮检查是否有可用更新',
+    checkFailed: '检查更新失败：{error}',
     currentHotUpdateVersion: '当前热更新版本:',
     rollbackHotUpdate: '回滚热更新',
     rollbackConfirmDesc: '回滚热更新将恢复到上一个版本，当前版本的部分功能可能丢失。确认回滚？',

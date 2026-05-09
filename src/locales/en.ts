@@ -733,7 +733,8 @@ export default {
     },
     updates: {
       title: 'Updates',
-      autoCheck: 'Auto Update Check'
+      autoCheck: 'Auto Update Check',
+      checkNow: 'Check for Updates'
     },
     other: 'Other',
     unsavedChanges: 'Settings modified but not saved',
@@ -1059,34 +1060,9 @@ export default {
       ctrlDDesc: 'Toggle dark/light mode'
     },
     skip: 'Skip Guide',
+    prev: 'Previous',
     next: 'Next',
-    startUsing: 'Get Started',
-    interactive: {
-      selectProject: 'Select Projects',
-      selectProjectDescMulti: 'Select one or more Godot projects or scan disk to discover',
-      selectProjectDir: 'Select project directory',
-      scanProjects: 'Auto scan projects',
-      noProjectsFound: 'No Godot projects found, please select a directory manually',
-      selectedCount: '{count} project(s) selected',
-      importPlugin: 'Import Plugins',
-      importPluginDesc: 'Scan existing projects and select plugins to import',
-      noPluginsFound: 'No importable plugins found',
-      importSelected: 'Import selected',
-      configureBindings: 'Configure Bindings',
-      configureBindingsDesc: 'Choose which plugins to bind for each project (all selected by default)',
-      projectLabel: 'Project\\Plugin',
-      selectAll: 'All',
-      deselectAll: 'None',
-      totalBindings: '{count} binding(s) total',
-      skipBinding: 'Skip binding',
-      bindAndApply: 'Bind & Apply',
-      bindAndApplyDesc: 'Apply configured bindings to project addons directories',
-      bindAndApplyButton: 'Bind & Apply',
-      binding: 'Binding...',
-      applying: 'Applying...',
-      success: 'Setup Complete!',
-      successDesc: 'Successfully created {count} plugin links'
-    }
+    startUsing: 'Get Started'
   },
   about: {
     title: 'About',
@@ -1170,6 +1146,11 @@ export default {
     skipVersion: 'Skip this version',
     bothUpdatesTip: 'Both full update and hot update are available. It is recommended to install the full update first (includes all hot update content).',
     download: 'Download',
+    checking: 'Checking for updates',
+    checkingDesc: 'Checking for app, plugin, and engine updates...',
+    notCheckedYet: 'Updates not checked yet',
+    notCheckedYetDesc: 'Click the button above to check for available updates',
+    checkFailed: 'Update check failed: {error}',
     currentHotUpdateVersion: 'Current hot update version:',
     rollbackHotUpdate: 'Rollback hot update',
     rollbackConfirmDesc: 'Rolling back will restore the previous version. Some features from the current version may be lost. Continue?',

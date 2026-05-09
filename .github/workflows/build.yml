@@ -373,8 +373,12 @@ jobs:
               });
               if (resp.ok) {
                 const existing = await resp.json();
-                giteeReleaseId = existing.id;
-                core.info(`Gitee release already exists, id=${giteeReleaseId}`);
+                giteeReleaseId = existing?.id;
+                if (giteeReleaseId) {
+                  core.info(`Gitee release already exists, id=${giteeReleaseId}`);
+                } else {
+                  core.warning(`Gitee release exists but has no id, response: ${JSON.stringify(existing).substring(0, 200)}`);
+                }
               } else {
                 core.info('Creating Gitee release...');
                 const createResp = await fetch(`${giteeApiBase}/repos/${giteeOwner}/${giteeRepo}/releases`, {
@@ -395,11 +399,20 @@ jobs:
                   return;
                 }
                 const created = await createResp.json();
-                giteeReleaseId = created.id;
+                giteeReleaseId = created?.id;
+                if (!giteeReleaseId) {
+                  core.setFailed(`Gitee release created but no id returned. Response: ${JSON.stringify(created).substring(0, 200)}`);
+                  return;
+                }
                 core.info(`Created Gitee release, id=${giteeReleaseId}`);
               }
             } catch (err) {
               core.setFailed(`Gitee API error: ${err.message}`);
+              return;
+            }
+
+            if (!giteeReleaseId) {
+              core.setFailed('Failed to obtain Gitee release id');
               return;
             }
 

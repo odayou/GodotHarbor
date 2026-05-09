@@ -7,6 +7,8 @@ use crate::utils::{create_http_client, no_window_cmd};
 use super::utils::*;
 use super::plugin::{APP_GITHUB_OWNER, APP_GITHUB_REPO, check_plugin_updates};
 
+use serde_json;
+
 #[tauri::command]
 pub async fn check_app_update(app: AppHandle, force_refresh: Option<bool>) -> Result<Option<AppUpdateInfo>, String> {
     let force = force_refresh.unwrap_or(false);
@@ -426,7 +428,19 @@ pub async fn check_all_updates(app: AppHandle, force_refresh: Option<bool>) -> R
             if let Ok(last_time) = chrono::DateTime::parse_from_rfc3339(content.trim()) {
                 let elapsed = chrono::Utc::now().signed_duration_since(last_time.with_timezone(&chrono::Utc));
                 if elapsed.num_minutes() < 5 {
-                    return Err("更新检查过于频繁，请稍后再试".to_string());
+                    let cache_file = cache_dir.join("last_update_check_result.json");
+                    if let Ok(cached) = fs::read_to_string(&cache_file) {
+                        if let Ok(result) = serde_json::from_str::<UpdateCheckResult>(&cached) {
+                            return Ok(result);
+                        }
+                    }
+                    return Ok(UpdateCheckResult {
+                        app_update: None,
+                        hot_update: None,
+                        plugin_updates: vec![],
+                        engine_updates: vec![],
+                        checked_at: last_time.to_rfc3339(),
+                    });
                 }
             }
         }
@@ -459,13 +473,18 @@ pub async fn check_all_updates(app: AppHandle, force_refresh: Option<bool>) -> R
 
     let hot_update = check_hot_update(app.clone(), None).await.ok().flatten();
 
-    Ok(UpdateCheckResult {
+    let result = UpdateCheckResult {
         app_update,
         hot_update,
         plugin_updates,
         engine_updates,
         checked_at: chrono::Utc::now().to_rfc3339(),
-    })
+    };
+
+    let cache_file = cache_dir.join("last_update_check_result.json");
+    let _ = fs::write(&cache_file, serde_json::to_string(&result).unwrap_or_default());
+
+    Ok(result)
 }
 
 #[tauri::command]
