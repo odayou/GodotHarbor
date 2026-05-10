@@ -378,6 +378,7 @@ pub fn run() {
             commands::batch_apply_changes,
             commands::enable_plugin_in_project,
             commands::disable_plugin_in_project,
+            commands::get_enabled_plugins,
             commands::get_plugin_storage_stats,
             commands::remove_plugin_version,
             commands::get_plugin_bindings,

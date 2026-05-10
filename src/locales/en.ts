@@ -359,6 +359,10 @@ export default {
       cancel: 'Cancel',
     },
     importPluginSuccess: 'Plugin {name} imported successfully',
+    pluginEnabled: 'Enabled',
+    pluginEnable: 'Enable',
+    pluginDisabled: 'Disabled',
+    enableDisableFailed: 'Operation failed: {error}',
     postImportGuide: 'Plugin {name} is ready. Go to "Project Bindings" tab to bind it to a project',
     quickBind: {
       title: 'Quick Bind Plugin',
@@ -732,6 +736,7 @@ export default {
       assetLibraryMirrorPlaceholder: 'e.g. https://mirror.example.com/asset-library/api',
       assetLibraryMirrorHint: 'Leave empty for official godotengine.org. Users in China can use a mirror URL'
     },
+    networkAndUpdate: 'Network & Updates',
     updates: {
       title: 'Updates',
       autoCheck: 'Auto Update Check',
@@ -743,6 +748,7 @@ export default {
     unsavedDesc: 'You have unsaved settings changes. Would you like to save before leaving?',
     discardChanges: 'Discard Changes',
     saveAndLeave: 'Save & Leave',
+    misc: 'Miscellaneous',
     showOnboarding: 'Show Onboarding Again',
     showOnboardingDesc: 'Click to show the onboarding guide immediately',
     resetDataLabel: 'Reset Data',

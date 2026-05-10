@@ -292,8 +292,10 @@ const loadGroups = async () => {
 const showProjectDetails = async (project: Project) => {
   selectedProject.value = project
   showProjectDetail.value = true
+  showAddPluginPanel.value = false
   try {
     projectBindings.value = await api.getProjectBindings(project.project_id)
+    await loadPluginEnabledState()
   } catch (error) {
     console.error('Failed to load project details:', error)
   }
@@ -744,6 +746,49 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
     }
   } catch (error) {
     toast.error(t('common.loadFailed', { error }))
+  }
+}
+
+const pluginEnabledMap = ref<Map<string, boolean>>(new Map())
+
+const loadPluginEnabledState = async () => {
+  if (!selectedProject.value) return
+  try {
+    const enabledList = await api.getEnabledPlugins(selectedProject.value.project_id)
+    const map = new Map<string, boolean>()
+    for (const name of enabledList) {
+      map.set(name, true)
+    }
+    pluginEnabledMap.value = map
+  } catch {
+    pluginEnabledMap.value = new Map()
+  }
+}
+
+const isPluginEnabled = (binding: ProjectBinding): boolean => {
+  const plugin = allPlugins.value.find(p => p.plugin_id === binding.plugin_id)
+  if (!plugin) return false
+  const unit = plugin.versions.flatMap(v => v.units).find(u => u.unit_id === binding.unit_id)
+  if (!unit) return false
+  const dirName = unit.subdirectory
+    ? unit.subdirectory.replace(/\\/g, '/').split('/').pop() || unit.name
+    : unit.name
+  return pluginEnabledMap.value.get(dirName) ?? false
+}
+
+const togglePluginEnabled = async (binding: ProjectBinding) => {
+  const enabled = isPluginEnabled(binding)
+  try {
+    if (enabled) {
+      await api.disablePluginInProject(binding.project_id, binding.plugin_id)
+      toast.success(t('plugins.pluginDisabled'))
+    } else {
+      await api.enablePluginInProject(binding.project_id, binding.plugin_id)
+      toast.success(t('plugins.pluginEnabled'))
+    }
+    await loadPluginEnabledState()
+  } catch (error) {
+    toast.warning(t('plugins.enableDisableFailed', { error: String(error) }))
   }
 }
 
@@ -1339,6 +1384,12 @@ const toggleAddPluginPanel = () => {
                 </div>
               </div>
               <div class="flex items-center gap-1 ml-2 flex-shrink-0">
+                <button
+                  @click="togglePluginEnabled(binding)"
+                  :class="['px-2 py-1 text-xs rounded', isPluginEnabled(binding) ? 'text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20' : 'text-gray-500 dark:text-content-muted hover:bg-gray-50 dark:hover:bg-surface-layer']"
+                >
+                  {{ isPluginEnabled(binding) ? t('plugins.pluginEnabled') : t('plugins.pluginEnable') }}
+                </button>
                 <button
                   v-if="binding.is_healthy === false"
                   @click="repairProjectBinding(binding)"

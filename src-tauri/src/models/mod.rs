@@ -337,7 +337,7 @@ impl Default for Settings {
             custom_data_dir: String::new(),
             selected_mirror_id: String::new(),
             known_engine_paths: Vec::new(),
-            auto_apply: false,
+            auto_apply: true,
             github_api_proxy: String::new(),
             asset_library_mirror: String::new(),
         }

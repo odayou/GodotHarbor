@@ -362,6 +362,10 @@ export default {
       cancel: '取消'
     },
     importPluginSuccess: '插件 {name} 导入成功',
+    pluginEnabled: '已启用',
+    pluginEnable: '启用',
+    pluginDisabled: '已禁用',
+    enableDisableFailed: '操作失败：{error}',
     postImportGuide: '插件 {name} 已就绪，可前往"项目绑定"标签将其绑定到项目',
     quickBind: {
       title: '快速绑定插件',
@@ -735,6 +739,7 @@ export default {
       assetLibraryMirrorPlaceholder: '如 https://mirror.example.com/asset-library/api',
       assetLibraryMirrorHint: '留空使用官方 godotengine.org。国内用户可填写镜像地址'
     },
+    networkAndUpdate: '网络与更新',
     updates: {
       title: '更新',
       autoCheck: '自动更新检查',
@@ -746,6 +751,7 @@ export default {
     unsavedDesc: '您有未保存的设置变更，是否保存后再离开？',
     discardChanges: '放弃变更',
     saveAndLeave: '保存并离开',
+    misc: '其他',
     showOnboarding: '重新显示引导',
     showOnboardingDesc: '点击后立即显示新手引导',
     resetDataLabel: '重置数据',

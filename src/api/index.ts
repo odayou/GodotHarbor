@@ -242,6 +242,10 @@ export const api = {
     return await invoke('disable_plugin_in_project', { projectId, pluginId })
   },
 
+  async getEnabledPlugins(projectId: string): Promise<string[]> {
+    return await invoke('get_enabled_plugins', { projectId })
+  },
+
   async batchBindPlugins(bindings: BatchBindingRequest[]): Promise<BatchResult> {
     return await invoke('batch_bind_plugins', { bindings })
   },

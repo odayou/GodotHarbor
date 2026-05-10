@@ -15,7 +15,7 @@ const toast = useToast()
 const { t, locale } = useI18n()
 const router = useRouter()
 const { setTheme, initTheme } = useTheme()
-const settings = ref<Settings>({ scan_directories: [], mount_strategy: 'Symlink', language: 'zh-CN', theme: 'system', auto_scan_on_startup: true, auto_discover_engines: true, auto_check_plugin_updates: false, auto_check_app_updates: true, auto_check_engine_updates: true, update_check_interval_hours: 4, skipped_app_version: '', auto_apply: false, github_api_proxy: '', asset_library_mirror: '' })
+const settings = ref<Settings>({ scan_directories: [], mount_strategy: 'Symlink', language: 'zh-CN', theme: 'system', auto_scan_on_startup: true, auto_discover_engines: true, auto_check_plugin_updates: false, auto_check_app_updates: true, auto_check_engine_updates: true, update_check_interval_hours: 4, skipped_app_version: '', auto_apply: true, github_api_proxy: '', asset_library_mirror: '' })
 const originalSettings = ref<string>('')
 const isLoading = ref(false)
 const isDirty = computed(() => {
@@ -94,7 +94,7 @@ const loadSettings = async () => {
   isLoading.value = true
   try {
     const result = await api.getSettings()
-    settings.value = { scan_directories: result.scan_directories || [], mount_strategy: result.mount_strategy || 'Symlink', language: result.language || 'zh-CN', theme: result.theme || 'system', auto_scan_on_startup: result.auto_scan_on_startup ?? true, auto_discover_engines: result.auto_discover_engines ?? true, auto_check_plugin_updates: result.auto_check_plugin_updates ?? false, auto_check_app_updates: result.auto_check_app_updates ?? true, auto_check_engine_updates: result.auto_check_engine_updates ?? true, update_check_interval_hours: result.update_check_interval_hours ?? 4, skipped_app_version: result.skipped_app_version || '', auto_apply: result.auto_apply ?? false, github_api_proxy: result.github_api_proxy || '', asset_library_mirror: result.asset_library_mirror || '' }
+    settings.value = { scan_directories: result.scan_directories || [], mount_strategy: result.mount_strategy || 'Symlink', language: result.language || 'zh-CN', theme: result.theme || 'system', auto_scan_on_startup: result.auto_scan_on_startup ?? true, auto_discover_engines: result.auto_discover_engines ?? true, auto_check_plugin_updates: result.auto_check_plugin_updates ?? false, auto_check_app_updates: result.auto_check_app_updates ?? true, auto_check_engine_updates: result.auto_check_engine_updates ?? true, update_check_interval_hours: result.update_check_interval_hours ?? 4, skipped_app_version: result.skipped_app_version || '', auto_apply: result.auto_apply ?? true, github_api_proxy: result.github_api_proxy || '', asset_library_mirror: result.asset_library_mirror || '' }
     const localStorageLang = localStorage.getItem('godotharbor-language')
     if (localStorageLang && localStorageLang !== settings.value.language) {
       settings.value.language = localStorageLang
@@ -437,8 +437,7 @@ const toggleMirrorEnabled = (mirrorId: string) => {
           <button v-for="section in [
             { id: 'general', label: t('settings.general'), icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
             { id: 'data', label: t('settings.data'), icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4' },
-            { id: 'mount', label: t('settings.mount'), icon: 'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1' },
-            { id: 'updates', label: t('settings.updates.title'), icon: 'M13 10V3L4 14h7v7l9-11h-7z' }
+            { id: 'updates', label: t('settings.networkAndUpdate'), icon: 'M13 10V3L4 14h7v7l9-11h-7z' }
           ]" :key="section.id" @click="activeSection = section.id"
             :class="[
               'flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors w-full text-left',
@@ -458,8 +457,7 @@ const toggleMirrorEnabled = (mirrorId: string) => {
         <button v-for="section in [
           { id: 'general', label: t('settings.general') },
           { id: 'data', label: t('settings.data') },
-          { id: 'mount', label: t('settings.mount') },
-          { id: 'updates', label: t('settings.updates.title') }
+          { id: 'updates', label: t('settings.networkAndUpdate') }
         ]" :key="section.id" @click="activeSection = section.id"
           :class="[
             'px-3 py-1.5 text-xs rounded-full whitespace-nowrap transition-colors',
@@ -521,20 +519,30 @@ const toggleMirrorEnabled = (mirrorId: string) => {
             <p v-if="settings.auto_apply" class="text-xs text-gray-500 dark:text-content-muted ml-7">{{ t('settings.autoApplyDesc') }}</p>
           </div>
         </div>
-      </div>
-      <div v-show="activeSection === 'mount'" class="card p-6">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('settings.mount') }}</h2>
-        <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-2">{{ t('settings.mountStrategy') }}</label>
-        <select v-model="settings.mount_strategy" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary">
-          <option value="Symlink">{{ t('settings.symlink') }}</option>
-          <option value="Junction">{{ t('settings.junction') }}</option>
-          <option value="Copy">{{ t('settings.copy') }}</option>
-        </select>
-        <p class="text-xs text-gray-500 dark:text-content-muted mt-1.5">
-          <span v-if="settings.mount_strategy === 'Symlink'">{{ t('settings.symlinkDesc') }}</span>
-          <span v-else-if="settings.mount_strategy === 'Junction'">{{ t('settings.junctionDesc') }}</span>
-          <span v-else-if="settings.mount_strategy === 'Copy'">{{ t('settings.copyDesc') }}</span>
-        </p>
+        <div class="card p-6">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('settings.mount') }}</h2>
+          <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-2">{{ t('settings.mountStrategy') }}</label>
+          <select v-model="settings.mount_strategy" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary">
+            <option value="Symlink">{{ t('settings.symlink') }}</option>
+            <option value="Junction">{{ t('settings.junction') }}</option>
+            <option value="Copy">{{ t('settings.copy') }}</option>
+          </select>
+          <p class="text-xs text-gray-500 dark:text-content-muted mt-1.5">
+            <span v-if="settings.mount_strategy === 'Symlink'">{{ t('settings.symlinkDesc') }}</span>
+            <span v-else-if="settings.mount_strategy === 'Junction'">{{ t('settings.junctionDesc') }}</span>
+            <span v-else-if="settings.mount_strategy === 'Copy'">{{ t('settings.copyDesc') }}</span>
+          </p>
+        </div>
+        <div class="card p-6">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('settings.misc') }}</h2>
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm text-gray-700 dark:text-content-secondary">{{ t('settings.showOnboarding') }}</p>
+              <p class="text-xs text-gray-500 dark:text-content-muted mt-0.5">{{ t('settings.showOnboardingDesc') }}</p>
+            </div>
+            <button @click="resetOnboarding" class="px-4 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-hover text-gray-700 dark:text-content-secondary rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors text-sm">{{ t('settings.showOnboarding') }}</button>
+          </div>
+        </div>
       </div>
       <div v-if="storagePaths" v-show="activeSection === 'data'" class="space-y-6">
         <div class="card p-6">
@@ -594,13 +602,6 @@ const toggleMirrorEnabled = (mirrorId: string) => {
                 <button @click="showBackupDialog = true" class="px-4 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-hover text-gray-700 dark:text-content-secondary rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors text-sm">{{ t('settings.buttons.backup') }}</button>
                 <button @click="showRestoreDialog = true" class="px-4 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-hover text-gray-700 dark:text-content-secondary rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors text-sm">{{ t('settings.backup.restore') }}</button>
               </div>
-            </div>
-            <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-surface-border">
-              <div>
-                <p class="text-sm text-gray-700 dark:text-content-secondary">{{ t('settings.showOnboarding') }}</p>
-                <p class="text-xs text-gray-500 dark:text-content-muted mt-0.5">{{ t('settings.showOnboardingDesc') }}</p>
-              </div>
-              <button @click="resetOnboarding" class="px-4 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-hover text-gray-700 dark:text-content-secondary rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors text-sm">{{ t('settings.showOnboarding') }}</button>
             </div>
             <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-surface-border">
               <div>

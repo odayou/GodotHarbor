@@ -1351,11 +1351,83 @@ pub async fn batch_apply_changes(app: AppHandle, project_ids: Vec<String>) -> Re
     Ok(BatchApplyResult { results })
 }
 
+fn parse_packed_string_array(value: &str) -> Vec<String> {
+    let inner = value.trim()
+        .strip_prefix("PackedStringArray(")
+        .and_then(|s| s.strip_suffix(")"))
+        .unwrap_or("");
+    if inner.is_empty() {
+        return vec![];
+    }
+    let mut result = Vec::new();
+    let mut current = String::new();
+    let mut in_string = false;
+    for ch in inner.chars() {
+        if ch == '"' {
+            in_string = !in_string;
+            if !in_string && !current.is_empty() {
+                result.push(current.clone());
+                current.clear();
+            }
+        } else if in_string {
+            current.push(ch);
+        }
+    }
+    result
+}
+
+fn extract_plugin_dir_name(entry: &str) -> String {
+    let mut result = entry.to_string();
+    loop {
+        let next = result
+            .strip_prefix("res://addons/")
+            .and_then(|s| s.strip_suffix("/plugin.cfg"))
+            .unwrap_or(&result)
+            .to_string();
+        if next == result {
+            break;
+        }
+        result = next;
+    }
+    if result.contains('/') || result.contains('\\') || result.contains("res://") {
+        result
+            .replace('\\', "/")
+            .split('/')
+            .last()
+            .unwrap_or(&result)
+            .to_string()
+    } else {
+        result
+    }
+}
+
+fn parse_enabled_entries(value: &str) -> Vec<String> {
+    let raw = parse_packed_string_array(value);
+    raw.iter().map(|e| extract_plugin_dir_name(e)).collect()
+}
+
+fn build_packed_string_array(entries: &[String]) -> String {
+    if entries.is_empty() {
+        return "enabled=PackedStringArray()".to_string();
+    }
+    let items: Vec<String> = entries.iter().map(|e| format!("\"res://addons/{}/plugin.cfg\"", e)).collect();
+    format!("enabled=PackedStringArray({})", items.join(", "))
+}
+
 fn modify_editor_plugins(
     project_path: &str,
     plugin_dir_name: &str,
     enable: bool,
 ) -> Result<bool, String> {
+    if plugin_dir_name.is_empty()
+        || plugin_dir_name.contains('/')
+        || plugin_dir_name.contains('\\')
+        || plugin_dir_name.contains("res://")
+        || plugin_dir_name.contains("plugin.cfg")
+    {
+        return Err(format!("Invalid plugin_dir_name: '{}', must be a simple directory name", plugin_dir_name));
+    }
+
     let project_godot = Path::new(project_path).join("project.godot");
 
     if !project_godot.exists() {
@@ -1373,78 +1445,102 @@ fn modify_editor_plugins(
     fs::write(&backup_path, &content)
         .map_err(|e| format!("Failed to backup project.godot: {}", e))?;
 
+    let line_ending = if content.contains("\r\n") { "\r\n" } else { "\n" };
+    let has_trailing_newline = content.ends_with('\n');
     let mut lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
+
     let mut section_idx: Option<usize> = None;
-    let mut existing_entry_idx: Option<usize> = None;
-    let mut next_section_after_editor_plugins: Option<usize> = None;
+    let mut existing_install_idx: Option<usize> = None;
+    let mut enabled_line_idx: Option<usize> = None;
+    let mut next_section_idx: Option<usize> = None;
 
     for (i, line) in lines.iter().enumerate() {
         let trimmed = line.trim();
         if trimmed == "[editor_plugins]" {
             section_idx = Some(i);
         } else if trimmed.starts_with('[') && trimmed.ends_with(']') && trimmed != "[editor_plugins]" {
-            if section_idx.is_some() && next_section_after_editor_plugins.is_none() {
-                next_section_after_editor_plugins = Some(i);
+            if section_idx.is_some() && next_section_idx.is_none() {
+                next_section_idx = Some(i);
             }
-        } else if section_idx.is_some() && next_section_after_editor_plugins.is_none() && !trimmed.is_empty() && !trimmed.starts_with(';') {
+        } else if section_idx.is_some() && next_section_idx.is_none() && !trimmed.is_empty() && !trimmed.starts_with(';') {
             if let Some(eq_pos) = trimmed.find('=') {
                 let key = trimmed[..eq_pos].trim();
                 if key == plugin_dir_name {
-                    existing_entry_idx = Some(i);
+                    existing_install_idx = Some(i);
+                } else if key == "enabled" {
+                    enabled_line_idx = Some(i);
                 }
             }
+        }
+    }
+
+    let mut install_entries: Vec<String> = Vec::new();
+    let mut enabled_entries: Vec<String> = Vec::new();
+
+    if let Some(idx) = existing_install_idx {
+        let val = lines[idx].trim();
+        if let Some(eq_pos) = val.find('=') {
+            install_entries.push(val[..eq_pos].trim().to_string());
+        }
+    }
+    if let Some(idx) = enabled_line_idx {
+        let val = lines[idx].trim();
+        if let Some(eq_pos) = val.find('=') {
+            enabled_entries = parse_enabled_entries(&val[eq_pos + 1..]);
         }
     }
 
     if enable {
-        if existing_entry_idx.is_some() {
-            if let Some(idx) = existing_entry_idx {
-                lines[idx] = format!("{}=true", plugin_dir_name);
-            }
-        } else if let Some(idx) = section_idx {
-            let insert_at = next_section_after_editor_plugins.unwrap_or(idx + 1);
-            lines.insert(insert_at, format!("{}=true", plugin_dir_name));
-        } else {
-            let insert_pos = lines.iter().position(|l| l.trim().starts_with('[')).unwrap_or(0);
-            lines.insert(insert_pos, "".to_string());
-            lines.insert(insert_pos + 1, "[editor_plugins]".to_string());
-            lines.insert(insert_pos + 2, format!("{}=true", plugin_dir_name));
+        if !install_entries.iter().any(|e| e == plugin_dir_name) {
+            install_entries.push(plugin_dir_name.to_string());
+        }
+        let mut seen = std::collections::HashSet::new();
+        enabled_entries.retain(|e| seen.insert(e.clone()));
+        if !seen.contains(plugin_dir_name) {
+            enabled_entries.push(plugin_dir_name.to_string());
         }
     } else {
-        if let Some(idx) = existing_entry_idx {
-            lines.remove(idx);
-            if let Some(sidx) = section_idx {
-                if sidx > idx {
-                    section_idx = Some(sidx - 1);
-                }
-                if let Some(nidx) = next_section_after_editor_plugins {
-                    if nidx > idx {
-                        next_section_after_editor_plugins = Some(nidx - 1);
-                    }
-                }
+        install_entries.retain(|e| e != plugin_dir_name);
+        let mut seen = std::collections::HashSet::new();
+        enabled_entries.retain(|e| seen.insert(e.clone()));
+        enabled_entries.retain(|e| e != plugin_dir_name);
+    }
+
+    if install_entries.is_empty() && enabled_entries.is_empty() {
+        if let Some(idx) = section_idx {
+            let end = next_section_idx.unwrap_or(lines.len());
+            lines.drain(idx..end);
+            if idx > 0 && lines.get(idx - 1).map(|l| l.trim().is_empty()).unwrap_or(false) {
+                lines.remove(idx - 1);
             }
         }
+    } else {
+        let mut new_section_lines: Vec<String> = vec!["[editor_plugins]".to_string(), String::new()];
+        for entry in &install_entries {
+            new_section_lines.push(format!("{}=true", entry));
+        }
+        if !enabled_entries.is_empty() {
+            new_section_lines.push(build_packed_string_array(&enabled_entries));
+        }
+        new_section_lines.push(String::new());
+
         if let Some(idx) = section_idx {
-            let check_start = idx + 1;
-            let check_end = next_section_after_editor_plugins.unwrap_or(lines.len());
-            let has_entries = lines[check_start..check_end].iter().any(|l| {
-                let t = l.trim();
-                !t.is_empty() && !t.starts_with(';') && t.contains('=')
-            });
-            if !has_entries {
-                lines.remove(idx);
-                if idx > 0 && lines.get(idx - 1).map(|l| l.trim().is_empty()).unwrap_or(false) {
-                    lines.remove(idx - 1);
-                }
-            }
+            let end = next_section_idx.unwrap_or(lines.len());
+            lines.splice(idx..end, new_section_lines);
+        } else {
+            let insert_pos = lines.iter().position(|l| l.trim().starts_with('[')).unwrap_or(0);
+            new_section_lines.push(String::new());
+            lines.splice(insert_pos..insert_pos, new_section_lines);
         }
     }
 
-    let new_content = lines.join("\n");
+    let mut new_content = lines.join(line_ending);
+    if has_trailing_newline && !new_content.ends_with(line_ending) {
+        new_content.push_str(line_ending);
+    }
     match fs::write(&project_godot, &new_content) {
         Ok(_) => {
-            let verify = fs::read_to_string(&project_godot)
-                .unwrap_or_default();
+            let verify = fs::read_to_string(&project_godot).unwrap_or_default();
             if !verify.lines().any(|l| l.trim().starts_with('[') && l.trim().ends_with(']')) {
                 let _ = fs::write(&project_godot, &content);
                 return Err("Verification failed: project.godot appears corrupted after write, reverted".to_string());
@@ -1456,6 +1552,68 @@ fn modify_editor_plugins(
             let _ = fs::write(&project_godot, &content);
             Err(format!("Failed to write project.godot: {}", e))
         }
+    }
+}
+
+#[tauri::command]
+pub fn get_enabled_plugins(app: AppHandle, project_id: String) -> Result<Vec<String>, String> {
+    let storage = get_storage(&app);
+    let projects: Vec<Project> = storage.load_or_default("projects.json");
+    let project = projects.iter().find(|p| p.project_id == project_id)
+        .ok_or_else(|| "Project not found".to_string())?;
+
+    let project_godot = Path::new(&project.path).join("project.godot");
+    if !project_godot.exists() {
+        return Ok(vec![]);
+    }
+
+    let content = fs::read_to_string(&project_godot)
+        .map_err(|e| format!("Failed to read project.godot: {}", e))?;
+
+    let mut enabled = Vec::new();
+    let mut in_section = false;
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed == "[editor_plugins]" {
+            in_section = true;
+            continue;
+        }
+        if trimmed.starts_with('[') && trimmed.ends_with(']') {
+            in_section = false;
+            continue;
+        }
+        if in_section && !trimmed.is_empty() && !trimmed.starts_with(';') {
+            if let Some(eq_pos) = trimmed.find('=') {
+                let key = trimmed[..eq_pos].trim();
+                let val = trimmed[eq_pos + 1..].trim();
+                if key == "enabled" && val.starts_with("PackedStringArray") {
+                    let entries = parse_enabled_entries(val);
+                    enabled.extend(entries);
+                }
+            }
+        }
+    }
+
+    Ok(enabled)
+}
+
+fn derive_plugin_dir_name(binding: &ProjectBinding) -> String {
+    let dir_name = binding.mount_path
+        .replace('\\', "/")
+        .trim_end_matches('/')
+        .split('/')
+        .last()
+        .unwrap_or(&binding.mount_path)
+        .to_string();
+    if dir_name.is_empty() || dir_name.contains("res://") || dir_name.contains("plugin.cfg") {
+        binding.mount_path.replace('\\', "/")
+            .split('/')
+            .filter(|s| !s.is_empty() && *s != "addons" && !s.starts_with("res:"))
+            .last()
+            .unwrap_or(&binding.mount_path)
+            .to_string()
+    } else {
+        dir_name
     }
 }
 
@@ -1478,17 +1636,7 @@ pub fn enable_plugin_in_project(
     let binding = bindings.iter().find(|b| b.project_id == project_id && b.plugin_id == plugin_id)
         .ok_or_else(|| "Binding not found".to_string())?;
 
-    let unit = plugin.versions.iter()
-        .flat_map(|v| v.units.iter())
-        .find(|u| u.unit_id == binding.unit_id)
-        .ok_or_else(|| "Plugin unit not found".to_string())?;
-
-    let plugin_dir_name = if unit.subdirectory.is_empty() {
-        unit.name.clone()
-    } else {
-        let sub = unit.subdirectory.replace('\\', "/");
-        sub.split('/').last().unwrap_or(&unit.name).to_string()
-    };
+    let plugin_dir_name = derive_plugin_dir_name(binding);
 
     match modify_editor_plugins(&project.path, &plugin_dir_name, true) {
         Ok(result) => {
@@ -1523,17 +1671,7 @@ pub fn disable_plugin_in_project(
     let binding = bindings.iter().find(|b| b.project_id == project_id && b.plugin_id == plugin_id)
         .ok_or_else(|| "Binding not found".to_string())?;
 
-    let unit = plugin.versions.iter()
-        .flat_map(|v| v.units.iter())
-        .find(|u| u.unit_id == binding.unit_id)
-        .ok_or_else(|| "Plugin unit not found".to_string())?;
-
-    let plugin_dir_name = if unit.subdirectory.is_empty() {
-        unit.name.clone()
-    } else {
-        let sub = unit.subdirectory.replace('\\', "/");
-        sub.split('/').last().unwrap_or(&unit.name).to_string()
-    };
+    let plugin_dir_name = derive_plugin_dir_name(binding);
 
     match modify_editor_plugins(&project.path, &plugin_dir_name, false) {
         Ok(result) => {
