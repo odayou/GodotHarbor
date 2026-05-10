@@ -10,6 +10,8 @@ export const useUpdateStore = defineStore('updates', () => {
   const { t } = useI18n()
   const toast = useToast()
   const isChecking = ref(false)
+  const hasChecked = ref(false)
+  const checkError = ref('')
   const lastCheckedAt = ref('')
   const trayCheckMessage = ref('')
   const trayCheckHasUpdates = ref<boolean | null>(null)
@@ -100,6 +102,7 @@ export const useUpdateStore = defineStore('updates', () => {
   async function checkAll() {
     if (isChecking.value) return
     isChecking.value = true
+    checkError.value = ''
     try {
       const result = await api.checkAllUpdates()
       appUpdate.value = result.app_update
@@ -136,9 +139,11 @@ export const useUpdateStore = defineStore('updates', () => {
       }
     } catch (error) {
       console.error('Check updates failed:', error)
+      checkError.value = String(error)
       toast.error(t('updates.checkFailed', { error: String(error) }))
     } finally {
       isChecking.value = false
+      hasChecked.value = true
     }
   }
 
@@ -264,6 +269,8 @@ export const useUpdateStore = defineStore('updates', () => {
 
   return {
     isChecking,
+    hasChecked,
+    checkError,
     lastCheckedAt,
     trayCheckMessage,
     trayCheckHasUpdates,

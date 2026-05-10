@@ -1,5 +1,5 @@
 <template>
-  <div class="p-6 space-y-6">
+  <div class="space-y-6">
     <div class="flex items-center justify-between">
       <h1 class="text-2xl font-bold text-gray-900 dark:text-content-primary">{{ t('nav.updates') }}</h1>
       <button @click="store.checkAll()" :disabled="store.isChecking" class="btn-primary">
@@ -147,29 +147,42 @@
       <p class="mt-1 text-sm text-gray-500 dark:text-content-secondary">{{ t('updates.checkingDesc') }}</p>
     </div>
 
-    <div v-else-if="!store.lastCheckedAt" class="card text-center py-12">
-      <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-content-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-      </svg>
-      <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-content-primary">{{ t('updates.notCheckedYet') }}</h3>
-      <p class="mt-1 text-sm text-gray-500 dark:text-content-secondary">{{ t('updates.notCheckedYetDesc') }}</p>
-    </div>
+    <template v-else>
+      <div v-if="!store.lastCheckedAt && !store.hasChecked" class="card text-center py-12">
+        <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-content-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-content-primary">{{ t('updates.notCheckedYet') }}</h3>
+        <p class="mt-1 text-sm text-gray-500 dark:text-content-secondary">{{ t('updates.notCheckedYetDesc') }}</p>
+      </div>
 
-    <div v-if="!store.isChecking && !store.appUpdate && store.pluginUpdates.length === 0 && store.engineUpdates.length === 0 && !store.hotUpdate && store.lastCheckedAt" class="card text-center py-12">
-      <svg class="mx-auto h-12 w-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-      <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-content-primary">{{ t('statusbar.everythingUpToDate') }}</h3>
-      <p class="mt-1 text-sm text-gray-500 dark:text-content-secondary">{{ t('updates.allUpToDateDesc') }}</p>
-      <a :href="githubReleaseUrl" target="_blank" class="inline-flex items-center gap-1 mt-3 text-xs text-primary-600 dark:text-primary-400 hover:underline">
-        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-        {{ t('updates.githubRelease') }}
-      </a>
-      <a :href="giteeReleaseUrl" target="_blank" class="inline-flex items-center gap-1 mt-3 text-xs text-primary-600 dark:text-primary-400 hover:underline">
-        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-        {{ t('updates.giteeRelease') }}
-      </a>
-    </div>
+      <div v-if="!store.appUpdate && store.pluginUpdates.length === 0 && store.engineUpdates.length === 0 && !store.hotUpdate && store.lastCheckedAt" class="card text-center py-12">
+        <svg class="mx-auto h-12 w-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-content-primary">{{ t('statusbar.everythingUpToDate') }}</h3>
+        <p class="mt-1 text-sm text-gray-500 dark:text-content-secondary">{{ t('updates.allUpToDateDesc') }}</p>
+        <a :href="githubReleaseUrl" target="_blank" class="inline-flex items-center gap-1 mt-3 text-xs text-primary-600 dark:text-primary-400 hover:underline">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+          {{ t('updates.githubRelease') }}
+        </a>
+        <a :href="giteeReleaseUrl" target="_blank" class="inline-flex items-center gap-1 mt-3 text-xs text-primary-600 dark:text-primary-400 hover:underline">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+          {{ t('updates.giteeRelease') }}
+        </a>
+      </div>
+
+      <div v-if="store.checkError && !store.lastCheckedAt" class="card text-center py-12">
+        <svg class="mx-auto h-12 w-12 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-content-primary">{{ t('updates.checkFailed', { error: '' }) }}</h3>
+        <p class="mt-1 text-sm text-red-500 dark:text-red-400">{{ store.checkError }}</p>
+        <button @click="store.checkAll()" class="mt-3 px-4 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700">
+          {{ t('statusbar.checkUpdates') }}
+        </button>
+      </div>
+    </template>
 
     <div v-if="store.updateHistory.length > 0" class="card">
       <div class="flex items-center justify-between mb-4">

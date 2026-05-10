@@ -129,6 +129,7 @@ const batchApplyResults = ref<any[]>([])
 const showGraphView = ref(false)
 const linkerSearchQuery = ref('')
 const linkerProjectBindingCounts = ref<Map<string, number>>(new Map())
+const linkerProjectBindingNames = ref<Map<string, string[]>>(new Map())
 const addonBackups = ref<any[]>([])
 const showRollbackDialog = ref(false)
 const isRestoringAddon = ref(false)
@@ -885,13 +886,21 @@ const loadLinkerData = async () => {
     ])
     linkerProjects.value = projs
     const countMap = new Map<string, number>()
+    const namesMap = new Map<string, string[]>()
     const bindingResults = await Promise.allSettled(
       projs.map(project => api.getProjectBindings(project.project_id))
     )
     bindingResults.forEach((result, i) => {
-      countMap.set(projs[i].project_id, result.status === 'fulfilled' ? result.value.length : 0)
+      const bindings = result.status === 'fulfilled' ? result.value : []
+      countMap.set(projs[i].project_id, bindings.length)
+      const names = bindings.slice(0, 3).map(b => {
+        const plugin = plugins.value.find(p => p.plugin_id === b.plugin_id)
+        return plugin?.name || b.plugin_id
+      })
+      namesMap.set(projs[i].project_id, names)
     })
     linkerProjectBindingCounts.value = countMap
+    linkerProjectBindingNames.value = namesMap
     if (!hasLoaded.value) {
       await loadPlugins(true)
     }
@@ -1000,12 +1009,27 @@ const doBindPlugin = async (plugin: Plugin, version: any, unit: any) => {
         api.bindPlugin(projectId, plugin.plugin_id, version.version_id, unit.unit_id, mountPath, subdirectory)
       )
     )
-    await Promise.allSettled(
+    const applyResults = await Promise.allSettled(
       Array.from(selectedLinkProjectIds.value).map(projectId =>
         api.applyChanges(projectId)
       )
     )
-    toast.success(t('linker.pluginBound', { name: plugin.name, version: version.version }))
+    const failedApplies = applyResults
+      .map((r, i) => {
+        if (r.status === 'fulfilled' && !r.value.success) {
+          return `${Array.from(selectedLinkProjectIds.value)[i]}: ${r.value.errors.join(', ')}`
+        }
+        if (r.status === 'rejected') {
+          return `${Array.from(selectedLinkProjectIds.value)[i]}: ${r.reason}`
+        }
+        return null
+      })
+      .filter(Boolean)
+    if (failedApplies.length > 0) {
+      toast.warning(t('linker.bindingApplyFailed', { errors: failedApplies.join('; ') }))
+    } else {
+      toast.success(t('linker.pluginBound', { name: plugin.name, version: version.version }))
+    }
     if (selectedLinkId.value) {
       await loadLinkerBindings(selectedLinkId.value)
     }
@@ -1019,9 +1043,15 @@ const doBindPlugin = async (plugin: Plugin, version: any, unit: any) => {
         const projectId = Array.from(selectedLinkProjectIds.value)[i]
         if (result.status === 'fulfilled') {
           linkerProjectBindingCounts.value.set(projectId, result.value.length)
+          const names = result.value.slice(0, 3).map((b: ProjectBinding) => {
+            const plugin = plugins.value.find(p => p.plugin_id === b.plugin_id)
+            return plugin?.name || b.plugin_id
+          })
+          linkerProjectBindingNames.value.set(projectId, names)
         }
       })
       linkerProjectBindingCounts.value = new Map(linkerProjectBindingCounts.value)
+      linkerProjectBindingNames.value = new Map(linkerProjectBindingNames.value)
     }
   } catch (error) {
     toast.error(t('common.loadFailed', { error }))
@@ -1057,6 +1087,19 @@ const confirmUnbindPlugin = async () => {
     toast.success(t('linker.pluginUnbound'))
     if (selectedLinkId.value) {
       await loadLinkerBindings(selectedLinkId.value)
+    }
+    if (linkerProjectBindingCounts.value.has(binding.project_id)) {
+      try {
+        const bindings = await api.getProjectBindings(binding.project_id)
+        linkerProjectBindingCounts.value.set(binding.project_id, bindings.length)
+        const names = bindings.slice(0, 3).map((b: ProjectBinding) => {
+          const plugin = plugins.value.find(p => p.plugin_id === b.plugin_id)
+          return plugin?.name || b.plugin_id
+        })
+        linkerProjectBindingNames.value.set(binding.project_id, names)
+        linkerProjectBindingCounts.value = new Map(linkerProjectBindingCounts.value)
+        linkerProjectBindingNames.value = new Map(linkerProjectBindingNames.value)
+      } catch {}
     }
   } catch (error) {
     toast.error(t('common.loadFailed', { error }))
@@ -1335,15 +1378,17 @@ const doQuickBind = async () => {
   const subdirectory = unit.subdirectory || ''
   let successCount = 0
   let failCount = 0
+  const applyErrors: string[] = []
   for (const projectId of quickBindSelectedProjectIds.value) {
     try {
       await api.bindPlugin(projectId, plugin.plugin_id, version.version_id, unit.unit_id, mountPath, subdirectory)
-      try {
-        await api.applyChanges(projectId)
-      } catch (applyErr) {
-        console.warn('Apply changes failed after quick bind:', applyErr)
+      const applyResult = await api.applyChanges(projectId)
+      if (!applyResult.success) {
+        applyErrors.push(...applyResult.errors)
+        failCount++
+      } else {
+        successCount++
       }
-      successCount++
     } catch {
       failCount++
     }
@@ -1351,7 +1396,8 @@ const doQuickBind = async () => {
   isQuickBinding.value = false
   showQuickBindDialog.value = false
   if (failCount > 0) {
-    toast.warning(t('plugins.bindDialog.partialSuccess', { success: successCount, failed: failCount }))
+    const errorMsg = applyErrors.length > 0 ? applyErrors.join('; ') : ''
+    toast.warning(t('plugins.bindDialog.partialSuccess', { success: successCount, failed: failCount }) + (errorMsg ? ` — ${errorMsg}` : ''))
   } else {
     toast.success(t('plugins.quickBind.bindSuccess', { name: plugin.name, count: successCount }))
   }
@@ -2358,6 +2404,14 @@ const retryBatchFailed = async () => {
               <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-content-secondary">
                 <span>{{ project.godot_version }}</span>
                 <span v-if="linkerProjectBindingCounts.get(project.project_id)" class="text-blue-500 dark:text-blue-400">{{ linkerProjectBindingCounts.get(project.project_id) }} {{ t('linker.bindingCountShort') }}</span>
+              </div>
+              <div v-if="linkerProjectBindingNames.get(project.project_id)?.length" class="mt-1 flex flex-wrap gap-1">
+                <span
+                  v-for="name in linkerProjectBindingNames.get(project.project_id)"
+                  :key="name"
+                  class="inline-block px-1.5 py-0.5 text-[10px] bg-gray-100 dark:bg-surface-layer text-gray-600 dark:text-content-muted rounded"
+                >{{ name }}</span>
+                <span v-if="(linkerProjectBindingCounts.get(project.project_id) || 0) > 3" class="inline-block px-1.5 py-0.5 text-[10px] text-gray-400 dark:text-content-muted">+{{ (linkerProjectBindingCounts.get(project.project_id) || 0) - 3 }}</span>
               </div>
             </div>
           </div>

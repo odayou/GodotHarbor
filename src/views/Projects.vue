@@ -703,25 +703,22 @@ const confirmRelocate = async () => {
 
 const goToPluginBindings = (project: Project) => {
   showProjectDetail.value = false
+  showAddPluginPanel.value = false
   router.push({ path: '/plugins', query: { tab: 'bindings', project: project.project_id } })
-}
-
-const bindPluginToProject = (project: Project) => {
-  showProjectDetail.value = false
-  router.push({ path: '/plugins', query: { tab: 'repository', bindProject: project.project_id } })
 }
 
 const unbindProjectBinding = async (binding: ProjectBinding) => {
   try {
     await api.unbindPlugin(binding.project_id, binding.plugin_id)
-    try {
-      await api.applyChanges(binding.project_id)
-    } catch (applyErr) {
-      toast.warning(t('linker.bindingApplyFailed', { errors: applyErr instanceof Error ? applyErr.message : String(applyErr) }))
+    const applyResult = await api.applyChanges(binding.project_id)
+    if (!applyResult.success) {
+      toast.warning(t('linker.bindingApplyFailed', { errors: applyResult.errors.join('; ') }))
+    } else {
+      toast.success(t('linker.pluginUnbound'))
     }
-    toast.success(t('linker.pluginUnbound'))
     if (selectedProject.value) {
       projectBindings.value = await api.getProjectBindings(selectedProject.value.project_id)
+      projectBindingMap.value.set(selectedProject.value.project_id, projectBindings.value)
     }
   } catch (error) {
     toast.error(t('common.loadFailed', { error }))
@@ -731,17 +728,77 @@ const unbindProjectBinding = async (binding: ProjectBinding) => {
 const repairProjectBinding = async (binding: ProjectBinding) => {
   try {
     await api.repairBinding(binding.project_id, binding.plugin_id)
-    try {
-      await api.applyChanges(binding.project_id)
-    } catch {
-      // ignore apply errors
+    const applyResult = await api.applyChanges(binding.project_id)
+    if (!applyResult.success) {
+      toast.warning(t('linker.bindingApplyFailed', { errors: applyResult.errors.join('; ') }))
+    } else {
+      toast.success(t('linker.repairSuccess'))
     }
-    toast.success(t('linker.repairSuccess'))
     if (selectedProject.value) {
       projectBindings.value = await api.getProjectBindings(selectedProject.value.project_id)
     }
   } catch (error) {
     toast.error(t('common.loadFailed', { error }))
+  }
+}
+
+const showAddPluginPanel = ref(false)
+const addPluginSearchQuery = ref('')
+const isBindingPlugin = ref(false)
+
+const boundPluginIds = computed(() => new Set(projectBindings.value.map(b => b.plugin_id)))
+
+const availablePluginsForProject = computed(() => {
+  return allPlugins.value.filter(p => !boundPluginIds.value.has(p.plugin_id))
+})
+
+const filteredAvailablePlugins = computed(() => {
+  const q = addPluginSearchQuery.value.toLowerCase().trim()
+  if (!q) return availablePluginsForProject.value
+  return availablePluginsForProject.value.filter(p =>
+    p.name.toLowerCase().includes(q) ||
+    p.description.toLowerCase().includes(q) ||
+    p.author.toLowerCase().includes(q)
+  )
+})
+
+const isCompatWarning = (plugin: Plugin, project: Project) => {
+  if (plugin.compatibility === 'Both' || plugin.compatibility === 'Unknown') return false
+  const projMajor = project.godot_version.split('.')[0]
+  if (plugin.compatibility === 'Godot4' && projMajor !== '4') return true
+  if (plugin.compatibility === 'Godot3' && projMajor !== '3') return true
+  return false
+}
+
+const bindPluginInline = async (plugin: Plugin) => {
+  if (!selectedProject.value || isBindingPlugin.value) return
+  isBindingPlugin.value = true
+  try {
+    const version = plugin.versions[0]
+    if (!version) return
+    const unit = version.units[0]
+    if (!unit) return
+    const mountPath = `addons/${unit.name}`
+    await api.bindPlugin(selectedProject.value.project_id, plugin.plugin_id, version.version_id, unit.unit_id, mountPath, unit.subdirectory || '')
+    const applyResult = await api.applyChanges(selectedProject.value.project_id)
+    if (!applyResult.success) {
+      toast.warning(t('linker.bindingApplyFailed', { errors: applyResult.errors.join('; ') }))
+    } else {
+      toast.success(t('plugins.importPluginSuccess', { name: plugin.name }))
+    }
+    projectBindings.value = await api.getProjectBindings(selectedProject.value.project_id)
+    projectBindingMap.value.set(selectedProject.value.project_id, projectBindings.value)
+  } catch (error) {
+    toast.error(t('common.loadFailed', { error }))
+  } finally {
+    isBindingPlugin.value = false
+  }
+}
+
+const toggleAddPluginPanel = () => {
+  showAddPluginPanel.value = !showAddPluginPanel.value
+  if (showAddPluginPanel.value) {
+    addPluginSearchQuery.value = ''
   }
 }
 </script>
@@ -1089,6 +1146,20 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
                   class="absolute right-0 top-full mt-1 bg-white dark:bg-surface-hover rounded-xl shadow-lg border border-gray-200 dark:border-surface-border py-1 z-20 whitespace-nowrap"
                 >
                   <button
+                    @click.stop="showProjectDetails(project); showAddPluginPanel = true; projectMenuId = ''"
+                    class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-content-primary hover:bg-gray-100 dark:hover:bg-surface-layer flex items-center gap-2"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+                    {{ t('linker.bindPlugins') }}
+                  </button>
+                  <button
+                    @click.stop="syncProject(project); projectMenuId = ''"
+                    class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-content-primary hover:bg-gray-100 dark:hover:bg-surface-layer flex items-center gap-2"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                    {{ t('projects.syncProject') }}
+                  </button>
+                  <button
                     @click.stop="openInFileManager(project.path); projectMenuId = ''"
                     class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-content-primary hover:bg-gray-100 dark:hover:bg-surface-layer flex items-center gap-2"
                   >
@@ -1114,7 +1185,7 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
   </div>
 
   <Teleport to="body">
-  <div v-if="showProjectDetail && selectedProject" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showProjectDetail = false; selectedProject = null">
+  <div v-if="showProjectDetail && selectedProject" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showProjectDetail = false; selectedProject = null; showAddPluginPanel = false">
       <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto" @click.stop>
         <div class="flex items-center gap-4 mb-4">
           <div class="flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-gray-100 dark:bg-surface-hover flex items-center justify-center">
@@ -1170,13 +1241,13 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
             <h4 class="text-sm font-medium text-gray-700 dark:text-content-secondary">{{ t('projects.pluginBindings') }}</h4>
             <div class="flex items-center gap-2">
               <button
-                @click="bindPluginToProject(selectedProject!)"
-                class="px-2.5 py-1 bg-primary-600 text-white text-xs rounded hover:bg-primary-700 transition-colors flex items-center gap-1"
+                @click="toggleAddPluginPanel"
+                :class="['px-2.5 py-1 text-xs rounded transition-colors flex items-center gap-1', showAddPluginPanel ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300' : 'bg-primary-600 text-white hover:bg-primary-700']"
               >
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                 </svg>
-                {{ t('linker.bindPlugins') }}
+                {{ showAddPluginPanel ? t('common.close') : t('linker.bindPlugins') }}
               </button>
               <button
                 @click="goToPluginBindings(selectedProject!)"
@@ -1189,10 +1260,51 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
               </button>
             </div>
           </div>
-          <div v-if="projectBindings.length === 0" class="text-sm text-gray-500 dark:text-content-muted">
+
+          <!-- Inline Add Plugin Panel -->
+          <div v-if="showAddPluginPanel" class="mb-3 border border-primary-200 dark:border-primary-800 rounded-lg overflow-hidden">
+            <div class="p-2 bg-primary-50 dark:bg-primary-900/20 border-b border-primary-200 dark:border-primary-800">
+              <input
+                v-model="addPluginSearchQuery"
+                type="text"
+                :placeholder="t('plugins.search')"
+                class="w-full px-2.5 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-xs"
+              />
+            </div>
+            <div class="max-h-48 overflow-y-auto">
+              <div v-if="availablePluginsForProject.length === 0" class="p-4 text-center text-xs text-gray-500 dark:text-content-muted">
+                {{ t('plugins.empty') }}
+              </div>
+              <div v-else-if="filteredAvailablePlugins.length === 0" class="p-4 text-center text-xs text-gray-500 dark:text-content-muted">
+                {{ t('plugins.searchNoResult') }}
+              </div>
+              <div
+                v-for="plugin in filteredAvailablePlugins"
+                :key="plugin.plugin_id"
+                class="flex items-center justify-between px-3 py-2 border-b border-gray-100 dark:border-surface-border last:border-0 hover:bg-gray-50 dark:hover:bg-surface-layer"
+              >
+                <div class="min-w-0 flex-1">
+                  <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate flex items-center gap-1">
+                    {{ plugin.name }}
+                    <span v-if="isCompatWarning(plugin, selectedProject!)" class="text-xs text-orange-500" :title="t('plugins.bindDialog.compatWarning')">⚠</span>
+                  </div>
+                  <div class="text-xs text-gray-500 dark:text-content-secondary">v{{ plugin.versions[0]?.version || '1.0.0' }} · {{ plugin.author || t('plugins.unknownAuthor') }}</div>
+                </div>
+                <button
+                  @click="bindPluginInline(plugin)"
+                  :disabled="isBindingPlugin"
+                  class="px-2 py-1 bg-primary-600 text-white text-xs rounded hover:bg-primary-700 ml-2 flex-shrink-0 disabled:opacity-50"
+                >
+                  {{ isBindingPlugin ? t('common.loading') : t('linker.bind') }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="projectBindings.length === 0 && !showAddPluginPanel" class="text-sm text-gray-500 dark:text-content-muted">
             {{ t('projects.noBindings') }}
           </div>
-          <div v-else class="space-y-2 max-h-48 overflow-y-auto">
+          <div v-else-if="projectBindings.length > 0" class="space-y-2 max-h-48 overflow-y-auto">
             <div
               v-for="binding in projectBindings"
               :key="binding.plugin_id + binding.mount_path"
@@ -1234,23 +1346,27 @@ const repairProjectBinding = async (binding: ProjectBinding) => {
             </div>
           </div>
         </div>
-        <div class="flex justify-between gap-2">
-          <div class="flex gap-2">
-            <button
-              @click="syncProject(selectedProject)"
-              class="px-4 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-hover text-gray-700 dark:text-content-secondary rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer text-sm"
-            >
-              {{ t('projects.syncProject') }}
-            </button>
-            <button
-              @click="showProjectDetail = false; openRelocateDialog(selectedProject)"
-              class="px-4 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-hover text-gray-700 dark:text-content-secondary rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer text-sm"
-            >
-              {{ t('projects.relocate') }}
-            </button>
+        <div v-if="selectedProject.status === 'MissingSource'" class="mb-4 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+          <div class="flex items-start gap-2">
+            <svg class="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+            <div class="flex-1">
+              <p class="text-sm font-medium text-orange-800 dark:text-orange-300">{{ t('projects.status.missingSource') }}</p>
+              <p class="text-xs text-orange-600 dark:text-orange-400 mt-1">{{ t('projects.relocateDesc') }}</p>
+              <button
+                @click="showProjectDetail = false; openRelocateDialog(selectedProject!)"
+                class="mt-2 px-3 py-1.5 bg-orange-500 text-white text-xs rounded-lg hover:bg-orange-600 transition-colors"
+              >
+                {{ t('projects.relocate') }}
+              </button>
+            </div>
           </div>
+        </div>
+
+        <div class="flex justify-end">
           <button
-            @click="showProjectDetail = false; selectedProject = null"
+            @click="showProjectDetail = false; selectedProject = null; showAddPluginPanel = false"
             class="btn-secondary"
           >
             {{ t('common.close') }}

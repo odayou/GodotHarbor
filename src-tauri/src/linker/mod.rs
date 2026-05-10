@@ -358,11 +358,56 @@ impl Linker {
             match std::os::windows::fs::symlink_dir(source, target) {
                 Ok(_) => {}
                 Err(_) => {
-                    self.create_junction(source, target)
-                        .context("Symlink failed (likely due to permissions), and junction fallback also failed. Try running as administrator or change mount strategy to Junction/Copy in settings.")?;
+                    match self.create_junction_silent(source, target) {
+                        Ok(_) => {}
+                        Err(_) => {
+                            self.copy_dir_fallback(source, target)
+                                .context("Symlink and junction both failed, copy fallback also failed. Try changing mount strategy to Copy in settings.")?;
+                        }
+                    }
                 }
             }
         }
+
+        Ok(())
+    }
+
+    fn create_junction_silent(&self, source: &Path, target: &Path) -> Result<()> {
+        use std::process::Command;
+        #[cfg(windows)]
+        use std::os::windows::process::CommandExt;
+
+        #[cfg(windows)]
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+        #[cfg(windows)]
+        {
+            let source_str = source.to_string_lossy();
+            let target_str = target.to_string_lossy();
+            let mklink_cmd = format!("mklink /J \"{}\" \"{}\"", target_str, source_str);
+            let mut cmd = Command::new("cmd");
+            cmd.creation_flags(CREATE_NO_WINDOW);
+            let output = cmd
+                .args(&["/C", &mklink_cmd])
+                .output()
+                .context("Failed to execute mklink command")?;
+
+            if !output.status.success() {
+                anyhow::bail!("junction failed");
+            }
+        }
+
+        Ok(())
+    }
+
+    fn copy_dir_fallback(&self, source: &Path, target: &Path) -> Result<()> {
+        copy_dir_all(source, target)
+            .map_err(|e| anyhow::anyhow!(e))
+            .with_context(|| format!("Failed to copy plugin from {} to {}", source.to_string_lossy(), target.to_string_lossy()))?;
+
+        let harbor_marker = target.join(".harbor-managed");
+        std::fs::write(&harbor_marker, "managed_by_godot_harbor")
+            .with_context(|| format!("Failed to write harbor marker at {}", harbor_marker.to_string_lossy()))?;
 
         Ok(())
     }
@@ -485,18 +530,29 @@ impl Linker {
         #[cfg(windows)]
         const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-        let mut cmd = Command::new("cmd");
         #[cfg(windows)]
-        cmd.creation_flags(CREATE_NO_WINDOW);
-        let output = cmd
-            .args(&["/C", "mklink", "/J"])
-            .arg(target)
-            .arg(source)
-            .output()
-            .context("Failed to execute mklink command")?;
+        {
+            let source_str = source.to_string_lossy();
+            let target_str = target.to_string_lossy();
+            let mklink_cmd = format!("mklink /J \"{}\" \"{}\"", target_str, source_str);
+            let mut cmd = Command::new("cmd");
+            cmd.creation_flags(CREATE_NO_WINDOW);
+            let output = cmd
+                .args(&["/C", &mklink_cmd])
+                .output()
+                .context("Failed to execute mklink command")?;
 
-        if !output.status.success() {
-            anyhow::bail!("Failed to create junction: {}", String::from_utf8_lossy(&output.stderr));
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                anyhow::bail!("Failed to create junction: {} (stdout: {})", stderr, stdout);
+            }
+        }
+
+        #[cfg(not(windows))]
+        {
+            std::os::unix::fs::symlink(source, target)
+                .context("Failed to create symlink")?;
         }
 
         Ok(())
