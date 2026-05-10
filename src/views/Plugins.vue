@@ -1029,6 +1029,11 @@ const doBindPlugin = async (plugin: Plugin, version: any, unit: any) => {
       toast.warning(t('linker.bindingApplyFailed', { errors: failedApplies.join('; ') }))
     } else {
       toast.success(t('linker.pluginBound', { name: plugin.name, version: version.version }))
+      Promise.allSettled(
+        Array.from(selectedLinkProjectIds.value).map(projectId =>
+          api.enablePluginInProject(projectId, plugin.plugin_id)
+        )
+      ).catch(() => {})
     }
     if (selectedLinkId.value) {
       await loadLinkerBindings(selectedLinkId.value)
@@ -1321,19 +1326,28 @@ const toggleLinkPluginSelection = (pluginId: string, event: MouseEvent) => {
 
 const graphNodes = computed(() => {
   const nodes: { type: 'project' | 'plugin', id: string, name: string, y: number }[] = []
-  const projs = linkerProjects.value
-  const plgs = plugins.value
+  const boundProjectIds = new Set(linkerBindings.value.map(b => b.project_id))
+  const boundPluginIds = new Set(linkerBindings.value.map(b => b.plugin_id))
+  const projs = linkerProjects.value.filter(p => boundProjectIds.has(p.project_id))
+  const plgs = plugins.value.filter(p => boundPluginIds.has(p.plugin_id))
   projs.forEach((p, i) => {
-    nodes.push({ type: 'project', id: p.project_id, name: p.name, y: i * 40 + 30 })
+    nodes.push({ type: 'project', id: p.project_id, name: p.name, y: i * 44 + 50 })
   })
   plgs.forEach((p, i) => {
-    nodes.push({ type: 'plugin', id: p.plugin_id, name: p.name, y: i * 40 + 30 })
+    nodes.push({ type: 'plugin', id: p.plugin_id, name: p.name, y: i * 44 + 50 })
   })
   return nodes
 })
 
+const graphSvgHeight = computed(() => {
+  const boundProjectIds = new Set(linkerBindings.value.map(b => b.project_id))
+  const boundPluginIds = new Set(linkerBindings.value.map(b => b.plugin_id))
+  const projs = linkerProjects.value.filter(p => boundProjectIds.has(p.project_id))
+  const plgs = plugins.value.filter(p => boundPluginIds.has(p.plugin_id))
+  return Math.max(Math.max(projs.length, plgs.length) * 44 + 80, 200)
+})
+
 const graphLinks = computed(() => {
-  if (!selectedLinkId.value) return []
   return linkerBindings.value.map(b => ({
     projectId: b.project_id,
     pluginId: b.plugin_id,
@@ -1388,6 +1402,11 @@ const doQuickBind = async () => {
         failCount++
       } else {
         successCount++
+        try {
+          await api.enablePluginInProject(projectId, plugin.plugin_id)
+        } catch {
+          // ignore enable failure
+        }
       }
     } catch {
       failCount++
@@ -2379,9 +2398,15 @@ const retryBatchFailed = async () => {
         >
           {{ t('linker.batchApplyTitle') }}
         </button>
-        <span v-if="mountStrategyDisplay" class="text-xs text-gray-500 dark:text-content-secondary px-2 py-1 bg-gray-100 dark:bg-surface-layer rounded-lg">
-          {{ t('plugins.mountStrategyLabel') }}: {{ mountStrategyDisplay }}
-        </span>
+        <div v-if="mountStrategyDisplay" class="flex items-center gap-2 text-xs text-gray-500 dark:text-content-secondary">
+          <span class="px-2 py-1 bg-gray-100 dark:bg-surface-layer rounded-lg">
+            {{ t('plugins.mountStrategyLabel') }}: {{ mountStrategyDisplay }}
+          </span>
+          <span v-if="mountStrategyDisplay === 'Symlink'" class="hidden sm:inline">{{ t('settings.symlinkDesc') }}</span>
+          <span v-else-if="mountStrategyDisplay === 'Junction'" class="hidden sm:inline">{{ t('settings.junctionDesc') }}</span>
+          <span v-else-if="mountStrategyDisplay === 'Copy'" class="hidden sm:inline">{{ t('settings.copyDesc') }}</span>
+          <span class="hidden sm:inline text-gray-400 dark:text-content-muted">{{ t('plugins.mountStrategyChangeHint') }}</span>
+        </div>
       </div>
 
       <div v-if="!showGraphView" class="grid grid-cols-12 gap-4">
@@ -2516,18 +2541,21 @@ const retryBatchFailed = async () => {
 
       <div v-else class="card p-4">
         <h3 class="text-sm font-semibold text-gray-900 dark:text-content-primary mb-3">{{ t('linker.bindingGraph') }}</h3>
-        <svg width="100%" height="400" viewBox="0 0 640 400" class="border border-gray-200 dark:border-surface-border rounded-lg">
-          <text x="80" y="20" text-anchor="middle" class="fill-gray-500 dark:fill-gray-400" font-size="11">{{ t('linker.projects') }}</text>
-          <text x="560" y="20" text-anchor="middle" class="fill-gray-500 dark:fill-gray-400" font-size="11">{{ t('linker.plugins') }}</text>
+        <div v-if="graphLinks.length === 0" class="text-center py-8 text-sm text-gray-500 dark:text-content-muted">
+          {{ t('linker.noBindings') }}
+        </div>
+        <svg v-else width="100%" :height="graphSvgHeight" :viewBox="`0 0 800 ${graphSvgHeight}`" class="border border-gray-200 dark:border-surface-border rounded-lg">
+          <text x="120" y="24" text-anchor="middle" class="fill-gray-500 dark:fill-gray-400" font-size="11">{{ t('linker.projects') }}</text>
+          <text x="680" y="24" text-anchor="middle" class="fill-gray-500 dark:fill-gray-400" font-size="11">{{ t('linker.plugins') }}</text>
           <g v-for="node in graphNodes.filter(n => n.type === 'project')" :key="'p-' + node.id">
-            <rect :x="10" :y="node.y - 12" width="140" height="24" rx="4" class="fill-blue-100 dark:fill-blue-900/30 stroke-blue-300 dark:stroke-blue-700" stroke-width="1"/>
-            <text :x="80" :y="node.y + 4" text-anchor="middle" class="fill-gray-700 dark:fill-gray-300" font-size="10">{{ node.name.substring(0, 12) }}</text>
+            <rect :x="10" :y="node.y - 14" width="220" height="28" rx="6" class="fill-blue-100 dark:fill-blue-900/30 stroke-blue-300 dark:stroke-blue-700" stroke-width="1"/>
+            <text :x="120" :y="node.y + 4" text-anchor="middle" class="fill-gray-700 dark:fill-gray-300" font-size="11">{{ node.name }}</text>
           </g>
           <g v-for="node in graphNodes.filter(n => n.type === 'plugin')" :key="'pl-' + node.id">
-            <rect :x="490" :y="node.y - 12" width="140" height="24" rx="4" class="fill-green-100 dark:fill-green-900/30 stroke-green-300 dark:stroke-green-700" stroke-width="1"/>
-            <text :x="560" :y="node.y + 4" text-anchor="middle" class="fill-gray-700 dark:fill-gray-300" font-size="10">{{ node.name.substring(0, 12) }}</text>
+            <rect :x="570" :y="node.y - 14" width="220" height="28" rx="6" class="fill-green-100 dark:fill-green-900/30 stroke-green-300 dark:stroke-green-700" stroke-width="1"/>
+            <text :x="680" :y="node.y + 4" text-anchor="middle" class="fill-gray-700 dark:fill-gray-300" font-size="11">{{ node.name }}</text>
           </g>
-          <line v-for="link in graphLinks" :key="link.projectId + '-' + link.pluginId" :x1="150" :y1="graphNodes.find(n => n.id === link.projectId)?.y" :x2="490" :y2="graphNodes.find(n => n.id === link.pluginId)?.y" class="stroke-gray-400 dark:stroke-gray-500" stroke-width="1" stroke-dasharray="4"/>
+          <line v-for="link in graphLinks" :key="link.projectId + '-' + link.pluginId" :x1="230" :y1="graphNodes.find(n => n.id === link.projectId)?.y" :x2="570" :y2="graphNodes.find(n => n.id === link.pluginId)?.y" class="stroke-gray-400 dark:stroke-gray-500" stroke-width="1" stroke-dasharray="4"/>
         </svg>
       </div>
 

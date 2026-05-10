@@ -1351,4 +1351,202 @@ pub async fn batch_apply_changes(app: AppHandle, project_ids: Vec<String>) -> Re
     Ok(BatchApplyResult { results })
 }
 
+fn modify_editor_plugins(
+    project_path: &str,
+    plugin_dir_name: &str,
+    enable: bool,
+) -> Result<bool, String> {
+    let project_godot = Path::new(project_path).join("project.godot");
+
+    if !project_godot.exists() {
+        return Err("project.godot not found".to_string());
+    }
+
+    let content = fs::read_to_string(&project_godot)
+        .map_err(|e| format!("Failed to read project.godot: {}", e))?;
+
+    if !content.lines().any(|l| l.trim().starts_with('[') && l.trim().ends_with(']')) {
+        return Err("project.godot appears to be corrupted (no INI sections found), skipping plugin enable".to_string());
+    }
+
+    let backup_path = project_godot.with_extension("godot.harborbak");
+    fs::write(&backup_path, &content)
+        .map_err(|e| format!("Failed to backup project.godot: {}", e))?;
+
+    let mut lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
+    let mut section_idx: Option<usize> = None;
+    let mut existing_entry_idx: Option<usize> = None;
+    let mut next_section_after_editor_plugins: Option<usize> = None;
+
+    for (i, line) in lines.iter().enumerate() {
+        let trimmed = line.trim();
+        if trimmed == "[editor_plugins]" {
+            section_idx = Some(i);
+        } else if trimmed.starts_with('[') && trimmed.ends_with(']') && trimmed != "[editor_plugins]" {
+            if section_idx.is_some() && next_section_after_editor_plugins.is_none() {
+                next_section_after_editor_plugins = Some(i);
+            }
+        } else if section_idx.is_some() && next_section_after_editor_plugins.is_none() && !trimmed.is_empty() && !trimmed.starts_with(';') {
+            if let Some(eq_pos) = trimmed.find('=') {
+                let key = trimmed[..eq_pos].trim();
+                if key == plugin_dir_name {
+                    existing_entry_idx = Some(i);
+                }
+            }
+        }
+    }
+
+    if enable {
+        if existing_entry_idx.is_some() {
+            if let Some(idx) = existing_entry_idx {
+                lines[idx] = format!("{}=true", plugin_dir_name);
+            }
+        } else if let Some(idx) = section_idx {
+            let insert_at = next_section_after_editor_plugins.unwrap_or(idx + 1);
+            lines.insert(insert_at, format!("{}=true", plugin_dir_name));
+        } else {
+            let insert_pos = lines.iter().position(|l| l.trim().starts_with('[')).unwrap_or(0);
+            lines.insert(insert_pos, "".to_string());
+            lines.insert(insert_pos + 1, "[editor_plugins]".to_string());
+            lines.insert(insert_pos + 2, format!("{}=true", plugin_dir_name));
+        }
+    } else {
+        if let Some(idx) = existing_entry_idx {
+            lines.remove(idx);
+            if let Some(sidx) = section_idx {
+                if sidx > idx {
+                    section_idx = Some(sidx - 1);
+                }
+                if let Some(nidx) = next_section_after_editor_plugins {
+                    if nidx > idx {
+                        next_section_after_editor_plugins = Some(nidx - 1);
+                    }
+                }
+            }
+        }
+        if let Some(idx) = section_idx {
+            let check_start = idx + 1;
+            let check_end = next_section_after_editor_plugins.unwrap_or(lines.len());
+            let has_entries = lines[check_start..check_end].iter().any(|l| {
+                let t = l.trim();
+                !t.is_empty() && !t.starts_with(';') && t.contains('=')
+            });
+            if !has_entries {
+                lines.remove(idx);
+                if idx > 0 && lines.get(idx - 1).map(|l| l.trim().is_empty()).unwrap_or(false) {
+                    lines.remove(idx - 1);
+                }
+            }
+        }
+    }
+
+    let new_content = lines.join("\n");
+    match fs::write(&project_godot, &new_content) {
+        Ok(_) => {
+            let verify = fs::read_to_string(&project_godot)
+                .unwrap_or_default();
+            if !verify.lines().any(|l| l.trim().starts_with('[') && l.trim().ends_with(']')) {
+                let _ = fs::write(&project_godot, &content);
+                return Err("Verification failed: project.godot appears corrupted after write, reverted".to_string());
+            }
+            let _ = fs::remove_file(&backup_path);
+            Ok(true)
+        }
+        Err(e) => {
+            let _ = fs::write(&project_godot, &content);
+            Err(format!("Failed to write project.godot: {}", e))
+        }
+    }
+}
+
+#[tauri::command]
+pub fn enable_plugin_in_project(
+    app: AppHandle,
+    project_id: String,
+    plugin_id: String,
+) -> Result<bool, String> {
+    let storage = get_storage(&app);
+    let projects: Vec<Project> = storage.load_or_default("projects.json");
+    let project = projects.iter().find(|p| p.project_id == project_id)
+        .ok_or_else(|| "Project not found".to_string())?;
+
+    let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+    let plugin = plugins.iter().find(|p| p.plugin_id == plugin_id)
+        .ok_or_else(|| "Plugin not found".to_string())?;
+
+    let bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
+    let binding = bindings.iter().find(|b| b.project_id == project_id && b.plugin_id == plugin_id)
+        .ok_or_else(|| "Binding not found".to_string())?;
+
+    let unit = plugin.versions.iter()
+        .flat_map(|v| v.units.iter())
+        .find(|u| u.unit_id == binding.unit_id)
+        .ok_or_else(|| "Plugin unit not found".to_string())?;
+
+    let plugin_dir_name = if unit.subdirectory.is_empty() {
+        unit.name.clone()
+    } else {
+        let sub = unit.subdirectory.replace('\\', "/");
+        sub.split('/').last().unwrap_or(&unit.name).to_string()
+    };
+
+    match modify_editor_plugins(&project.path, &plugin_dir_name, true) {
+        Ok(result) => {
+            log_operation(&app, "enable_plugin", &project_id,
+                &format!("Enabled plugin {} in project {}", plugin.name, project.name));
+            Ok(result)
+        }
+        Err(e) => {
+            log_operation(&app, "enable_plugin_failed", &project_id,
+                &format!("Failed to enable plugin {} in project {}: {}", plugin.name, project.name, e));
+            Err(e)
+        }
+    }
+}
+
+#[tauri::command]
+pub fn disable_plugin_in_project(
+    app: AppHandle,
+    project_id: String,
+    plugin_id: String,
+) -> Result<bool, String> {
+    let storage = get_storage(&app);
+    let projects: Vec<Project> = storage.load_or_default("projects.json");
+    let project = projects.iter().find(|p| p.project_id == project_id)
+        .ok_or_else(|| "Project not found".to_string())?;
+
+    let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+    let plugin = plugins.iter().find(|p| p.plugin_id == plugin_id)
+        .ok_or_else(|| "Plugin not found".to_string())?;
+
+    let bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
+    let binding = bindings.iter().find(|b| b.project_id == project_id && b.plugin_id == plugin_id)
+        .ok_or_else(|| "Binding not found".to_string())?;
+
+    let unit = plugin.versions.iter()
+        .flat_map(|v| v.units.iter())
+        .find(|u| u.unit_id == binding.unit_id)
+        .ok_or_else(|| "Plugin unit not found".to_string())?;
+
+    let plugin_dir_name = if unit.subdirectory.is_empty() {
+        unit.name.clone()
+    } else {
+        let sub = unit.subdirectory.replace('\\', "/");
+        sub.split('/').last().unwrap_or(&unit.name).to_string()
+    };
+
+    match modify_editor_plugins(&project.path, &plugin_dir_name, false) {
+        Ok(result) => {
+            log_operation(&app, "disable_plugin", &project_id,
+                &format!("Disabled plugin {} in project {}", plugin.name, project.name));
+            Ok(result)
+        }
+        Err(e) => {
+            log_operation(&app, "disable_plugin_failed", &project_id,
+                &format!("Failed to disable plugin {} in project {}: {}", plugin.name, project.name, e));
+            Err(e)
+        }
+    }
+}
+
 

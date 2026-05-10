@@ -402,6 +402,7 @@ export default {
       updating: '正在更新插件...'
     },
     mountStrategyLabel: '挂载策略',
+    mountStrategyChangeHint: '（可在设置 > 挂载中修改）',
     retryFailed: '重试失败项',
     retrySuccess: '重试成功: {count} 项',
     retryFailedAgain: '重试仍有 {count} 项失败',

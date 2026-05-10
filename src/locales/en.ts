@@ -399,6 +399,7 @@ export default {
       updating: 'Updating plugins...'
     },
     mountStrategyLabel: 'Mount Strategy',
+    mountStrategyChangeHint: '(Change in Settings > Mount)',
     retryFailed: 'Retry Failed',
     retrySuccess: 'Retry succeeded: {count} item(s)',
     retryFailedAgain: 'Retry still has {count} failed item(s)',

@@ -234,6 +234,14 @@ export const api = {
     return await invoke('repair_binding', { projectId, pluginId })
   },
 
+  async enablePluginInProject(projectId: string, pluginId: string): Promise<boolean> {
+    return await invoke('enable_plugin_in_project', { projectId, pluginId })
+  },
+
+  async disablePluginInProject(projectId: string, pluginId: string): Promise<boolean> {
+    return await invoke('disable_plugin_in_project', { projectId, pluginId })
+  },
+
   async batchBindPlugins(bindings: BatchBindingRequest[]): Promise<BatchResult> {
     return await invoke('batch_bind_plugins', { bindings })
   },

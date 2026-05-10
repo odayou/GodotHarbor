@@ -709,6 +709,11 @@ const goToPluginBindings = (project: Project) => {
 
 const unbindProjectBinding = async (binding: ProjectBinding) => {
   try {
+    try {
+      await api.disablePluginInProject(binding.project_id, binding.plugin_id)
+    } catch {
+      // ignore disable failure
+    }
     await api.unbindPlugin(binding.project_id, binding.plugin_id)
     const applyResult = await api.applyChanges(binding.project_id)
     if (!applyResult.success) {
@@ -784,6 +789,11 @@ const bindPluginInline = async (plugin: Plugin) => {
     if (!applyResult.success) {
       toast.warning(t('linker.bindingApplyFailed', { errors: applyResult.errors.join('; ') }))
     } else {
+      try {
+        await api.enablePluginInProject(selectedProject.value.project_id, plugin.plugin_id)
+      } catch {
+        // ignore enable failure - plugin is bound but not auto-enabled
+      }
       toast.success(t('plugins.importPluginSuccess', { name: plugin.name }))
     }
     projectBindings.value = await api.getProjectBindings(selectedProject.value.project_id)
