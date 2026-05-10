@@ -362,6 +362,7 @@ export default {
     pluginEnabled: 'Enabled',
     pluginEnable: 'Enable',
     pluginDisabled: 'Disabled',
+    pluginReloadHint: 'If plugin status changes do not take effect, try reopening the project in the Godot editor',
     enableDisableFailed: 'Operation failed: {error}',
     postImportGuide: 'Plugin {name} is ready. Go to "Project Bindings" tab to bind it to a project',
     quickBind: {
@@ -549,7 +550,8 @@ export default {
     goToPluginEcosystem: 'Manage in Plugin Ecosystem',
     close: 'Close',
     targetProjects: 'Target Projects',
-    bindPlugins: 'Bind Plugins',
+    bindPlugins: 'Add Binding',
+    cancelBind: 'Cancel',
     cancel: 'Cancel',
     versionSelectTitle: 'Select Version - {name}',
     switchVersion: 'Switch Version',

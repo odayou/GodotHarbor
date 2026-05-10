@@ -365,6 +365,7 @@ export default {
     pluginEnabled: '已启用',
     pluginEnable: '启用',
     pluginDisabled: '已禁用',
+    pluginReloadHint: '改变插件状态后，如果未生效，请尝试在 Godot 编辑器中重新打开项目',
     enableDisableFailed: '操作失败：{error}',
     postImportGuide: '插件 {name} 已就绪，可前往"项目绑定"标签将其绑定到项目',
     quickBind: {
@@ -552,7 +553,8 @@ export default {
     goToPluginEcosystem: '在插件生态中管理',
     close: '关闭',
     targetProjects: '目标项目',
-    bindPlugins: '绑定插件',
+    bindPlugins: '新增绑定',
+    cancelBind: '取消新增',
     cancel: '取消',
     versionSelectTitle: '选择版本 - {name}',
     switchVersion: '切换版本',

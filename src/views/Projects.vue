@@ -1294,72 +1294,22 @@ const toggleAddPluginPanel = () => {
         <div class="mb-4">
           <div class="flex items-center justify-between mb-2">
             <h4 class="text-sm font-medium text-gray-700 dark:text-content-secondary">{{ t('projects.pluginBindings') }}</h4>
-            <div class="flex items-center gap-2">
-              <button
-                @click="toggleAddPluginPanel"
-                :class="['px-2.5 py-1 text-xs rounded transition-colors flex items-center gap-1', showAddPluginPanel ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300' : 'bg-primary-600 text-white hover:bg-primary-700']"
-              >
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                </svg>
-                {{ showAddPluginPanel ? t('common.close') : t('linker.bindPlugins') }}
-              </button>
-              <button
-                @click="goToPluginBindings(selectedProject!)"
-                class="px-2.5 py-1 border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-secondary text-xs rounded hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors flex items-center gap-1"
-              >
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                </svg>
-                {{ t('linker.goToPluginEcosystem') }}
-              </button>
-            </div>
+            <button
+              @click="goToPluginBindings(selectedProject!)"
+              class="px-2.5 py-1 border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-secondary text-xs rounded hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors flex items-center gap-1"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+              {{ t('linker.goToPluginEcosystem') }}
+            </button>
           </div>
+          <p class="text-xs text-gray-400 dark:text-content-muted mb-2">{{ t('plugins.pluginReloadHint') }}</p>
 
-          <!-- Inline Add Plugin Panel -->
-          <div v-if="showAddPluginPanel" class="mb-3 border border-primary-200 dark:border-primary-800 rounded-lg overflow-hidden">
-            <div class="p-2 bg-primary-50 dark:bg-primary-900/20 border-b border-primary-200 dark:border-primary-800">
-              <input
-                v-model="addPluginSearchQuery"
-                type="text"
-                :placeholder="t('plugins.search')"
-                class="w-full px-2.5 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-xs"
-              />
-            </div>
-            <div class="max-h-48 overflow-y-auto">
-              <div v-if="availablePluginsForProject.length === 0" class="p-4 text-center text-xs text-gray-500 dark:text-content-muted">
-                {{ t('plugins.empty') }}
-              </div>
-              <div v-else-if="filteredAvailablePlugins.length === 0" class="p-4 text-center text-xs text-gray-500 dark:text-content-muted">
-                {{ t('plugins.searchNoResult') }}
-              </div>
-              <div
-                v-for="plugin in filteredAvailablePlugins"
-                :key="plugin.plugin_id"
-                class="flex items-center justify-between px-3 py-2 border-b border-gray-100 dark:border-surface-border last:border-0 hover:bg-gray-50 dark:hover:bg-surface-layer"
-              >
-                <div class="min-w-0 flex-1">
-                  <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate flex items-center gap-1">
-                    {{ plugin.name }}
-                    <span v-if="isCompatWarning(plugin, selectedProject!)" class="text-xs text-orange-500" :title="t('plugins.bindDialog.compatWarning')">⚠</span>
-                  </div>
-                  <div class="text-xs text-gray-500 dark:text-content-secondary">v{{ plugin.versions[0]?.version || '1.0.0' }} · {{ plugin.author || t('plugins.unknownAuthor') }}</div>
-                </div>
-                <button
-                  @click="bindPluginInline(plugin)"
-                  :disabled="isBindingPlugin"
-                  class="px-2 py-1 bg-primary-600 text-white text-xs rounded hover:bg-primary-700 ml-2 flex-shrink-0 disabled:opacity-50"
-                >
-                  {{ isBindingPlugin ? t('common.loading') : t('linker.bind') }}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div v-if="projectBindings.length === 0 && !showAddPluginPanel" class="text-sm text-gray-500 dark:text-content-muted">
+          <div v-if="projectBindings.length === 0" class="text-sm text-gray-500 dark:text-content-muted mb-3">
             {{ t('projects.noBindings') }}
           </div>
-          <div v-else-if="projectBindings.length > 0" class="space-y-2 max-h-48 overflow-y-auto">
+          <div v-else class="space-y-2 max-h-48 overflow-y-auto mb-3">
             <div
               v-for="binding in projectBindings"
               :key="binding.plugin_id + binding.mount_path"
@@ -1402,6 +1352,60 @@ const toggleAddPluginPanel = () => {
                   class="px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
                 >
                   {{ t('linker.unbind') }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="border-t border-gray-200 dark:border-surface-border pt-3">
+            <button
+              @click="toggleAddPluginPanel"
+              :class="['w-full px-3 py-2 text-sm rounded-lg transition-all flex items-center justify-center gap-2 shadow-sm', showAddPluginPanel ? 'bg-gray-100 dark:bg-surface-hover text-gray-600 dark:text-content-secondary border border-gray-300 dark:border-surface-border' : 'bg-primary-600 text-white hover:bg-primary-700 hover:shadow-md']"
+            >
+              <svg v-if="!showAddPluginPanel" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+              </svg>
+              <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              {{ showAddPluginPanel ? t('linker.cancelBind') : t('linker.bindPlugins') }}
+            </button>
+          </div>
+
+          <div v-if="showAddPluginPanel" class="mt-2 border border-primary-200 dark:border-primary-800 rounded-lg overflow-hidden">
+            <div class="p-2 bg-primary-50 dark:bg-primary-900/20 border-b border-primary-200 dark:border-primary-800">
+              <input
+                v-model="addPluginSearchQuery"
+                type="text"
+                :placeholder="t('plugins.search')"
+                class="w-full px-2.5 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-xs"
+              />
+            </div>
+            <div class="max-h-48 overflow-y-auto">
+              <div v-if="availablePluginsForProject.length === 0" class="p-4 text-center text-xs text-gray-500 dark:text-content-muted">
+                {{ t('plugins.empty') }}
+              </div>
+              <div v-else-if="filteredAvailablePlugins.length === 0" class="p-4 text-center text-xs text-gray-500 dark:text-content-muted">
+                {{ t('plugins.searchNoResult') }}
+              </div>
+              <div
+                v-for="plugin in filteredAvailablePlugins"
+                :key="plugin.plugin_id"
+                class="flex items-center justify-between px-3 py-2 border-b border-gray-100 dark:border-surface-border last:border-0 hover:bg-gray-50 dark:hover:bg-surface-layer"
+              >
+                <div class="min-w-0 flex-1">
+                  <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate flex items-center gap-1">
+                    {{ plugin.name }}
+                    <span v-if="isCompatWarning(plugin, selectedProject!)" class="text-xs text-orange-500" :title="t('plugins.bindDialog.compatWarning')">⚠</span>
+                  </div>
+                  <div class="text-xs text-gray-500 dark:text-content-secondary">v{{ plugin.versions[0]?.version || '1.0.0' }} · {{ plugin.author || t('plugins.unknownAuthor') }}</div>
+                </div>
+                <button
+                  @click="bindPluginInline(plugin)"
+                  :disabled="isBindingPlugin"
+                  class="px-2 py-1 bg-primary-600 text-white text-xs rounded hover:bg-primary-700 ml-2 flex-shrink-0 disabled:opacity-50"
+                >
+                  {{ isBindingPlugin ? t('common.loading') : t('linker.bind') }}
                 </button>
               </div>
             </div>
