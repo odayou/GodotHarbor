@@ -382,7 +382,7 @@ jobs:
               } else {
                 core.info(`Gitee release for tag ${tag} not found (status ${resp.status}), will create`);
               }
-            } catch (err: any) {
+            } catch (err) {
               core.warning(`Error checking Gitee release: ${err.message}, will attempt to create`);
             }
 
