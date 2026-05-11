@@ -1,6 +1,6 @@
 {
   "name": "godot-harbor",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Godot Harbor - Plugin and Project Management for Godot",
   "type": "module",
   "scripts": {
