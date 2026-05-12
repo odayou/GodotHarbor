@@ -1,6 +1,6 @@
 [package]
 name = "godot-harbor"
-version = "1.0.8"
+version = "1.0.9"
 description = "Godot Harbor - Plugin and Project Management for Godot"
 authors = ["Godot Harbor Team"]
 edition = "2021"

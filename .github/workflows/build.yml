@@ -363,6 +363,9 @@ jobs:
 
             const { data: release } = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
             core.info(`Found GitHub release: ${release.tag_name} (${release.assets.length} assets)`);
+            for (const a of release.assets) {
+              core.info(`  Asset: ${a.name} (${a.size} bytes, content_type=${a.content_type})`);
+            }
 
             let giteeReleaseId;
             const giteeApiBase = 'https://gitee.com/api/v5';
@@ -427,6 +430,7 @@ jobs:
 
             let uploaded = 0;
             let skipped = 0;
+            let failed = 0;
             for (const asset of release.assets) {
               if (existingNames.has(asset.name)) {
                 core.info(`Skipping ${asset.name} (already exists on Gitee)`);
@@ -434,44 +438,60 @@ jobs:
                 continue;
               }
 
-              core.info(`Downloading ${asset.name} from GitHub...`);
-              const downloadResp = await fetch(asset.url, {
-                headers: { 'Authorization': `token ${process.env.GITHUB_TOKEN}`, 'Accept': 'application/octet-stream' },
-                redirect: 'manual'
-              });
-              const downloadUrl = downloadResp.headers.get('location') || downloadResp.url;
-              const fileResp = await fetch(downloadUrl);
-              if (!fileResp.ok) {
-                core.warning(`Failed to download ${asset.name}: ${fileResp.status}`);
+              core.info(`Downloading ${asset.name} (${asset.size} bytes) from GitHub...`);
+              let fileBuffer;
+              try {
+                const downloadResp = await fetch(asset.url, {
+                  headers: { 'Authorization': `token ${process.env.GITHUB_TOKEN}`, 'Accept': 'application/octet-stream' },
+                  redirect: 'follow'
+                });
+                if (!downloadResp.ok) {
+                  core.warning(`Failed to download ${asset.name}: HTTP ${downloadResp.status}`);
+                  failed++;
+                  continue;
+                }
+                fileBuffer = Buffer.from(await downloadResp.arrayBuffer());
+                core.info(`Downloaded ${asset.name}: ${fileBuffer.length} bytes`);
+              } catch (downloadErr) {
+                core.warning(`Error downloading ${asset.name}: ${downloadErr.message}`);
+                failed++;
                 continue;
               }
-              const fileBuffer = Buffer.from(await fileResp.arrayBuffer());
 
               core.info(`Uploading ${asset.name} to Gitee...`);
-              const FormData = await import('form-data');
-              const form = new FormData.default();
-              form.append('file', fileBuffer, { filename: asset.name, contentType: asset.content_type || 'application/octet-stream' });
-              form.append('name', asset.name);
+              try {
+                const FormData = await import('form-data');
+                const form = new FormData.default();
+                form.append('file', fileBuffer, { filename: asset.name, contentType: asset.content_type || 'application/octet-stream' });
+                form.append('name', asset.name);
 
-              const uploadResp = await fetch(
-                `${giteeApiBase}/repos/${giteeOwner}/${giteeRepo}/releases/${giteeReleaseId}/attach_files`,
-                {
-                  method: 'POST',
-                  headers: { 'Authorization': `token ${giteeToken}`, ...form.getHeaders() },
-                  body: form
+                const uploadResp = await fetch(
+                  `${giteeApiBase}/repos/${giteeOwner}/${giteeRepo}/releases/${giteeReleaseId}/attach_files`,
+                  {
+                    method: 'POST',
+                    headers: { 'Authorization': `token ${giteeToken}`, ...form.getHeaders() },
+                    body: form
+                  }
+                );
+
+                if (uploadResp.ok) {
+                  core.info(`Uploaded ${asset.name} to Gitee`);
+                  uploaded++;
+                } else {
+                  const errText = await uploadResp.text();
+                  core.warning(`Failed to upload ${asset.name}: HTTP ${uploadResp.status} - ${errText}`);
+                  failed++;
                 }
-              );
-
-              if (uploadResp.ok) {
-                core.info(`Uploaded ${asset.name} to Gitee`);
-                uploaded++;
-              } else {
-                const err = await uploadResp.text();
-                core.warning(`Failed to upload ${asset.name}: ${err}`);
+              } catch (uploadErr) {
+                core.warning(`Error uploading ${asset.name}: ${uploadErr.message}`);
+                failed++;
               }
             }
 
-            core.info(`Sync complete: ${uploaded} uploaded, ${skipped} skipped, ${release.assets.length} total`);
+            core.info(`Sync complete: ${uploaded} uploaded, ${skipped} skipped, ${failed} failed, ${release.assets.length} total`);
+            if (failed > 0) {
+              core.warning(`${failed} assets failed to sync`);
+            }
 
       - name: Summary
         run: |
