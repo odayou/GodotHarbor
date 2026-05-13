@@ -309,10 +309,15 @@ pub struct Settings {
     pub github_api_proxy: String,
     #[serde(default)]
     pub asset_library_mirror: String,
+    #[serde(default = "default_engine_update_channels")]
+    pub engine_update_channels: Vec<String>,
 }
 
 fn default_true() -> bool { true }
 fn default_four() -> u32 { 4 }
+fn default_engine_update_channels() -> Vec<String> {
+    vec!["stable".to_string()]
+}
 fn default_engine_mirrors() -> Vec<EngineMirrorConfig> {
     vec![EngineMirrorConfig::official()]
 }
@@ -340,6 +345,7 @@ impl Default for Settings {
             auto_apply: true,
             github_api_proxy: String::new(),
             asset_library_mirror: String::new(),
+            engine_update_channels: default_engine_update_channels(),
         }
     }
 }

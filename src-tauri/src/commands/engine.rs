@@ -597,6 +597,9 @@ pub fn rename_engine(app: AppHandle, engine_id: String, new_name: String) -> Res
 pub async fn check_godot_updates(app: AppHandle) -> Result<crate::version_checker::GodotVersionCheckResult, String> {
     let storage = get_storage(&app);
     let engines: Vec<Engine> = storage.load_or_default("engines.json");
+    let settings: crate::models::Settings = storage.load_or_default("settings.json");
+
+    let allowed_channels: Vec<String> = settings.engine_update_channels;
 
     let local_engines: Vec<crate::version_checker::LocalEngineVersion> = engines.iter().map(|e| {
         crate::version_checker::LocalEngineVersion {
@@ -613,8 +616,12 @@ pub async fn check_godot_updates(app: AppHandle) -> Result<crate::version_checke
     let checker = crate::version_checker::VersionChecker::new(cache_dir)
         .with_github_api_base(github_base);
 
-    let result = checker.check_for_updates(local_engines).await
+    let mut result = checker.check_for_updates(local_engines).await
         .map_err(|e| format!("检查Godot更新失败: {}", e))?;
+
+    if !allowed_channels.is_empty() {
+        result.updates_available.retain(|u| allowed_channels.contains(&u.channel));
+    }
 
     if !result.updates_available.is_empty() {
         let _ = app.emit("godot-update-available", &result.updates_available);

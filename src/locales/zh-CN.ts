@@ -742,6 +742,8 @@ export default {
       assetLibraryMirrorHint: '留空使用官方 godotengine.org。国内用户可填写镜像地址'
     },
     networkAndUpdate: '网络与更新',
+    cloud: 'Harbor Cloud',
+    marketplace: '插件市场',
     updates: {
       title: '更新',
       autoCheck: '自动更新检查',
@@ -840,6 +842,11 @@ export default {
       autoCheckPluginUpdates: '自动检查插件更新',
       autoCheckAppUpdates: '自动检查应用更新',
       autoCheckEngineUpdates: '自动检查引擎更新',
+      updateChannels: '更新通道',
+      channelStable: '正式版',
+      channelPreview: '预览版 (RC/Beta)',
+      channelSnapshot: '开发版 (Dev/Alpha)',
+      updateChannelsHint: '仅接收所选通道的引擎更新提示，默认仅正式版',
       checkInterval: '检查间隔（小时）',
       skipMigration: '跳过迁移'
     },

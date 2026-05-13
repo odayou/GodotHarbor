@@ -467,7 +467,13 @@ pub async fn check_all_updates(app: AppHandle, force_refresh: Option<bool>) -> R
     let checker = crate::version_checker::VersionChecker::new(data_dir)
         .with_github_api_base(github_base);
     let engine_result = checker.check_for_updates(local_engines).await.ok();
-    let engine_updates = engine_result.map(|r| r.updates_available).unwrap_or_default();
+    let mut engine_updates = engine_result.map(|r| r.updates_available).unwrap_or_default();
+
+    let settings: crate::models::Settings = storage.load_or_default("settings.json");
+    let allowed_channels: &[String] = &settings.engine_update_channels;
+    if !allowed_channels.is_empty() {
+        engine_updates.retain(|u| allowed_channels.contains(&u.channel));
+    }
 
     let app_update = check_app_update(app.clone(), Some(force)).await.ok().flatten();
 

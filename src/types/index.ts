@@ -90,6 +90,7 @@ export interface Settings {
   auto_apply?: boolean
   github_api_proxy?: string
   asset_library_mirror?: string
+  engine_update_channels?: string[]
 }
 
 export interface ApplyResult {

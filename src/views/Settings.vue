@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { useSubscription } from '@/composables/useSubscription'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import { api } from '@/api'
@@ -58,6 +59,28 @@ const isRestoring = ref(false)
 const projects = ref<Project[]>([])
 
 const activeSection = ref('general')
+const { hasCloud, hasMarketplace } = useSubscription()
+
+const updateChannelOptions = computed(() => [
+  { value: 'stable', label: t('settings.pluginRepo.channelStable') },
+  { value: 'preview', label: t('settings.pluginRepo.channelPreview') },
+  { value: 'snapshot', label: t('settings.pluginRepo.channelSnapshot') },
+])
+
+const settingsSections = computed(() => {
+  const sections = [
+    { id: 'general', label: t('settings.general'), icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
+    { id: 'data', label: t('settings.data'), icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4' },
+    { id: 'updates', label: t('settings.networkAndUpdate'), icon: 'M13 10V3L4 14h7v7l9-11h-7z' },
+  ]
+  if (hasCloud.value) {
+    sections.push({ id: 'cloud', label: t('settings.cloud'), icon: 'M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z' })
+  }
+  if (hasMarketplace.value) {
+    sections.push({ id: 'marketplace', label: t('settings.marketplace'), icon: 'M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z' })
+  }
+  return sections
+})
 
 onMounted(() => {
   initTheme(); loadSettings(); loadProjects(); loadStoragePaths()
@@ -94,7 +117,7 @@ const loadSettings = async () => {
   isLoading.value = true
   try {
     const result = await api.getSettings()
-    settings.value = { scan_directories: result.scan_directories || [], mount_strategy: result.mount_strategy || 'Symlink', language: result.language || 'zh-CN', theme: result.theme || 'system', auto_scan_on_startup: result.auto_scan_on_startup ?? true, auto_discover_engines: result.auto_discover_engines ?? true, auto_check_plugin_updates: result.auto_check_plugin_updates ?? false, auto_check_app_updates: result.auto_check_app_updates ?? true, auto_check_engine_updates: result.auto_check_engine_updates ?? true, update_check_interval_hours: result.update_check_interval_hours ?? 4, skipped_app_version: result.skipped_app_version || '', auto_apply: result.auto_apply ?? true, github_api_proxy: result.github_api_proxy || '', asset_library_mirror: result.asset_library_mirror || '' }
+    settings.value = { scan_directories: result.scan_directories || [], mount_strategy: result.mount_strategy || 'Symlink', language: result.language || 'zh-CN', theme: result.theme || 'system', auto_scan_on_startup: result.auto_scan_on_startup ?? true, auto_discover_engines: result.auto_discover_engines ?? true, auto_check_plugin_updates: result.auto_check_plugin_updates ?? false, auto_check_app_updates: result.auto_check_app_updates ?? true, auto_check_engine_updates: result.auto_check_engine_updates ?? true, update_check_interval_hours: result.update_check_interval_hours ?? 4, skipped_app_version: result.skipped_app_version || '', auto_apply: result.auto_apply ?? true, github_api_proxy: result.github_api_proxy || '', asset_library_mirror: result.asset_library_mirror || '', engine_update_channels: result.engine_update_channels || ['stable'] }
     const localStorageLang = localStorage.getItem('godotharbor-language')
     if (localStorageLang && localStorageLang !== settings.value.language) {
       settings.value.language = localStorageLang
@@ -128,10 +151,14 @@ const removeScanDirectory = (index: number) => { const dir = settings.value.scan
 const saveSettings = async () => {
   isLoading.value = true
   try {
+    const prevChannels = originalSettings.value ? JSON.parse(originalSettings.value).engine_update_channels : null
     await api.saveSettings(settings.value)
     await loadStoragePaths()
     originalSettings.value = JSON.stringify(settings.value)
     toast.success(t('settings.messages.saveSuccess'))
+    if (prevChannels && JSON.stringify(prevChannels) !== JSON.stringify(settings.value.engine_update_channels)) {
+      await api.checkAllUpdates(true)
+    }
   }
   catch (error) { toast.error(t('settings.messages.saveFailed', { error })) }
   finally { isLoading.value = false }
@@ -434,11 +461,7 @@ const toggleMirrorEnabled = (mirrorId: string) => {
     <div v-else class="flex gap-6 items-start">
       <nav class="w-44 shrink-0 hidden lg:block">
         <div class="sticky top-6 space-y-1">
-          <button v-for="section in [
-            { id: 'general', label: t('settings.general'), icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
-            { id: 'data', label: t('settings.data'), icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4' },
-            { id: 'updates', label: t('settings.networkAndUpdate'), icon: 'M13 10V3L4 14h7v7l9-11h-7z' }
-          ]" :key="section.id" @click="activeSection = section.id"
+          <button v-for="section in settingsSections" :key="section.id" @click="activeSection = section.id"
             :class="[
               'flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors w-full text-left',
               activeSection === section.id
@@ -454,11 +477,7 @@ const toggleMirrorEnabled = (mirrorId: string) => {
         </div>
       </nav>
       <div class="lg:hidden flex gap-1.5 overflow-x-auto pb-2 -mx-1 px-1">
-        <button v-for="section in [
-          { id: 'general', label: t('settings.general') },
-          { id: 'data', label: t('settings.data') },
-          { id: 'updates', label: t('settings.networkAndUpdate') }
-        ]" :key="section.id" @click="activeSection = section.id"
+        <button v-for="section in settingsSections.map(s => ({ id: s.id, label: s.label }))" :key="section.id" @click="activeSection = section.id"
           :class="[
             'px-3 py-1.5 text-xs rounded-full whitespace-nowrap transition-colors',
             activeSection === section.id
@@ -634,6 +653,16 @@ const toggleMirrorEnabled = (mirrorId: string) => {
               <input type="checkbox" v-model="settings.auto_check_engine_updates" class="w-4 h-4 text-primary-600 rounded" />
               <span class="text-sm text-gray-700 dark:text-content-secondary">{{ t('settings.pluginRepo.autoCheckEngineUpdates') }}</span>
             </label>
+            <div v-if="settings.auto_check_engine_updates" class="pl-7 pt-1">
+              <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-2">{{ t('settings.pluginRepo.updateChannels') }}</label>
+              <div class="flex flex-wrap gap-3">
+                <label v-for="ch in updateChannelOptions" :key="ch.value" class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" :value="ch.value" v-model="settings.engine_update_channels" class="w-4 h-4 text-primary-600 rounded" />
+                  <span class="text-sm text-gray-700 dark:text-content-secondary">{{ ch.label }}</span>
+                </label>
+              </div>
+              <p class="text-xs text-gray-400 dark:text-content-muted mt-1.5">{{ t('settings.pluginRepo.updateChannelsHint') }}</p>
+            </div>
             <div class="pt-2">
               <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-2">{{ t('settings.pluginRepo.checkInterval') }}</label>
               <input type="number" v-model.number="settings.update_check_interval_hours" min="1" max="168"

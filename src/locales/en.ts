@@ -739,6 +739,8 @@ export default {
       assetLibraryMirrorHint: 'Leave empty for official godotengine.org. Users in China can use a mirror URL'
     },
     networkAndUpdate: 'Network & Updates',
+    cloud: 'Harbor Cloud',
+    marketplace: 'Marketplace',
     updates: {
       title: 'Updates',
       autoCheck: 'Auto Update Check',
@@ -837,6 +839,11 @@ export default {
       autoCheckPluginUpdates: 'Auto check plugin updates',
       autoCheckAppUpdates: 'Auto check app updates',
       autoCheckEngineUpdates: 'Auto check engine updates',
+      updateChannels: 'Update channels',
+      channelStable: 'Stable',
+      channelPreview: 'Preview (RC/Beta)',
+      channelSnapshot: 'Snapshot (Dev/Alpha)',
+      updateChannelsHint: 'Only receive engine update notifications for selected channels. Default: Stable only',
       checkInterval: 'Check interval (hours)',
       skipMigration: 'Skip Migration'
     },

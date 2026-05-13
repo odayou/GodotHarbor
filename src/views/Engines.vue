@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted, computed, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
+import { open as openUrl } from '@tauri-apps/plugin-shell'
 import { api } from '@/api'
 import type { Engine, RemoteEngineVersion, EngineMirrorConfig, EngineDownloadProgress, EngineReleaseChannel } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
@@ -1179,16 +1180,14 @@ const initCollapsedGroups = () => {
                       <div class="flex items-center gap-3 mt-1 text-xs text-gray-500 dark:text-content-muted">
                         <span>{{ formatFileSize(version.file_size) }}</span>
                         <span>{{ formatDate(version.published_at) }}</span>
-                        <a
+                        <button
                           v-if="version.release_url"
-                          :href="version.release_url"
-                          target="_blank"
-                          rel="noopener noreferrer"
+                          @click="openUrl(version.release_url)"
                           class="text-primary-600 dark:text-primary-400 hover:underline inline-flex items-center gap-0.5"
                         >
                           {{ t('engines.download.sourceLink') }}
                           <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                        </a>
+                        </button>
                         <button
                           v-if="version.release_notes"
                           @click="expandedReleaseVersion = expandedReleaseVersion === `${version.version}_${version.variant}` ? '' : `${version.version}_${version.variant}`"
