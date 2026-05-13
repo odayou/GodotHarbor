@@ -61,3 +61,100 @@ impl Storage {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_save_and_load() {
+        let dir = TempDir::new().unwrap();
+        let storage = Storage::new(dir.path().to_path_buf());
+
+        let data = vec!["hello".to_string(), "world".to_string()];
+        storage.save("test.json", &data).unwrap();
+
+        let loaded: Vec<String> = storage.load("test.json").unwrap();
+        assert_eq!(loaded, data);
+    }
+
+    #[test]
+    fn test_load_nonexistent() {
+        let dir = TempDir::new().unwrap();
+        let storage = Storage::new(dir.path().to_path_buf());
+
+        let result: Result<Vec<String>> = storage.load("nonexistent.json");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_load_or_default_nonexistent() {
+        let dir = TempDir::new().unwrap();
+        let storage = Storage::new(dir.path().to_path_buf());
+
+        let loaded: Vec<String> = storage.load_or_default("nonexistent.json");
+        assert!(loaded.is_empty());
+    }
+
+    #[test]
+    fn test_load_or_default_corrupted() {
+        let dir = TempDir::new().unwrap();
+        let storage = Storage::new(dir.path().to_path_buf());
+
+        std::fs::write(dir.path().join("corrupted.json"), "not valid json{{{").unwrap();
+        let loaded: Vec<String> = storage.load_or_default("corrupted.json");
+        assert!(loaded.is_empty());
+    }
+
+    #[test]
+    fn test_exists() {
+        let dir = TempDir::new().unwrap();
+        let storage = Storage::new(dir.path().to_path_buf());
+
+        assert!(!storage.exists("test.json"));
+
+        storage.save("test.json", &vec![1, 2, 3]).unwrap();
+        assert!(storage.exists("test.json"));
+    }
+
+    #[test]
+    fn test_save_overwrites() {
+        let dir = TempDir::new().unwrap();
+        let storage = Storage::new(dir.path().to_path_buf());
+
+        storage.save("test.json", &vec![1]).unwrap();
+        storage.save("test.json", &vec![2]).unwrap();
+
+        let loaded: Vec<i32> = storage.load("test.json").unwrap();
+        assert_eq!(loaded, vec![2]);
+    }
+
+    #[test]
+    fn test_save_struct() {
+        let dir = TempDir::new().unwrap();
+        let storage = Storage::new(dir.path().to_path_buf());
+
+        #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq)]
+        struct TestStruct {
+            name: String,
+            value: i32,
+        }
+
+        let data = TestStruct { name: "test".to_string(), value: 42 };
+        storage.save("struct.json", &data).unwrap();
+
+        let loaded: TestStruct = storage.load("struct.json").unwrap();
+        assert_eq!(loaded, data);
+    }
+
+    #[test]
+    fn test_storage_creates_data_dir() {
+        let dir = TempDir::new().unwrap();
+        let data_dir = dir.path().join("nested").join("data");
+        assert!(!data_dir.exists());
+
+        let _storage = Storage::new(data_dir.clone());
+        assert!(data_dir.exists());
+    }
+}

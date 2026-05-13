@@ -227,3 +227,68 @@ pub fn dir_size(path: &std::path::Path) -> u64 {
         .map(|m| m.len())
         .sum()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_size_bytes() {
+        assert_eq!(format_size(500), "500 B");
+    }
+
+    #[test]
+    fn test_format_size_kb() {
+        assert_eq!(format_size(1536), "1.50 KB");
+    }
+
+    #[test]
+    fn test_format_size_mb() {
+        assert_eq!(format_size(1048576), "1.00 MB");
+    }
+
+    #[test]
+    fn test_format_size_gb() {
+        assert_eq!(format_size(1073741824), "1.00 GB");
+    }
+
+    #[test]
+    fn test_format_size_zero() {
+        assert_eq!(format_size(0), "0 B");
+    }
+
+    #[test]
+    fn test_format_size_exact_kb() {
+        assert_eq!(format_size(1024), "1.00 KB");
+    }
+
+    #[test]
+    fn test_compute_settings_hash_deterministic() {
+        let settings = Settings::default();
+        let hash1 = compute_settings_hash(&settings);
+        let hash2 = compute_settings_hash(&settings);
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_compute_settings_hash_changes_with_settings() {
+        let settings1 = Settings::default();
+        let mut settings2 = Settings::default();
+        settings2.scan_directories = vec!["/different/path".to_string()];
+        assert_ne!(compute_settings_hash(&settings1), compute_settings_hash(&settings2));
+    }
+
+    #[test]
+    fn test_dir_size_empty() {
+        let dir = tempfile::TempDir::new().unwrap();
+        assert_eq!(dir_size(dir.path()), 0);
+    }
+
+    #[test]
+    fn test_dir_size_with_files() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(dir.path().join("test.txt"), b"hello").unwrap();
+        std::fs::write(dir.path().join("test2.txt"), b"world!").unwrap();
+        assert_eq!(dir_size(dir.path()), 11);
+    }
+}

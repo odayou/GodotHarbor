@@ -127,6 +127,9 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Run frontend tests
+        run: npm test -- --run
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -138,6 +141,9 @@ jobs:
         with:
           workspaces: './src-tauri -> target'
           cache-on-failure: true
+
+      - name: Run Rust tests
+        run: cd src-tauri && cargo test
 
       - name: Install Perl (Windows, for vendored-openssl)
         if: matrix.platform.os == 'windows-latest'

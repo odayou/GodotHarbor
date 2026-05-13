@@ -256,3 +256,108 @@ pub fn extract_icon_path_advanced(project_godot_path: &Path, project_dir: &Path)
 
     None
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_parse_import_file() {
+        let dir = TempDir::new().unwrap();
+        let import_path = dir.path().join("test.import");
+        fs::write(&import_path, 
+            "[remap]\n\nimporter=\"texture\"\n\nuid=\"uid://abc123\"\n\nsource_file=\"res://icon.svg\"\n\npath=\"res://.godot/imported/icon.svg-xxx.stex\"\n"
+        ).unwrap();
+
+        let info = parse_import_file(&import_path).unwrap();
+        assert_eq!(info.uid, "uid://abc123");
+        assert_eq!(info.source_file, "res://icon.svg");
+        assert!(info.remap_path.contains("icon.svg"));
+    }
+
+    #[test]
+    fn test_parse_import_file_missing_fields() {
+        let dir = TempDir::new().unwrap();
+        let import_path = dir.path().join("test.import");
+        fs::write(&import_path, "[remap]\nimporter=\"texture\"\n").unwrap();
+
+        let info = parse_import_file(&import_path).unwrap();
+        assert!(info.uid.is_empty());
+        assert!(info.source_file.is_empty());
+    }
+
+    #[test]
+    fn test_res_to_abs_path_valid() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("icon.svg"), "<svg/>").unwrap();
+        let resolver = GodotResourceResolver::new(dir.path().to_path_buf());
+
+        let result = resolver.res_to_abs_path("res://icon.svg");
+        assert!(result.is_some());
+        assert!(result.unwrap().contains("icon.svg"));
+    }
+
+    #[test]
+    fn test_res_to_abs_path_nonexistent() {
+        let dir = TempDir::new().unwrap();
+        let resolver = GodotResourceResolver::new(dir.path().to_path_buf());
+
+        let result = resolver.res_to_abs_path("res://nonexistent.svg");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_res_to_abs_path_invalid_prefix() {
+        let dir = TempDir::new().unwrap();
+        let resolver = GodotResourceResolver::new(dir.path().to_path_buf());
+
+        let result = resolver.res_to_abs_path("file:///icon.svg");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_resolve_icon_path_res() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("icon.svg"), "<svg/>").unwrap();
+        let resolver = GodotResourceResolver::new(dir.path().to_path_buf());
+
+        let result = resolver.resolve_icon_path("res://icon.svg");
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn test_resolve_icon_path_uid_not_cached() {
+        let dir = TempDir::new().unwrap();
+        let resolver = GodotResourceResolver::new(dir.path().to_path_buf());
+
+        let result = resolver.resolve_icon_path("uid://abc123");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_extract_icon_path_advanced_res() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("project.godot"), "[application]\nconfig/icon=\"res://icon.svg\"\n").unwrap();
+        fs::write(dir.path().join("icon.svg"), "<svg/>").unwrap();
+
+        let result = extract_icon_path_advanced(&dir.path().join("project.godot"), dir.path());
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn test_extract_icon_path_advanced_no_icon() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("project.godot"), "[application]\nconfig/name=\"Test\"\n").unwrap();
+
+        let result = extract_icon_path_advanced(&dir.path().join("project.godot"), dir.path());
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_invalidate_cache() {
+        let dir = TempDir::new().unwrap();
+        let _ = GodotResourceResolver::new(dir.path().to_path_buf());
+        GodotResourceResolver::invalidate_cache(dir.path());
+    }
+}

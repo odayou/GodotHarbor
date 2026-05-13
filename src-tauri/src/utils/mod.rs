@@ -99,3 +99,107 @@ pub fn parse_version(version: &str) -> (u32, u32, u32) {
     let patch = parts.get(2).and_then(|s| s.parse().ok()).unwrap_or(0);
     (major, minor, patch)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_should_skip_dir_git() {
+        assert!(should_skip_dir(".git"));
+    }
+
+    #[test]
+    fn test_should_skip_dir_node_modules() {
+        assert!(should_skip_dir("node_modules"));
+    }
+
+    #[test]
+    fn test_should_skip_dir_godot() {
+        assert!(should_skip_dir(".godot"));
+    }
+
+    #[test]
+    fn test_should_skip_dir_normal() {
+        assert!(!should_skip_dir("addons"));
+        assert!(!should_skip_dir("src"));
+    }
+
+    #[test]
+    fn test_should_skip_dir_case_insensitive() {
+        assert!(should_skip_dir(".Git"));
+        assert!(should_skip_dir("Node_Modules"));
+    }
+
+    #[test]
+    fn test_copy_dir_all_basic() {
+        let src = TempDir::new().unwrap();
+        let dst = TempDir::new().unwrap();
+
+        std::fs::write(src.path().join("file.txt"), b"hello").unwrap();
+        std::fs::create_dir_all(src.path().join("subdir")).unwrap();
+        std::fs::write(src.path().join("subdir").join("nested.txt"), b"world").unwrap();
+
+        copy_dir_all(src.path(), dst.path()).unwrap();
+
+        assert!(dst.path().join("file.txt").exists());
+        assert!(dst.path().join("subdir").join("nested.txt").exists());
+        assert_eq!(std::fs::read_to_string(dst.path().join("file.txt")).unwrap(), "hello");
+    }
+
+    #[test]
+    fn test_copy_dir_all_empty() {
+        let src = TempDir::new().unwrap();
+        let dst = TempDir::new().unwrap();
+
+        copy_dir_all(src.path(), dst.path()).unwrap();
+        assert!(dst.path().exists());
+    }
+
+    #[test]
+    fn test_parse_version_standard() {
+        assert_eq!(parse_version("4.2.1"), (4, 2, 1));
+    }
+
+    #[test]
+    fn test_parse_version_two_parts() {
+        assert_eq!(parse_version("4.2"), (4, 2, 0));
+    }
+
+    #[test]
+    fn test_parse_version_with_suffix() {
+        assert_eq!(parse_version("4.3-rc1"), (4, 3, 0));
+    }
+
+    #[test]
+    fn test_parse_version_single() {
+        assert_eq!(parse_version("4"), (4, 0, 0));
+    }
+
+    #[test]
+    fn test_parse_version_invalid() {
+        assert_eq!(parse_version("abc"), (0, 0, 0));
+    }
+
+    #[test]
+    fn test_apply_github_api_proxy_empty() {
+        assert_eq!(apply_github_api_proxy("https://api.github.com/repos/test", ""), "https://api.github.com/repos/test");
+    }
+
+    #[test]
+    fn test_apply_github_api_proxy_with_proxy() {
+        assert_eq!(
+            apply_github_api_proxy("https://api.github.com/repos/test", "https://mirror.example.com"),
+            "https://mirror.example.com/repos/test"
+        );
+    }
+
+    #[test]
+    fn test_apply_github_api_proxy_trailing_slash() {
+        assert_eq!(
+            apply_github_api_proxy("https://api.github.com/repos/test", "https://mirror.example.com/"),
+            "https://mirror.example.com/repos/test"
+        );
+    }
+}

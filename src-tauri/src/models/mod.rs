@@ -223,7 +223,7 @@ impl ProjectBinding {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum MountStrategy {
     Symlink,
     Junction,
@@ -365,7 +365,7 @@ pub struct ConflictInfo {
     pub message: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum EngineType {
     Godot3,
     Godot4,
@@ -646,4 +646,168 @@ pub struct ProjectTemplate {
     pub name: String,
     pub bindings: Vec<TemplateBinding>,
     pub created_at: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_settings_default() {
+        let settings = Settings::default();
+        assert_eq!(settings.language, "zh-CN");
+        assert_eq!(settings.theme, "light");
+        assert!(settings.auto_scan_on_startup);
+        assert!(settings.auto_discover_engines);
+        assert_eq!(settings.engine_update_channels, vec!["stable"]);
+    }
+
+    #[test]
+    fn test_settings_roundtrip() {
+        let settings = Settings::default();
+        let json = serde_json::to_string(&settings).unwrap();
+        let parsed: Settings = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.language, settings.language);
+        assert_eq!(parsed.theme, settings.theme);
+        assert_eq!(parsed.auto_scan_on_startup, settings.auto_scan_on_startup);
+    }
+
+    #[test]
+    fn test_plugin_serialization() {
+        let plugin = Plugin::new(
+            "Test Plugin".to_string(),
+            PluginSource {
+                source_type: SourceType::Git,
+                url: "https://github.com/test/plugin".to_string(),
+                imported_at: chrono::Utc::now(),
+            },
+        );
+        let json = serde_json::to_string(&plugin).unwrap();
+        let parsed: Plugin = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.name, "Test Plugin");
+        assert_eq!(parsed.source.source_type, SourceType::Git);
+    }
+
+    #[test]
+    fn test_project_serialization() {
+        let project = Project::new(
+            "My Game".to_string(),
+            "/path/to/project".to_string(),
+            "4.2".to_string(),
+            String::new(),
+        );
+        let json = serde_json::to_string(&project).unwrap();
+        let parsed: Project = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.name, "My Game");
+        assert_eq!(parsed.godot_version, "4.2");
+    }
+
+    #[test]
+    fn test_engine_serialization() {
+        let engine = Engine::new(
+            "Godot 4.2".to_string(),
+            "/path/to/godot".to_string(),
+            EngineType::Godot4,
+            "4.2".to_string(),
+        );
+        let json = serde_json::to_string(&engine).unwrap();
+        let parsed: Engine = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.name, "Godot 4.2");
+        assert_eq!(parsed.engine_type, EngineType::Godot4);
+    }
+
+    #[test]
+    fn test_mount_strategy_serialization() {
+        let strategies = vec![MountStrategy::Symlink, MountStrategy::Junction, MountStrategy::Copy];
+        for strategy in strategies {
+            let json = serde_json::to_string(&strategy).unwrap();
+            let parsed: MountStrategy = serde_json::from_str(&json).unwrap();
+            assert_eq!(parsed, strategy);
+        }
+    }
+
+    #[test]
+    fn test_source_type_serialization() {
+        let types = vec![SourceType::Git, SourceType::Local, SourceType::AssetLibrary, SourceType::Url];
+        for st in types {
+            let json = serde_json::to_string(&st).unwrap();
+            let parsed: SourceType = serde_json::from_str(&json).unwrap();
+            assert_eq!(parsed, st);
+        }
+    }
+
+    #[test]
+    fn test_project_binding_serialization() {
+        let binding = ProjectBinding::new(
+            "p1".to_string(),
+            "pl1".to_string(),
+            "v1".to_string(),
+            "u1".to_string(),
+            "addons/foo".to_string(),
+            String::new(),
+        );
+        let json = serde_json::to_string(&binding).unwrap();
+        let parsed: ProjectBinding = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.project_id, "p1");
+        assert_eq!(parsed.mount_path, "addons/foo");
+    }
+
+    #[test]
+    fn test_compute_dir_hash_empty() {
+        let dir = TempDir::new().unwrap();
+        let hash = compute_dir_hash(dir.path()).unwrap();
+        assert!(!hash.is_empty());
+    }
+
+    #[test]
+    fn test_compute_dir_hash_deterministic() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join("test.txt"), b"hello").unwrap();
+        let hash1 = compute_dir_hash(dir.path()).unwrap();
+        let hash2 = compute_dir_hash(dir.path()).unwrap();
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_compute_dir_hash_changes_with_content() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join("test.txt"), b"hello").unwrap();
+        let hash1 = compute_dir_hash(dir.path()).unwrap();
+        std::fs::write(dir.path().join("test.txt"), b"world").unwrap();
+        let hash2 = compute_dir_hash(dir.path()).unwrap();
+        assert_ne!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_compute_dir_hash_skips_harbor_managed() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join("test.txt"), b"hello").unwrap();
+        std::fs::write(dir.path().join(".harbor-managed"), b"managed").unwrap();
+        let hash1 = compute_dir_hash(dir.path()).unwrap();
+        let hash2 = compute_dir_hash(dir.path()).unwrap();
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_compute_dir_hash_nonexistent() {
+        let hash = compute_dir_hash(std::path::Path::new("/nonexistent/path/12345"));
+        assert!(hash.is_ok());
+    }
+
+    #[test]
+    fn test_engine_type_display() {
+        assert_eq!(format!("{}", EngineType::Godot3), "Godot3");
+        assert_eq!(format!("{}", EngineType::Godot4), "Godot4");
+        assert_eq!(format!("{}", EngineType::Unknown), "Unknown");
+    }
+
+    #[test]
+    fn test_engine_release_channel_display() {
+        assert_eq!(format!("{}", EngineReleaseChannel::Stable), "stable");
+        assert_eq!(format!("{}", EngineReleaseChannel::Rc), "rc");
+        assert_eq!(format!("{}", EngineReleaseChannel::Beta), "beta");
+        assert_eq!(format!("{}", EngineReleaseChannel::Alpha), "alpha");
+        assert_eq!(format!("{}", EngineReleaseChannel::Dev), "dev");
+    }
 }

@@ -1450,8 +1450,6 @@ fn modify_editor_plugins(
     let mut lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
 
     let mut section_idx: Option<usize> = None;
-    let mut existing_install_idx: Option<usize> = None;
-    let mut enabled_line_idx: Option<usize> = None;
     let mut next_section_idx: Option<usize> = None;
 
     for (i, line) in lines.iter().enumerate() {
@@ -1462,31 +1460,28 @@ fn modify_editor_plugins(
             if section_idx.is_some() && next_section_idx.is_none() {
                 next_section_idx = Some(i);
             }
-        } else if section_idx.is_some() && next_section_idx.is_none() && !trimmed.is_empty() && !trimmed.starts_with(';') {
-            if let Some(eq_pos) = trimmed.find('=') {
-                let key = trimmed[..eq_pos].trim();
-                if key == plugin_dir_name {
-                    existing_install_idx = Some(i);
-                } else if key == "enabled" {
-                    enabled_line_idx = Some(i);
-                }
-            }
         }
     }
 
     let mut install_entries: Vec<String> = Vec::new();
     let mut enabled_entries: Vec<String> = Vec::new();
 
-    if let Some(idx) = existing_install_idx {
-        let val = lines[idx].trim();
-        if let Some(eq_pos) = val.find('=') {
-            install_entries.push(val[..eq_pos].trim().to_string());
-        }
-    }
-    if let Some(idx) = enabled_line_idx {
-        let val = lines[idx].trim();
-        if let Some(eq_pos) = val.find('=') {
-            enabled_entries = parse_enabled_entries(&val[eq_pos + 1..]);
+    if let Some(idx) = section_idx {
+        let end = next_section_idx.unwrap_or(lines.len());
+        for i in idx..end {
+            let trimmed = lines[i].trim();
+            if trimmed.starts_with('[') || trimmed.is_empty() || trimmed.starts_with(';') {
+                continue;
+            }
+            if let Some(eq_pos) = trimmed.find('=') {
+                let key = trimmed[..eq_pos].trim();
+                let val = trimmed[eq_pos + 1..].trim();
+                if key == "enabled" {
+                    enabled_entries = parse_enabled_entries(val);
+                } else if val == "true" {
+                    install_entries.push(key.to_string());
+                }
+            }
         }
     }
 
@@ -1552,6 +1547,274 @@ fn modify_editor_plugins(
             let _ = fs::write(&project_godot, &content);
             Err(format!("Failed to write project.godot: {}", e))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+    use std::fs;
+
+    fn create_project_godot(dir: &std::path::Path, content: &str) -> std::path::PathBuf {
+        fs::write(dir.join("project.godot"), content).unwrap();
+        dir.join("project.godot")
+    }
+
+    fn read_project_godot(dir: &std::path::Path) -> String {
+        fs::read_to_string(dir.join("project.godot")).unwrap()
+    }
+
+    #[test]
+    fn test_parse_packed_string_array_empty() {
+        assert_eq!(parse_packed_string_array("PackedStringArray()"), Vec::<String>::new());
+    }
+
+    #[test]
+    fn test_parse_packed_string_array_single() {
+        let result = parse_packed_string_array(
+            r#"PackedStringArray("res://addons/foo/plugin.cfg")"#
+        );
+        assert_eq!(result, vec!["res://addons/foo/plugin.cfg"]);
+    }
+
+    #[test]
+    fn test_parse_packed_string_array_multiple() {
+        let result = parse_packed_string_array(
+            r#"PackedStringArray("res://addons/foo/plugin.cfg", "res://addons/bar/plugin.cfg")"#
+        );
+        assert_eq!(result, vec![
+            "res://addons/foo/plugin.cfg",
+            "res://addons/bar/plugin.cfg"
+        ]);
+    }
+
+    #[test]
+    fn test_parse_packed_string_array_with_spaces() {
+        let result = parse_packed_string_array(
+            r#"PackedStringArray( "res://addons/foo/plugin.cfg" , "res://addons/bar/plugin.cfg" )"#
+        );
+        assert_eq!(result, vec![
+            "res://addons/foo/plugin.cfg",
+            "res://addons/bar/plugin.cfg"
+        ]);
+    }
+
+    #[test]
+    fn test_extract_plugin_dir_name_simple() {
+        assert_eq!(
+            extract_plugin_dir_name("res://addons/my_plugin/plugin.cfg"),
+            "my_plugin"
+        );
+    }
+
+    #[test]
+    fn test_extract_plugin_dir_name_nested() {
+        assert_eq!(
+            extract_plugin_dir_name("res://addons/sub/my_plugin/plugin.cfg"),
+            "my_plugin"
+        );
+    }
+
+    #[test]
+    fn test_extract_plugin_dir_name_bare() {
+        assert_eq!(extract_plugin_dir_name("my_plugin"), "my_plugin");
+    }
+
+    #[test]
+    fn test_build_packed_string_array_empty() {
+        assert_eq!(build_packed_string_array(&[]), "enabled=PackedStringArray()");
+    }
+
+    #[test]
+    fn test_build_packed_string_array_single() {
+        let entries = vec!["foo".to_string()];
+        assert_eq!(
+            build_packed_string_array(&entries),
+            r#"enabled=PackedStringArray("res://addons/foo/plugin.cfg")"#
+        );
+    }
+
+    #[test]
+    fn test_build_packed_string_array_multiple() {
+        let entries = vec!["foo".to_string(), "bar".to_string()];
+        assert_eq!(
+            build_packed_string_array(&entries),
+            r#"enabled=PackedStringArray("res://addons/foo/plugin.cfg", "res://addons/bar/plugin.cfg")"#
+        );
+    }
+
+    #[test]
+    fn test_modify_editor_plugins_enable_no_existing_section() {
+        let dir = TempDir::new().unwrap();
+        let content = "[application]\nconfig/name=\"Test\"\n";
+        create_project_godot(dir.path(), content);
+
+        let result = modify_editor_plugins(dir.path().to_str().unwrap(), "my_plugin", true);
+        assert!(result.is_ok());
+
+        let new_content = read_project_godot(dir.path());
+        assert!(new_content.contains("[editor_plugins]"));
+        assert!(new_content.contains("my_plugin=true"));
+        assert!(new_content.contains("res://addons/my_plugin/plugin.cfg"));
+    }
+
+    #[test]
+    fn test_modify_editor_plugins_enable_existing_section() {
+        let dir = TempDir::new().unwrap();
+        let content = "[editor_plugins]\nfoo=true\nenabled=PackedStringArray(\"res://addons/foo/plugin.cfg\")\n\n[application]\nconfig/name=\"Test\"\n";
+        create_project_godot(dir.path(), content);
+
+        let result = modify_editor_plugins(dir.path().to_str().unwrap(), "bar", true);
+        assert!(result.is_ok());
+
+        let new_content = read_project_godot(dir.path());
+        assert!(new_content.contains("bar=true"));
+        assert!(new_content.contains("res://addons/bar/plugin.cfg"));
+        assert!(new_content.contains("res://addons/foo/plugin.cfg"));
+    }
+
+    #[test]
+    fn test_modify_editor_plugins_disable_removes_entry() {
+        let dir = TempDir::new().unwrap();
+        let content = "[editor_plugins]\nfoo=true\nbar=true\nenabled=PackedStringArray(\"res://addons/foo/plugin.cfg\", \"res://addons/bar/plugin.cfg\")\n\n[application]\nconfig/name=\"Test\"\n";
+        create_project_godot(dir.path(), content);
+
+        let result = modify_editor_plugins(dir.path().to_str().unwrap(), "bar", false);
+        assert!(result.is_ok());
+
+        let new_content = read_project_godot(dir.path());
+        assert!(!new_content.contains("bar=true"));
+        assert!(!new_content.contains("res://addons/bar/plugin.cfg"));
+        assert!(new_content.contains("foo=true"));
+    }
+
+    #[test]
+    fn test_modify_editor_plugins_disable_last_removes_section() {
+        let dir = TempDir::new().unwrap();
+        let content = "[editor_plugins]\nfoo=true\nenabled=PackedStringArray(\"res://addons/foo/plugin.cfg\")\n\n[application]\nconfig/name=\"Test\"\n";
+        create_project_godot(dir.path(), content);
+
+        let result = modify_editor_plugins(dir.path().to_str().unwrap(), "foo", false);
+        assert!(result.is_ok());
+
+        let new_content = read_project_godot(dir.path());
+        assert!(!new_content.contains("[editor_plugins]"));
+    }
+
+    #[test]
+    fn test_modify_editor_plugins_invalid_dir_name_with_slash() {
+        let dir = TempDir::new().unwrap();
+        create_project_godot(dir.path(), "[application]\n");
+
+        let result = modify_editor_plugins(dir.path().to_str().unwrap(), "foo/bar", true);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Invalid plugin_dir_name"));
+    }
+
+    #[test]
+    fn test_modify_editor_plugins_invalid_dir_name_empty() {
+        let dir = TempDir::new().unwrap();
+        create_project_godot(dir.path(), "[application]\n");
+
+        let result = modify_editor_plugins(dir.path().to_str().unwrap(), "", true);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_modify_editor_plugins_invalid_dir_name_with_plugin_cfg() {
+        let dir = TempDir::new().unwrap();
+        create_project_godot(dir.path(), "[application]\n");
+
+        let result = modify_editor_plugins(dir.path().to_str().unwrap(), "plugin.cfg", true);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_modify_editor_plugins_no_project_godot() {
+        let dir = TempDir::new().unwrap();
+
+        let result = modify_editor_plugins(dir.path().to_str().unwrap(), "foo", true);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("project.godot not found"));
+    }
+
+    #[test]
+    fn test_modify_editor_plugins_corrupted_file() {
+        let dir = TempDir::new().unwrap();
+        create_project_godot(dir.path(), "this is not a valid godot file\nno sections here\n");
+
+        let result = modify_editor_plugins(dir.path().to_str().unwrap(), "foo", true);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("corrupted"));
+    }
+
+    #[test]
+    fn test_modify_editor_plugins_preserves_line_endings() {
+        let dir = TempDir::new().unwrap();
+        let content = "[application]\r\nconfig/name=\"Test\"\r\n";
+        create_project_godot(dir.path(), content);
+
+        let result = modify_editor_plugins(dir.path().to_str().unwrap(), "foo", true);
+        assert!(result.is_ok());
+
+        let new_content = read_project_godot(dir.path());
+        assert!(new_content.contains("\r\n"));
+    }
+
+    #[test]
+    fn test_modify_editor_plugins_enable_idempotent() {
+        let dir = TempDir::new().unwrap();
+        let content = "[editor_plugins]\nfoo=true\nenabled=PackedStringArray(\"res://addons/foo/plugin.cfg\")\n\n[application]\n";
+        create_project_godot(dir.path(), content);
+
+        let result = modify_editor_plugins(dir.path().to_str().unwrap(), "foo", true);
+        assert!(result.is_ok());
+
+        let new_content = read_project_godot(dir.path());
+        let foo_count = new_content.matches("foo=true").count();
+        assert_eq!(foo_count, 1);
+    }
+
+    #[test]
+    fn test_modify_editor_plugins_deduplicates_enabled() {
+        let dir = TempDir::new().unwrap();
+        let content = "[editor_plugins]\nfoo=true\nenabled=PackedStringArray(\"res://addons/foo/plugin.cfg\", \"res://addons/foo/plugin.cfg\")\n\n[application]\n";
+        create_project_godot(dir.path(), content);
+
+        let result = modify_editor_plugins(dir.path().to_str().unwrap(), "bar", true);
+        assert!(result.is_ok());
+
+        let new_content = read_project_godot(dir.path());
+        let foo_count = new_content.matches("res://addons/foo/plugin.cfg").count();
+        assert_eq!(foo_count, 1);
+    }
+
+    #[test]
+    fn test_derive_plugin_dir_name_simple() {
+        let binding = ProjectBinding::new(
+            "p1".into(), "pl1".into(), "v1".into(), "u1".into(),
+            "addons/my_plugin".into(), String::new(),
+        );
+        assert_eq!(derive_plugin_dir_name(&binding), "my_plugin");
+    }
+
+    #[test]
+    fn test_derive_plugin_dir_name_with_res_prefix() {
+        let binding = ProjectBinding::new(
+            "p1".into(), "pl1".into(), "v1".into(), "u1".into(),
+            "res://addons/my_plugin".into(), String::new(),
+        );
+        assert_eq!(derive_plugin_dir_name(&binding), "my_plugin");
+    }
+
+    #[test]
+    fn test_derive_plugin_dir_name_nested() {
+        let binding = ProjectBinding::new(
+            "p1".into(), "pl1".into(), "v1".into(), "u1".into(),
+            "addons/sub/my_plugin".into(), String::new(),
+        );
+        assert_eq!(derive_plugin_dir_name(&binding), "my_plugin");
     }
 }
 

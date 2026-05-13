@@ -564,3 +564,142 @@ enum AppliedOp {
     Remove { path: std::path::PathBuf, was_symlink: bool },
     None,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+
+    fn make_binding(project_id: &str, plugin_id: &str, version_id: &str, mount_path: &str) -> ProjectBinding {
+        ProjectBinding {
+            project_id: project_id.to_string(),
+            plugin_id: plugin_id.to_string(),
+            version_id: version_id.to_string(),
+            unit_id: "u1".to_string(),
+            mount_path: mount_path.to_string(),
+            created_at: Utc::now(),
+            is_healthy: None,
+            subdirectory: String::new(),
+        }
+    }
+
+    #[test]
+    fn test_compute_diff_add_new() {
+        let linker = Linker::new(MountStrategy::Symlink);
+        let current = vec![];
+        let desired = vec![make_binding("p1", "pl1", "v1", "addons/foo")];
+
+        let diff = linker.compute_diff(&current, &desired);
+        assert_eq!(diff.to_add.len(), 1);
+        assert_eq!(diff.to_remove.len(), 0);
+        assert_eq!(diff.to_keep.len(), 0);
+    }
+
+    #[test]
+    fn test_compute_diff_remove_binding() {
+        let linker = Linker::new(MountStrategy::Symlink);
+        let current = vec![make_binding("p1", "pl1", "v1", "addons/foo")];
+        let desired = vec![];
+
+        let diff = linker.compute_diff(&current, &desired);
+        assert_eq!(diff.to_add.len(), 0);
+        assert_eq!(diff.to_remove.len(), 1);
+        assert_eq!(diff.to_keep.len(), 0);
+    }
+
+    #[test]
+    fn test_compute_diff_keep_unchanged() {
+        let linker = Linker::new(MountStrategy::Symlink);
+        let binding = make_binding("p1", "pl1", "v1", "addons/foo");
+        let current = vec![binding.clone()];
+        let desired = vec![binding];
+
+        let diff = linker.compute_diff(&current, &desired);
+        assert_eq!(diff.to_add.len(), 0);
+        assert_eq!(diff.to_remove.len(), 0);
+        assert_eq!(diff.to_keep.len(), 1);
+    }
+
+    #[test]
+    fn test_compute_diff_version_change() {
+        let linker = Linker::new(MountStrategy::Symlink);
+        let current = vec![make_binding("p1", "pl1", "v1", "addons/foo")];
+        let desired = vec![make_binding("p1", "pl1", "v2", "addons/foo")];
+
+        let diff = linker.compute_diff(&current, &desired);
+        assert_eq!(diff.to_add.len(), 1);
+        assert_eq!(diff.to_remove.len(), 1);
+        assert_eq!(diff.to_keep.len(), 0);
+    }
+
+    #[test]
+    fn test_compute_diff_mount_path_change() {
+        let linker = Linker::new(MountStrategy::Symlink);
+        let current = vec![make_binding("p1", "pl1", "v1", "addons/foo")];
+        let desired = vec![make_binding("p1", "pl1", "v1", "addons/bar")];
+
+        let diff = linker.compute_diff(&current, &desired);
+        assert_eq!(diff.to_add.len(), 1);
+        assert_eq!(diff.to_remove.len(), 1);
+    }
+
+    #[test]
+    fn test_compute_diff_mixed_operations() {
+        let linker = Linker::new(MountStrategy::Symlink);
+        let current = vec![
+            make_binding("p1", "pl1", "v1", "addons/foo"),
+            make_binding("p1", "pl2", "v1", "addons/bar"),
+        ];
+        let desired = vec![
+            make_binding("p1", "pl1", "v1", "addons/foo"),
+            make_binding("p1", "pl3", "v1", "addons/baz"),
+        ];
+
+        let diff = linker.compute_diff(&current, &desired);
+        assert_eq!(diff.to_keep.len(), 1);
+        assert_eq!(diff.to_remove.len(), 1);
+        assert_eq!(diff.to_add.len(), 1);
+    }
+
+    #[test]
+    fn test_pre_check_nonexistent_project() {
+        let linker = Linker::new(MountStrategy::Symlink);
+        let result = linker.pre_check("/nonexistent/path", &[], "/plugins");
+        assert!(!result.is_valid);
+        assert!(result.errors.iter().any(|e| e.contains("项目路径不存在")));
+    }
+
+    #[test]
+    fn test_pre_check_missing_project_godot() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let linker = Linker::new(MountStrategy::Symlink);
+        let result = linker.pre_check(dir.path().to_str().unwrap(), &[], "/plugins");
+        assert!(!result.is_valid);
+        assert!(result.errors.iter().any(|e| e.contains("project.godot")));
+    }
+
+    #[test]
+    fn test_pre_check_valid_project() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(dir.path().join("project.godot"), "[application]\n").unwrap();
+        let linker = Linker::new(MountStrategy::Symlink);
+        let result = linker.pre_check(dir.path().to_str().unwrap(), &[], "/plugins");
+        assert!(result.is_valid);
+    }
+
+    #[test]
+    fn test_pre_check_missing_plugin_source() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(dir.path().join("project.godot"), "[application]\n").unwrap();
+        let linker = Linker::new(MountStrategy::Symlink);
+        let bindings = vec![make_binding("p1", "pl1", "v1", "addons/foo")];
+        let result = linker.pre_check(dir.path().to_str().unwrap(), &bindings, "/nonexistent/plugins");
+        assert!(!result.is_valid);
+        assert!(result.errors.iter().any(|e| e.contains("插件源不存在")));
+    }
+
+    #[test]
+    fn test_is_newer_logic() {
+        assert!(Linker::new(MountStrategy::Symlink).compute_diff(&[], &[]).to_add.is_empty());
+    }
+}

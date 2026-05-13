@@ -328,3 +328,155 @@ impl VersionChecker {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_classify_channel_stable() {
+        assert_eq!(VersionChecker::classify_channel("4.2"), ReleaseChannel::Stable);
+        assert_eq!(VersionChecker::classify_channel("3.5.1"), ReleaseChannel::Stable);
+    }
+
+    #[test]
+    fn test_classify_channel_preview() {
+        assert_eq!(VersionChecker::classify_channel("4.3-rc1"), ReleaseChannel::Preview);
+        assert_eq!(VersionChecker::classify_channel("4.3-beta2"), ReleaseChannel::Preview);
+        assert_eq!(VersionChecker::classify_channel("4.3-RC1"), ReleaseChannel::Preview);
+        assert_eq!(VersionChecker::classify_channel("4.3-Beta2"), ReleaseChannel::Preview);
+    }
+
+    #[test]
+    fn test_classify_channel_snapshot() {
+        assert_eq!(VersionChecker::classify_channel("4.4-dev1"), ReleaseChannel::Snapshot);
+        assert_eq!(VersionChecker::classify_channel("4.4-alpha3"), ReleaseChannel::Snapshot);
+        assert_eq!(VersionChecker::classify_channel("4.4-Dev1"), ReleaseChannel::Snapshot);
+        assert_eq!(VersionChecker::classify_channel("4.4-Alpha3"), ReleaseChannel::Snapshot);
+    }
+
+    #[test]
+    fn test_is_newer_major() {
+        assert!(VersionChecker::is_newer(3, 5, 0, 4, 0, 0));
+    }
+
+    #[test]
+    fn test_is_newer_minor() {
+        assert!(VersionChecker::is_newer(4, 2, 0, 4, 3, 0));
+    }
+
+    #[test]
+    fn test_is_newer_patch() {
+        assert!(VersionChecker::is_newer(4, 2, 1, 4, 2, 2));
+    }
+
+    #[test]
+    fn test_is_newer_same() {
+        assert!(!VersionChecker::is_newer(4, 2, 0, 4, 2, 0));
+    }
+
+    #[test]
+    fn test_is_newer_older() {
+        assert!(!VersionChecker::is_newer(4, 3, 0, 4, 2, 0));
+    }
+
+    #[test]
+    fn test_parse_release_valid() {
+        let release = serde_json::json!({
+            "tag_name": "v4.2.1-stable",
+            "html_url": "https://github.com/godotengine/godot/releases/tag/v4.2.1-stable",
+            "body": "Release notes here",
+            "published_at": "2024-01-01T00:00:00Z",
+            "prerelease": false,
+            "draft": false
+        });
+        let info = VersionChecker::parse_release(&release);
+        assert!(info.is_some());
+        let info = info.unwrap();
+        assert_eq!(info.version, "4.2.1-stable");
+        assert_eq!(info.major, 4);
+        assert_eq!(info.minor, 2);
+        assert_eq!(info.patch, 1);
+        assert!(info.is_stable);
+    }
+
+    #[test]
+    fn test_parse_release_prerelease() {
+        let release = serde_json::json!({
+            "tag_name": "v4.3-rc1",
+            "html_url": "https://github.com/godotengine/godot/releases/tag/v4.3-rc1",
+            "body": "",
+            "published_at": "2024-01-01T00:00:00Z",
+            "prerelease": true,
+            "draft": false
+        });
+        let info = VersionChecker::parse_release(&release);
+        assert!(info.is_some());
+        let info = info.unwrap();
+        assert!(!info.is_stable);
+    }
+
+    #[test]
+    fn test_parse_release_draft_skipped() {
+        let release = serde_json::json!({
+            "tag_name": "v4.3.0",
+            "html_url": "https://github.com/godotengine/godot/releases/tag/v4.3.0",
+            "body": "",
+            "published_at": "2024-01-01T00:00:00Z",
+            "prerelease": false,
+            "draft": true
+        });
+        let info = VersionChecker::parse_release(&release);
+        assert!(info.is_none());
+    }
+
+    #[test]
+    fn test_find_latest_by_channel() {
+        let releases = vec![
+            GodotReleaseInfo {
+                version: "4.2".to_string(), tag_name: "v4.2".to_string(),
+                release_url: String::new(), release_notes: String::new(),
+                published_at: String::new(), is_stable: true,
+                major: 4, minor: 2, patch: 0,
+            },
+            GodotReleaseInfo {
+                version: "4.3".to_string(), tag_name: "v4.3".to_string(),
+                release_url: String::new(), release_notes: String::new(),
+                published_at: String::new(), is_stable: true,
+                major: 4, minor: 3, patch: 0,
+            },
+            GodotReleaseInfo {
+                version: "4.3-rc1".to_string(), tag_name: "v4.3-rc1".to_string(),
+                release_url: String::new(), release_notes: String::new(),
+                published_at: String::new(), is_stable: false,
+                major: 4, minor: 3, patch: 0,
+            },
+        ];
+        let latest_stable = VersionChecker::find_latest_by_channel(&releases, 4, ReleaseChannel::Stable);
+        assert!(latest_stable.is_some());
+        assert_eq!(latest_stable.unwrap().version, "4.3");
+
+        let latest_preview = VersionChecker::find_latest_by_channel(&releases, 4, ReleaseChannel::Preview);
+        assert!(latest_preview.is_some());
+        assert_eq!(latest_preview.unwrap().version, "4.3-rc1");
+    }
+
+    #[test]
+    fn test_cache_roundtrip() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let checker = VersionChecker::new(dir.path().to_path_buf());
+
+        let releases = vec![
+            GodotReleaseInfo {
+                version: "4.2".to_string(), tag_name: "v4.2".to_string(),
+                release_url: String::new(), release_notes: String::new(),
+                published_at: String::new(), is_stable: true,
+                major: 4, minor: 2, patch: 0,
+            },
+        ];
+        checker.save_cache(&releases);
+        let loaded = checker.load_cache();
+        assert!(loaded.is_some());
+        assert_eq!(loaded.unwrap().releases.len(), 1);
+    }
+}
