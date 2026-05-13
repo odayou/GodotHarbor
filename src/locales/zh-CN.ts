@@ -191,6 +191,11 @@ export default {
       git: 'Git',
       assetlibrary: 'AssetLibrary'
     },
+    assetType: {
+      plugin: '插件',
+      assetPack: '资产包',
+      project: '项目模板'
+    },
     favorites: '收藏',
     showDuplicates: '显示重复',
     viewDuplicates: '查看重复',

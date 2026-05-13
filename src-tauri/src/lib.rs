@@ -369,6 +369,7 @@ pub fn run() {
             commands::get_asset_library_configure,
             commands::get_asset_detail,
             commands::import_from_asset_library_with_progress,
+            commands::import_project_from_asset_library,
             commands::get_dashboard_stats,
             commands::auto_scan_projects,
             commands::relocate_project,

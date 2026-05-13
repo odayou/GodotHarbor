@@ -475,8 +475,10 @@ useDialogEscape(showPluginDetail)
 useDialogEscape(showImportModeDialog)
 useDialogEscape(showDuplicateConfirm)
 
-const getMountPath = (unit: { subdirectory?: string; name: string }) => {
-  return unit.subdirectory || `addons/${unit.name}`
+const getMountPath = (unit: { subdirectory?: string; name: string }, plugin?: Plugin) => {
+  if (unit.subdirectory) return unit.subdirectory
+  const isAssetPack = plugin?.asset_type === 'AssetPack'
+  return isAssetPack ? `assets/${unit.name}` : `addons/${unit.name}`
 }
 
 const isCompatWarning = (plugin: Plugin, project: Project) => {
@@ -1009,7 +1011,7 @@ const bindPluginToProject = async (plugin: Plugin) => {
 }
 
 const doBindPlugin = async (plugin: Plugin, version: any, unit: any) => {
-  const mountPath = getMountPath(unit)
+  const mountPath = getMountPath(unit, plugin)
   const subdirectory = unit.subdirectory || ''
   for (const projectId of selectedLinkProjectIds.value) {
     const existingBinding = linkerBindings.value.find(
@@ -1184,7 +1186,7 @@ const confirmBatchBind = async () => {
         const version = plugin.versions[versionIdx]
         const unit = version?.units[unitIdx]
         if (unit) {
-          const mountPath = getMountPath(unit)
+          const mountPath = getMountPath(unit, plugin)
           const subdirectory = unit.subdirectory || ''
           requests.push({ project_id: projectId, plugin_id: pluginId, version_id: version.version_id, unit_id: unit.unit_id, mount_path: mountPath, subdirectory })
         }
@@ -1406,7 +1408,7 @@ const doQuickBind = async () => {
     return
   }
   isQuickBinding.value = true
-  const mountPath = getMountPath(unit)
+  const mountPath = getMountPath(unit, plugin)
   const subdirectory = unit.subdirectory || ''
   let successCount = 0
   let failCount = 0
@@ -1528,7 +1530,7 @@ const doSwitchVersion = async () => {
   isSwitchingVersion.value = true
   try {
     await api.unbindPlugin(binding.project_id, binding.plugin_id)
-    const mountPath = getMountPath(unit)
+    const mountPath = getMountPath(unit, plugin)
     const subdirectory = unit.subdirectory || ''
     await api.bindPlugin(binding.project_id, plugin.plugin_id, version.version_id, unit.unit_id, mountPath, subdirectory)
     try {
@@ -1581,7 +1583,7 @@ const retryBatchFailed = async () => {
         const version = plugin.versions[0]
         const unit = version.units[0]
         if (unit) {
-          const mountPath = getMountPath(unit)
+          const mountPath = getMountPath(unit, plugin)
           const subdirectory = unit.subdirectory || ''
           for (const projectId of selectedLinkProjectIds.value) {
             await api.bindPlugin(projectId, plugin.plugin_id, version.version_id, unit.unit_id, mountPath, subdirectory)
@@ -1965,6 +1967,9 @@ const retryBatchFailed = async () => {
                 </span>
                 <span class="badge badge-neutral text-xs">
                   {{ plugin.source.source_type === 'Local' ? t('plugins.source.local') : plugin.source.source_type === 'Git' ? t('plugins.source.git') : t('plugins.source.assetlibrary') }}
+                </span>
+                <span v-if="plugin.asset_type && plugin.asset_type !== 'Plugin'" :class="['badge text-xs', plugin.asset_type === 'AssetPack' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400']">
+                  {{ plugin.asset_type === 'AssetPack' ? t('plugins.assetType.assetPack') : t('plugins.assetType.project') }}
                 </span>
                 <span v-if="pluginBindingCountMap.get(plugin.plugin_id)" class="badge bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-xs">
                   {{ pluginBindingCountMap.get(plugin.plugin_id) }} {{ t('linker.projects') }}
@@ -2706,7 +2711,7 @@ const retryBatchFailed = async () => {
             </select>
           </div>
           <p class="text-xs text-gray-500 dark:text-content-secondary">
-            {{ t('linker.mountPath') }}: {{ versionSelectPlugin.versions[selectedVersionIdx]?.units[selectedUnitIdx]?.subdirectory || `addons/${versionSelectPlugin.versions[selectedVersionIdx]?.units[selectedUnitIdx]?.name || '?'}` }}
+            {{ t('linker.mountPath') }}: {{ getMountPath(versionSelectPlugin.versions[selectedVersionIdx]?.units[selectedUnitIdx], versionSelectPlugin) }}
           </p>
         </div>
         <div class="flex justify-end gap-3 mt-6">

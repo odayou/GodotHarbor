@@ -101,9 +101,10 @@ async function buildAutoBindings(
 
     const normScannedPath = normalizePath(scanned.path)
     const addonsIdx = normScannedPath.indexOf('/addons/')
+    const isAssetPack = matchedPlugin.asset_type === 'AssetPack'
     const mountPath = addonsIdx !== -1
       ? normScannedPath.substring(addonsIdx + '/addons/'.length)
-      : unit.subdirectory || getPluginDirName(scanned.path) || scanned.plugin_name
+      : unit.subdirectory || (isAssetPack ? `assets/${unit.name}` : `addons/${unit.name}`)
 
     bindings.push({
       project_id: project.project_id,

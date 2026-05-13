@@ -6,7 +6,7 @@ use walkdir::WalkDir;
 use crate::utils::{copy_dir_all, should_skip_dir};
 use rayon::prelude::*;
 use tauri::{AppHandle, Emitter};
-use crate::models::{Plugin, PluginSource, PluginVersion, PluginUnit, SourceType, Compatibility, Project, compute_dir_hash, ScannedPlugin};
+use crate::models::{Plugin, PluginSource, PluginVersion, PluginUnit, SourceType, Compatibility, Project, compute_dir_hash, ScannedPlugin, AssetType};
 
 const PLUGIN_SCAN_MAX_DEPTH: usize = 5;
 const COMPAT_SCAN_MAX_DEPTH: usize = 5;
@@ -119,14 +119,7 @@ impl PluginManager {
     }
 
     fn finalize_import(&self, plugin: &mut Plugin, payload_dir: &Path, version_id: &str, plugin_name: &str) -> Result<()> {
-        let units = match self.parse_plugin_units(payload_dir) {
-            Ok(u) => u,
-            Err(e) => {
-                let version_dir = payload_dir.parent().unwrap_or(payload_dir);
-                let _ = fs::remove_dir_all(version_dir);
-                return Err(e.context("Failed to parse plugin units, cleaned up partial import"));
-            }
-        };
+        let (units, asset_type) = self.analyze_asset_type(payload_dir, plugin_name);
 
         let compatibility = self.detect_compatibility(payload_dir);
         self.write_harbor_marker(payload_dir);
@@ -158,6 +151,7 @@ impl PluginManager {
         plugin.description = unit_description;
         plugin.author = unit_author;
         plugin.content_hash = content_hash;
+        plugin.asset_type = asset_type;
 
         Ok(())
     }
@@ -413,6 +407,44 @@ impl PluginManager {
         Ok(units)
     }
 
+    pub fn analyze_asset_type(&self, payload_dir: &Path, fallback_name: &str) -> (Vec<PluginUnit>, AssetType) {
+        let has_project_godot = WalkDir::new(payload_dir)
+            .follow_links(false)
+            .max_depth(PLUGIN_SCAN_MAX_DEPTH)
+            .into_iter()
+            .filter_entry(|e| {
+                if e.file_type().is_dir() {
+                    return !should_skip_dir(&e.file_name().to_string_lossy());
+                }
+                true
+            })
+            .filter_map(|e| e.ok())
+            .any(|e| {
+                e.file_name() == "project.godot"
+            });
+
+        if has_project_godot {
+            return (Vec::new(), AssetType::Project);
+        }
+
+        match self.parse_plugin_units(payload_dir) {
+            Ok(units) => (units, AssetType::Plugin),
+            Err(_) => {
+                let virtual_unit = PluginUnit {
+                    unit_id: Uuid::new_v4().to_string(),
+                    name: fallback_name.to_string(),
+                    description: String::new(),
+                    author: String::new(),
+                    version: String::new(),
+                    subdirectory: String::new(),
+                    plugin_cfg_path: String::new(),
+                    is_virtual: true,
+                };
+                (vec![virtual_unit], AssetType::AssetPack)
+            }
+        }
+    }
+
     fn parse_plugin_cfg(&self, cfg_path: &Path, plugin_dir: &Path) -> Result<PluginUnit> {
         let content = fs::read_to_string(cfg_path)
             .context("Failed to read plugin.cfg")?;
@@ -449,6 +481,7 @@ impl PluginManager {
             version,
             subdirectory,
             plugin_cfg_path: cfg_path.to_string_lossy().to_string(),
+            is_virtual: false,
         })
     }
 

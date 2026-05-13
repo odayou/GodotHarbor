@@ -201,13 +201,7 @@ pub async fn import_from_asset_library(app: AppHandle, asset_id: String) -> Resu
     let _ = std::fs::remove_file(&temp_zip);
 
     let manager = get_plugin_manager(&app);
-    let units = match manager.parse_plugin_units(&payload_dir) {
-        Ok(u) => u,
-        Err(e) => {
-            let _ = std::fs::remove_dir_all(&version_dir);
-            return Err(format!("解析插件失败: {}，已清理下载文件", e));
-        }
-    };
+    let (units, asset_type) = manager.analyze_asset_type(&payload_dir, &asset_name);
 
     let compatibility = manager.detect_compatibility(&payload_dir);
 
@@ -234,6 +228,7 @@ pub async fn import_from_asset_library(app: AppHandle, asset_id: String) -> Resu
     plugin.compatibility = compatibility;
     plugin.name = unit_name;
     plugin.content_hash = content_hash;
+    plugin.asset_type = asset_type;
 
     upsert_plugin(&app, &plugin, "import_asset_library", &asset_id.to_string())
 }
@@ -391,19 +386,7 @@ pub async fn import_from_asset_library_with_progress(app: AppHandle, asset_id: S
     });
 
     let manager = get_plugin_manager(&app);
-    let units = match manager.parse_plugin_units(&payload_dir) {
-        Ok(u) => u,
-        Err(e) => {
-            let _ = std::fs::remove_dir_all(&version_dir);
-            let _ = app.emit("asset-import-progress", AssetImportProgressPayload {
-                asset_id: asset_id.clone(),
-                stage: "error".to_string(),
-                progress: 0.0,
-                message: format!("解析插件失败: {}", e),
-            });
-            return Err(format!("解析插件失败: {}，已清理下载文件", e));
-        }
-    };
+    let (units, asset_type) = manager.analyze_asset_type(&payload_dir, &asset_name);
 
     let compatibility = manager.detect_compatibility(&payload_dir);
 
@@ -430,6 +413,7 @@ pub async fn import_from_asset_library_with_progress(app: AppHandle, asset_id: S
     plugin.compatibility = compatibility;
     plugin.name = unit_name;
     plugin.content_hash = content_hash;
+    plugin.asset_type = asset_type;
 
     let result = upsert_plugin(&app, &plugin, "import_asset_library", &asset_id.to_string())?;
 
@@ -441,6 +425,188 @@ pub async fn import_from_asset_library_with_progress(app: AppHandle, asset_id: S
     });
 
     Ok(result)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectImportResult {
+    pub project_id: String,
+    pub name: String,
+    pub path: String,
+    pub godot_version: String,
+}
+
+#[tauri::command]
+pub async fn import_project_from_asset_library(app: AppHandle, asset_id: u64, target_dir: String) -> Result<ProjectImportResult, String> {
+    let base_url = crate::utils::get_asset_library_base(&app);
+    let client = create_http_client(None).map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+
+    let detail_url = format!("{}/asset/{}", base_url, asset_id);
+    let detail_resp = client.get(&detail_url)
+        .send().await
+        .map_err(|e| format!("获取资产详情失败: {}", e))?;
+    let detail: serde_json::Value = detail_resp.json().await
+        .map_err(|e| format!("解析资产详情失败: {}", e))?;
+
+    let download_url = detail["download_url"].as_str().unwrap_or("");
+    let asset_title = detail["title"].as_str().unwrap_or("Unknown").to_string();
+
+    if download_url.is_empty() {
+        return Err("资产没有可用的下载链接".to_string());
+    }
+
+    let temp_dir = std::env::temp_dir().join(format!("godot_harbor_project_{}", asset_id));
+    let _ = fs::create_dir_all(&temp_dir);
+    let temp_zip = temp_dir.join("download.zip");
+
+    let mut resp = client.get(download_url).send().await
+        .map_err(|e| format!("下载失败: {}", e))?;
+
+    {
+        let mut file = fs::File::create(&temp_zip)
+            .map_err(|e| format!("创建临时文件失败: {}", e))?;
+        use std::io::Write;
+        while let Some(chunk) = resp.chunk().await.map_err(|e| format!("下载中断: {}", e))? {
+            file.write_all(&chunk).map_err(|e| format!("写入失败: {}", e))?;
+        }
+    }
+
+    let project_dir = Path::new(&target_dir).join(&asset_title);
+    let _ = fs::create_dir_all(&project_dir);
+
+    {
+        let file = fs::File::open(&temp_zip).map_err(|e| format!("打开 ZIP 失败: {}", e))?;
+        let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("解析 ZIP 失败: {}", e))?;
+
+        let mut all_prefix: Option<String> = None;
+        let mut file_count = 0u32;
+        for i in 0..archive.len() {
+            let entry = archive.by_index(i).map_err(|e| format!("读取 ZIP 条目失败: {}", e))?;
+            let name = entry.name().to_string();
+            if name.ends_with('/') { continue; }
+            file_count += 1;
+            let slash_pos = name.find('/').unwrap_or(name.len());
+            let prefix = &name[..slash_pos];
+            if file_count == 1 {
+                all_prefix = Some(prefix.to_string());
+            } else if all_prefix.as_deref() != Some(prefix) {
+                all_prefix = None;
+                break;
+            }
+        }
+
+        let strip_depth = if all_prefix.is_some() && file_count > 0 { 1usize } else { 0usize };
+
+        for i in 0..archive.len() {
+            let mut entry = archive.by_index(i).map_err(|e| format!("读取 ZIP 条目失败: {}", e))?;
+            let name = entry.name().to_string();
+            let mut path_parts: Vec<&str> = name.split('/').collect();
+            if path_parts.last().map(|s| s.is_empty()).unwrap_or(false) {
+                path_parts.pop();
+            }
+            if path_parts.is_empty() { continue; }
+            if strip_depth > 0 && path_parts.len() <= strip_depth { continue; }
+            let stripped: Vec<&str> = path_parts[strip_depth..].to_vec();
+            if stripped.is_empty() { continue; }
+
+            let target_path = project_dir.join(stripped.join("/"));
+
+            if entry.is_dir() {
+                let _ = fs::create_dir_all(&target_path);
+            } else {
+                if let Some(parent) = target_path.parent() {
+                    let _ = fs::create_dir_all(parent);
+                }
+                let mut file = fs::File::create(&target_path)
+                    .map_err(|e| format!("创建文件失败: {}", e))?;
+                std::io::copy(&mut entry, &mut file)
+                    .map_err(|e| format!("写入文件失败: {}", e))?;
+            }
+        }
+    }
+
+    let _ = fs::remove_dir_all(&temp_dir);
+
+    let project_godot_path = find_project_godot(&project_dir);
+    let (name, godot_version) = if let Some(pg_path) = &project_godot_path {
+        parse_project_godot(pg_path)
+    } else {
+        (asset_title.clone(), String::new())
+    };
+
+    let project = Project {
+        project_id: Uuid::new_v4().to_string(),
+        name,
+        path: project_dir.to_string_lossy().to_string(),
+        godot_version,
+        icon_path: String::new(),
+        group: String::new(),
+        status: ProjectStatus::Ready,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+        last_synced_at: None,
+    };
+
+    let project_id = project.project_id.clone();
+    let project_name = project.name.clone();
+    let project_path = project.path.clone();
+    let project_godot_version = project.godot_version.clone();
+
+    let storage = get_storage(&app);
+    let mut projects: Vec<Project> = storage.load_or_default("projects.json");
+    projects.push(project);
+    storage.save("projects.json", &projects)
+        .map_err(|e| format!("保存项目列表失败: {}", e))?;
+
+    log_operation(&app, "import_project_from_asset_library", "", &format!("从 Asset Library 导入项目: {}", project_name));
+
+    Ok(ProjectImportResult {
+        project_id,
+        name: project_name,
+        path: project_path,
+        godot_version: project_godot_version,
+    })
+}
+
+use std::path::Path;
+
+fn find_project_godot(dir: &Path) -> Option<std::path::PathBuf> {
+    for entry in walkdir::WalkDir::new(dir)
+        .max_depth(3)
+        .follow_links(false)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
+        if entry.file_name() == "project.godot" {
+            return Some(entry.path().to_path_buf());
+        }
+    }
+    None
+}
+
+fn parse_project_godot(path: &Path) -> (String, String) {
+    let content = fs::read_to_string(path).unwrap_or_default();
+    let mut name = String::new();
+    let mut version = String::new();
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("config/name=") {
+            name = trimmed[12..].trim_matches('"').to_string();
+        }
+        if trimmed.starts_with("config/features=") {
+            if trimmed.contains("4.") {
+                version = "4".to_string();
+            } else if trimmed.contains("3.") {
+                version = "3".to_string();
+            }
+        }
+    }
+    if name.is_empty() {
+        name = path.parent()
+            .and_then(|p| p.file_name())
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+    }
+    (name, version)
 }
 
 

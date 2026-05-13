@@ -188,6 +188,11 @@ export default {
       git: 'Git',
       assetlibrary: 'AssetLibrary'
     },
+    assetType: {
+      plugin: 'Plugin',
+      assetPack: 'Asset Pack',
+      project: 'Project Template'
+    },
     favorites: 'Favorites',
     showDuplicates: 'Show Duplicates',
     viewDuplicates: 'View Duplicates',

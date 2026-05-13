@@ -333,6 +333,10 @@ export const api = {
     return await invoke('import_from_asset_library_with_progress', { assetId })
   },
 
+  async importProjectFromAssetLibrary(assetId: string, targetDir: string): Promise<{ project_id: string; name: string; path: string; godot_version: string }> {
+    return await invoke('import_project_from_asset_library', { assetId, targetDir })
+  },
+
   // ─── Updates ───
   async checkPluginUpdates(forceRefresh?: boolean): Promise<PluginUpdateInfo[]> {
     return await invoke('check_plugin_updates', { forceRefresh: forceRefresh || null })

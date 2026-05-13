@@ -12,6 +12,7 @@ export interface PluginUnit {
   version: string
   subdirectory: string
   plugin_cfg_path: string
+  is_virtual: boolean
 }
 
 export interface PluginVersion {
@@ -36,6 +37,7 @@ export interface Plugin {
   install_count?: number
   created_at: string
   updated_at: string
+  asset_type: 'Plugin' | 'AssetPack' | 'Project'
 }
 
 export interface Project {

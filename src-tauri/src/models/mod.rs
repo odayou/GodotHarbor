@@ -63,6 +63,19 @@ pub enum SourceType {
     Url,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum AssetType {
+    Plugin,
+    AssetPack,
+    Project,
+}
+
+impl Default for AssetType {
+    fn default() -> Self {
+        AssetType::Plugin
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginSource {
     pub source_type: SourceType,
@@ -82,6 +95,8 @@ pub struct PluginUnit {
     pub version: String,
     pub subdirectory: String,
     pub plugin_cfg_path: String,
+    #[serde(default)]
+    pub is_virtual: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -131,6 +146,8 @@ pub struct Plugin {
     pub install_count: u32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    #[serde(default)]
+    pub asset_type: AssetType,
 }
 
 impl Plugin {
@@ -150,6 +167,7 @@ impl Plugin {
             install_count: 0,
             created_at: now,
             updated_at: now,
+            asset_type: AssetType::Plugin,
         }
     }
 }

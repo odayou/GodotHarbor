@@ -372,3 +372,29 @@ assetLibrary: {
 - 保持 `import_from_asset_library` 旧命令兼容，新增 `import_from_asset_library_with_progress`
 - 前端监听 Tauri 事件使用 `listen` API
 - Godot Asset Library API 有速率限制，缓存很重要
+
+---
+
+## 资产类型兼容改造 (2025-03)
+
+### 已完成的改造
+
+Asset Library 中的资产分为 `addon`（type=0）和 `project`（type=1）两大类型。其中 addon 类型并非都包含 `plugin.cfg`（如 shader 合集、材质包、脚本库等），project 类型包含 `project.godot`。
+
+**改造前的问题**：
+- 不含 `plugin.cfg` 的 addon 导入必失败（`parse_plugin_units` 返回 Err）
+- `type=project` 资产无法导入
+
+**改造后的处理**：
+
+| 资产类型 | 检测条件 | 导入行为 | 挂载路径 |
+|---------|---------|---------|---------|
+| Plugin | 含 `plugin.cfg` | 现有逻辑不变 | `addons/<name>` |
+| AssetPack | 不含 `plugin.cfg` 也不含 `project.godot` | 创建虚拟 Unit，使用 API 元数据 | `assets/<name>` |
+| Project | 含 `project.godot` | 通过 `import_project_from_asset_library` 命令下载并注册为新项目 | 不挂载 |
+
+**关键改动**：
+- `parse_plugin_units` 不再是强制要求，`analyze_asset_type` 方法根据内容自动判断类型
+- `finalize_import` 在缺少 `plugin.cfg` 时降级为 AssetPack 而非报错
+- 新增 `import_project_from_asset_library` 命令处理项目模板导入
+- 前端 `getMountPath` 根据 `asset_type` 区分默认挂载路径
