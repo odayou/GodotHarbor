@@ -164,6 +164,10 @@ export default {
       fromRemote: 'Import from Remote Repository',
       fromRemoteDesc: 'Enter remote repository URL to clone and import plugin'
     },
+    featured: {
+      title: 'Editor\'s Picks',
+      desc: 'Community-recommended quality Godot plugins, click to import'
+    },
     gitTitle: 'Import from Git',
     gitDesc: 'Enter Git repository URL to clone and import Godot plugins',
     gitPlaceholder: 'https://github.com/user/plugin-repo.git',
@@ -755,6 +759,8 @@ export default {
     misc: 'Miscellaneous',
     showOnboarding: 'Show Onboarding Again',
     showOnboardingDesc: 'Click to show the onboarding guide immediately',
+    anonymousStats: 'Anonymous Usage Statistics',
+    anonymousStatsDesc: 'Send anonymous startup data to help improve the app. No personal information is collected',
     resetDataLabel: 'Reset Data',
     resetDataDesc: 'Restore all data and settings to initial state, this action cannot be undone',
     resetDataConfirmTitle: 'Confirm Data Reset',

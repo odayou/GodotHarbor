@@ -89,6 +89,10 @@ pub struct ScannedPlugin {
     pub path: String,
     pub plugin_name: String,
     pub project_name: String,
+    #[serde(default)]
+    pub project_id: String,
+    #[serde(default)]
+    pub project_path: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -121,6 +125,10 @@ pub struct Plugin {
     pub is_favorite: bool,
     #[serde(default)]
     pub content_hash: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub install_count: u32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -138,6 +146,8 @@ impl Plugin {
             compatibility: Compatibility::Unknown,
             is_favorite: false,
             content_hash: String::new(),
+            tags: Vec::new(),
+            install_count: 0,
             created_at: now,
             updated_at: now,
         }
@@ -311,6 +321,10 @@ pub struct Settings {
     pub asset_library_mirror: String,
     #[serde(default = "default_engine_update_channels")]
     pub engine_update_channels: Vec<String>,
+    #[serde(default = "default_true")]
+    pub enable_anonymous_usage_stats: bool,
+    #[serde(default)]
+    pub anonymous_user_id: String,
 }
 
 fn default_true() -> bool { true }
@@ -346,6 +360,8 @@ impl Default for Settings {
             github_api_proxy: String::new(),
             asset_library_mirror: String::new(),
             engine_update_channels: default_engine_update_channels(),
+            enable_anonymous_usage_stats: true,
+            anonymous_user_id: String::new(),
         }
     }
 }

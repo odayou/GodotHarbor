@@ -32,6 +32,8 @@ export interface Plugin {
   compatibility: 'Godot3' | 'Godot4' | 'Both' | 'Unknown'
   is_favorite?: boolean
   content_hash?: string
+  tags?: string[]
+  install_count?: number
   created_at: string
   updated_at: string
 }
@@ -91,6 +93,8 @@ export interface Settings {
   github_api_proxy?: string
   asset_library_mirror?: string
   engine_update_channels?: string[]
+  enable_anonymous_usage_stats?: boolean
+  anonymous_user_id?: string
 }
 
 export interface ApplyResult {
@@ -323,6 +327,8 @@ export interface ScannedPlugin {
   path: string
   plugin_name: string
   project_name: string
+  project_id: string
+  project_path: string
 }
 
 export interface PluginStorageStats {
@@ -473,4 +479,20 @@ export interface ProjectTemplate {
   name: string
   bindings: TemplateBinding[]
   created_at: string
+}
+
+export interface FeaturedPlugin {
+  name: string
+  description: string
+  author: string
+  source_url: string
+  compatibility: string
+  tags: string[]
+  category: string
+}
+
+export interface FeaturedPluginsList {
+  version: number
+  updated_at: string
+  plugins: FeaturedPlugin[]
 }

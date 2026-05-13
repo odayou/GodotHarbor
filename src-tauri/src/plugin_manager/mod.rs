@@ -32,6 +32,10 @@ impl PluginManager {
                     return None;
                 }
 
+                let project_id = project.project_id.clone();
+                let project_name = project.name.clone();
+                let project_path_str = project.path.clone();
+
                 let plugin_entries: Vec<ScannedPlugin> = WalkDir::new(&addons_dir)
                     .max_depth(1)
                     .follow_links(false)
@@ -58,7 +62,9 @@ impl PluginManager {
                         Some(ScannedPlugin {
                             path: path.to_string_lossy().to_string(),
                             plugin_name,
-                            project_name: project.name.clone(),
+                            project_name: project_name.clone(),
+                            project_id: project_id.clone(),
+                            project_path: project_path_str.clone(),
                         })
                     })
                     .collect();
@@ -72,13 +78,7 @@ impl PluginManager {
             .flatten()
             .collect();
 
-        let mut seen_names = std::collections::HashSet::new();
-        let deduped: Vec<ScannedPlugin> = results
-            .into_iter()
-            .filter(|sp| seen_names.insert(sp.plugin_name.to_lowercase()))
-            .collect();
-
-        Ok(deduped)
+        Ok(results)
     }
 
     pub fn import_from_local(&self, source_path: &str) -> Result<Plugin> {

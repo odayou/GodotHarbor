@@ -443,6 +443,18 @@ export const api = {
   async restartFsWatcher(): Promise<void> {
     return await invoke('restart_fs_watcher')
   },
+
+  async getFeaturedPlugins(): Promise<any> {
+    return await invoke('get_featured_plugins')
+  },
+
+  async reportUsagePing(): Promise<void> {
+    return await invoke('report_usage_ping')
+  },
+
+  async recordPluginInstall(pluginId: string): Promise<void> {
+    return await invoke('record_plugin_install', { pluginId })
+  },
 }
 
 export async function withErrorLogging<T>(

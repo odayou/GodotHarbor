@@ -13,6 +13,7 @@ pub mod watcher;
 pub mod update_scheduler;
 pub mod hot_update;
 pub mod utils;
+pub mod featured;
 
 use tauri::{Emitter, Manager};
 use tauri_plugin_notification::NotificationExt;
@@ -106,6 +107,12 @@ pub fn run() {
 
             let scheduler_handle = app_handle.clone();
             update_scheduler::start_update_scheduler(scheduler_handle);
+
+            let ping_handle = app_handle.clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                let _ = featured::report_usage_ping(ping_handle).await;
+            });
 
             let watcher_handle = app_handle.clone();
             let watcher_app = app_handle.clone();
@@ -415,6 +422,9 @@ pub fn run() {
             commands::cleanup_download_temp,
             commands::get_storage_paths,
             commands::migrate_data_dir,
+            featured::get_featured_plugins,
+            featured::report_usage_ping,
+            featured::record_plugin_install,
         ))
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

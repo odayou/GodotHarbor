@@ -167,6 +167,10 @@ export default {
       fromRemote: '从远程仓库导入',
       fromRemoteDesc: '输入远程仓库地址自动克隆并导入插件'
     },
+    featured: {
+      title: '编辑精选',
+      desc: '社区推荐的优质 Godot 插件，点击即可导入'
+    },
     gitTitle: '从 Git 导入',
     gitDesc: '输入 Git 仓库 URL，将克隆并导入其中的 Godot 插件',
     gitPlaceholder: 'https://github.com/user/plugin-repo.git',
@@ -758,6 +762,8 @@ export default {
     misc: '其他',
     showOnboarding: '重新显示引导',
     showOnboardingDesc: '点击后立即显示新手引导',
+    anonymousStats: '匿名使用统计',
+    anonymousStatsDesc: '发送匿名启动数据以帮助改进软件，不收集任何个人信息',
     resetDataLabel: '重置数据',
     resetDataDesc: '将所有数据和设置恢复到初始状态，此操作不可撤销',
     resetDataConfirmTitle: '确认重置数据',

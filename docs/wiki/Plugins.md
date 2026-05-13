@@ -29,6 +29,16 @@
 2. 搜索或浏览 Godot 官方资产库
 3. 选择插件后点击导入
 
+## 编辑精选
+
+当插件仓库为空时，页面底部展示"编辑精选"区域，推荐社区优质 Godot 插件：
+
+- 精选列表随应用内置，无需网络即可查看
+- 点击精选插件自动填入 Git 导入对话框的 URL
+- 可关闭精选推荐区域
+
+当前精选包含：GodotSteam、Dialogic、PhantomCamera、GUT、LimboAI、Aseprite Wizard、Terrain3D、Godot SQLite、Pixelizer、GodotTIE
+
 ## 重复检测
 
 导入时如果仓库中已存在同名插件，会提示：

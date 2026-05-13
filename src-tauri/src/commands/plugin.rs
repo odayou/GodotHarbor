@@ -323,9 +323,13 @@ pub async fn import_plugins_from_projects(app: AppHandle, mode: Option<String>) 
         return Err("未在项目中发现可导入的插件".to_string());
     }
 
-    let imported_plugins;
-    let seen_names: std::collections::HashSet<String> = plugins.iter()
-        .map(|p| p.name.to_lowercase())
+    let existing_hash_map: std::collections::HashMap<String, String> = plugins.iter()
+        .filter(|p| !p.content_hash.is_empty())
+        .map(|p| (p.content_hash.clone(), p.plugin_id.clone()))
+        .collect();
+
+    let existing_name_map: std::collections::HashMap<String, String> = plugins.iter()
+        .map(|p| (p.name.to_lowercase(), p.plugin_id.clone()))
         .collect();
 
     let import_mode_clone = import_mode.clone();
@@ -338,27 +342,97 @@ pub async fn import_plugins_from_projects(app: AppHandle, mode: Option<String>) 
     let import_result = tokio::task::spawn_blocking(move || {
         let mut local_plugins = plugins_clone;
         let mut local_imported = Vec::new();
-        let mut local_seen = seen_names;
         let mut pending_bindings: Vec<ProjectBinding> = Vec::new();
+        let mut seen_paths = std::collections::HashSet::new();
 
         for scanned in &scanned_plugins_clone {
             let path_str = scanned.path.clone();
-            let plugin_name_lower = scanned.plugin_name.to_lowercase();
+            let path_lower = path_str.replace('\\', "/").to_lowercase();
 
-            let already_imported = local_plugins.iter()
-                .any(|p| p.source.url == path_str || p.name.to_lowercase() == plugin_name_lower);
-
-            if already_imported {
+            if seen_paths.contains(&path_lower) {
                 continue;
+            }
+            seen_paths.insert(path_lower);
+
+            let source_path = Path::new(&path_str);
+            let content_hash = compute_dir_hash(source_path).unwrap_or_default();
+
+            if let Some(existing_plugin_id) = existing_hash_map.get(&content_hash).cloned() {
+                if !content_hash.is_empty() {
+                    if let Some(proj) = find_project_by_id_or_path(&projects_clone, &scanned.project_id, &path_str) {
+                        let mount_path = compute_mount_path(&path_str, &proj.path);
+                        let existing_plugin = local_plugins.iter().find(|p| p.plugin_id == existing_plugin_id);
+                        let version = existing_plugin.and_then(|p| p.versions.first());
+                        let version_id = version.map(|v| v.version_id.clone()).unwrap_or_default();
+                        let unit_id = version
+                            .and_then(|v| v.units.first())
+                            .map(|u| u.unit_id.clone())
+                            .unwrap_or_default();
+
+                        pending_bindings.push(ProjectBinding::new(
+                            proj.project_id.clone(),
+                            existing_plugin_id,
+                            version_id,
+                            unit_id,
+                            mount_path,
+                            String::new(),
+                        ));
+                    }
+                    continue;
+                }
+            }
+
+            if let Some(existing_plugin_id) = existing_name_map.get(&scanned.plugin_name.to_lowercase()).cloned() {
+                if content_hash.is_empty() {
+                    if let Some(proj) = find_project_by_id_or_path(&projects_clone, &scanned.project_id, &path_str) {
+                        let mount_path = compute_mount_path(&path_str, &proj.path);
+                        let existing_plugin = local_plugins.iter().find(|p| p.plugin_id == existing_plugin_id);
+                        let version = existing_plugin.and_then(|p| p.versions.first());
+                        let version_id = version.map(|v| v.version_id.clone()).unwrap_or_default();
+                        let unit_id = version
+                            .and_then(|v| v.units.first())
+                            .map(|u| u.unit_id.clone())
+                            .unwrap_or_default();
+
+                        pending_bindings.push(ProjectBinding::new(
+                            proj.project_id.clone(),
+                            existing_plugin_id,
+                            version_id,
+                            unit_id,
+                            mount_path,
+                            String::new(),
+                        ));
+                    }
+                    continue;
+                }
             }
 
             match import_mode_clone.as_str() {
                 "copy" => {
                     match manager_clone.import_from_local(&path_str) {
                         Ok(plugin) => {
-                            local_seen.insert(plugin.name.to_lowercase());
+                            let plugin_id = plugin.plugin_id.clone();
+                            let version = plugin.versions.first();
+                            let version_id = version.map(|v| v.version_id.clone()).unwrap_or_default();
+                            let unit_id = version
+                                .and_then(|v| v.units.first())
+                                .map(|u| u.unit_id.clone())
+                                .unwrap_or_default();
+
                             local_imported.push(plugin.clone());
                             local_plugins.push(plugin);
+
+                            if let Some(proj) = find_project_by_id_or_path(&projects_clone, &scanned.project_id, &path_str) {
+                                let mount_path = compute_mount_path(&path_str, &proj.path);
+                                pending_bindings.push(ProjectBinding::new(
+                                    proj.project_id.clone(),
+                                    plugin_id,
+                                    version_id,
+                                    unit_id,
+                                    mount_path,
+                                    String::new(),
+                                ));
+                            }
                         }
                         Err(e) => eprintln!("Failed to import plugin from {}: {}", path_str, e),
                     }
@@ -366,7 +440,6 @@ pub async fn import_plugins_from_projects(app: AppHandle, mode: Option<String>) 
                 "move" => {
                     match manager_clone.import_from_local(&path_str) {
                         Ok(mut plugin) => {
-                            let source_path = Path::new(&path_str);
                             if let Ok(metadata) = fs::symlink_metadata(source_path) {
                                 if metadata.file_type().is_symlink() || is_junction_path(source_path) {
                                     if let Ok(link_target) = fs::read_link(source_path) {
@@ -378,24 +451,25 @@ pub async fn import_plugins_from_projects(app: AppHandle, mode: Option<String>) 
                             let version = plugin.versions.first();
                             let version_id = version.map(|v| v.version_id.clone()).unwrap_or_default();
                             let payload_path = version.map(|v| v.path.clone()).unwrap_or_default();
+                            let unit_id = version
+                                .and_then(|v| v.units.first())
+                                .map(|u| u.unit_id.clone())
+                                .unwrap_or_default();
 
                             if let Err(e) = replace_with_symlink(source_path, &payload_path) {
                                 eprintln!("Warning: failed to replace with symlink: {}", e);
                             }
 
-                            local_seen.insert(plugin.name.to_lowercase());
                             local_imported.push(plugin.clone());
                             local_plugins.push(plugin);
 
-                            let project = projects_clone.iter().find(|p| path_str.starts_with(&p.path));
-                            if let Some(proj) = project {
-                                let mount_path = path_str.replace(&format!("{}/", proj.path.replace('\\', "/")), "")
-                                    .replace(&format!("{}\\", proj.path), "");
+                            if let Some(proj) = find_project_by_id_or_path(&projects_clone, &scanned.project_id, &path_str) {
+                                let mount_path = compute_mount_path(&path_str, &proj.path);
                                 pending_bindings.push(ProjectBinding::new(
                                     proj.project_id.clone(),
                                     plugin_id,
                                     version_id,
-                                    String::new(),
+                                    unit_id,
                                     mount_path,
                                     String::new(),
                                 ));
@@ -405,7 +479,6 @@ pub async fn import_plugins_from_projects(app: AppHandle, mode: Option<String>) 
                     }
                 }
                 "reference" => {
-                    let source = Path::new(&path_str);
                     let plugin_name = scanned.plugin_name.clone();
                     let plugin_source = PluginSource {
                         source_type: SourceType::Local,
@@ -413,9 +486,13 @@ pub async fn import_plugins_from_projects(app: AppHandle, mode: Option<String>) 
                         imported_at: chrono::Utc::now(),
                     };
                     let mut plugin = Plugin::new(plugin_name.clone(), plugin_source);
-                    plugin.content_hash = compute_dir_hash(source).unwrap_or_default();
+                    plugin.content_hash = if content_hash.is_empty() {
+                        compute_dir_hash(source_path).unwrap_or_default()
+                    } else {
+                        content_hash
+                    };
 
-                    match manager_clone.parse_plugin_units(source) {
+                    match manager_clone.parse_plugin_units(source_path) {
                         Ok(units) => {
                             let (unit_version, unit_name, unit_description, unit_author) =
                                 if let Some(first_unit) = units.first() {
@@ -430,34 +507,68 @@ pub async fn import_plugins_from_projects(app: AppHandle, mode: Option<String>) 
                                 };
                             let version_id = Uuid::new_v4().to_string();
                             let plugin_version = PluginVersion {
-                                version_id,
+                                version_id: version_id.clone(),
                                 version: unit_version,
                                 path: path_str.clone(),
                                 created_at: chrono::Utc::now(),
                                 units,
                             };
                             plugin.versions.push(plugin_version);
-                            plugin.compatibility = manager_clone.detect_compatibility(source);
+                            plugin.compatibility = manager_clone.detect_compatibility(source_path);
                             plugin.name = unit_name;
                             plugin.description = unit_description;
                             plugin.author = unit_author;
+
+                            let plugin_id = plugin.plugin_id.clone();
+                            let unit_id = plugin.versions.first()
+                                .and_then(|v| v.units.first())
+                                .map(|u| u.unit_id.clone())
+                                .unwrap_or_default();
+
+                            if let Some(proj) = find_project_by_id_or_path(&projects_clone, &scanned.project_id, &path_str) {
+                                let mount_path = compute_mount_path(&path_str, &proj.path);
+                                pending_bindings.push(ProjectBinding::new(
+                                    proj.project_id.clone(),
+                                    plugin_id,
+                                    version_id,
+                                    unit_id,
+                                    mount_path,
+                                    String::new(),
+                                ));
+                            }
+
+                            local_imported.push(plugin.clone());
+                            local_plugins.push(plugin);
                         }
                         Err(_) => {
                             let version_id = Uuid::new_v4().to_string();
                             let plugin_version = PluginVersion {
-                                version_id,
+                                version_id: version_id.clone(),
                                 version: "1.0.0".to_string(),
                                 path: path_str.clone(),
                                 created_at: chrono::Utc::now(),
                                 units: Vec::new(),
                             };
                             plugin.versions.push(plugin_version);
+
+                            let plugin_id = plugin.plugin_id.clone();
+
+                            if let Some(proj) = find_project_by_id_or_path(&projects_clone, &scanned.project_id, &path_str) {
+                                let mount_path = compute_mount_path(&path_str, &proj.path);
+                                pending_bindings.push(ProjectBinding::new(
+                                    proj.project_id.clone(),
+                                    plugin_id,
+                                    version_id,
+                                    String::new(),
+                                    mount_path,
+                                    String::new(),
+                                ));
+                            }
+
+                            local_imported.push(plugin.clone());
+                            local_plugins.push(plugin);
                         }
                     }
-
-                    local_seen.insert(plugin.name.to_lowercase());
-                    local_imported.push(plugin.clone());
-                    local_plugins.push(plugin);
                 }
                 _ => {}
             }
@@ -465,6 +576,9 @@ pub async fn import_plugins_from_projects(app: AppHandle, mode: Option<String>) 
 
         if !pending_bindings.is_empty() {
             let mut bindings: Vec<ProjectBinding> = storage_clone.load_or_default("bindings.json");
+            for new_binding in &pending_bindings {
+                bindings.retain(|b| !(b.project_id == new_binding.project_id && b.plugin_id == new_binding.plugin_id));
+            }
             bindings.extend(pending_bindings);
             let _ = storage_clone.save("bindings.json", &bindings);
         }
@@ -474,7 +588,7 @@ pub async fn import_plugins_from_projects(app: AppHandle, mode: Option<String>) 
 
     let (updated_plugins, imported) = import_result;
     plugins = updated_plugins;
-    imported_plugins = imported;
+    let imported_plugins = imported;
 
     storage.save("plugins.json", &plugins)
         .map_err(|e| format!("保存插件列表失败: {}", e))?;
@@ -496,6 +610,21 @@ fn is_junction_path(path: &Path) -> bool {
     }
     let _ = path;
     false
+}
+
+fn find_project_by_id_or_path<'a>(projects: &'a [Project], project_id: &str, plugin_path: &str) -> Option<&'a Project> {
+    if !project_id.is_empty() {
+        if let Some(proj) = projects.iter().find(|p| p.project_id == project_id) {
+            return Some(proj);
+        }
+    }
+    projects.iter().find(|p| plugin_path.starts_with(&p.path))
+}
+
+fn compute_mount_path(plugin_path: &str, project_path: &str) -> String {
+    plugin_path
+        .replace(&format!("{}/", project_path.replace('\\', "/")), "")
+        .replace(&format!("{}\\", project_path), "")
 }
 
 fn replace_with_symlink(original_path: &Path, repo_payload_path: &str) -> Result<(), String> {

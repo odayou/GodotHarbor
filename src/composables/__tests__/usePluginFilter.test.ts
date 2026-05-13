@@ -1,5 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { computed, ref } from 'vue'
+import { describe, it, expect } from 'vitest'
 
 interface Plugin {
   plugin_id: string

@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/api'
-import type { Plugin, Project, PluginDependency, PluginStorageStats, ProjectBinding, TotalStorageStats, DuplicateCheckResult, ScannedPlugin } from '@/types'
+import type { Plugin, Project, PluginDependency, PluginStorageStats, ProjectBinding, TotalStorageStats, DuplicateCheckResult, ScannedPlugin, FeaturedPluginsList } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
@@ -76,6 +76,23 @@ const isDragOver = ref(false)
 const dragCounter = ref(0)
 
 const activeTab = ref<'repository' | 'bindings' | 'assetLibrary'>('repository')
+
+const featuredPlugins = ref<FeaturedPluginsList | null>(null)
+const showFeatured = ref(true)
+
+async function loadFeaturedPlugins() {
+  try {
+    featuredPlugins.value = await api.getFeaturedPlugins()
+  } catch {
+    featuredPlugins.value = null
+  }
+}
+
+async function importFeaturedPlugin(sourceUrl: string) {
+  showRemoteDialog.value = true
+  await nextTick()
+  remoteUrl.value = sourceUrl
+}
 
 const showQuickBindDialog = ref(false)
 const quickBindPlugin = ref<Plugin | null>(null)
@@ -393,6 +410,7 @@ const handleClickOutside = (event: MouseEvent) => {
 onMounted(async () => {
   loadPlugins()
   loadTotalStorageStats()
+  loadFeaturedPlugins()
   document.addEventListener('click', handleClickOutside)
 
   unlistenAutoSetup = await listen('auto-setup-complete', () => {
@@ -1847,6 +1865,38 @@ const retryBatchFailed = async () => {
             <div class="text-xs text-gray-500 dark:text-content-muted">{{ t('plugins.onboarding.fromProjectsDesc') }}</div>
           </div>
         </button>
+      </div>
+
+      <div v-if="featuredPlugins && featuredPlugins.plugins.length > 0 && showFeatured" class="mt-8 pt-6 border-t border-gray-200 dark:border-surface-border">
+        <div class="flex items-center justify-between mb-4">
+          <h4 class="text-sm font-semibold text-gray-900 dark:text-content-primary flex items-center gap-1.5">
+            <svg class="w-4 h-4 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+            {{ t('plugins.featured.title') }}
+          </h4>
+          <button @click="showFeatured = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-content-secondary">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div
+            v-for="fp in featuredPlugins.plugins"
+            :key="fp.source_url"
+            class="flex items-start gap-3 p-3 bg-white dark:bg-surface-card border border-gray-200 dark:border-surface-border rounded-lg hover:border-primary-300 dark:hover:border-primary-700 transition-colors cursor-pointer group"
+            @click="importFeaturedPlugin(fp.source_url)"
+          >
+            <div class="w-9 h-9 bg-primary-100 dark:bg-primary-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
+              <svg class="w-4 h-4 text-primary-600 dark:text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-medium text-gray-900 dark:text-content-primary group-hover:text-primary-600 dark:group-hover:text-primary-400 truncate">{{ fp.name }}</div>
+              <div class="text-xs text-gray-500 dark:text-content-muted truncate">{{ fp.description }}</div>
+              <div class="flex items-center gap-2 mt-1">
+                <span class="text-xs text-gray-400 dark:text-content-muted">{{ fp.author }}</span>
+                <span v-if="fp.compatibility" class="text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">{{ fp.compatibility }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 

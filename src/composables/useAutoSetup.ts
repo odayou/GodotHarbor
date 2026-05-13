@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { api } from '@/api'
-import type { Project, Plugin, BatchBindingRequest } from '@/types'
+import type { Project, Plugin, BatchBindingRequest, ScannedPlugin } from '@/types'
 import { useToast } from '@/composables/useToast'
 import { useI18n } from 'vue-i18n'
 import { emit } from '@tauri-apps/api/event'
@@ -49,7 +49,7 @@ function setStep(step: AutoSetupStep, message: string) {
 async function buildAutoBindings(
   allProjects: Project[],
   allPlugins: Plugin[],
-  scannedPlugins: { path: string; plugin_name: string }[]
+  scannedPlugins: ScannedPlugin[]
 ): Promise<{ bindings: BatchBindingRequest[]; projectsAffected: string[] }> {
   const allBindingsMap = new Map<string, Set<string>>()
   const bindingResults = await Promise.allSettled(
@@ -63,55 +63,59 @@ async function buildAutoBindings(
     allBindingsMap.set(allProjects[i].project_id, existingIds)
   })
 
+  const projectMap = new Map(allProjects.map(p => [p.project_id, p]))
+
   const bindings: BatchBindingRequest[] = []
   const projectsAffected: string[] = []
 
-  for (const project of allProjects) {
-    const normProjectPath = normalizePath(project.path)
-    const projectScanned = scannedPlugins.filter(sp =>
-      normalizePath(sp.path).startsWith(normProjectPath + '/addons/') ||
-      normalizePath(sp.path).startsWith(normProjectPath + '\\addons\\')
-    )
-    if (projectScanned.length === 0) continue
+  for (const scanned of scannedPlugins) {
+    const project = scanned.project_id
+      ? projectMap.get(scanned.project_id)
+      : allProjects.find(p => {
+          const normProjectPath = normalizePath(p.path)
+          const normScannedPath = normalizePath(scanned.path)
+          return normScannedPath.startsWith(normProjectPath + '/addons/') ||
+                 normScannedPath.startsWith(normProjectPath + '\\addons\\')
+        })
+
+    if (!project) continue
 
     const existingPluginIds = allBindingsMap.get(project.project_id) || new Set<string>()
 
-    for (const scanned of projectScanned) {
-      const matchedPlugin = allPlugins.find(ip => {
-        if (ip.name.toLowerCase() === scanned.plugin_name.toLowerCase()) return true
-        const dirName = getPluginDirName(scanned.path)
-        if (dirName && normalizePath(ip.source.url).includes(dirName)) return true
-        const normPluginPath = normalizePath(scanned.path)
-        const normSourceUrl = normalizePath(ip.source.url)
-        if (normSourceUrl && normPluginPath.includes(normSourceUrl)) return true
-        return false
-      })
+    const matchedPlugin = allPlugins.find(ip => {
+      if (ip.name.toLowerCase() === scanned.plugin_name.toLowerCase()) return true
+      const dirName = getPluginDirName(scanned.path)
+      if (dirName && normalizePath(ip.source.url).includes(dirName)) return true
+      const normPluginPath = normalizePath(scanned.path)
+      const normSourceUrl = normalizePath(ip.source.url)
+      if (normSourceUrl && normPluginPath.includes(normSourceUrl)) return true
+      return false
+    })
 
-      if (!matchedPlugin || existingPluginIds.has(matchedPlugin.plugin_id)) continue
+    if (!matchedPlugin || existingPluginIds.has(matchedPlugin.plugin_id)) continue
 
-      const version = matchedPlugin.versions[0]
-      if (!version) continue
-      const unit = version.units[0]
-      if (!unit) continue
+    const version = matchedPlugin.versions[0]
+    if (!version) continue
+    const unit = version.units[0]
+    if (!unit) continue
 
-      const normScannedPath = normalizePath(scanned.path)
-      const addonsIdx = normScannedPath.indexOf('/addons/')
-      const mountPath = addonsIdx !== -1
-        ? normScannedPath.substring(addonsIdx + '/addons/'.length)
-        : unit.subdirectory || getPluginDirName(scanned.path) || scanned.plugin_name
+    const normScannedPath = normalizePath(scanned.path)
+    const addonsIdx = normScannedPath.indexOf('/addons/')
+    const mountPath = addonsIdx !== -1
+      ? normScannedPath.substring(addonsIdx + '/addons/'.length)
+      : unit.subdirectory || getPluginDirName(scanned.path) || scanned.plugin_name
 
-      bindings.push({
-        project_id: project.project_id,
-        plugin_id: matchedPlugin.plugin_id,
-        version_id: version.version_id,
-        unit_id: unit.unit_id,
-        mount_path: mountPath,
-        subdirectory: unit.subdirectory || ''
-      })
+    bindings.push({
+      project_id: project.project_id,
+      plugin_id: matchedPlugin.plugin_id,
+      version_id: version.version_id,
+      unit_id: unit.unit_id,
+      mount_path: mountPath,
+      subdirectory: unit.subdirectory || ''
+    })
 
-      if (!projectsAffected.includes(project.name)) {
-        projectsAffected.push(project.name)
-      }
+    if (!projectsAffected.includes(project.name)) {
+      projectsAffected.push(project.name)
     }
   }
 
