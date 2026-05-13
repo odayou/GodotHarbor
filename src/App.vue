@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue'
-import { RouterView } from 'vue-router'
+import { RouterView, useRouter } from 'vue-router'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { listen } from '@tauri-apps/api/event'
 import { useKeyboardShortcuts } from './composables/useKeyboardShortcuts'
@@ -22,6 +22,7 @@ import { useNetworkStatus } from './composables/useNetworkStatus'
 import { useToast } from './composables/useToast'
 
 const { t, locale } = useI18n()
+const router = useRouter()
 const { isVisible: showLanguageDialog, hideLanguageDialog } = useLanguageDialog()
 const { isOnline } = useNetworkStatus()
 const toast = useToast()
@@ -138,6 +139,42 @@ registerShortcut({
   },
   description: t('sidebar.openCommandPaletteShortcut'),
   global: true
+})
+
+registerShortcut({
+  key: '1',
+  ctrl: true,
+  handler: () => {
+    router.push('/')
+  },
+  description: t('sidebar.navHomeShortcut')
+})
+
+registerShortcut({
+  key: '2',
+  ctrl: true,
+  handler: () => {
+    router.push('/projects')
+  },
+  description: t('sidebar.navProjectsShortcut')
+})
+
+registerShortcut({
+  key: '3',
+  ctrl: true,
+  handler: () => {
+    router.push('/plugins')
+  },
+  description: t('sidebar.navPluginsShortcut')
+})
+
+registerShortcut({
+  key: '4',
+  ctrl: true,
+  handler: () => {
+    router.push('/engines')
+  },
+  description: t('sidebar.navEnginesShortcut')
 })
 </script>
 

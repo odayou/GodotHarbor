@@ -17,7 +17,7 @@ export default {
     quickScanHint: '使用已配置的扫描目录快速扫描',
     add: '添加项目',
     empty: '暂无项目',
-    emptyDesc: '开始扫描或手动添加 Godot 项目',
+    emptyDesc: '快速扫描自动发现 Godot 项目，或手动添加项目目录',
     scanTitle: '选择扫描目录',
     scanDesc: '选择一个目录，将递归扫描其中所有 Godot 项目（包含 project.godot 的目录）',
     scanPlaceholder: '请选择或输入目录路径',
@@ -980,7 +980,11 @@ export default {
     toggleShortcut: '切换侧边栏折叠',
     toggleThemeShortcut: '切换主题',
     toggleThemeModeShortcut: '切换深色/浅色模式',
-    openCommandPaletteShortcut: '打开命令面板'
+    openCommandPaletteShortcut: '打开命令面板',
+    navHomeShortcut: '导航到首页',
+    navProjectsShortcut: '导航到项目',
+    navPluginsShortcut: '导航到插件',
+    navEnginesShortcut: '导航到引擎'
   },
   statusbar: {
     newVersionAvailable: '新版本可用',

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, computed, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '@/api'
@@ -40,6 +40,14 @@ let unlistenDownloadProgress: UnlistenFn | null = null
 let unlistenAutoSetup: UnlistenFn | null = null
 
 const searchQuery = ref('')
+const debouncedSearchQuery = ref('')
+let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
+watch(searchQuery, (val) => {
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer)
+  searchDebounceTimer = setTimeout(() => {
+    debouncedSearchQuery.value = val
+  }, 300)
+})
 const filterType = ref<string>('all')
 const engineHealthMap = ref<Map<string, boolean>>(new Map())
 
@@ -126,10 +134,10 @@ onUnmounted(() => {
 
 const filteredEngines = computed(() => {
   return engines.value.filter(engine => {
-    const matchesSearch = searchQuery.value === '' ||
-      engine.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      engine.version.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      engine.path.toLowerCase().includes(searchQuery.value.toLowerCase())
+    const matchesSearch = debouncedSearchQuery.value === '' ||
+      engine.name.toLowerCase().includes(debouncedSearchQuery.value.toLowerCase()) ||
+      engine.version.toLowerCase().includes(debouncedSearchQuery.value.toLowerCase()) ||
+      engine.path.toLowerCase().includes(debouncedSearchQuery.value.toLowerCase())
 
     const matchesType = filterType.value === 'all' ||
       engine.engine_type === filterType.value

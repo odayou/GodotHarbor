@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '@/api'
@@ -83,6 +83,14 @@ const getPluginVersion = (pluginId: string) => {
 }
 
 const searchQuery = ref('')
+const debouncedSearchQuery = ref('')
+let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
+watch(searchQuery, (val) => {
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer)
+  searchDebounceTimer = setTimeout(() => {
+    debouncedSearchQuery.value = val
+  }, 300)
+})
 const filterGroup = ref<string>('all')
 const filterStatus = ref<string>('all')
 const availableGroups = ref<string[]>([])
@@ -210,9 +218,9 @@ onUnmounted(() => {
 })
 
 const matchesSearch = (project: Project) =>
-  searchQuery.value === '' ||
-  project.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-  project.path.toLowerCase().includes(searchQuery.value.toLowerCase())
+  debouncedSearchQuery.value === '' ||
+  project.name.toLowerCase().includes(debouncedSearchQuery.value.toLowerCase()) ||
+  project.path.toLowerCase().includes(debouncedSearchQuery.value.toLowerCase())
 
 const groupedProjects = computed(() => {
   const groups: Record<string, Project[]> = {}
@@ -411,9 +419,13 @@ const quickScan = async () => {
   isLoading.value = true
   try {
     const settings = await api.getSettings()
-    const rootDirs = settings.scan_directories.length > 0 ? settings.scan_directories : []
+    let rootDirs = settings.scan_directories
+    if (rootDirs.length === 0) {
+      rootDirs = await api.getDefaultScanDirs()
+    }
     if (rootDirs.length === 0) {
       toast.warning(t('projects.noScanDirs'))
+      showScanDialog.value = true
       isLoading.value = false
       return
     }
@@ -1053,10 +1065,21 @@ const toggleAddPluginPanel = () => {
       @action="showScanDialog = true"
     >
       <template #actions>
+        <div class="flex flex-wrap items-center justify-center gap-3">
+        <button
+          @click="quickScan"
+          :disabled="isLoading"
+          class="inline-flex items-center gap-1.5 btn-primary disabled:opacity-50 text-sm"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+          </svg>
+          {{ t('projects.quickScan') }}
+        </button>
         <button
           @click="showScanDialog = true"
           :disabled="isLoading"
-          class="inline-flex items-center gap-1.5 btn-primary disabled:opacity-50 text-sm"
+          class="inline-flex items-center gap-1.5 btn-secondary disabled:opacity-50 text-sm"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -1083,6 +1106,7 @@ const toggleAddPluginPanel = () => {
           </svg>
           {{ t('projects.addFromGit') }}
         </button>
+        </div>
       </template>
     </EmptyState>
 

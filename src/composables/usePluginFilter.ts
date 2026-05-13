@@ -21,10 +21,19 @@ export function usePluginFilter(plugins: ComputedRef<Plugin[]>) {
   const saved = loadFilterState()
 
   const searchQuery = ref(saved?.searchQuery ?? '')
+  const debouncedSearchQuery = ref(saved?.searchQuery ?? '')
   const filterCompatibility = ref<string>(saved?.filterCompatibility ?? 'all')
   const filterSource = ref<string>(saved?.filterSource ?? 'all')
   const showOnlyDuplicates = ref(saved?.showOnlyDuplicates ?? false)
   const showFavoritesOnly = ref(saved?.showFavoritesOnly ?? false)
+
+  let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
+  watch(searchQuery, (val) => {
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer)
+    searchDebounceTimer = setTimeout(() => {
+      debouncedSearchQuery.value = val
+    }, 300)
+  })
 
   watch([searchQuery, filterCompatibility, filterSource, showFavoritesOnly, showOnlyDuplicates], () => {
     saveFilterState({
@@ -40,10 +49,10 @@ export function usePluginFilter(plugins: ComputedRef<Plugin[]>) {
 
   const filteredPlugins = computed(() => {
     return plugins.value.filter(plugin => {
-      const matchesSearch = searchQuery.value === '' ||
-        plugin.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-        plugin.description.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-        plugin.author.toLowerCase().includes(searchQuery.value.toLowerCase())
+      const matchesSearch = debouncedSearchQuery.value === '' ||
+        plugin.name.toLowerCase().includes(debouncedSearchQuery.value.toLowerCase()) ||
+        plugin.description.toLowerCase().includes(debouncedSearchQuery.value.toLowerCase()) ||
+        plugin.author.toLowerCase().includes(debouncedSearchQuery.value.toLowerCase())
 
       const matchesCompatibility = filterCompatibility.value === 'all' ||
         plugin.compatibility === filterCompatibility.value

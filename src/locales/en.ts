@@ -17,7 +17,7 @@ export default {
     quickScanHint: 'Quick scan using configured directories',
     add: 'Add Project',
     empty: 'No Projects',
-    emptyDesc: 'Start scanning or manually add Godot projects',
+    emptyDesc: 'Quick scan to auto-discover Godot projects, or manually add project directories',
     scanTitle: 'Select Scan Directory',
     scanDesc: 'Select a directory to recursively scan for Godot projects (directories containing project.godot)',
     scanPlaceholder: 'Please select or enter directory path',
@@ -977,7 +977,11 @@ export default {
     toggleShortcut: 'Toggle sidebar collapse',
     toggleThemeShortcut: 'Toggle theme',
     toggleThemeModeShortcut: 'Toggle dark/light mode',
-    openCommandPaletteShortcut: 'Open command palette'
+    openCommandPaletteShortcut: 'Open command palette',
+    navHomeShortcut: 'Navigate to Home',
+    navProjectsShortcut: 'Navigate to Projects',
+    navPluginsShortcut: 'Navigate to Plugins',
+    navEnginesShortcut: 'Navigate to Engines'
   },
   statusbar: {
     newVersionAvailable: 'New version available',
