@@ -14,6 +14,7 @@ pub mod update_scheduler;
 pub mod hot_update;
 pub mod utils;
 pub mod featured;
+pub mod harbor_config;
 
 use tauri::{Emitter, Manager};
 use tauri_plugin_notification::NotificationExt;
@@ -370,6 +371,10 @@ pub fn run() {
             commands::get_asset_detail,
             commands::import_from_asset_library_with_progress,
             commands::import_project_from_asset_library,
+            commands::read_harbor_config,
+            commands::write_harbor_config,
+            commands::sync_harbor_config,
+            commands::check_uid_conflicts,
             commands::get_dashboard_stats,
             commands::auto_scan_projects,
             commands::relocate_project,

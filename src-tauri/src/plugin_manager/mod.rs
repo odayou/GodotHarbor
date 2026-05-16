@@ -119,7 +119,13 @@ impl PluginManager {
     }
 
     fn finalize_import(&self, plugin: &mut Plugin, payload_dir: &Path, version_id: &str, plugin_name: &str) -> Result<()> {
-        let (units, asset_type) = self.analyze_asset_type(payload_dir, plugin_name);
+        let (mut units, asset_type) = self.analyze_asset_type(payload_dir, plugin_name);
+
+        for unit in &mut units {
+            if unit.dir_name.is_empty() || unit.dir_name == "payload" {
+                unit.dir_name = plugin_name.to_string();
+            }
+        }
 
         let compatibility = self.detect_compatibility(payload_dir);
         self.write_harbor_marker(payload_dir);
@@ -307,7 +313,7 @@ impl PluginManager {
         None
     }
 
-    pub fn import_from_git(&self, git_url: &str, app_handle: &AppHandle) -> Result<Plugin> {
+    pub fn import_from_git(&self, git_url: &str, git_ref: Option<&str>, app_handle: &AppHandle) -> Result<Plugin> {
         let plugin_name = git_url
             .split('/')
             .last()
@@ -355,6 +361,10 @@ impl PluginManager {
         let mut builder = git2::build::RepoBuilder::new();
         builder.fetch_options(fetch_options);
 
+        if let Some(git_ref) = git_ref {
+            builder.branch(git_ref);
+        }
+
         if let Err(e) = builder.clone(git_url, &payload_dir) {
             let _ = fs::remove_dir_all(&version_dir);
             return Err(anyhow::anyhow!("Failed to clone git repository, cleaned up partial clone: {}", e));
@@ -376,7 +386,7 @@ impl PluginManager {
         Ok(plugin)
     }
 
-    pub fn parse_plugin_units(&self, plugin_dir: &Path) -> Result<Vec<PluginUnit>> {
+    pub fn parse_plugin_units(&self, plugin_dir: &Path) -> Vec<PluginUnit> {
         let mut units = Vec::new();
 
         for entry in WalkDir::new(plugin_dir)
@@ -400,11 +410,7 @@ impl PluginManager {
             }
         }
 
-        if units.is_empty() {
-            anyhow::bail!("No valid plugin.cfg found in plugin directory");
-        }
-
-        Ok(units)
+        units
     }
 
     pub fn analyze_asset_type(&self, payload_dir: &Path, fallback_name: &str) -> (Vec<PluginUnit>, AssetType) {
@@ -427,21 +433,22 @@ impl PluginManager {
             return (Vec::new(), AssetType::Project);
         }
 
-        match self.parse_plugin_units(payload_dir) {
-            Ok(units) => (units, AssetType::Plugin),
-            Err(_) => {
-                let virtual_unit = PluginUnit {
-                    unit_id: Uuid::new_v4().to_string(),
-                    name: fallback_name.to_string(),
-                    description: String::new(),
-                    author: String::new(),
-                    version: String::new(),
-                    subdirectory: String::new(),
-                    plugin_cfg_path: String::new(),
-                    is_virtual: true,
-                };
-                (vec![virtual_unit], AssetType::AssetPack)
-            }
+        let units = self.parse_plugin_units(payload_dir);
+        if !units.is_empty() {
+            (units, AssetType::Plugin)
+        } else {
+            let virtual_unit = PluginUnit {
+                unit_id: Uuid::new_v4().to_string(),
+                name: fallback_name.to_string(),
+                dir_name: fallback_name.to_string(),
+                description: String::new(),
+                author: String::new(),
+                version: String::new(),
+                subdirectory: String::new(),
+                plugin_cfg_path: String::new(),
+                is_virtual: true,
+            };
+            (vec![virtual_unit], AssetType::AssetPack)
         }
     }
 
@@ -473,9 +480,16 @@ impl PluginManager {
             .unwrap_or("")
             .to_string();
 
+        let dir_name = cfg_path.parent()
+            .and_then(|p| p.file_name())
+            .and_then(|n| n.to_str())
+            .unwrap_or(&name)
+            .to_string();
+
         Ok(PluginUnit {
             unit_id: Uuid::new_v4().to_string(),
             name,
+            dir_name,
             description,
             author,
             version,
@@ -562,5 +576,467 @@ impl PluginManager {
         if let Ok(content) = serde_json::to_string_pretty(&marker_content) {
             let _ = fs::write(&marker_path, content);
         }
+    }
+
+    pub fn scan_uid_list(&self, payload_dir: &Path) -> Vec<String> {
+        let mut uids = Vec::new();
+        if let Ok(entries) = WalkDir::new(payload_dir)
+            .follow_links(false)
+            .max_depth(PLUGIN_SCAN_MAX_DEPTH)
+            .into_iter()
+            .filter_entry(|e| {
+                if e.file_type().is_dir() {
+                    return !should_skip_dir(&e.file_name().to_string_lossy());
+                }
+                true
+            })
+            .collect::<Result<Vec<_>, _>>()
+        {
+            for entry in entries {
+                let path = entry.path();
+                if let Some(ext) = path.extension() {
+                    if ext == "uid" {
+                        if let Ok(content) = fs::read_to_string(path) {
+                            for line in content.lines() {
+                                let trimmed = line.trim();
+                                if trimmed.starts_with("uid://") {
+                                    uids.push(trimmed.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        uids.sort();
+        uids.dedup();
+        uids
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    fn create_test_plugin(dir: &Path, name: &str, version: &str) -> PathBuf {
+        let plugin_dir = dir.join(name);
+        fs::create_dir_all(&plugin_dir).unwrap();
+        let cfg_content = format!(
+            "name=\"{}\"\ndescription=\"test\"\nauthor=\"test\"\nversion=\"{}\"",
+            name, version
+        );
+        fs::write(plugin_dir.join("plugin.cfg"), cfg_content).unwrap();
+        fs::write(plugin_dir.join("script.gd"), "extends Node").unwrap();
+        plugin_dir
+    }
+
+    fn create_test_project(dir: &Path, name: &str, plugin_names: &[&str]) -> Project {
+        let project_dir = dir.join(name);
+        fs::create_dir_all(&project_dir).unwrap();
+        fs::write(project_dir.join("project.godot"), "[application]\nconfig/name=\"test\"\n").unwrap();
+
+        let addons_dir = project_dir.join("addons");
+        fs::create_dir_all(&addons_dir).unwrap();
+
+        for plugin_name in plugin_names {
+            let plugin_dir = addons_dir.join(plugin_name);
+            fs::create_dir_all(&plugin_dir).unwrap();
+            fs::write(
+                plugin_dir.join("plugin.cfg"),
+                format!("name=\"{}\"\nversion=\"1.0.0\"", plugin_name),
+            ).unwrap();
+        }
+
+        Project::new(
+            name.to_string(),
+            project_dir.to_string_lossy().to_string(),
+            "4.2".to_string(),
+            String::new(),
+        )
+    }
+
+    #[test]
+    fn test_scan_project_plugins_single_project() {
+        let dir = TempDir::new().unwrap();
+        let project = create_test_project(dir.path(), "my_game", &["plugin_a", "plugin_b"]);
+
+        let manager = PluginManager::new(dir.path().join("plugins"));
+        let results = manager.scan_project_plugins(&[project]).unwrap();
+
+        assert_eq!(results.len(), 2);
+        let names: Vec<&str> = results.iter().map(|r| r.plugin_name.as_str()).collect();
+        assert!(names.contains(&"plugin_a"));
+        assert!(names.contains(&"plugin_b"));
+    }
+
+    #[test]
+    fn test_scan_project_plugins_multiple_projects() {
+        let dir = TempDir::new().unwrap();
+        let project1 = create_test_project(dir.path(), "game1", &["plugin_a"]);
+        let project2 = create_test_project(dir.path(), "game2", &["plugin_b"]);
+
+        let manager = PluginManager::new(dir.path().join("plugins"));
+        let results = manager.scan_project_plugins(&[project1, project2]).unwrap();
+
+        assert_eq!(results.len(), 2);
+    }
+
+    #[test]
+    fn test_scan_project_plugins_same_plugin_different_projects() {
+        let dir = TempDir::new().unwrap();
+        let project1 = create_test_project(dir.path(), "game1", &["shared_plugin"]);
+        let project2 = create_test_project(dir.path(), "game2", &["shared_plugin"]);
+
+        let manager = PluginManager::new(dir.path().join("plugins"));
+        let results = manager.scan_project_plugins(&[project1, project2]).unwrap();
+
+        assert_eq!(results.len(), 2);
+        assert!(results.iter().all(|r| r.plugin_name == "shared_plugin"));
+        assert!(results[0].project_id != results[1].project_id);
+    }
+
+    #[test]
+    fn test_scan_project_plugins_no_addons() {
+        let dir = TempDir::new().unwrap();
+        let project_dir = dir.path().join("empty_game");
+        fs::create_dir_all(&project_dir).unwrap();
+        fs::write(project_dir.join("project.godot"), "[application]\n").unwrap();
+
+        let project = Project::new(
+            "empty_game".to_string(),
+            project_dir.to_string_lossy().to_string(),
+            "4.2".to_string(),
+            String::new(),
+        );
+
+        let manager = PluginManager::new(dir.path().join("plugins"));
+        let results = manager.scan_project_plugins(&[project]).unwrap();
+
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_scan_project_plugins_no_plugin_cfg() {
+        let dir = TempDir::new().unwrap();
+        let project_dir = dir.path().join("game");
+        fs::create_dir_all(&project_dir).unwrap();
+        fs::write(project_dir.join("project.godot"), "[application]\n").unwrap();
+
+        let addons_dir = project_dir.join("addons");
+        let no_cfg_dir = addons_dir.join("no_cfg_plugin");
+        fs::create_dir_all(&no_cfg_dir).unwrap();
+        fs::write(no_cfg_dir.join("readme.txt"), "not a plugin").unwrap();
+
+        let project = Project::new(
+            "game".to_string(),
+            project_dir.to_string_lossy().to_string(),
+            "4.2".to_string(),
+            String::new(),
+        );
+
+        let manager = PluginManager::new(dir.path().join("plugins"));
+        let results = manager.scan_project_plugins(&[project]).unwrap();
+
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_import_from_local() {
+        let dir = TempDir::new().unwrap();
+        let plugin_dir = create_test_plugin(dir.path(), "my_plugin", "1.0.0");
+
+        let manager = PluginManager::new(dir.path().join("store"));
+        let result = manager.import_from_local(&plugin_dir.to_string_lossy()).unwrap();
+
+        assert_eq!(result.name, "my_plugin");
+        assert!(!result.versions.is_empty());
+        assert!(!result.content_hash.is_empty());
+        assert_eq!(result.asset_type, AssetType::Plugin);
+    }
+
+    #[test]
+    fn test_import_from_local_nonexistent() {
+        let dir = TempDir::new().unwrap();
+        let manager = PluginManager::new(dir.path().join("store"));
+        let result = manager.import_from_local("/nonexistent/path");
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_import_from_local_copies_files() {
+        let dir = TempDir::new().unwrap();
+        let plugin_dir = create_test_plugin(dir.path(), "copy_test", "1.0.0");
+
+        let store_dir = dir.path().join("store");
+        let manager = PluginManager::new(store_dir.clone());
+        let result = manager.import_from_local(&plugin_dir.to_string_lossy()).unwrap();
+
+        let version = result.versions.first().unwrap();
+        let payload_path = Path::new(&version.path);
+        assert!(payload_path.exists());
+        assert!(payload_path.join("plugin.cfg").exists());
+        assert!(payload_path.join("script.gd").exists());
+    }
+
+    #[test]
+    fn test_import_from_local_generates_hash() {
+        let dir = TempDir::new().unwrap();
+        let plugin_dir = create_test_plugin(dir.path(), "hash_test", "1.0.0");
+
+        let manager = PluginManager::new(dir.path().join("store"));
+        let result = manager.import_from_local(&plugin_dir.to_string_lossy()).unwrap();
+
+        assert!(!result.content_hash.is_empty());
+    }
+
+    #[test]
+    fn test_analyze_asset_type_plugin() {
+        let dir = TempDir::new().unwrap();
+        create_test_plugin(dir.path(), "test_plugin", "1.0.0");
+
+        let manager = PluginManager::new(dir.path().join("store"));
+        let (units, asset_type) = manager.analyze_asset_type(dir.path(), "test_plugin");
+
+        assert_eq!(asset_type, AssetType::Plugin);
+        assert!(!units.is_empty());
+        assert!(!units[0].is_virtual);
+    }
+
+    #[test]
+    fn test_analyze_asset_type_project() {
+        let dir = TempDir::new().unwrap();
+        fs::create_dir_all(dir.path()).unwrap();
+        fs::write(dir.path().join("project.godot"), "[application]\n").unwrap();
+
+        let manager = PluginManager::new(dir.path().join("store"));
+        let (units, asset_type) = manager.analyze_asset_type(dir.path(), "test_project");
+
+        assert_eq!(asset_type, AssetType::Project);
+        assert!(units.is_empty());
+    }
+
+    #[test]
+    fn test_analyze_asset_type_asset_pack() {
+        let dir = TempDir::new().unwrap();
+        fs::create_dir_all(dir.path()).unwrap();
+        fs::write(dir.path().join("model.obj"), "v 0 0 0").unwrap();
+
+        let manager = PluginManager::new(dir.path().join("store"));
+        let (units, asset_type) = manager.analyze_asset_type(dir.path(), "test_assets");
+
+        assert_eq!(asset_type, AssetType::AssetPack);
+        assert!(!units.is_empty());
+        assert!(units[0].is_virtual);
+    }
+
+    #[test]
+    fn test_parse_plugin_cfg() {
+        let dir = TempDir::new().unwrap();
+        let cfg_path = dir.path().join("plugin.cfg");
+        fs::write(&cfg_path, "name=\"MyPlugin\"\ndescription=\"A test\"\nauthor=\"TestAuthor\"\nversion=\"2.0.0\"").unwrap();
+
+        let manager = PluginManager::new(dir.path().join("store"));
+        let unit = manager.parse_plugin_cfg(&cfg_path, dir.path()).unwrap();
+
+        assert_eq!(unit.name, "MyPlugin");
+        assert_eq!(unit.description, "A test");
+        assert_eq!(unit.author, "TestAuthor");
+        assert_eq!(unit.version, "2.0.0");
+        assert!(!unit.is_virtual);
+    }
+
+    #[test]
+    fn test_parse_plugin_cfg_subdirectory() {
+        let dir = TempDir::new().unwrap();
+        let subdir = dir.path().join("addons").join("my_plugin");
+        fs::create_dir_all(&subdir).unwrap();
+        let cfg_path = subdir.join("plugin.cfg");
+        fs::write(&cfg_path, "name=\"SubPlugin\"").unwrap();
+
+        let manager = PluginManager::new(dir.path().join("store"));
+        let unit = manager.parse_plugin_cfg(&cfg_path, dir.path()).unwrap();
+
+        assert_eq!(unit.subdirectory.replace('\\', "/"), "addons/my_plugin");
+    }
+
+    #[test]
+    fn test_detect_compatibility_godot4() {
+        let dir = TempDir::new().unwrap();
+        let script = dir.path().join("test.gd");
+        fs::write(&script, "extends Node\n\n@export var speed: float = 1.0\n\nfunc _ready():\n\tawait get_tree().create_timer(1.0).timeout").unwrap();
+
+        let manager = PluginManager::new(dir.path().join("store"));
+        let compat = manager.detect_compatibility(dir.path());
+
+        assert!(matches!(compat, Compatibility::Godot4 | Compatibility::Both));
+    }
+
+    #[test]
+    fn test_detect_compatibility_godot3() {
+        let dir = TempDir::new().unwrap();
+        let script = dir.path().join("test.gd");
+        fs::write(&script, "extends Node\n\nexport(float) var speed = 1.0").unwrap();
+
+        let manager = PluginManager::new(dir.path().join("store"));
+        let compat = manager.detect_compatibility(dir.path());
+
+        assert!(matches!(compat, Compatibility::Godot3 | Compatibility::Both));
+    }
+
+    #[test]
+    fn test_detect_compatibility_unknown() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("readme.txt"), "just a readme").unwrap();
+
+        let manager = PluginManager::new(dir.path().join("store"));
+        let compat = manager.detect_compatibility(dir.path());
+
+        assert!(matches!(compat, Compatibility::Unknown));
+    }
+
+    #[test]
+    fn test_import_from_local_same_content_same_hash() {
+        let dir = TempDir::new().unwrap();
+        let plugin1 = create_test_plugin(dir.path(), "same_plugin", "1.0.0");
+
+        let dir2 = TempDir::new().unwrap();
+        let plugin2 = create_test_plugin(dir2.path(), "same_plugin", "1.0.0");
+
+        let manager = PluginManager::new(dir.path().join("store"));
+        let result1 = manager.import_from_local(&plugin1.to_string_lossy()).unwrap();
+        let result2 = manager.import_from_local(&plugin2.to_string_lossy()).unwrap();
+
+        assert_eq!(result1.content_hash, result2.content_hash);
+    }
+
+    #[test]
+    fn test_import_from_local_different_content_different_hash() {
+        let dir = TempDir::new().unwrap();
+        let plugin1 = create_test_plugin(dir.path(), "plugin_v1", "1.0.0");
+
+        let dir2 = TempDir::new().unwrap();
+        let plugin2_dir = dir2.path().join("plugin_v2");
+        fs::create_dir_all(&plugin2_dir).unwrap();
+        fs::write(plugin2_dir.join("plugin.cfg"), "name=\"plugin_v2\"\nversion=\"2.0.0\"").unwrap();
+        fs::write(plugin2_dir.join("different.gd"), "extends Node2D").unwrap();
+
+        let manager = PluginManager::new(dir.path().join("store"));
+        let result1 = manager.import_from_local(&plugin1.to_string_lossy()).unwrap();
+        let result2 = manager.import_from_local(&plugin2_dir.to_string_lossy()).unwrap();
+
+        assert_ne!(result1.content_hash, result2.content_hash);
+    }
+
+    #[test]
+    fn test_scan_uid_list_empty() {
+        let dir = TempDir::new().unwrap();
+        let manager = PluginManager::new(dir.path().join("store"));
+        let uids = manager.scan_uid_list(dir.path());
+        assert!(uids.is_empty());
+    }
+
+    #[test]
+    fn test_scan_uid_list_with_uids() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("test.uid"), "uid://abc123\nuid://def456").unwrap();
+
+        let manager = PluginManager::new(dir.path().join("store"));
+        let uids = manager.scan_uid_list(dir.path());
+
+        assert_eq!(uids.len(), 2);
+        assert!(uids.contains(&"uid://abc123".to_string()));
+        assert!(uids.contains(&"uid://def456".to_string()));
+    }
+
+    #[test]
+    fn test_scan_uid_list_dedup() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("a.uid"), "uid://abc123").unwrap();
+        fs::write(dir.path().join("b.uid"), "uid://abc123").unwrap();
+
+        let manager = PluginManager::new(dir.path().join("store"));
+        let uids = manager.scan_uid_list(dir.path());
+
+        assert_eq!(uids.len(), 1);
+    }
+
+    #[test]
+    fn test_find_single_subdir_single() {
+        let dir = TempDir::new().unwrap();
+        fs::create_dir_all(dir.path().join("only_child")).unwrap();
+
+        let result = PluginManager::find_single_subdir(dir.path());
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().file_name().unwrap(), "only_child");
+    }
+
+    #[test]
+    fn test_find_single_subdir_multiple() {
+        let dir = TempDir::new().unwrap();
+        fs::create_dir_all(dir.path().join("child1")).unwrap();
+        fs::create_dir_all(dir.path().join("child2")).unwrap();
+
+        let result = PluginManager::find_single_subdir(dir.path());
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_find_single_subdir_empty() {
+        let dir = TempDir::new().unwrap();
+
+        let result = PluginManager::find_single_subdir(dir.path());
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_parse_plugin_cfg_dir_name_differs_from_name() {
+        let dir = TempDir::new().unwrap();
+        let plugin_dir = dir.path().join("addons").join("godot_mcp");
+        fs::create_dir_all(&plugin_dir).unwrap();
+        let cfg_path = plugin_dir.join("plugin.cfg");
+        fs::write(&cfg_path, "name=\"Godot MCP\"\ndescription=\"MCP plugin\"\nauthor=\"test\"\nversion=\"1.0.0\"").unwrap();
+
+        let manager = PluginManager::new(dir.path().join("store"));
+        let unit = manager.parse_plugin_cfg(&cfg_path, dir.path()).unwrap();
+
+        assert_eq!(unit.name, "Godot MCP");
+        assert_eq!(unit.dir_name, "godot_mcp");
+        assert_ne!(unit.name, unit.dir_name);
+    }
+
+    #[test]
+    fn test_import_from_local_dir_name_preserved() {
+        let dir = TempDir::new().unwrap();
+        let plugin_dir = dir.path().join("my_awesome_plugin");
+        fs::create_dir_all(&plugin_dir).unwrap();
+        fs::write(plugin_dir.join("plugin.cfg"), "name=\"My Awesome Plugin\"\nversion=\"1.0.0\"").unwrap();
+        fs::write(plugin_dir.join("script.gd"), "extends Node").unwrap();
+
+        let manager = PluginManager::new(dir.path().join("store"));
+        let result = manager.import_from_local(&plugin_dir.to_string_lossy()).unwrap();
+
+        assert_eq!(result.name, "My Awesome Plugin");
+        let version = result.versions.first().unwrap();
+        let unit = version.units.first().unwrap();
+        assert_eq!(unit.dir_name, "my_awesome_plugin");
+        assert_eq!(unit.name, "My Awesome Plugin");
+    }
+
+    #[test]
+    fn test_analyze_asset_type_dir_name_from_folder() {
+        let dir = TempDir::new().unwrap();
+        let plugin_dir = dir.path().join("addons").join("cool_plugin");
+        fs::create_dir_all(&plugin_dir).unwrap();
+        fs::write(plugin_dir.join("plugin.cfg"), "name=\"Cool Plugin Display Name\"").unwrap();
+
+        let manager = PluginManager::new(dir.path().join("store"));
+        let (units, asset_type) = manager.analyze_asset_type(dir.path(), "cool_plugin");
+
+        assert_eq!(asset_type, AssetType::Plugin);
+        assert!(!units.is_empty());
+        assert_eq!(units[0].name, "Cool Plugin Display Name");
+        assert_eq!(units[0].dir_name, "cool_plugin");
     }
 }

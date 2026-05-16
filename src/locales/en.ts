@@ -195,7 +195,6 @@ export default {
     },
     favorites: 'Favorites',
     showDuplicates: 'Show Duplicates',
-    viewDuplicates: 'View Duplicates',
     details: 'Plugin Details',
     version: 'Version',
     versionCount: 'versions',
@@ -263,7 +262,8 @@ export default {
     },
     remoteImport: {
       desc: 'Enter Git repo URL or archive download URL, auto-detect and import',
-      placeholder: 'https://github.com/user/plugin.git or https://example.com/plugin.zip'
+      placeholder: 'https://github.com/user/plugin.git or https://example.com/plugin.zip',
+      refPlaceholder: 'Branch/Tag/Commit (optional, e.g. main, v2.0, a1b2c3d)'
     },
     pluginDetail: {
       versionList: 'Version list ({count})',
@@ -304,7 +304,8 @@ export default {
       size: 'Occupying {size}',
       orphaned: 'Cleanable {size}',
       duplicates: '{count} groups of duplicate content',
-      cleanup: 'Clean up orphaned files'
+      cleanup: 'Clean up orphaned files',
+      viewDuplicates: 'View Duplicates'
     },
     deleteConfirm: {
       single: 'Confirm Delete Plugin',
@@ -566,6 +567,25 @@ export default {
     switchVersion: 'Switch Version',
     batchVersionSelectTitle: 'Select Binding Version',
     batchVersionSelectDesc: 'The following plugins have multiple versions or units. Please select the version to bind:',
+    exportConfig: 'Export Config',
+    syncing: 'Syncing...',
+    syncConfig: 'Sync Config',
+    exporting: 'Exporting...',
+    configTitle: 'Project Config .harbor.yml',
+    configDesc: 'This config file has been generated in the project root directory. Commit it to version control for team sharing. New members can use "Sync Config" to install all plugins in one click.',
+    configEmpty: 'No config content',
+    configExported: 'Config exported to project root',
+    configExportFailed: 'Failed to export config: {error}',
+    configSyncFailed: 'Failed to sync config: {error}',
+    syncResultTitle: 'Sync Result',
+    syncImported: 'Imported {count} plugin(s)',
+    syncBound: 'Bound {count} plugin(s)',
+    syncSkipped: 'Skipped {count} (import failed)',
+    syncNoChanges: 'No changes to sync',
+    uidConflictTitle: 'UID Conflict Warning',
+    uidConflictDesc: 'This plugin has UID conflicts with other bound plugins in the project, which may cause resource reference issues. Copy mode is recommended.',
+    uidConflictCount: '{count} conflicting UID(s)',
+    bindAnyway: 'Bind Anyway',
   },
   engines: {
     title: 'Engine Management',

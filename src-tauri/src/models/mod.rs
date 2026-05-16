@@ -26,18 +26,19 @@ fn compute_dir_hash_recursive(dir: &Path, hasher: &mut DefaultHasher) -> Result<
     for entry in entries {
         let path = entry.path();
         let file_name = entry.file_name();
-        file_name.to_string_lossy().hash(hasher);
+        let file_name_str = file_name.to_string_lossy();
 
         if path.is_dir() {
-            if should_skip_dir(&file_name.to_string_lossy()) {
+            if should_skip_dir(&file_name_str) {
                 continue;
             }
+            file_name_str.hash(hasher);
             compute_dir_hash_recursive(&path, hasher)?;
         } else {
-            let file_name_str = file_name.to_string_lossy();
             if file_name_str == ".harbor-managed" {
                 continue;
             }
+            file_name_str.hash(hasher);
             if let Ok(content) = fs::read(&path) {
                 content.len().hash(hasher);
                 if content.len() <= 65536 {
@@ -87,6 +88,8 @@ pub struct PluginSource {
 pub struct PluginUnit {
     pub unit_id: String,
     pub name: String,
+    #[serde(default)]
+    pub dir_name: String,
     #[serde(default)]
     pub description: String,
     #[serde(default)]
@@ -358,7 +361,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             scan_directories: Vec::new(),
-            mount_strategy: MountStrategy::Symlink,
+            mount_strategy: MountStrategy::Copy,
             language: "zh-CN".to_string(),
             theme: "light".to_string(),
             auto_scan_on_startup: true,
@@ -843,5 +846,81 @@ mod tests {
         assert_eq!(format!("{}", EngineReleaseChannel::Beta), "beta");
         assert_eq!(format!("{}", EngineReleaseChannel::Alpha), "alpha");
         assert_eq!(format!("{}", EngineReleaseChannel::Dev), "dev");
+    }
+
+    #[test]
+    fn test_compute_dir_hash_cross_validate() {
+        let dir1 = tempfile::TempDir::new().unwrap();
+        let dir2 = tempfile::TempDir::new().unwrap();
+
+        fs::create_dir_all(dir1.path().join("sub")).unwrap();
+        fs::write(dir1.path().join("sub").join("file.txt"), "nested").unwrap();
+        fs::write(dir1.path().join("root.txt"), "root").unwrap();
+
+        fs::create_dir_all(dir2.path().join("sub")).unwrap();
+        fs::write(dir2.path().join("sub").join("file.txt"), "nested").unwrap();
+        fs::write(dir2.path().join("root.txt"), "root").unwrap();
+
+        let hash1 = compute_dir_hash(dir1.path()).unwrap();
+        let hash2 = compute_dir_hash(dir2.path()).unwrap();
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_compute_dir_hash_ignores_harbor_managed_cross() {
+        let dir1 = tempfile::TempDir::new().unwrap();
+        let dir2 = tempfile::TempDir::new().unwrap();
+
+        fs::write(dir1.path().join("file.txt"), "content").unwrap();
+        fs::write(dir1.path().join(".harbor-managed"), "managed").unwrap();
+
+        fs::write(dir2.path().join("file.txt"), "content").unwrap();
+
+        let hash1 = compute_dir_hash(dir1.path()).unwrap();
+        let hash2 = compute_dir_hash(dir2.path()).unwrap();
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_compute_dir_hash_ignores_git_dir_cross() {
+        let dir1 = tempfile::TempDir::new().unwrap();
+        let dir2 = tempfile::TempDir::new().unwrap();
+
+        fs::write(dir1.path().join("file.txt"), "content").unwrap();
+        fs::create_dir_all(dir1.path().join(".git").join("objects")).unwrap();
+        fs::write(dir1.path().join(".git").join("HEAD"), "ref: refs/heads/main").unwrap();
+
+        fs::write(dir2.path().join("file.txt"), "content").unwrap();
+
+        let hash1 = compute_dir_hash(dir1.path()).unwrap();
+        let hash2 = compute_dir_hash(dir2.path()).unwrap();
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_compute_dir_hash_large_file_sampling() {
+        let dir1 = tempfile::TempDir::new().unwrap();
+        let dir2 = tempfile::TempDir::new().unwrap();
+
+        let large_content = "x".repeat(200_000);
+        fs::write(dir1.path().join("large.bin"), &large_content).unwrap();
+        fs::write(dir2.path().join("large.bin"), &large_content).unwrap();
+
+        let hash1 = compute_dir_hash(dir1.path()).unwrap();
+        let hash2 = compute_dir_hash(dir2.path()).unwrap();
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_compute_dir_hash_different_filenames() {
+        let dir1 = tempfile::TempDir::new().unwrap();
+        let dir2 = tempfile::TempDir::new().unwrap();
+
+        fs::write(dir1.path().join("alpha.txt"), "content").unwrap();
+        fs::write(dir2.path().join("beta.txt"), "content").unwrap();
+
+        let hash1 = compute_dir_hash(dir1.path()).unwrap();
+        let hash2 = compute_dir_hash(dir2.path()).unwrap();
+        assert_ne!(hash1, hash2);
     }
 }

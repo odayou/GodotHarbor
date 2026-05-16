@@ -498,3 +498,16 @@ export interface FeaturedPluginsList {
   updated_at: string
   plugins: FeaturedPlugin[]
 }
+
+export interface SyncResult {
+  imported: number
+  bound: number
+  skipped: number
+  errors: string[]
+}
+
+export interface UidConflictInfo {
+  plugin_id: string
+  plugin_name: string
+  conflicting_uids: string[]
+}

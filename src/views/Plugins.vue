@@ -60,6 +60,7 @@ const isLoading = ref(false)
 const hasLoaded = ref(false)
 let unlistenAutoSetup: UnlistenFn | null = null
 const remoteUrl = ref('')
+const remoteGitRef = ref('')
 const showRemoteDialog = ref(false)
 const showPluginDetail = ref(false)
 const selectedPlugin = ref<Plugin | null>(null)
@@ -151,6 +152,17 @@ const addonBackups = ref<any[]>([])
 const showRollbackDialog = ref(false)
 const isRestoringAddon = ref(false)
 
+const showHarborConfigDialog = ref(false)
+const isExportingConfig = ref(false)
+const isSyncingConfig = ref(false)
+const harborConfigContent = ref<string | null>(null)
+const syncResult = ref<{ imported: number; bound: number; skipped: number; errors: string[] } | null>(null)
+const showSyncResultDialog = ref(false)
+
+const showUidConflictDialog = ref(false)
+const uidConflicts = ref<{ plugin_id: string; plugin_name: string; conflicting_uids: string[] }[]>([])
+const pendingBindAfterUidCheck = ref<(() => void) | null>(null)
+
 const {
   searchQuery,
   filterCompatibility,
@@ -198,7 +210,7 @@ const onBatchDeleteConfirm = async () => {
       toast.success(t('common.batchDeleteSuccess', { count: result.success_count }))
     }
     clearPluginSelection()
-    await loadPlugins()
+    await loadPlugins(true)
     loadPluginBindingCounts()
   } catch (error) {
     toast.error(t('common.batchDeleteFailed', { error }))
@@ -385,10 +397,11 @@ const importFromRemote = async () => {
     const url = remoteUrl.value.trim()
     const isGitUrl = url.endsWith('.git') || (url.includes('github.com') && !url.includes('/archive/') && !url.endsWith('.zip') && !url.endsWith('.tar.gz'))
     const result = isGitUrl
-      ? await api.importPluginFromGit(url)
+      ? await api.importPluginFromGit(url, remoteGitRef.value.trim() || undefined)
       : await api.importPluginFromUrl(url)
     toast.success(t('plugins.importPluginSuccess', { name: result.name }))
     remoteUrl.value = ''
+    remoteGitRef.value = ''
     showRemoteDialog.value = false
     await loadPlugins(true)
     showPostImportGuide(result.name, result)
@@ -475,10 +488,19 @@ useDialogEscape(showPluginDetail)
 useDialogEscape(showImportModeDialog)
 useDialogEscape(showDuplicateConfirm)
 
-const getMountPath = (unit: { subdirectory?: string; name: string }, plugin?: Plugin) => {
-  if (unit.subdirectory) return unit.subdirectory
+const getMountPath = (unit: { subdirectory?: string; name: string; dir_name?: string }, plugin?: Plugin) => {
+  let folderName = unit.dir_name || ''
+  if (!folderName || folderName === 'payload') {
+    if (unit.subdirectory) {
+      const parts = unit.subdirectory.replace(/\\/g, '/').split('/')
+      folderName = parts[parts.length - 1] || ''
+    }
+  }
+  if (!folderName || folderName === 'payload') {
+    folderName = plugin?.name || unit.name || 'plugin'
+  }
   const isAssetPack = plugin?.asset_type === 'AssetPack'
-  return isAssetPack ? `assets/${unit.name}` : `addons/${unit.name}`
+  return isAssetPack ? `assets/${folderName}` : `addons/${folderName}`
 }
 
 const isCompatWarning = (plugin: Plugin, project: Project) => {
@@ -525,11 +547,7 @@ const confirmRemovePlugin = async (pluginId: string) => {
 
 const onRemovePluginConfirm = async () => {
   try {
-    const affectedProjectIds = new Set<string>()
     if (deletePluginBindings.value.length > 0) {
-      for (const binding of deletePluginBindings.value) {
-        affectedProjectIds.add(binding.project_id)
-      }
       await Promise.allSettled(
         deletePluginBindings.value.map(binding =>
           api.unbindPlugin(binding.project_id, deletePluginId.value)
@@ -537,15 +555,9 @@ const onRemovePluginConfirm = async () => {
       )
     }
     await api.removePlugin(deletePluginId.value)
-    const applyResults = await Promise.allSettled(
-      Array.from(affectedProjectIds).map(id => api.applyChanges(id))
-    )
-    const applyFailCount = applyResults.filter(r => r.status === 'rejected').length
-    if (applyFailCount > 0) {
-      toast.warning(t('plugins.deleteConfirm.applyPartial', { failed: applyFailCount }))
-    } else {
-      toast.success(t('common.projectDeleted'))
-    }
+    toast.success(t('common.projectDeleted'))
+    showPluginDetail.value = false
+    selectedPlugin.value = null
     await loadPlugins(true)
   } catch (error) {
     toast.error(t('common.deleteFailed', { error }))
@@ -766,7 +778,6 @@ const onVersionDeleteConfirm = async () => {
     await Promise.allSettled(
       affectedBindings.map(b =>
         api.unbindPlugin(b.project_id, b.plugin_id)
-          .then(() => api.applyChanges(b.project_id))
           .catch(() => {})
       )
     )
@@ -985,6 +996,48 @@ const loadAllSelectedBindings = async () => {
   linkerBindings.value = allBindings
 }
 
+const exportHarborConfig = async () => {
+  if (!selectedLinkId.value) {
+    toast.warning(t('linker.selectProject'))
+    return
+  }
+  isExportingConfig.value = true
+  try {
+    await api.writeHarborConfig(selectedLinkId.value)
+    const config = await api.readHarborConfig(selectedLinkId.value)
+    harborConfigContent.value = config ? JSON.stringify(config, null, 2) : null
+    showHarborConfigDialog.value = true
+    toast.success(t('linker.configExported'))
+  } catch (error) {
+    toast.error(t('linker.configExportFailed', { error: error instanceof Error ? error.message : String(error) }))
+  } finally {
+    isExportingConfig.value = false
+  }
+}
+
+const syncHarborConfig = async () => {
+  if (!selectedLinkId.value) {
+    toast.warning(t('linker.selectProject'))
+    return
+  }
+  isSyncingConfig.value = true
+  try {
+    const result = await api.syncHarborConfig(selectedLinkId.value)
+    syncResult.value = result
+    showSyncResultDialog.value = true
+    if (selectedLinkId.value) {
+      await loadLinkerBindings(selectedLinkId.value)
+    }
+    if (result.imported > 0 || result.bound > 0) {
+      await api.applyChanges(selectedLinkId.value)
+    }
+  } catch (error) {
+    toast.error(t('linker.configSyncFailed', { error: error instanceof Error ? error.message : String(error) }))
+  } finally {
+    isSyncingConfig.value = false
+  }
+}
+
 const bindPluginToProject = async (plugin: Plugin) => {
   if (selectedLinkProjectIds.value.size === 0) {
     toast.warning(t('linker.selectProject'))
@@ -1023,6 +1076,24 @@ const doBindPlugin = async (plugin: Plugin, version: any, unit: any) => {
       return
     }
   }
+
+  if (selectedLinkProjectIds.value.size > 0) {
+    const firstProjectId = Array.from(selectedLinkProjectIds.value)[0]
+    try {
+      const conflicts = await api.checkUidConflicts(firstProjectId, plugin.plugin_id)
+      if (conflicts.length > 0) {
+        uidConflicts.value = conflicts
+        pendingBindAfterUidCheck.value = () => proceedBindPlugin(plugin, version, unit, mountPath, subdirectory)
+        showUidConflictDialog.value = true
+        return
+      }
+    } catch {}
+  }
+
+  await proceedBindPlugin(plugin, version, unit, mountPath, subdirectory)
+}
+
+const proceedBindPlugin = async (plugin: Plugin, version: any, unit: any, mountPath: string, subdirectory: string) => {
   try {
     await Promise.allSettled(
       Array.from(selectedLinkProjectIds.value).map(projectId =>
@@ -1389,6 +1460,9 @@ useDialogEscape(showQuickBindDialog)
 useDialogEscape(showVersionSwitchDialog)
 useDialogEscape(showVersionDeleteConfirm)
 useDialogEscape(showRollbackDialog)
+useDialogEscape(showHarborConfigDialog)
+useDialogEscape(showSyncResultDialog)
+useDialogEscape(showUidConflictDialog)
 
 const doQuickBind = async () => {
   if (!quickBindPlugin.value) return
@@ -1558,7 +1632,6 @@ const removePluginAndReimport = async (pluginId: string) => {
     await Promise.allSettled(
       bindings.map(b =>
         api.unbindPlugin(b.project_id, b.plugin_id)
-          .then(() => api.applyChanges(b.project_id))
           .catch(() => {})
       )
     )
@@ -1640,6 +1713,13 @@ const retryBatchFailed = async () => {
       </div>
       <div v-if="activeTab === 'repository'" class="flex flex-wrap gap-2">
         <button
+          @click="importFromProjects"
+          :disabled="isLoading"
+          class="btn-primary disabled:opacity-50 text-sm"
+        >
+          {{ t('plugins.importFromProject.title') }}
+        </button>
+        <button
           @click="checkPluginUpdates"
           :disabled="isCheckingUpdates || isLoading"
           class="px-4 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-card text-gray-700 dark:text-content-secondary rounded-lg hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors disabled:opacity-50 text-sm"
@@ -1710,20 +1790,6 @@ const retryBatchFailed = async () => {
               <div>
                 <div class="font-medium">{{ t('assetLibrary.title') }}</div>
                 <div class="text-xs text-gray-500 dark:text-content-muted">{{ t('plugins.addMenu.fromAssetLibDesc') }}</div>
-              </div>
-            </button>
-            <div class="border-t border-gray-200 dark:border-surface-border my-1"></div>
-            <div class="px-3 py-1.5 text-xs font-medium text-gray-400 dark:text-content-muted uppercase tracking-wider">{{ t('plugins.addMenu.projectLabel') }}</div>
-            <button
-              @click="importFromProjects(); showAddMenu = false"
-              class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-50 dark:hover:bg-surface-hover flex items-center gap-2.5"
-            >
-              <svg class="w-4 h-4 text-gray-500 dark:text-content-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-              </svg>
-              <div>
-                <div class="font-medium">{{ t('plugins.fromProjects') }}</div>
-                <div class="text-xs text-gray-500 dark:text-content-muted">{{ t('plugins.addMenu.fromProjectsDesc') }}</div>
               </div>
             </button>
           </div>
@@ -2041,7 +2107,7 @@ const retryBatchFailed = async () => {
     </div>
 
   <Teleport to="body">
-    <div v-if="showRemoteDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showRemoteDialog = false; remoteUrl = ''">
+    <div v-if="showRemoteDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showRemoteDialog = false; remoteUrl = ''; remoteGitRef = ''">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('plugins.importFromRemote') }}</h3>
         <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">
@@ -2053,9 +2119,15 @@ const retryBatchFailed = async () => {
           :placeholder="t('plugins.remoteImport.placeholder')"
           class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
         />
+        <input
+          v-model="remoteGitRef"
+          type="text"
+          :placeholder="t('plugins.remoteImport.refPlaceholder')"
+          class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm mt-3"
+        />
         <div class="flex justify-end space-x-3 mt-6">
           <button
-            @click="showRemoteDialog = false; remoteUrl = ''"
+            @click="showRemoteDialog = false; remoteUrl = ''; remoteGitRef = ''"
             class="btn-secondary"
           >
             {{ t('common.cancel') }}
@@ -2452,6 +2524,22 @@ const retryBatchFailed = async () => {
           class="px-3 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-700 dark:text-content-primary text-sm hover:bg-gray-50 dark:hover:bg-surface-layer"
         >
           {{ t('linker.batchApplyTitle') }}
+        </button>
+        <button
+          v-if="selectedLinkId"
+          @click="exportHarborConfig"
+          :disabled="isExportingConfig"
+          class="px-3 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-700 dark:text-content-primary text-sm hover:bg-gray-50 dark:hover:bg-surface-layer disabled:opacity-50"
+        >
+          {{ isExportingConfig ? t('linker.exporting') : t('linker.exportConfig') }}
+        </button>
+        <button
+          v-if="selectedLinkId"
+          @click="syncHarborConfig"
+          :disabled="isSyncingConfig"
+          class="px-3 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-700 dark:text-content-primary text-sm hover:bg-gray-50 dark:hover:bg-surface-layer disabled:opacity-50"
+        >
+          {{ isSyncingConfig ? t('linker.syncing') : t('linker.syncConfig') }}
         </button>
         <div v-if="mountStrategyDisplay" class="flex items-center gap-2 text-xs text-gray-500 dark:text-content-secondary">
           <span class="px-2 py-1 bg-gray-100 dark:bg-surface-layer rounded-lg">
@@ -3077,6 +3165,60 @@ const retryBatchFailed = async () => {
           <button @click="doSwitchVersion" :disabled="isSwitchingVersion" class="btn-primary disabled:opacity-50">
             {{ isSwitchingVersion ? t('plugins.versionSwitch.switching') : t('plugins.versionSwitch.switchVersion') }}
           </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div v-if="showHarborConfigDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showHarborConfigDialog = false">
+      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('linker.configTitle') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-secondary mb-3">{{ t('linker.configDesc') }}</p>
+        <div v-if="harborConfigContent" class="bg-gray-50 dark:bg-surface-layer rounded-lg p-3 text-xs font-mono text-gray-700 dark:text-content-secondary max-h-64 overflow-y-auto whitespace-pre-wrap break-all">{{ harborConfigContent }}</div>
+        <div v-else class="text-sm text-gray-500 dark:text-content-secondary">{{ t('linker.configEmpty') }}</div>
+        <div class="flex justify-end mt-4">
+          <button @click="showHarborConfigDialog = false" class="btn-primary">{{ t('linker.close') }}</button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div v-if="showSyncResultDialog && syncResult" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showSyncResultDialog = false">
+      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('linker.syncResultTitle') }}</h3>
+        <div class="space-y-2 mb-4">
+          <div v-if="syncResult.imported > 0" class="text-sm text-green-600 dark:text-green-400">{{ t('linker.syncImported', { count: syncResult.imported }) }}</div>
+          <div v-if="syncResult.bound > 0" class="text-sm text-blue-600 dark:text-blue-400">{{ t('linker.syncBound', { count: syncResult.bound }) }}</div>
+          <div v-if="syncResult.skipped > 0" class="text-sm text-yellow-600 dark:text-yellow-400">{{ t('linker.syncSkipped', { count: syncResult.skipped }) }}</div>
+          <div v-if="syncResult.errors.length > 0" class="space-y-1">
+            <p class="text-sm font-medium text-red-600 dark:text-red-400">{{ t('linker.errors') }}</p>
+            <div v-for="err in syncResult.errors" :key="err" class="text-xs text-red-500 dark:text-red-400">{{ err }}</div>
+          </div>
+          <div v-if="syncResult.imported === 0 && syncResult.bound === 0 && syncResult.skipped === 0" class="text-sm text-gray-500 dark:text-content-secondary">{{ t('linker.syncNoChanges') }}</div>
+        </div>
+        <div class="flex justify-end">
+          <button @click="showSyncResultDialog = false" class="btn-primary">{{ t('linker.close') }}</button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div v-if="showUidConflictDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showUidConflictDialog = false; pendingBindAfterUidCheck = null">
+      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('linker.uidConflictTitle') }}</h3>
+        <p class="text-sm text-yellow-600 dark:text-yellow-400 mb-3">{{ t('linker.uidConflictDesc') }}</p>
+        <div class="space-y-2 mb-4 max-h-48 overflow-y-auto">
+          <div v-for="conflict in uidConflicts" :key="conflict.plugin_id" class="p-2 bg-yellow-50 dark:bg-yellow-900/10 rounded-lg border border-yellow-200 dark:border-yellow-800">
+            <div class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ conflict.plugin_name }}</div>
+            <div class="text-xs text-gray-500 dark:text-content-secondary">{{ t('linker.uidConflictCount', { count: conflict.conflicting_uids.length }) }}</div>
+          </div>
+        </div>
+        <div class="flex justify-end gap-3">
+          <button @click="showUidConflictDialog = false; pendingBindAfterUidCheck = null" class="btn-secondary">{{ t('linker.cancel') }}</button>
+          <button @click="showUidConflictDialog = false; pendingBindAfterUidCheck?.()" class="btn-primary">{{ t('linker.bindAnyway') }}</button>
         </div>
       </div>
     </div>

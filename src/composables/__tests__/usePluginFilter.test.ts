@@ -9,6 +9,9 @@ interface Plugin {
   is_favorite: boolean
   source: { source_type: string; url: string }
   versions: { version: string }[]
+  created_at: string
+  updated_at: string
+  asset_type: 'Plugin' | 'AssetPack' | 'Project'
 }
 
 function filterPlugins(
@@ -48,22 +51,22 @@ const mockPlugins: Plugin[] = [
   {
     plugin_id: '1', name: 'GodotSteam', description: 'Steam integration', author: 'Coagu',
     compatibility: 'Godot4', is_favorite: true, source: { source_type: 'Git', url: 'https://github.com/test' },
-    versions: [{ version: '1.0' }], asset_type: 'Plugin'
+    versions: [{ version: '1.0' }], created_at: '', updated_at: '', asset_type: 'Plugin'
   },
   {
     plugin_id: '2', name: 'GodotSteam', description: 'Steam integration fork', author: 'Other',
     compatibility: 'Godot3', is_favorite: false, source: { source_type: 'Local', url: '/local/path' },
-    versions: [{ version: '0.9' }], asset_type: 'Plugin'
+    versions: [{ version: '0.9' }], created_at: '', updated_at: '', asset_type: 'Plugin'
   },
   {
-    plugin_id: '3', name: 'Dialogic', description: 'Dialog system', author: 'Jowan',
+    plugin_id: '3', name: 'Dialogic', description: 'Dialog system', author: 'Jawan',
     compatibility: 'Godot4', is_favorite: false, source: { source_type: 'AssetLibrary', url: '' },
-    versions: [{ version: '2.0' }], asset_type: 'Plugin'
+    versions: [{ version: '2.0' }], created_at: '', updated_at: '', asset_type: 'Plugin'
   },
   {
     plugin_id: '4', name: 'PhantomCamera', description: 'Camera plugin', author: 'Marcel',
     compatibility: 'Both', is_favorite: true, source: { source_type: 'Git', url: 'https://github.com/test2' },
-    versions: [{ version: '0.5' }], asset_type: 'Plugin'
+    versions: [{ version: '0.5' }], created_at: '', updated_at: '', asset_type: 'Plugin'
   },
 ]
 

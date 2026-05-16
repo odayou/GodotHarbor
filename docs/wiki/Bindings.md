@@ -29,6 +29,20 @@
 
 从项目扫描导入插件时，系统自动为源项目创建绑定关系，无需手动操作。
 
+### 方式五：声明式配置同步
+
+通过项目根目录的 `.harbor.yml` 文件定义绑定关系，一键同步安装。详见下方"声明式配置"章节。
+
+## 挂载策略
+
+| 策略 | 说明 | 适用场景 |
+|------|------|---------|
+| **Copy**（默认） | 将插件文件复制到项目目录 | 通用场景，最安全，各项目独立 |
+| Symlink | 创建符号链接到仓库 | 高级用户，节省磁盘空间 |
+| Junction | Windows Junction 点 | Windows 下的替代链接方式 |
+
+> **默认策略已改为 Copy**。Symlink 虽然节省空间，但多项目同时编辑同一插件时存在写入冲突风险。Copy 模式下每个项目拥有独立的插件副本，互不影响。
+
 ## 挂载路径
 
 挂载路径是插件在项目目录下的相对路径。根据资产类型，默认路径不同：
@@ -45,9 +59,65 @@
 
 绑定/解绑操作不会立即修改项目文件，需要点击 **应用变更** 才会执行：
 
-1. 创建符号链接 / Junction / 复制文件到目标目录
+1. 将插件文件复制/链接到目标目录
 2. 移除已解绑插件的链接/文件
 3. 显示操作结果（创建数、移除数、错误数）
+
+Copy 模式下，目标目录会创建 `.harbor-managed` 标记文件，用于标识该目录由 Harbor 管理。
+
+## 声明式配置 (.harbor.yml)
+
+在项目根目录创建 `.harbor.yml` 文件，可以将绑定关系纳入版本控制，实现团队协作。
+
+### 文件格式
+
+```yaml
+# Harbor Plugin Manager Configuration
+# Commit this file to version control for team collaboration
+version: 1
+
+bindings:
+  - name: my_plugin
+    source: https://github.com/user/my_plugin.git
+    ref: v2.1.0
+    mount_path: addons/my_plugin
+  - name: shader_pack
+    source: asset-library:12345
+    mount_path: assets/shader_pack
+    asset_type: AssetPack
+```
+
+### 字段说明
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| `name` | ✅ | 插件名称 |
+| `source` | ✅ | 来源：Git URL、`asset-library:<id>`、本地路径 |
+| `ref` | ❌ | Git 引用：分支名、标签名、commit hash |
+| `mount_path` | ✅ | 挂载路径（相对于项目根目录） |
+| `asset_type` | ❌ | 资产类型，默认 Plugin |
+
+### 操作
+
+- **导出配置**：将当前绑定关系写入 `.harbor.yml`
+- **同步配置**：读取 `.harbor.yml`，自动导入缺失的插件并创建绑定
+
+### 团队协作流程
+
+1. 项目负责人在 GodotHarbor 中绑定插件
+2. 导出 `.harbor.yml` 并提交到 Git
+3. 团队成员拉取代码后，在 GodotHarbor 中点击"同步配置"
+4. 系统自动导入插件并创建绑定
+
+## UID 冲突预警
+
+Copy 模式下，不同项目可能为同一插件生成不同的 Godot UID（`uid://`）。绑定插件时，系统会自动检测目标项目中是否存在 UID 冲突：
+
+- 扫描插件 payload 中所有 `.uid` 文件
+- 与项目中已绑定插件进行 UID 比对
+- 发现冲突时弹出警告，列出冲突的 UID 和插件名称
+
+> **设计原则**：只检测不修复。UID 冲突的修复涉及 Godot 引擎内部机制，由用户决定如何处理。
 
 ## 健康检查
 
@@ -55,7 +125,7 @@
 
 | 状态 | 含义 | 修复方式 |
 |------|------|---------|
-| ✅ 健康 | 符号链接/文件正常 | 无需操作 |
+| ✅ 健康 | 文件/链接正常 | 无需操作 |
 | ❌ 链接失效 | 目标文件不存在 | 点击修复重新创建 |
 | ⚠️ 路径冲突 | 多个绑定指向同一路径 | 解绑其中一个 |
 

@@ -198,7 +198,6 @@ export default {
     },
     favorites: '收藏',
     showDuplicates: '显示重复',
-    viewDuplicates: '查看重复',
     details: '插件详情',
     version: '版本',
     versionCount: '个版本',
@@ -266,7 +265,8 @@ export default {
     },
     remoteImport: {
       desc: '输入 Git 仓库地址或压缩包下载地址，自动识别并导入',
-      placeholder: 'https://github.com/user/plugin.git 或 https://example.com/plugin.zip'
+      placeholder: 'https://github.com/user/plugin.git 或 https://example.com/plugin.zip',
+      refPlaceholder: '分支/标签/提交 (可选，如 main, v2.0, a1b2c3d)'
     },
     pluginDetail: {
       versionList: '版本列表 ({count})',
@@ -307,7 +307,8 @@ export default {
       size: '占用 {size}',
       orphaned: '可清理 {size}',
       duplicates: '{count} 组内容重复',
-      cleanup: '清理孤立文件'
+      cleanup: '清理孤立文件',
+      viewDuplicates: '查看重复'
     },
     deleteConfirm: {
       single: '确认删除插件',
@@ -569,6 +570,25 @@ export default {
     switchVersion: '切换版本',
     batchVersionSelectTitle: '选择绑定版本',
     batchVersionSelectDesc: '以下插件有多个版本或单元，请选择要绑定的版本：',
+    exportConfig: '导出配置',
+    syncing: '同步中...',
+    syncConfig: '同步配置',
+    exporting: '导出中...',
+    configTitle: '项目配置 .harbor.yml',
+    configDesc: '此配置文件已生成到项目根目录，可提交到版本控制供团队共享。新成员使用"同步配置"即可一键安装所有插件。',
+    configEmpty: '暂无配置内容',
+    configExported: '配置已导出到项目根目录',
+    configExportFailed: '导出配置失败: {error}',
+    configSyncFailed: '同步配置失败: {error}',
+    syncResultTitle: '同步结果',
+    syncImported: '已导入 {count} 个插件',
+    syncBound: '已绑定 {count} 个插件',
+    syncSkipped: '跳过 {count} 个（导入失败）',
+    syncNoChanges: '没有需要同步的变更',
+    uidConflictTitle: 'UID 冲突警告',
+    uidConflictDesc: '检测到该插件与项目中已绑定的其他插件存在 UID 冲突，可能导致资源引用异常。建议使用 Copy 模式。',
+    uidConflictCount: '{count} 个冲突 UID',
+    bindAnyway: '仍然绑定',
   },
   engines: {
     title: '引擎管理',

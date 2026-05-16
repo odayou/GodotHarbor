@@ -201,7 +201,7 @@ export const useBindingStore = defineStore('bindings', () => {
 export const useSettingsStore = defineStore('settings', () => {
   const settings = ref<Settings>({
     scan_directories: [],
-    mount_strategy: 'Symlink',
+    mount_strategy: 'Copy',
     language: 'zh-CN',
     theme: 'light',
     auto_scan_on_startup: true,

@@ -7,6 +7,7 @@ pub mod engine;
 pub mod update;
 pub mod asset;
 pub mod system;
+pub mod harbor_config;
 
 pub use utils::*;
 pub use backup::*;
@@ -17,3 +18,4 @@ pub use engine::*;
 pub use update::*;
 pub use asset::*;
 pub use system::*;
+pub use harbor_config::*;

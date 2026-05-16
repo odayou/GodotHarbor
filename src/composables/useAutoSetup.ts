@@ -104,7 +104,7 @@ async function buildAutoBindings(
     const isAssetPack = matchedPlugin.asset_type === 'AssetPack'
     const mountPath = addonsIdx !== -1
       ? normScannedPath.substring(addonsIdx + '/addons/'.length)
-      : unit.subdirectory || (isAssetPack ? `assets/${unit.name}` : `addons/${unit.name}`)
+      : isAssetPack ? `assets/${unit.dir_name && unit.dir_name !== 'payload' ? unit.dir_name : (unit.subdirectory ? unit.subdirectory.replace(/\\/g, '/').split('/').pop() : matchedPlugin.name)}` : `addons/${unit.dir_name && unit.dir_name !== 'payload' ? unit.dir_name : (unit.subdirectory ? unit.subdirectory.replace(/\\/g, '/').split('/').pop() : matchedPlugin.name)}`
 
     bindings.push({
       project_id: project.project_id,

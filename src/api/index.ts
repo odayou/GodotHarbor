@@ -103,8 +103,8 @@ export const api = {
     return await invoke('import_plugin_from_local', { path })
   },
 
-  async importPluginFromGit(url: string): Promise<Plugin> {
-    return await invoke('import_plugin_from_git', { url })
+  async importPluginFromGit(url: string, gitRef?: string): Promise<Plugin> {
+    return await invoke('import_plugin_from_git', { url, gitRef: gitRef || null })
   },
 
   async importPluginFromUrl(url: string): Promise<Plugin> {
@@ -335,6 +335,22 @@ export const api = {
 
   async importProjectFromAssetLibrary(assetId: string, targetDir: string): Promise<{ project_id: string; name: string; path: string; godot_version: string }> {
     return await invoke('import_project_from_asset_library', { assetId, targetDir })
+  },
+
+  async readHarborConfig(projectId: string): Promise<any | null> {
+    return await invoke('read_harbor_config', { projectId })
+  },
+
+  async writeHarborConfig(projectId: string): Promise<void> {
+    return await invoke('write_harbor_config', { projectId })
+  },
+
+  async syncHarborConfig(projectId: string): Promise<import('@/types').SyncResult> {
+    return await invoke('sync_harbor_config', { projectId })
+  },
+
+  async checkUidConflicts(projectId: string, pluginId: string): Promise<import('@/types').UidConflictInfo[]> {
+    return await invoke('check_uid_conflicts', { projectId, pluginId })
   },
 
   // ─── Updates ───
