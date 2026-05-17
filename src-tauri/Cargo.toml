@@ -10,44 +10,44 @@ name = "godot_harbor_lib"
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "=2.6.2", features = [] }
 
 [dependencies]
-tauri = { version = "~2.11", features = ["protocol-asset", "tray-icon", "image-png"] }
-tauri-plugin-shell = "2"
-tauri-plugin-dialog = "2"
-tauri-plugin-fs = "2"
-tauri-plugin-notification = "2"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-serde_yaml = "0.9"
-tokio = { version = "1", features = [] }
-uuid = { version = "1.11", features = ["v4", "serde"] }
-chrono = { version = "0.4", features = ["serde"] }
-dirs = "5"
-walkdir = "2"
-rayon = "1"
-regex = "1"
-git2 = { version = "0.18", features = ["vendored-openssl"] }
-anyhow = "1"
-thiserror = "1"
-reqwest = { version = "0.12", features = ["blocking", "json", "stream", "native-tls-vendored"] }
-zip = "2"
-tar = "0.4"
-flate2 = "1"
-bzip2 = "0.4"
-urlencoding = "2"
-notify = "7"
-once_cell = "1"
-semver = "1"
-percent-encoding = "2"
-futures = "0.3"
-fs2 = "0.4"
-sha2 = "0.10"
-base64 = "0.22"
+tauri = { version = "=2.11.2", features = ["protocol-asset", "tray-icon", "image-png"] }
+tauri-plugin-shell = "=2.3.5"
+tauri-plugin-dialog = "=2.7.0"
+tauri-plugin-fs = "=2.5.0"
+tauri-plugin-notification = "=2.3.3"
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.149"
+serde_yaml = "=0.9.34"
+tokio = { version = "=1.52.1", features = [] }
+uuid = { version = "=1.11.0", features = ["v4", "serde"] }
+chrono = { version = "=0.4.44", features = ["serde"] }
+dirs = "=5.0.1"
+walkdir = "=2.5.0"
+rayon = "=1.12.0"
+regex = "=1.12.3"
+git2 = { version = "=0.18.3", features = ["vendored-openssl"] }
+anyhow = "=1.0.102"
+thiserror = "=1.0.69"
+reqwest = { version = "=0.12.28", features = ["blocking", "json", "stream", "native-tls-vendored"] }
+zip = "=2.4.2"
+tar = "=0.4.45"
+flate2 = "=1.1.9"
+bzip2 = "=0.4.4"
+urlencoding = "=2.1.3"
+notify = "=7.0.0"
+once_cell = "=1.21.4"
+semver = "=1.0.28"
+percent-encoding = "=2.3.2"
+futures = "=0.3.32"
+fs2 = "=0.4.3"
+sha2 = "=0.10.9"
+base64 = "=0.22.1"
 
 [target.'cfg(windows)'.dependencies]
-winreg = "0.52"
+winreg = "=0.52.0"
 
 [dev-dependencies]
-tempfile = "3"
+tempfile = "=3.27.0"

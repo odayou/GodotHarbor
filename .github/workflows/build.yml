@@ -143,7 +143,7 @@ jobs:
           cache-on-failure: true
 
       - name: Run Rust tests
-        run: cd src-tauri && cargo test
+        run: cd src-tauri && cargo test --locked
 
       - name: Install Perl (Windows, for vendored-openssl)
         if: matrix.platform.os == 'windows-latest'
@@ -179,7 +179,7 @@ jobs:
           tagName: ${{ needs.resolve-version.outputs.tag }}
           releaseDraft: true
           prerelease: false
-          args: '--target ${{ matrix.platform.target }} --bundles ${{ matrix.platform.bundle }}'
+          args: '--locked --target ${{ matrix.platform.target }} --bundles ${{ matrix.platform.bundle }}'
 
       - name: Code sign Windows installer
         if: matrix.platform.os == 'windows-latest'
