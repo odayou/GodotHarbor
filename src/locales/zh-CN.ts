@@ -1160,7 +1160,7 @@ export default {
     vueFrontend: '前端框架',
     tailwind: 'Tailwind',
     tailwindCSS: 'CSS 框架',
-    openSource: 'Godot Harbor 是开源软件，基于 Apache-2.0 / MIT 许可证发布',
+    openSource: 'Godot Harbor 是开源软件，基于 GNU GPL v3 许可证发布',
     githubRepo: 'GitHub 仓库',
     giteeRepo: 'Gitee 镜像',
     issueReport: '问题反馈',

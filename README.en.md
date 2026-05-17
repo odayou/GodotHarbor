@@ -1,6 +1,6 @@
 # Godot Harbor
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) [![GitHub Stars](https://img.shields.io/github/stars/odayou/GodotHarbor?style=social)](https://github.com/odayou/GodotHarbor) [![GitHub Downloads](https://img.shields.io/github/downloads/odayou/GodotHarbor/total?color=brightgreen)](https://github.com/odayou/GodotHarbor/releases) [![Gitee Downloads](https://img.shields.io/badge/Gitee-China_CDN-orange)](https://gitee.com/odayou/godot-harbor/releases)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0) [![GitHub Stars](https://img.shields.io/github/stars/odayou/GodotHarbor?style=social)](https://github.com/odayou/GodotHarbor) [![GitHub Downloads](https://img.shields.io/github/downloads/odayou/GodotHarbor/total?color=brightgreen)](https://github.com/odayou/GodotHarbor/releases) [![Gitee Downloads](https://img.shields.io/badge/Gitee-China_CDN-orange)](https://gitee.com/odayou/godot-harbor/releases)
 
 中文 | **[English](README.md)**
 
@@ -394,7 +394,7 @@ For older projects, re-scan or remove and re-add to get the full Godot version n
 
 ## License
 
-MIT License
+GNU General Public License v3.0
 
 ## Contact
 

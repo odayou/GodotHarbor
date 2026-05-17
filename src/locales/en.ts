@@ -1160,7 +1160,7 @@ export default {
     vueFrontend: 'Frontend Framework',
     tailwind: 'Tailwind',
     tailwindCSS: 'CSS Framework',
-    openSource: 'Godot Harbor is open source software, released under Apache-2.0 / MIT license',
+    openSource: 'Godot Harbor is open source software, released under GNU GPL v3 license',
     githubRepo: 'GitHub Repository',
     giteeRepo: 'Gitee Mirror',
     issueReport: 'Report Issues',

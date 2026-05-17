@@ -1,6 +1,6 @@
 # Godot Harbor
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) [![GitHub Stars](https://img.shields.io/github/stars/odayou/GodotHarbor?style=social)](https://github.com/odayou/GodotHarbor) [![GitHub Downloads](https://img.shields.io/github/downloads/odayou/GodotHarbor/total?color=brightgreen)](https://github.com/odayou/GodotHarbor/releases) [![Gitee Downloads](https://img.shields.io/badge/Gitee-国内下载-orange)](https://gitee.com/odayou/godot-harbor/releases)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0) [![GitHub Stars](https://img.shields.io/github/stars/odayou/GodotHarbor?style=social)](https://github.com/odayou/GodotHarbor) [![GitHub Downloads](https://img.shields.io/github/downloads/odayou/GodotHarbor/total?color=brightgreen)](https://github.com/odayou/GodotHarbor/releases) [![Gitee Downloads](https://img.shields.io/badge/Gitee-国内下载-orange)](https://gitee.com/odayou/godot-harbor/releases)
 
 **[English](README.en.md)** | 中文
 
@@ -394,7 +394,7 @@ Windows 创建符号链接需要管理员权限。应用会自动回退到 junct
 
 ## 许可证
 
-MIT License
+GNU General Public License v3.0
 
 ## 联系方式
 
