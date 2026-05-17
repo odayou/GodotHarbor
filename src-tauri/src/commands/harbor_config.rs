@@ -16,7 +16,52 @@ pub fn read_harbor_config(app: AppHandle, project_id: String) -> Result<Option<H
 }
 
 #[tauri::command]
-pub fn write_harbor_config(app: AppHandle, project_id: String) -> Result<(), String> {
+pub fn read_harbor_config_raw(app: AppHandle, project_id: String) -> Result<Option<String>, String> {
+    let storage = get_storage(&app);
+    let projects: Vec<crate::models::Project> = storage.load_or_default("projects.json");
+    let project = projects.iter().find(|p| p.project_id == project_id)
+        .ok_or("项目不存在".to_string())?;
+
+    let config_path = harbor_config::get_harbor_config_path(&project.path);
+    if !config_path.exists() {
+        return Ok(None);
+    }
+    std::fs::read_to_string(&config_path)
+        .map(Some)
+        .map_err(|e| format!("读取 .harbor.yml 失败: {}", e))
+}
+
+#[tauri::command]
+pub fn delete_harbor_config(app: AppHandle, project_id: String) -> Result<(), String> {
+    let storage = get_storage(&app);
+    let projects: Vec<crate::models::Project> = storage.load_or_default("projects.json");
+    let project = projects.iter().find(|p| p.project_id == project_id)
+        .ok_or("项目不存在".to_string())?;
+
+    let config_path = harbor_config::get_harbor_config_path(&project.path);
+    if config_path.exists() {
+        std::fs::remove_file(&config_path)
+            .map_err(|e| format!("删除 .harbor.yml 失败: {}", e))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn check_harbor_configs(app: AppHandle, project_ids: Vec<String>) -> Result<std::collections::HashMap<String, bool>, String> {
+    let storage = get_storage(&app);
+    let projects: Vec<crate::models::Project> = storage.load_or_default("projects.json");
+    let mut result = std::collections::HashMap::new();
+    for pid in &project_ids {
+        if let Some(project) = projects.iter().find(|p| &p.project_id == pid) {
+            let config_path = harbor_config::get_harbor_config_path(&project.path);
+            result.insert(pid.clone(), config_path.exists());
+        }
+    }
+    Ok(result)
+}
+
+#[tauri::command]
+pub fn write_harbor_config(app: AppHandle, project_id: String) -> Result<ExportResult, String> {
     let storage = get_storage(&app);
     let projects: Vec<crate::models::Project> = storage.load_or_default("projects.json");
     let project = projects.iter().find(|p| p.project_id == project_id)
@@ -24,10 +69,15 @@ pub fn write_harbor_config(app: AppHandle, project_id: String) -> Result<(), Str
 
     let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
     let bindings: Vec<crate::models::ProjectBinding> = storage.load_or_default("bindings.json");
-    let config = harbor_config::generate_config_from_bindings(project, &plugins, &bindings);
+    let (config, skipped_local) = harbor_config::generate_config_from_bindings(project, &plugins, &bindings);
 
     harbor_config::write_harbor_config_to_project(&project.path, &config)
-        .map_err(|e| format!("写入 .harbor.yml 失败: {}", e))
+        .map_err(|e| format!("写入 .harbor.yml 失败: {}", e))?;
+
+    Ok(ExportResult {
+        exported: config.bindings.len() as u32,
+        skipped_local,
+    })
 }
 
 #[tauri::command]
@@ -49,6 +99,12 @@ pub fn sync_harbor_config(app: AppHandle, project_id: String) -> Result<SyncResu
     let mut errors: Vec<String> = Vec::new();
 
     for binding_config in &config.bindings {
+        if binding_config.source.starts_with("local:") {
+            errors.push(format!("插件 \"{}\" 为本地导入类型，无法通过配置文件自动安装，需手动导入", binding_config.name));
+            skipped += 1;
+            continue;
+        }
+
         let existing_plugin = plugins.iter().find(|p| {
             let source_match = match p.source.source_type {
                 crate::models::SourceType::Git => p.source.url == binding_config.source,
@@ -69,12 +125,13 @@ pub fn sync_harbor_config(app: AppHandle, project_id: String) -> Result<SyncResu
             } else if binding_config.source.ends_with(".git") || binding_config.source.contains("github.com") {
                 crate::models::SourceType::Git
             } else {
-                crate::models::SourceType::Local
+                crate::models::SourceType::Url
             };
 
             let plugin_source = crate::models::PluginSource {
                 source_type: source_type.clone(),
                 url: binding_config.source.clone(),
+                git_ref: binding_config.r#ref.clone(),
                 imported_at: chrono::Utc::now(),
             };
 
@@ -127,6 +184,17 @@ pub fn sync_harbor_config(app: AppHandle, project_id: String) -> Result<SyncResu
         };
 
         let already_bound = bindings.iter().any(|b| b.project_id == project_id && b.plugin_id == plugin_id);
+        let mount_conflict = bindings.iter().any(|b| {
+            b.project_id == project_id && b.plugin_id != plugin_id && b.mount_path == binding_config.mount_path
+        });
+        if mount_conflict {
+            errors.push(format!(
+                "插件 \"{}\" 的挂载路径 {} 已被其他插件占用，跳过绑定",
+                binding_config.name, binding_config.mount_path
+            ));
+            skipped += 1;
+            continue;
+        }
         if !already_bound {
             let plugin = plugins.iter().find(|p| p.plugin_id == plugin_id);
             let version = plugin.and_then(|p| p.versions.first());
@@ -157,6 +225,12 @@ pub fn sync_harbor_config(app: AppHandle, project_id: String) -> Result<SyncResu
         skipped,
         errors,
     })
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExportResult {
+    pub exported: u32,
+    pub skipped_local: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

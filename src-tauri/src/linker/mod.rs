@@ -315,13 +315,17 @@ impl Linker {
 
         let target_path = project.join(&binding.mount_path);
 
-        if target_path.exists() {
-            let is_managed = self.is_managed_link(&target_path).unwrap_or(false);
-            if is_managed {
-                self.safe_remove_link(&target_path)
-                    .with_context(|| format!("Failed to remove existing target path: {}", target_path.to_string_lossy()))?;
+        let backup_path = if target_path.exists() {
+            let bak = target_path.with_extension("harbor-bak");
+            if bak.exists() {
+                let _ = fs::remove_dir_all(&bak);
             }
-        }
+            fs::rename(&target_path, &bak)
+                .with_context(|| format!("Failed to backup existing directory: {}", target_path.to_string_lossy()))?;
+            Some(bak)
+        } else {
+            None
+        };
 
         if let Some(parent) = target_path.parent() {
             if !parent.exists() {
@@ -330,21 +334,21 @@ impl Linker {
             }
         }
 
-        match self.mount_strategy {
+        let mount_result = match self.mount_strategy {
             MountStrategy::Symlink => {
-                let symlink_result = self.create_symlink_with_fallback(&source_path, &target_path);
-                symlink_result.context("Failed to create symlink (and junction fallback)")?;
+                self.create_symlink_with_fallback(&source_path, &target_path)
+                    .context("Failed to create symlink (and junction fallback)")
             }
             MountStrategy::Junction => {
                 #[cfg(windows)]
                 {
                     self.create_junction(&source_path, &target_path)
-                        .context("Failed to create junction")?;
+                        .context("Failed to create junction")
                 }
                 #[cfg(not(windows))]
                 {
                     std::os::unix::fs::symlink(&source_path, &target_path)
-                        .context("Failed to create symlink")?;
+                        .context("Failed to create symlink")
                 }
             }
             MountStrategy::Copy => {
@@ -355,10 +359,25 @@ impl Linker {
                 let harbor_marker = target_path.join(".harbor-managed");
                 std::fs::write(&harbor_marker, "managed_by_godot_harbor")
                     .with_context(|| format!("Failed to write harbor marker at {}", harbor_marker.to_string_lossy()))?;
+
+                Ok(())
+            }
+        };
+
+        match mount_result {
+            Ok(()) => {
+                if let Some(bak) = &backup_path {
+                    let _ = fs::remove_dir_all(bak);
+                }
+                Ok(target_path.to_string_lossy().to_string())
+            }
+            Err(e) => {
+                if let Some(bak) = &backup_path {
+                    let _ = fs::rename(bak, &target_path);
+                }
+                Err(e)
             }
         }
-
-        Ok(target_path.to_string_lossy().to_string())
     }
 
     fn create_symlink_with_fallback(&self, source: &Path, target: &Path) -> Result<()> {

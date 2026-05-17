@@ -331,6 +331,9 @@ export interface ScannedPlugin {
   project_name: string
   project_id: string
   project_path: string
+  detected_source_type: 'Git' | 'Local' | 'AssetLibrary' | 'Url'
+  detected_source_url: string
+  detected_git_ref: string
 }
 
 export interface PluginStorageStats {
@@ -497,6 +500,11 @@ export interface FeaturedPluginsList {
   version: number
   updated_at: string
   plugins: FeaturedPlugin[]
+}
+
+export interface ExportResult {
+  exported: number
+  skipped_local: string[]
 }
 
 export interface SyncResult {

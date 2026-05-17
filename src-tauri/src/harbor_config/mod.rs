@@ -95,37 +95,46 @@ pub fn generate_config_from_bindings(
     project: &Project,
     plugins: &[Plugin],
     all_bindings: &[crate::models::ProjectBinding],
-) -> HarborConfig {
+) -> (HarborConfig, Vec<String>) {
     let project_bindings: Vec<&crate::models::ProjectBinding> = all_bindings
         .iter()
         .filter(|b| b.project_id == project.project_id)
         .collect();
 
     let mut bindings = Vec::new();
+    let mut skipped_local = Vec::new();
     for pb in &project_bindings {
         if let Some(plugin) = plugins.iter().find(|p| p.plugin_id == pb.plugin_id) {
+            if plugin.source.source_type == SourceType::Local {
+                skipped_local.push(plugin.name.clone());
+                continue;
+            }
             let source_str = match plugin.source.source_type {
                 SourceType::Git => plugin.source.url.clone(),
                 SourceType::AssetLibrary => {
                     let id = plugin.source.url.trim_start_matches("asset-library://");
                     format!("asset-library:{}", id)
                 }
-                SourceType::Local => plugin.source.url.clone(),
                 SourceType::Url => plugin.source.url.clone(),
+                _ => plugin.source.url.clone(),
             };
-            let git_ref = plugin.versions.iter()
-                .find(|v| v.version_id == pb.version_id)
-                .and_then(|v| {
-                    let git_dir = std::path::PathBuf::from(&v.path).parent()
-                        .unwrap_or(Path::new(""))
-                        .join("git");
-                    if git_dir.exists() {
-                        Some(read_git_head_ref(&git_dir).unwrap_or_default())
-                    } else {
-                        Some(String::new())
-                    }
-                })
-                .unwrap_or_default();
+            let git_ref = if !plugin.source.git_ref.is_empty() {
+                plugin.source.git_ref.clone()
+            } else {
+                plugin.versions.iter()
+                    .find(|v| v.version_id == pb.version_id)
+                    .and_then(|v| {
+                        let git_dir = std::path::PathBuf::from(&v.path).parent()
+                            .unwrap_or(Path::new(""))
+                            .join("git");
+                        if git_dir.exists() {
+                            Some(read_git_head_ref(&git_dir).unwrap_or_default())
+                        } else {
+                            Some(String::new())
+                        }
+                    })
+                    .unwrap_or_default()
+            };
 
             bindings.push(HarborBinding {
                 name: plugin.name.clone(),
@@ -137,10 +146,10 @@ pub fn generate_config_from_bindings(
         }
     }
 
-    HarborConfig {
+    (HarborConfig {
         version: 1,
         bindings,
-    }
+    }, skipped_local)
 }
 
 fn read_git_head_ref(git_dir: &Path) -> Option<String> {

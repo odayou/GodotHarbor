@@ -56,10 +56,11 @@ fn compute_dir_hash_recursive(dir: &Path, hasher: &mut DefaultHasher) -> Result<
     Ok(())
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub enum SourceType {
-    Git,
+    #[default]
     Local,
+    Git,
     AssetLibrary,
     Url,
 }
@@ -81,6 +82,8 @@ impl Default for AssetType {
 pub struct PluginSource {
     pub source_type: SourceType,
     pub url: String,
+    #[serde(default)]
+    pub git_ref: String,
     pub imported_at: DateTime<Utc>,
 }
 
@@ -111,6 +114,12 @@ pub struct ScannedPlugin {
     pub project_id: String,
     #[serde(default)]
     pub project_path: String,
+    #[serde(default)]
+    pub detected_source_type: SourceType,
+    #[serde(default)]
+    pub detected_source_url: String,
+    #[serde(default)]
+    pub detected_git_ref: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -717,6 +726,7 @@ mod tests {
             PluginSource {
                 source_type: SourceType::Git,
                 url: "https://github.com/test/plugin".to_string(),
+                git_ref: String::new(),
                 imported_at: chrono::Utc::now(),
             },
         );

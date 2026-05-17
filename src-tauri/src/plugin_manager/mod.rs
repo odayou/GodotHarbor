@@ -21,6 +21,34 @@ impl PluginManager {
         Self { plugins_dir }
     }
 
+fn detect_plugin_source(plugin_dir: &Path) -> (crate::models::SourceType, String, String) {
+    let git_dir = plugin_dir.join(".git");
+    if !git_dir.exists() {
+        return (crate::models::SourceType::Local, String::new(), String::new());
+    }
+
+    let repo = match git2::Repository::open(plugin_dir) {
+        Ok(r) => r,
+        Err(_) => return (crate::models::SourceType::Local, String::new(), String::new()),
+    };
+
+    let remote_url = repo.find_remote("origin")
+        .ok()
+        .and_then(|r| r.url().map(|u| u.to_string()))
+        .unwrap_or_default();
+
+    if remote_url.is_empty() {
+        return (crate::models::SourceType::Local, String::new(), String::new());
+    }
+
+    let git_ref = repo.head()
+        .ok()
+        .and_then(|h| h.shorthand().map(|s| s.to_string()))
+        .unwrap_or_default();
+
+    (crate::models::SourceType::Git, remote_url, git_ref)
+}
+
     pub fn scan_project_plugins(&self, projects: &[Project]) -> Result<Vec<ScannedPlugin>> {
         let results: Vec<ScannedPlugin> = projects
             .par_iter()
@@ -59,12 +87,19 @@ impl PluginManager {
                             .unwrap_or_else(|| path.file_name()
                                 .map(|n| n.to_string_lossy().to_string())
                                 .unwrap_or_default());
+
+                        let (detected_source_type, detected_source_url, detected_git_ref) =
+                            Self::detect_plugin_source(&path);
+
                         Some(ScannedPlugin {
                             path: path.to_string_lossy().to_string(),
                             plugin_name,
                             project_name: project_name.clone(),
                             project_id: project_id.clone(),
                             project_path: project_path_str.clone(),
+                            detected_source_type,
+                            detected_source_url,
+                            detected_git_ref,
                         })
                     })
                     .collect();
@@ -96,6 +131,7 @@ impl PluginManager {
         let plugin_source = PluginSource {
             source_type: SourceType::Local,
             url: source_path.to_string(),
+            git_ref: String::new(),
             imported_at: chrono::Utc::now(),
         };
 
@@ -179,6 +215,7 @@ impl PluginManager {
         let plugin_source = PluginSource {
             source_type: SourceType::Url,
             url: url.to_string(),
+            git_ref: String::new(),
             imported_at: chrono::Utc::now(),
         };
 
@@ -321,9 +358,12 @@ impl PluginManager {
             .trim_end_matches(".git")
             .to_string();
 
+        let resolved_ref = git_ref.map(|r| r.to_string());
+
         let plugin_source = PluginSource {
             source_type: SourceType::Git,
             url: git_url.to_string(),
+            git_ref: resolved_ref.clone().unwrap_or_default(),
             imported_at: chrono::Utc::now(),
         };
 
@@ -375,10 +415,27 @@ impl PluginManager {
             if !git_store_dir.exists() {
                 fs::create_dir_all(&git_store_dir).ok();
             }
+
+            let actual_ref = if resolved_ref.is_none() {
+                git2::Repository::open(&payload_dir)
+                    .ok()
+                    .and_then(|repo| {
+                        let head = repo.head().ok()?;
+                        head.target().map(|oid| oid.to_string())
+                    })
+                    .unwrap_or_default()
+            } else {
+                String::new()
+            };
+
             if let Err(e) = copy_dir_all(&git_dir, &git_store_dir) {
                 eprintln!("Warning: failed to backup .git directory: {}", e);
             }
             fs::remove_dir_all(&git_dir).ok();
+
+            if !actual_ref.is_empty() {
+                plugin.source.git_ref = actual_ref;
+            }
         }
 
         self.finalize_import(&mut plugin, &payload_dir, &version_id, &plugin_name)?;

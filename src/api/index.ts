@@ -107,6 +107,10 @@ export const api = {
     return await invoke('import_plugin_from_git', { url, gitRef: gitRef || null })
   },
 
+  async listGitRefs(url: string): Promise<Array<{ name: string; ref_type: string }>> {
+    return await invoke('list_git_refs', { url })
+  },
+
   async importPluginFromUrl(url: string): Promise<Plugin> {
     return await invoke('import_plugin_from_url', { url })
   },
@@ -341,12 +345,24 @@ export const api = {
     return await invoke('read_harbor_config', { projectId })
   },
 
-  async writeHarborConfig(projectId: string): Promise<void> {
+  async readHarborConfigRaw(projectId: string): Promise<string | null> {
+    return await invoke('read_harbor_config_raw', { projectId })
+  },
+
+  async writeHarborConfig(projectId: string): Promise<import('@/types').ExportResult> {
     return await invoke('write_harbor_config', { projectId })
+  },
+
+  async deleteHarborConfig(projectId: string): Promise<void> {
+    return await invoke('delete_harbor_config', { projectId })
   },
 
   async syncHarborConfig(projectId: string): Promise<import('@/types').SyncResult> {
     return await invoke('sync_harbor_config', { projectId })
+  },
+
+  async checkHarborConfigs(projectIds: string[]): Promise<Record<string, boolean>> {
+    return await invoke('check_harbor_configs', { projectIds })
   },
 
   async checkUidConflicts(projectId: string, pluginId: string): Promise<import('@/types').UidConflictInfo[]> {

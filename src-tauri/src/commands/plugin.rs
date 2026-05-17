@@ -23,6 +23,53 @@ pub fn import_plugin_from_local(app: AppHandle, path: String) -> Result<Plugin, 
     upsert_plugin(&app, &new_plugin, "import_plugin", &path)
 }
 
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct GitRefInfo {
+    pub name: String,
+    pub ref_type: String,
+}
+
+#[tauri::command]
+pub fn list_git_refs(url: String) -> Result<Vec<GitRefInfo>, String> {
+    if url.is_empty() {
+        return Err("请输入 Git 仓库地址".to_string());
+    }
+
+    let mut refs = Vec::new();
+
+    let mut remote = git2::Remote::create_detached(&*url)
+        .map_err(|e| format!("无法连接到远程仓库: {}", e))?;
+    remote.connect(git2::Direction::Fetch)
+        .map_err(|e| format!("无法连接到远程仓库: {}", e))?;
+
+    let remote_refs = remote.list()
+        .map_err(|e| format!("无法获取远程引用列表: {}", e))?;
+
+    for remote_ref in remote_refs {
+        let name = remote_ref.name().to_string();
+        if let Some(short_name) = name.strip_prefix("refs/heads/") {
+            refs.push(GitRefInfo {
+                name: short_name.to_string(),
+                ref_type: "branch".to_string(),
+            });
+        } else if let Some(short_name) = name.strip_prefix("refs/tags/") {
+            if !short_name.ends_with("^{}") {
+                refs.push(GitRefInfo {
+                    name: short_name.to_string(),
+                    ref_type: "tag".to_string(),
+                });
+            }
+        }
+    }
+
+    refs.sort_by(|a, b| {
+        b.ref_type.cmp(&a.ref_type)
+            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+    });
+
+    Ok(refs)
+}
+
 #[tauri::command]
 pub fn import_plugin_from_git(app: AppHandle, url: String, git_ref: Option<String>) -> Result<Plugin, String> {
     if url.is_empty() {
@@ -440,6 +487,11 @@ pub async fn import_plugins_from_projects(app: AppHandle, mode: Option<String>) 
                             match manager_clone.import_from_local(&path_str) {
                                 Ok(new_version_plugin) => {
                                     if let Some(existing) = local_plugins.iter_mut().find(|p| p.plugin_id == existing_plugin_id) {
+                                        if scanned.detected_source_type == SourceType::Git && !scanned.detected_source_url.is_empty() {
+                                            existing.source.source_type = SourceType::Git;
+                                            existing.source.url = scanned.detected_source_url.clone();
+                                            existing.source.git_ref = scanned.detected_git_ref.clone();
+                                        }
                                         let new_version = new_version_plugin.versions.first().cloned();
                                         if let Some(ver) = &new_version {
                                             let version_id = ver.version_id.clone();
@@ -525,7 +577,12 @@ pub async fn import_plugins_from_projects(app: AppHandle, mode: Option<String>) 
             match import_mode_clone.as_str() {
                 "copy" => {
                     match manager_clone.import_from_local(&path_str) {
-                        Ok(plugin) => {
+                        Ok(mut plugin) => {
+                            if scanned.detected_source_type == SourceType::Git && !scanned.detected_source_url.is_empty() {
+                                plugin.source.source_type = SourceType::Git;
+                                plugin.source.url = scanned.detected_source_url.clone();
+                                plugin.source.git_ref = scanned.detected_git_ref.clone();
+                            }
                             let plugin_id = plugin.plugin_id.clone();
                             let version = plugin.versions.first();
                             let version_id = version.map(|v| v.version_id.clone()).unwrap_or_default();
@@ -558,6 +615,11 @@ pub async fn import_plugins_from_projects(app: AppHandle, mode: Option<String>) 
                 "move" => {
                     match manager_clone.import_from_local(&path_str) {
                         Ok(mut plugin) => {
+                            if scanned.detected_source_type == SourceType::Git && !scanned.detected_source_url.is_empty() {
+                                plugin.source.source_type = SourceType::Git;
+                                plugin.source.url = scanned.detected_source_url.clone();
+                                plugin.source.git_ref = scanned.detected_git_ref.clone();
+                            }
                             if let Ok(metadata) = fs::symlink_metadata(source_path) {
                                 if metadata.file_type().is_symlink() || is_junction_path(source_path) {
                                     if let Ok(link_target) = fs::read_link(source_path) {
@@ -602,9 +664,21 @@ pub async fn import_plugins_from_projects(app: AppHandle, mode: Option<String>) 
                 }
                 "reference" => {
                     let plugin_name = scanned.plugin_name.clone();
+                    let is_git = scanned.detected_source_type == SourceType::Git && !scanned.detected_source_url.is_empty();
+                    let detected_type = if is_git {
+                        SourceType::Git
+                    } else {
+                        SourceType::Local
+                    };
+                    let detected_url = if is_git {
+                        scanned.detected_source_url.clone()
+                    } else {
+                        path_str.clone()
+                    };
                     let plugin_source = PluginSource {
-                        source_type: SourceType::Local,
-                        url: path_str.clone(),
+                        source_type: detected_type,
+                        url: detected_url,
+                        git_ref: if is_git { scanned.detected_git_ref.clone() } else { String::new() },
                         imported_at: chrono::Utc::now(),
                     };
                     let mut plugin = Plugin::new(plugin_name.clone(), plugin_source);

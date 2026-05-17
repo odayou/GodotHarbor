@@ -148,6 +148,7 @@ pub async fn import_from_asset_library(app: AppHandle, asset_id: String) -> Resu
     let plugin_source = PluginSource {
         source_type: SourceType::AssetLibrary,
         url: format!("asset-library://{}", asset_id),
+        git_ref: String::new(),
         imported_at: chrono::Utc::now(),
     };
 
@@ -286,6 +287,7 @@ pub async fn import_from_asset_library_with_progress(app: AppHandle, asset_id: S
     let plugin_source = PluginSource {
         source_type: SourceType::AssetLibrary,
         url: format!("asset-library://{}", asset_id),
+        git_ref: String::new(),
         imported_at: chrono::Utc::now(),
     };
 

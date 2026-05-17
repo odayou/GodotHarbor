@@ -62,6 +62,9 @@ let unlistenAutoSetup: UnlistenFn | null = null
 const remoteUrl = ref('')
 const remoteGitRef = ref('')
 const showRemoteDialog = ref(false)
+const gitRefs = ref<Array<{ name: string; ref_type: string }>>([])
+const isLoadingGitRefs = ref(false)
+const gitRefDecisionMade = ref(false)
 const showPluginDetail = ref(false)
 const selectedPlugin = ref<Plugin | null>(null)
 const pluginDependencies = ref<PluginDependency[]>([])
@@ -91,8 +94,12 @@ async function loadFeaturedPlugins() {
 
 async function importFeaturedPlugin(sourceUrl: string) {
   showRemoteDialog.value = true
+  gitRefDecisionMade.value = false
+  remoteGitRef.value = ''
+  gitRefs.value = []
   await nextTick()
   remoteUrl.value = sourceUrl
+  onRemoteUrlChange()
 }
 
 const showQuickBindDialog = ref(false)
@@ -148,12 +155,14 @@ const showGraphView = ref(false)
 const linkerSearchQuery = ref('')
 const linkerProjectBindingCounts = ref<Map<string, number>>(new Map())
 const linkerProjectBindingNames = ref<Map<string, string[]>>(new Map())
+const harborConfigStatus = ref<Map<string, boolean>>(new Map())
 const addonBackups = ref<any[]>([])
 const showRollbackDialog = ref(false)
 const isRestoringAddon = ref(false)
 
 const showHarborConfigDialog = ref(false)
 const isExportingConfig = ref(false)
+const exportSkippedLocal = ref<string[]>([])
 const isSyncingConfig = ref(false)
 const harborConfigContent = ref<string | null>(null)
 const syncResult = ref<{ imported: number; bound: number; skipped: number; errors: string[] } | null>(null)
@@ -387,6 +396,30 @@ const importFromFile = async () => {
   }
 }
 
+const fetchGitRefs = async () => {
+  const url = remoteUrl.value.trim()
+  if (!url || (!url.endsWith('.git') && !url.includes('github.com'))) {
+    gitRefs.value = []
+    return
+  }
+  isLoadingGitRefs.value = true
+  try {
+    gitRefs.value = await api.listGitRefs(url)
+  } catch {
+    gitRefs.value = []
+  } finally {
+    isLoadingGitRefs.value = false
+  }
+}
+
+let gitRefsDebounce: ReturnType<typeof setTimeout> | null = null
+const onRemoteUrlChange = () => {
+  if (gitRefsDebounce) clearTimeout(gitRefsDebounce)
+  gitRefDecisionMade.value = false
+  remoteGitRef.value = ''
+  gitRefsDebounce = setTimeout(fetchGitRefs, 800)
+}
+
 const importFromRemote = async () => {
   if (!remoteUrl.value) {
     toast.warning(t('plugins.enterRemoteUrl'))
@@ -402,6 +435,7 @@ const importFromRemote = async () => {
     toast.success(t('plugins.importPluginSuccess', { name: result.name }))
     remoteUrl.value = ''
     remoteGitRef.value = ''
+    gitRefDecisionMade.value = false
     showRemoteDialog.value = false
     await loadPlugins(true)
     showPostImportGuide(result.name, result)
@@ -932,6 +966,15 @@ const loadLinkerData = async () => {
     })
     linkerProjectBindingCounts.value = countMap
     linkerProjectBindingNames.value = namesMap
+    try {
+      const ids = projs.map(p => p.project_id)
+      const statusMap = await api.checkHarborConfigs(ids)
+      const hMap = new Map<string, boolean>()
+      for (const [k, v] of Object.entries(statusMap)) {
+        hMap.set(k, v)
+      }
+      harborConfigStatus.value = hMap
+    } catch {}
     if (!hasLoaded.value) {
       await loadPlugins(true)
     }
@@ -1003,15 +1046,33 @@ const exportHarborConfig = async () => {
   }
   isExportingConfig.value = true
   try {
-    await api.writeHarborConfig(selectedLinkId.value)
-    const config = await api.readHarborConfig(selectedLinkId.value)
-    harborConfigContent.value = config ? JSON.stringify(config, null, 2) : null
+    const result = await api.writeHarborConfig(selectedLinkId.value)
+    exportSkippedLocal.value = result.skipped_local || []
+    const config = await api.readHarborConfigRaw(selectedLinkId.value)
+    harborConfigContent.value = config || null
+    harborConfigStatus.value.set(selectedLinkId.value, true)
+    harborConfigStatus.value = new Map(harborConfigStatus.value)
     showHarborConfigDialog.value = true
     toast.success(t('linker.configExported'))
   } catch (error) {
     toast.error(t('linker.configExportFailed', { error: error instanceof Error ? error.message : String(error) }))
   } finally {
     isExportingConfig.value = false
+  }
+}
+
+const deleteHarborConfig = async () => {
+  if (!selectedLinkId.value) return
+  if (!confirm(t('linker.deleteConfigConfirm'))) return
+  try {
+    await api.deleteHarborConfig(selectedLinkId.value)
+    harborConfigStatus.value.set(selectedLinkId.value, false)
+    harborConfigStatus.value = new Map(harborConfigStatus.value)
+    showHarborConfigDialog.value = false
+    harborConfigContent.value = null
+    toast.success(t('linker.configDeleted'))
+  } catch (error) {
+    toast.error(t('linker.configDeleteFailed', { error: error instanceof Error ? error.message : String(error) }))
   }
 }
 
@@ -1024,7 +1085,11 @@ const syncHarborConfig = async () => {
   try {
     const result = await api.syncHarborConfig(selectedLinkId.value)
     syncResult.value = result
-    showSyncResultDialog.value = true
+    if (result.imported === 0 && result.bound === 0 && result.skipped === 0 && result.errors.length === 0) {
+      toast.info(t('linker.configAlreadyInSync'))
+    } else {
+      showSyncResultDialog.value = true
+    }
     if (selectedLinkId.value) {
       await loadLinkerBindings(selectedLinkId.value)
     }
@@ -1032,7 +1097,12 @@ const syncHarborConfig = async () => {
       await api.applyChanges(selectedLinkId.value)
     }
   } catch (error) {
-    toast.error(t('linker.configSyncFailed', { error: error instanceof Error ? error.message : String(error) }))
+    const errMsg = error instanceof Error ? error.message : String(error)
+    if (errMsg.includes('.harbor.yml') || errMsg.includes('未找到')) {
+      toast.info(t('linker.noHarborConfigHint'))
+    } else {
+      toast.error(t('linker.configSyncFailed', { error: errMsg }))
+    }
   } finally {
     isSyncingConfig.value = false
   }
@@ -2107,7 +2177,7 @@ const retryBatchFailed = async () => {
     </div>
 
   <Teleport to="body">
-    <div v-if="showRemoteDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showRemoteDialog = false; remoteUrl = ''; remoteGitRef = ''">
+    <div v-if="showRemoteDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showRemoteDialog = false; remoteUrl = ''; remoteGitRef = ''; gitRefs = []; gitRefDecisionMade = false">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('plugins.importFromRemote') }}</h3>
         <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">
@@ -2117,8 +2187,31 @@ const retryBatchFailed = async () => {
           v-model="remoteUrl"
           type="text"
           :placeholder="t('plugins.remoteImport.placeholder')"
+          @input="onRemoteUrlChange"
           class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
         />
+        <div v-if="isLoadingGitRefs" class="mt-2 text-xs text-gray-400 dark:text-content-muted">{{ t('plugins.remoteImport.loadingRefs') }}</div>
+        <div v-if="gitRefs.length > 0" class="mt-2">
+          <div class="text-xs text-gray-500 dark:text-content-secondary mb-1">{{ t('plugins.remoteImport.selectRef') }}</div>
+          <div class="max-h-40 overflow-y-auto border border-gray-200 dark:border-surface-border rounded-lg">
+            <button
+              @click="remoteGitRef = ''; gitRefDecisionMade = true"
+              :class="['w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-surface-layer flex items-center gap-2', !remoteGitRef && gitRefDecisionMade ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400' : 'text-gray-700 dark:text-content-secondary']"
+            >
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">{{ t('plugins.remoteImport.useDefault') }}</span>
+              <span>{{ t('plugins.remoteImport.defaultBranch') }}</span>
+            </button>
+            <button
+              v-for="ref_item in gitRefs"
+              :key="ref_item.name"
+              @click="remoteGitRef = ref_item.name; gitRefDecisionMade = true"
+              :class="['w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-surface-layer flex items-center gap-2', remoteGitRef === ref_item.name ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400' : 'text-gray-700 dark:text-content-secondary']"
+            >
+              <span :class="['px-1.5 py-0.5 rounded text-[10px] font-medium', ref_item.ref_type === 'tag' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400']">{{ ref_item.ref_type === 'tag' ? 'tag' : 'branch' }}</span>
+              <span>{{ ref_item.name }}</span>
+            </button>
+          </div>
+        </div>
         <input
           v-model="remoteGitRef"
           type="text"
@@ -2127,14 +2220,14 @@ const retryBatchFailed = async () => {
         />
         <div class="flex justify-end space-x-3 mt-6">
           <button
-            @click="showRemoteDialog = false; remoteUrl = ''; remoteGitRef = ''"
+            @click="showRemoteDialog = false; remoteUrl = ''; remoteGitRef = ''; gitRefs = []; gitRefDecisionMade = false"
             class="btn-secondary"
           >
             {{ t('common.cancel') }}
           </button>
           <button
             @click="importFromRemote"
-            :disabled="isLoading || !remoteUrl"
+            :disabled="isLoading || !remoteUrl || isLoadingGitRefs || (gitRefs.length > 0 && !gitRefDecisionMade && !remoteGitRef.trim())"
             class="btn-primary disabled:opacity-50"
           >
             {{ t('plugins.importFromProject.startImport') }}
@@ -2566,9 +2659,16 @@ const retryBatchFailed = async () => {
               v-for="project in linkerProjects"
               :key="project.project_id"
               @click="selectLinkProject(project, $event)"
-              :class="['px-3 py-2.5 cursor-pointer border-b border-gray-100 dark:border-surface-border last:border-0 transition-colors', selectedLinkProjectIds.has(project.project_id) ? 'bg-primary-50 dark:bg-primary-900/20' : 'hover:bg-gray-50 dark:hover:bg-surface-layer']"
+              :class="['px-3 py-2.5 cursor-pointer border-b border-gray-100 dark:border-surface-border last:border-0 transition-colors group', selectedLinkProjectIds.has(project.project_id) ? 'bg-primary-50 dark:bg-primary-900/20' : 'hover:bg-gray-50 dark:hover:bg-surface-layer']"
             >
-              <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate">{{ project.name }}</div>
+              <div class="flex items-center gap-1.5">
+                <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate flex-1 min-w-0">{{ project.name }}</div>
+                <span
+                  v-if="harborConfigStatus.get(project.project_id)"
+                  class="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 font-medium"
+                  :title="t('linker.configExists')"
+                >.harbor.yml</span>
+              </div>
               <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-content-secondary">
                 <span>{{ project.godot_version }}</span>
                 <span v-if="linkerProjectBindingCounts.get(project.project_id)" class="text-blue-500 dark:text-blue-400">{{ linkerProjectBindingCounts.get(project.project_id) }} {{ t('linker.bindingCountShort') }}</span>
@@ -2580,6 +2680,16 @@ const retryBatchFailed = async () => {
                   class="inline-block px-1.5 py-0.5 text-[10px] bg-gray-100 dark:bg-surface-layer text-gray-600 dark:text-content-muted rounded"
                 >{{ name }}</span>
                 <span v-if="(linkerProjectBindingCounts.get(project.project_id) || 0) > 3" class="inline-block px-1.5 py-0.5 text-[10px] text-gray-400 dark:text-content-muted">+{{ (linkerProjectBindingCounts.get(project.project_id) || 0) - 3 }}</span>
+              </div>
+              <div class="mt-1.5 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  @click.stop="selectedLinkId = project.project_id; exportHarborConfig()"
+                  class="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-surface-layer text-gray-600 dark:text-content-muted hover:bg-primary-100 dark:hover:bg-primary-900/30 hover:text-primary-600 dark:hover:text-primary-400"
+                >{{ t('linker.exportConfig') }}</button>
+                <button
+                  @click.stop="selectedLinkId = project.project_id; syncHarborConfig()"
+                  class="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-surface-layer text-gray-600 dark:text-content-muted hover:bg-primary-100 dark:hover:bg-primary-900/30 hover:text-primary-600 dark:hover:text-primary-400"
+                >{{ t('linker.syncConfig') }}</button>
               </div>
             </div>
           </div>
@@ -3175,9 +3285,22 @@ const retryBatchFailed = async () => {
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('linker.configTitle') }}</h3>
         <p class="text-sm text-gray-500 dark:text-content-secondary mb-3">{{ t('linker.configDesc') }}</p>
+        <div v-if="exportSkippedLocal.length > 0" class="mb-3 p-2.5 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
+          <p class="text-sm font-medium text-yellow-700 dark:text-yellow-400">{{ t('linker.skippedLocalTitle') }}</p>
+          <p class="text-xs text-yellow-600 dark:text-yellow-500 mt-1">{{ t('linker.skippedLocalDesc') }}</p>
+          <div class="mt-1.5 flex flex-wrap gap-1">
+            <span v-for="name in exportSkippedLocal" :key="name" class="inline-block px-1.5 py-0.5 text-[10px] bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded">{{ name }}</span>
+          </div>
+        </div>
         <div v-if="harborConfigContent" class="bg-gray-50 dark:bg-surface-layer rounded-lg p-3 text-xs font-mono text-gray-700 dark:text-content-secondary max-h-64 overflow-y-auto whitespace-pre-wrap break-all">{{ harborConfigContent }}</div>
         <div v-else class="text-sm text-gray-500 dark:text-content-secondary">{{ t('linker.configEmpty') }}</div>
-        <div class="flex justify-end mt-4">
+        <div class="flex justify-between mt-4">
+          <button
+            v-if="harborConfigContent"
+            @click="deleteHarborConfig"
+            class="text-sm text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300"
+          >{{ t('linker.deleteConfig') }}</button>
+          <div v-else></div>
           <button @click="showHarborConfigDialog = false" class="btn-primary">{{ t('linker.close') }}</button>
         </div>
       </div>
@@ -3193,8 +3316,8 @@ const retryBatchFailed = async () => {
           <div v-if="syncResult.bound > 0" class="text-sm text-blue-600 dark:text-blue-400">{{ t('linker.syncBound', { count: syncResult.bound }) }}</div>
           <div v-if="syncResult.skipped > 0" class="text-sm text-yellow-600 dark:text-yellow-400">{{ t('linker.syncSkipped', { count: syncResult.skipped }) }}</div>
           <div v-if="syncResult.errors.length > 0" class="space-y-1">
-            <p class="text-sm font-medium text-red-600 dark:text-red-400">{{ t('linker.errors') }}</p>
-            <div v-for="err in syncResult.errors" :key="err" class="text-xs text-red-500 dark:text-red-400">{{ err }}</div>
+            <p class="text-sm font-medium text-orange-600 dark:text-orange-400">{{ t('linker.syncWarnings') }}</p>
+            <div v-for="err in syncResult.errors" :key="err" class="text-xs text-orange-500 dark:text-orange-400">{{ err }}</div>
           </div>
           <div v-if="syncResult.imported === 0 && syncResult.bound === 0 && syncResult.skipped === 0" class="text-sm text-gray-500 dark:text-content-secondary">{{ t('linker.syncNoChanges') }}</div>
         </div>
