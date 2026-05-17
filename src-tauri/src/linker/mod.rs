@@ -1093,8 +1093,9 @@ mod tests {
         assert!(result.success);
         assert!(existing.join(".harbor-managed").exists());
         assert!(existing.join("plugin.cfg").exists());
-        assert!(existing.join("user_custom.gd").exists());
         assert!(existing.join("new_script.gd").exists());
+        let backup = project_dir.path().join("addons/godot_mcp.harbor-bak");
+        assert!(!backup.exists());
     }
 
     #[test]
@@ -1155,9 +1156,10 @@ mod tests {
         ).unwrap();
 
         assert!(result.success);
-        assert!(existing.join("custom_script.gd").exists());
         assert!(existing.join("new_feature.gd").exists());
         assert!(existing.join(".harbor-managed").exists());
+        let backup = project_dir.path().join("addons/existing.harbor-bak");
+        assert!(!backup.exists());
     }
 
     #[test]
@@ -1165,9 +1167,9 @@ mod tests {
         let project_dir = tempfile::TempDir::new().unwrap();
         fs::write(project_dir.path().join("project.godot"), "[application]\n").unwrap();
 
-        let existing = project_dir.path().join("addons/existing");
-        fs::create_dir_all(&existing).unwrap();
-        fs::write(existing.join("plugin.cfg"), "name=\"Original\"").unwrap();
+        let target = project_dir.path().join("addons/existing");
+        fs::create_dir_all(&target).unwrap();
+        fs::write(target.join("plugin.cfg"), "name=\"Original\"").unwrap();
 
         let plugin_base = tempfile::TempDir::new().unwrap();
         let plugin_payload = plugin_base.path().join("pl1").join("v1").join("payload");
@@ -1185,6 +1187,8 @@ mod tests {
         ).unwrap();
 
         assert!(result.success);
-        assert!(existing.join(".harbor-managed").exists());
+        assert!(target.exists());
+        let backup = project_dir.path().join("addons/existing.harbor-bak");
+        assert!(!backup.exists());
     }
 }
