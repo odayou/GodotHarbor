@@ -7,6 +7,7 @@ export interface PluginSource {
 export interface PluginUnit {
   unit_id: string
   name: string
+  dir_name: string
   description: string
   author: string
   version: string
