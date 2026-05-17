@@ -35,6 +35,7 @@
     "@vue/test-utils": "^2.4.10",
     "autoprefixer": "^10.4.18",
     "cross-env": "^7.0.3",
+    "esbuild": "^0.28.0",
     "eslint": "^8.57.0",
     "eslint-plugin-vue": "^9.23.0",
     "happy-dom": "^20.9.0",
