@@ -198,6 +198,12 @@ pub fn bind_plugin(
 
     let mut bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
 
+    let conflicting = bindings.iter()
+        .find(|b| b.project_id == binding.project_id && b.mount_path == binding.mount_path && b.plugin_id != binding.plugin_id);
+    if let Some(c) = conflicting {
+        return Err(format!("挂载路径 '{}' 已被插件 '{}' 占用", binding.mount_path, c.plugin_id));
+    }
+
     bindings.retain(|b| !(b.project_id == binding.project_id && b.plugin_id == binding.plugin_id));
     bindings.push(binding);
 
@@ -221,7 +227,7 @@ pub fn unbind_plugin(app: AppHandle, project_id: String, plugin_id: String) -> R
         return Err("未找到指定的绑定关系".to_string());
     }
 
-    let binding = binding.unwrap();
+    let binding = binding.unwrap().clone();
     let mount_path = binding.mount_path.clone();
 
     let projects: Vec<Project> = storage.load_or_default("projects.json");
@@ -245,14 +251,17 @@ pub fn unbind_plugin(app: AppHandle, project_id: String, plugin_id: String) -> R
 
             if is_link || is_junction {
                 if let Err(e) = std::fs::remove_dir(&plugin_path) {
-                    eprintln!("Failed to remove symlink/junction: {}", e);
+                    return Err(format!("删除符号链接/目录联接失败: {}", e));
                 }
             } else if plugin_path.is_dir() && plugin_path.join(".harbor-managed").exists() {
                 if let Err(e) = std::fs::remove_dir_all(&plugin_path) {
-                    eprintln!("Failed to remove harbor-managed plugin directory: {}", e);
+                    return Err(format!("删除 Harbor 管理的插件目录失败: {}", e));
                 }
             }
         }
+
+        let plugin_dir_name = derive_plugin_dir_name(&binding);
+        let _ = modify_editor_plugins(&project.path, &plugin_dir_name, false);
     }
 
     bindings.retain(|b| !(b.project_id == project_id && b.plugin_id == plugin_id));
@@ -1666,12 +1675,14 @@ pub async fn batch_apply_changes(app: AppHandle, project_ids: Vec<String>) -> Re
     let linker = Linker::new(settings.mount_strategy);
     let data_dir = get_data_dir(&app);
     let plugin_base_path = data_dir.join("plugins");
+    let applied_dir = data_dir.join("applied_bindings");
 
     let futures: Vec<_> = project_ids.iter().map(|project_id| {
         let project_id = project_id.clone();
         let projects = projects.clone();
         let all_bindings = all_bindings.clone();
         let linker = linker.clone();
+        let applied_dir = applied_dir.clone();
         let plugin_base_path = plugin_base_path.clone();
 
         tokio::task::spawn_blocking(move || {
@@ -1705,7 +1716,13 @@ pub async fn batch_apply_changes(app: AppHandle, project_ids: Vec<String>) -> Re
                 };
             }
 
-            let current_bindings: Vec<ProjectBinding> = Vec::new();
+            let applied_file = applied_dir.join(format!("{}.json", project_id));
+            let current_bindings: Vec<ProjectBinding> = if applied_file.exists() {
+                let applied_storage = Storage::new(applied_dir.clone());
+                applied_storage.load_or_default::<Vec<ProjectBinding>>(&format!("{}.json", project_id))
+            } else {
+                Vec::new()
+            };
 
             match linker.apply_bindings(
                 &project.path,
@@ -1714,6 +1731,15 @@ pub async fn batch_apply_changes(app: AppHandle, project_ids: Vec<String>) -> Re
                 &plugin_base_path.to_string_lossy()
             ) {
                 Ok(apply_result) => {
+                    if apply_result.success {
+                        if let Err(e) = std::fs::create_dir_all(&applied_dir) {
+                            eprintln!("Failed to create applied_bindings dir: {}", e);
+                        }
+                        let applied_storage = Storage::new(applied_dir.clone());
+                        if let Err(e) = applied_storage.save(&format!("{}.json", project_id), &desired_bindings) {
+                            eprintln!("Failed to save applied bindings: {}", e);
+                        }
+                    }
                     ProjectApplyResult {
                         project_id: project_id.clone(),
                         project_name: project.name.clone(),

@@ -168,8 +168,14 @@ export const useBindingStore = defineStore('bindings', () => {
     await loadBindings(projectId)
     const settings = await api.getSettings()
     if (settings.auto_apply) {
-      const result = await api.applyChanges(projectId)
-      return result
+      try {
+        const result = await api.applyChanges(projectId)
+        return result
+      } catch (applyError) {
+        await api.unbindPlugin(projectId, pluginId)
+        await loadBindings(projectId)
+        throw applyError
+      }
     }
   }, error, true)
 
