@@ -287,8 +287,16 @@ export const api = {
     return await invoke('rename_engine', { engineId, newName })
   },
 
-  async launchEngine(engineId: string): Promise<void> {
-    return await invoke('launch_engine', { engineId })
+  async launchEngine(engineId: string, projectPath?: string): Promise<void> {
+    return await invoke('launch_engine', { engineId, projectPath: projectPath || null })
+  },
+
+  async findMatchingEngines(godotVersion: string): Promise<import('@/types').MatchedEngine[]> {
+    return await invoke('find_matching_engines', { godotVersion })
+  },
+
+  async setProjectDefaultEngine(projectId: string, engineId: string): Promise<void> {
+    return await invoke('set_project_default_engine', { projectId, engineId })
   },
 
   // ─── Engine Download ───

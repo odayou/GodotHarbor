@@ -52,6 +52,8 @@ export interface Project {
   created_at: string
   updated_at: string
   last_synced_at?: string | null
+  last_opened_at?: string | null
+  last_used_engine_id?: string | null
 }
 
 export interface ProjectBinding {
@@ -513,6 +515,11 @@ export interface SyncResult {
   bound: number
   skipped: number
   errors: string[]
+}
+
+export interface MatchedEngine {
+  engine: Engine
+  match_level: 'exact' | 'minor' | 'major'
 }
 
 export interface UidConflictInfo {

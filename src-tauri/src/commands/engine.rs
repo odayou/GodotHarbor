@@ -5,7 +5,7 @@ use uuid::Uuid;
 use super::utils::*;
 
 #[tauri::command]
-pub fn launch_engine(app: AppHandle, engine_id: String) -> Result<(), String> {
+pub fn launch_engine(app: AppHandle, engine_id: String, project_path: Option<String>) -> Result<(), String> {
     let storage = get_storage(&app);
     let engines: Vec<Engine> = storage.load_or_default("engines.json");
 
@@ -16,12 +16,108 @@ pub fn launch_engine(app: AppHandle, engine_id: String) -> Result<(), String> {
     let exe_path = crate::engine::EngineManager::find_executable_in_dir(std::path::Path::new(&engine.path))
         .ok_or("未找到引擎可执行文件".to_string())?;
 
-    detached_cmd(&exe_path)
-        .spawn()
+    let mut cmd = detached_cmd(&exe_path);
+    if let Some(ref path) = project_path {
+        cmd.arg("--editor").arg("--path").arg(path);
+    }
+
+    cmd.spawn()
         .map_err(|e| format!("启动引擎失败: {}", e))?;
 
-    log_operation(&app, "launch_engine", &engine_id, &format!("启动引擎: {}", engine.name));
+    if let Some(ref path) = project_path {
+        let mut projects: Vec<Project> = storage.load_or_default("projects.json");
+        let path_normalized = path.replace('\\', "/").trim_end_matches('/').to_lowercase();
+        let mut found = false;
+        for proj in &mut projects {
+            let proj_normalized = proj.path.replace('\\', "/").trim_end_matches('/').to_lowercase();
+            if proj_normalized == path_normalized {
+                proj.last_opened_at = Some(chrono::Utc::now());
+                proj.last_used_engine_id = Some(engine_id.clone());
+                found = true;
+                break;
+            }
+        }
+        if found {
+            storage.save("projects.json", &projects)
+                .map_err(|e| format!("保存项目信息失败: {}", e))?;
+        }
+        let _ = app.emit("project-opened", ());
+    }
+
+    let log_msg = match &project_path {
+        Some(p) => format!("启动引擎打开项目: {} ({})", engine.name, p),
+        None => format!("启动引擎: {}", engine.name),
+    };
+    log_operation(&app, "launch_engine", &engine_id, &log_msg);
     Ok(())
+}
+
+#[tauri::command]
+pub fn set_project_default_engine(app: AppHandle, project_id: String, engine_id: String) -> Result<(), String> {
+    let storage = get_storage(&app);
+    let mut projects: Vec<Project> = storage.load_or_default("projects.json");
+    let proj = projects.iter_mut().find(|p| p.project_id == project_id)
+        .ok_or("未找到指定项目".to_string())?;
+    proj.last_used_engine_id = Some(engine_id);
+    storage.save("projects.json", &projects)
+        .map_err(|e| format!("保存失败: {}", e))?;
+    let _ = app.emit("project-opened", ());
+    Ok(())
+}
+
+#[derive(serde::Serialize)]
+pub struct MatchedEngine {
+    pub engine: Engine,
+    pub match_level: String,
+}
+
+#[tauri::command]
+pub fn find_matching_engines(app: AppHandle, godot_version: String) -> Result<Vec<MatchedEngine>, String> {
+    let storage = get_storage(&app);
+    let engines: Vec<Engine> = storage.load_or_default("engines.json");
+
+    let project_parts: Vec<&str> = godot_version.split('.').collect();
+    let project_major = project_parts.first().and_then(|s| s.parse::<u32>().ok());
+    let project_minor = project_parts.get(1).and_then(|s| s.parse::<u32>().ok());
+    let project_patch = project_parts.get(2).and_then(|s| s.parse::<u32>().ok());
+
+    let mut matched: Vec<MatchedEngine> = Vec::new();
+
+    for engine in engines {
+        let engine_parts: Vec<&str> = engine.version.split('.').collect();
+        let engine_major = engine_parts.first().and_then(|s| s.parse::<u32>().ok());
+        let engine_minor = engine_parts.get(1).and_then(|s| s.parse::<u32>().ok());
+        let engine_patch = engine_parts.get(2).and_then(|s| s.parse::<u32>().ok());
+
+        let match_level = match (project_major, project_minor, project_patch, engine_major, engine_minor, engine_patch) {
+            (Some(pm), Some(pn), Some(pp), Some(em), Some(en), Some(ep))
+                if pm == em && pn == en && pp == ep => "exact",
+            (Some(pm), Some(pn), _, Some(em), Some(en), _)
+                if pm == em && pn == en => "minor",
+            (Some(pm), _, _, Some(em), _, _)
+                if pm == em => "major",
+            _ => "none",
+        };
+
+        if match_level != "none" {
+            matched.push(MatchedEngine {
+                engine,
+                match_level: match_level.to_string(),
+            });
+        }
+    }
+
+    matched.sort_by(|a, b| {
+        let level_order = |l: &str| match l {
+            "exact" => 0,
+            "minor" => 1,
+            "major" => 2,
+            _ => 3,
+        };
+        level_order(&a.match_level).cmp(&level_order(&b.match_level))
+    });
+
+    Ok(matched)
 }
 
 #[tauri::command]

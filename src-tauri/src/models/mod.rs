@@ -207,6 +207,10 @@ pub struct Project {
     pub updated_at: DateTime<Utc>,
     #[serde(default)]
     pub last_synced_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub last_opened_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub last_used_engine_id: Option<String>,
 }
 
 impl Project {
@@ -223,6 +227,8 @@ impl Project {
             created_at: now,
             updated_at: now,
             last_synced_at: None,
+            last_opened_at: None,
+            last_used_engine_id: None,
         }
     }
 }

@@ -187,8 +187,12 @@ pub fn get_dashboard_stats(app: AppHandle) -> Result<DashboardStats, String> {
     }
 
     let mut recent_projects = projects.clone();
-    recent_projects.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
-    recent_projects.truncate(5);
+    recent_projects.sort_by(|a, b| {
+        let a_time = a.last_opened_at.unwrap_or(a.updated_at);
+        let b_time = b.last_opened_at.unwrap_or(b.updated_at);
+        b_time.cmp(&a_time)
+    });
+    recent_projects.truncate(8);
 
     Ok(DashboardStats {
         project_count: projects.len(),

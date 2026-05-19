@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '@/api'
-import type { Project, Engine, MovedProjectCandidate, ProjectBinding, Plugin } from '@/types'
+import type { Project, Engine, MovedProjectCandidate, ProjectBinding, Plugin, MatchedEngine } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
@@ -666,6 +666,12 @@ const showRelocateDialog = ref(false)
 const relocateProjectId = ref('')
 const relocateNewPath = ref('')
 
+const showEngineSelectDialog = ref(false)
+const engineSelectProject = ref<Project | null>(null)
+const matchedEngines = ref<MatchedEngine[]>([])
+const isLoadingEngines = ref(false)
+const engineSelectMode = ref<'launch' | 'select'>('launch')
+
 useDialogEscape(showScanDialog)
 useDialogEscape(showProjectDetail)
 useDialogEscape(showGroupDialog)
@@ -673,6 +679,106 @@ useDialogEscape(showRelocateDialog)
 useDialogEscape(showMovedDialog)
 useDialogEscape(showBatchGroupDialog)
 useDialogEscape(showGitDialog)
+useDialogEscape(showEngineSelectDialog)
+
+const openProjectWithEngine = async (project: Project) => {
+  projectMenuId.value = ''
+  if (project.last_used_engine_id) {
+    const engineExists = engines.value.some(e => e.engine_id === project.last_used_engine_id)
+    if (engineExists) {
+      try {
+        await api.launchEngine(project.last_used_engine_id!, project.path)
+        toast.success(t('engines.launchSuccess'))
+        await loadProjects()
+        return
+      } catch (error) {
+        toast.error(t('projects.launchFailed', { error: String(error) }))
+        return
+      }
+    }
+  }
+  isLoadingEngines.value = true
+  showEngineSelectDialog.value = true
+  engineSelectProject.value = project
+  engineSelectMode.value = 'launch'
+  try {
+    const result = await api.findMatchingEngines(project.godot_version)
+    matchedEngines.value = result
+  } catch (error) {
+    toast.error(t('projects.launchFailed', { error }))
+    matchedEngines.value = []
+  } finally {
+    isLoadingEngines.value = false
+  }
+}
+
+const selectDefaultEngine = async (project: Project) => {
+  isLoadingEngines.value = true
+  showEngineSelectDialog.value = true
+  engineSelectProject.value = project
+  engineSelectMode.value = 'select'
+  try {
+    const result = await api.findMatchingEngines(project.godot_version)
+    matchedEngines.value = result
+  } catch (error) {
+    toast.error(t('projects.launchFailed', { error }))
+    matchedEngines.value = []
+  } finally {
+    isLoadingEngines.value = false
+  }
+}
+
+const launchWithEngine = async (engineId: string) => {
+  if (!engineSelectProject.value) return
+  if (engineSelectMode.value === 'select') {
+    try {
+      await api.setProjectDefaultEngine(engineSelectProject.value.project_id, engineId)
+      toast.success(t('projects.defaultEngineSet'))
+      showEngineSelectDialog.value = false
+      engineSelectProject.value = null
+      await loadProjects()
+    } catch (error) {
+      toast.error(t('projects.launchFailed', { error: String(error) }))
+    }
+    return
+  }
+  try {
+    await api.launchEngine(engineId, engineSelectProject.value.path)
+    toast.success(t('engines.launchSuccess'))
+    showEngineSelectDialog.value = false
+    engineSelectProject.value = null
+    await loadProjects()
+  } catch (error) {
+    toast.error(t('projects.launchFailed', { error: String(error) }))
+  }
+}
+
+const getMatchLevelClass = (level: string) => {
+  switch (level) {
+    case 'exact': return 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+    case 'minor': return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
+    case 'major': return 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400'
+    default: return ''
+  }
+}
+
+const getMatchLevelLabel = (level: string) => {
+  switch (level) {
+    case 'exact': return t('projects.matchExact')
+    case 'minor': return t('projects.matchMinor')
+    case 'major': return t('projects.matchMajor')
+    default: return level
+  }
+}
+
+const getMatchLevelDesc = (level: string) => {
+  switch (level) {
+    case 'exact': return t('projects.matchExactDesc')
+    case 'minor': return t('projects.matchMinorDesc')
+    case 'major': return t('projects.matchMajorDesc')
+    default: return ''
+  }
+}
 
 const openRelocateDialog = (project: Project) => {
   relocateProjectId.value = project.project_id
@@ -1200,6 +1306,13 @@ const toggleAddPluginPanel = () => {
             </div>
             <div class="flex items-center gap-1">
               <button
+                @click.stop="openProjectWithEngine(project)"
+                class="p-1.5 rounded-lg text-gray-500 dark:text-content-muted hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors"
+                :title="t('projects.openWithEngine')"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              </button>
+              <button
                 v-if="project.status === 'MissingSource'"
                 @click.stop="openRelocateDialog(project)"
                 class="px-3 py-1.5 rounded-lg text-sm font-medium bg-orange-500 text-white hover:bg-orange-600 transition-colors flex items-center gap-1.5"
@@ -1244,6 +1357,13 @@ const toggleAddPluginPanel = () => {
                   >
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                     {{ t('projects.openInFileManager') }}
+                  </button>
+                  <button
+                    @click.stop="selectDefaultEngine(project); projectMenuId = ''"
+                    class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-content-primary hover:bg-gray-100 dark:hover:bg-surface-layer flex items-center gap-2"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    {{ t('projects.selectDefaultEngine') }}
                   </button>
                   <hr class="my-1 border-gray-200 dark:border-surface-border" />
                   <button
@@ -1755,6 +1875,73 @@ const toggleAddPluginPanel = () => {
             class="btn-primary disabled:opacity-50"
           >
             {{ isCloningFromGit ? t('projects.gitImport.cloning') : t('projects.gitImport.clone') }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div v-if="showEngineSelectDialog && engineSelectProject" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showEngineSelectDialog = false; engineSelectProject = null">
+      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl max-h-[80vh] flex flex-col" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-1">{{ engineSelectMode === 'select' ? t('projects.selectDefaultEngine') : t('projects.openWithEngine') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-muted mb-4">
+          {{ engineSelectMode === 'select' ? t('projects.selectDefaultEngineDesc') : t('projects.openWithEngineDesc') }}
+          <span class="font-mono text-xs bg-gray-100 dark:bg-surface-hover px-1.5 py-0.5 rounded ml-1">Godot {{ engineSelectProject.godot_version }}</span>
+        </p>
+
+        <div v-if="isLoadingEngines" class="flex-1 flex items-center justify-center py-8">
+          <div class="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent"></div>
+        </div>
+
+        <div v-else-if="matchedEngines.length === 0" class="flex-1 py-8 text-center">
+          <svg class="mx-auto h-10 w-10 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p class="text-sm font-medium text-gray-700 dark:text-content-secondary">{{ t('projects.noMatchingEngines') }}</p>
+          <p class="text-xs text-gray-500 dark:text-content-muted mt-1">{{ t('projects.noMatchingEnginesDesc') }}</p>
+        </div>
+
+        <div v-else class="flex-1 overflow-y-auto space-y-2 min-h-0">
+          <button
+            v-for="me in matchedEngines"
+            :key="me.engine.engine_id"
+            @click="launchWithEngine(me.engine.engine_id)"
+            :class="[
+              'w-full text-left p-3 rounded-lg border transition-colors',
+              me.engine.engine_id === engineSelectProject?.last_used_engine_id
+                ? 'border-primary-300 dark:border-primary-700 bg-primary-50 dark:bg-primary-900/10'
+                : 'border-gray-200 dark:border-surface-border hover:border-primary-300 dark:hover:border-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900/10'
+            ]"
+          >
+            <div class="flex items-center justify-between">
+              <div class="min-w-0 flex-1">
+                <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate flex items-center gap-1.5">
+                  {{ me.engine.name }}
+                  <span v-if="me.engine.engine_id === engineSelectProject?.last_used_engine_id" class="text-xs text-primary-600 dark:text-primary-400 font-normal">{{ t('projects.lastUsedEngine') }}</span>
+                </div>
+                <div class="text-xs text-gray-500 dark:text-content-muted mt-0.5 font-mono">v{{ me.engine.version }}</div>
+              </div>
+              <span
+                :class="['text-xs px-2 py-0.5 rounded-full font-medium ml-2 flex-shrink-0', getMatchLevelClass(me.match_level)]"
+                :title="getMatchLevelDesc(me.match_level)"
+              >
+                {{ getMatchLevelLabel(me.match_level) }}
+              </span>
+            </div>
+            <div v-if="me.match_level !== 'exact'" class="mt-1.5 text-xs text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
+              <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+              {{ getMatchLevelDesc(me.match_level) }}
+            </div>
+          </button>
+        </div>
+
+        <div class="flex justify-end mt-4 pt-3 border-t border-gray-200 dark:border-surface-border">
+          <button
+            @click="showEngineSelectDialog = false; engineSelectProject = null"
+            class="btn-secondary"
+          >
+            {{ t('common.cancel') }}
           </button>
         </div>
       </div>

@@ -420,6 +420,8 @@ pub fn run() {
             commands::check_engine_health,
             commands::rename_engine,
             commands::launch_engine,
+            commands::find_matching_engines,
+            commands::set_project_default_engine,
             commands::open_in_file_manager,
             commands::read_file_as_base64,
             commands::check_auto_setup_needed,

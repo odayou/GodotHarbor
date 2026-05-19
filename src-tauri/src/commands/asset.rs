@@ -546,6 +546,8 @@ pub async fn import_project_from_asset_library(app: AppHandle, asset_id: u64, ta
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
         last_synced_at: None,
+        last_opened_at: None,
+        last_used_engine_id: None,
     };
 
     let project_id = project.project_id.clone();
