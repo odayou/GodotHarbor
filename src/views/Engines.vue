@@ -840,10 +840,10 @@ const initCollapsedGroups = () => {
                   <button
                     @click="launchEngine(engine.engine_id)"
                     :disabled="engineHealthMap.get(engine.engine_id) === false"
-                    class="text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-300 p-2 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    class="text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-300 p-2.5 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     :title="t('engines.launch')"
                   >
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>

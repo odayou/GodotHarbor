@@ -579,7 +579,7 @@ export default {
     goToPluginEcosystem: 'Manage in Plugin Ecosystem',
     close: 'Close',
     targetProjects: 'Target Projects',
-    bindPlugins: 'Add Binding',
+    bindPlugins: 'Bind Plugin',
     cancelBind: 'Cancel',
     cancel: 'Cancel',
     versionSelectTitle: 'Select Version - {name}',

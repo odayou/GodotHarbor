@@ -582,7 +582,7 @@ export default {
     goToPluginEcosystem: '在插件生态中管理',
     close: '关闭',
     targetProjects: '目标项目',
-    bindPlugins: '新增绑定',
+    bindPlugins: '绑定插件',
     cancelBind: '取消新增',
     cancel: '取消',
     versionSelectTitle: '选择版本 - {name}',
