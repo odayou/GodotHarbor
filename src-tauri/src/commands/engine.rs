@@ -5,7 +5,7 @@ use uuid::Uuid;
 use super::utils::*;
 
 #[tauri::command]
-pub fn launch_engine(app: AppHandle, engine_id: String, project_path: Option<String>) -> Result<(), String> {
+pub fn launch_engine(app: AppHandle, engine_id: String, project_path: Option<String>, project_id: Option<String>) -> Result<(), String> {
     let storage = get_storage(&app);
     let engines: Vec<Engine> = storage.load_or_default("engines.json");
 
@@ -24,13 +24,16 @@ pub fn launch_engine(app: AppHandle, engine_id: String, project_path: Option<Str
     cmd.spawn()
         .map_err(|e| format!("启动引擎失败: {}", e))?;
 
-    if let Some(ref path) = project_path {
+    if project_id.is_some() || project_path.is_some() {
         let mut projects: Vec<Project> = storage.load_or_default("projects.json");
-        let path_normalized = path.replace('\\', "/").trim_end_matches('/').to_lowercase();
         let mut found = false;
         for proj in &mut projects {
-            let proj_normalized = proj.path.replace('\\', "/").trim_end_matches('/').to_lowercase();
-            if proj_normalized == path_normalized {
+            let id_match = project_id.as_ref().map_or(false, |id| proj.project_id == *id);
+            let path_match = project_path.as_ref().map_or(false, |p| {
+                proj.path.replace('\\', "/").trim_end_matches('/').to_lowercase()
+                    == p.replace('\\', "/").trim_end_matches('/').to_lowercase()
+            });
+            if id_match || path_match {
                 proj.last_opened_at = Some(chrono::Utc::now());
                 proj.last_used_engine_id = Some(engine_id.clone());
                 found = true;

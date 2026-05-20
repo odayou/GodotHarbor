@@ -687,7 +687,7 @@ const openProjectWithEngine = async (project: Project) => {
     const engineExists = engines.value.some(e => e.engine_id === project.last_used_engine_id)
     if (engineExists) {
       try {
-        await api.launchEngine(project.last_used_engine_id!, project.path)
+        await api.launchEngine(project.last_used_engine_id!, project.path, project.project_id)
         toast.success(t('engines.launchSuccess'))
         await loadProjects()
         return
@@ -743,7 +743,7 @@ const launchWithEngine = async (engineId: string) => {
     return
   }
   try {
-    await api.launchEngine(engineId, engineSelectProject.value.path)
+    await api.launchEngine(engineId, engineSelectProject.value.path, engineSelectProject.value.project_id)
     toast.success(t('engines.launchSuccess'))
     showEngineSelectDialog.value = false
     engineSelectProject.value = null

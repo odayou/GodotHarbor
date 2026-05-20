@@ -188,9 +188,12 @@ pub fn get_dashboard_stats(app: AppHandle) -> Result<DashboardStats, String> {
 
     let mut recent_projects = projects.clone();
     recent_projects.sort_by(|a, b| {
-        let a_time = a.last_opened_at.unwrap_or(a.updated_at);
-        let b_time = b.last_opened_at.unwrap_or(b.updated_at);
-        b_time.cmp(&a_time)
+        match (a.last_opened_at, b.last_opened_at) {
+            (Some(a_time), Some(b_time)) => b_time.cmp(&a_time),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => b.updated_at.cmp(&a.updated_at),
+        }
     });
     recent_projects.truncate(8);
 
