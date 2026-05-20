@@ -351,6 +351,7 @@ pub fn run() {
             commands::delete_template,
             commands::apply_template_to_project,
             commands::get_project_bindings,
+            commands::get_all_project_bindings,
             commands::scan_project_plugins,
             commands::import_plugins_from_projects,
             commands::get_operation_logs,

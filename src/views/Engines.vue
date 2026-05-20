@@ -655,7 +655,7 @@ const initCollapsedGroups = () => {
       </div>
     </div>
 
-    <div v-if="activeDownloads.size > 0 && !showDownloadDialog" class="bg-blue-50 dark:bg-blue-900/20 rounded-xl shadow p-4">
+    <div v-if="activeDownloads.size > 0 && !showDownloadDialog" class="fixed bottom-4 right-4 z-30 bg-white dark:bg-surface-card rounded-xl shadow-lg border border-blue-200 dark:border-blue-800 p-4 w-80">
       <div class="flex items-center justify-between mb-2">
         <span class="text-sm font-medium text-blue-800 dark:text-blue-300">
           {{ t('engines.download.downloading') }} ({{ activeDownloads.size }})

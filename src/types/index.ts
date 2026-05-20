@@ -129,6 +129,7 @@ export interface Engine {
   path: string
   engine_type: 'Godot3' | 'Godot4' | 'Unknown'
   version: string
+  is_mono?: boolean
   created_at: string
   updated_at: string
 }

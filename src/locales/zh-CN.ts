@@ -118,6 +118,7 @@ export default {
     matchExactDesc: '版本完全一致',
     matchMinorDesc: '主版本和小版本一致，补丁版本不同，可能存在细微差异',
     matchMajorDesc: '仅主版本一致，可能存在兼容性问题',
+    monoLabel: '.NET',
     launchFailed: '启动失败: {error}',
     lastUsedEngine: '上次使用',
     selectDefaultEngine: '选择默认引擎',
@@ -615,9 +616,15 @@ export default {
     syncWarnings: '注意事项',
     syncNoChanges: '没有需要同步的变更',
     uidConflictTitle: 'UID 冲突警告',
-    uidConflictDesc: '检测到该插件与项目中已绑定的其他插件存在 UID 冲突，可能导致资源引用异常。建议使用 Copy 模式。',
+    uidConflictDesc: '检测到该插件与项目中已绑定的其他插件存在 UID 冲突，可能导致资源引用异常。',
     uidConflictCount: '{count} 个冲突 UID',
+    uidConflictSolution: '解决方案',
+    uidConflictSolutionCopy: '切换到 Copy 模式并绑定（推荐）',
+    uidConflictSolutionCopyDesc: 'Copy 模式下每个项目拥有独立的插件副本，UID 冲突不会影响其他项目。',
+    uidConflictSolutionForce: '仍然使用当前模式绑定',
+    uidConflictSolutionForceDesc: '可能导致资源引用异常，仅建议在确认无影响时使用。',
     bindAnyway: '仍然绑定',
+    bindWithCopyMode: 'Copy 模式绑定',
   },
   engines: {
     title: '引擎管理',
@@ -1264,6 +1271,13 @@ export default {
     nothingToDo: '项目已是最新状态，无需额外操作',
     noScanDirs: '未配置扫描目录，请先在设置中添加扫描目录',
     failed: '自动设置失败: {error}',
-    pleaseWait: '请稍候，正在自动配置...'
+    pleaseWait: '请稍候，正在自动配置...',
+    stepNames: {
+      'scanning-projects': '扫描项目',
+      'scanning-plugins': '扫描插件',
+      'importing-plugins': '导入插件',
+      'binding-plugins': '建立绑定',
+      'applying-changes': '应用变更'
+    }
   }
 }

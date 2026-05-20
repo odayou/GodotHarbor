@@ -14,7 +14,16 @@ const {
   moveSelection,
   selectCurrentItem,
   selectByShortcutKey,
-  t
+  t,
+  showEngineSelectDialog,
+  engineSelectProject,
+  matchedEngines,
+  isLoadingEngines,
+  launchWithEngine,
+  closeEngineSelectDialog,
+  getMatchLevelClass,
+  getMatchLevelLabel,
+  getMatchLevelDesc,
 } = useCommandPalette()
 
 const searchInput = ref<HTMLInputElement | null>(null)
@@ -249,6 +258,73 @@ function getHighlightSegments(text: string, searchQuery: string): Array<{ text: 
             <kbd class="px-1 py-0.5 bg-gray-100 dark:bg-surface-hover rounded border border-gray-200 dark:border-surface-border text-[10px]">Esc</kbd>
             {{ t('commandPalette.close') }}
           </span>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div v-if="showEngineSelectDialog && engineSelectProject" class="fixed inset-0 bg-black/50 flex items-center justify-center z-[110]" @click="closeEngineSelectDialog">
+      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl max-h-[80vh] flex flex-col" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-1">{{ t('projects.openWithEngine') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-muted mb-4">
+          {{ t('projects.openWithEngineDesc') }}
+          <span class="font-mono text-xs bg-gray-100 dark:bg-surface-hover px-1.5 py-0.5 rounded ml-1">Godot {{ engineSelectProject.godot_version }}</span>
+        </p>
+
+        <div v-if="isLoadingEngines" class="flex-1 flex items-center justify-center py-8">
+          <div class="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent"></div>
+        </div>
+
+        <div v-else-if="matchedEngines.length === 0" class="flex-1 py-8 text-center">
+          <svg class="mx-auto h-10 w-10 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p class="text-sm font-medium text-gray-700 dark:text-content-secondary">{{ t('projects.noMatchingEngines') }}</p>
+          <p class="text-xs text-gray-500 dark:text-content-muted mt-1">{{ t('projects.noMatchingEnginesDesc') }}</p>
+        </div>
+
+        <div v-else class="flex-1 overflow-y-auto space-y-2 min-h-0">
+          <button
+            v-for="me in matchedEngines"
+            :key="me.engine.engine_id"
+            @click="launchWithEngine(me.engine.engine_id)"
+            :class="[
+              'w-full text-left p-3 rounded-lg border transition-colors',
+              me.engine.engine_id === engineSelectProject?.last_used_engine_id
+                ? 'border-primary-300 dark:border-primary-700 bg-primary-50 dark:bg-primary-900/10'
+                : 'border-gray-200 dark:border-surface-border hover:border-primary-300 dark:hover:border-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900/10'
+            ]"
+          >
+            <div class="flex items-center justify-between">
+              <div class="min-w-0 flex-1">
+                <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate flex items-center gap-1.5">
+                  {{ me.engine.name }}
+                  <span v-if="me.engine.engine_id === engineSelectProject?.last_used_engine_id" class="text-xs text-primary-600 dark:text-primary-400 font-normal">{{ t('projects.lastUsedEngine') }}</span>
+                </div>
+                <div class="text-xs text-gray-500 dark:text-content-muted mt-0.5 font-mono flex items-center gap-1.5">v{{ me.engine.version }}<span v-if="me.engine.is_mono" class="text-[10px] px-1 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 font-sans font-medium">{{ t('projects.monoLabel') }}</span></div>
+              </div>
+              <span
+                :class="['text-xs px-2 py-0.5 rounded-full font-medium ml-2 flex-shrink-0', getMatchLevelClass(me.match_level)]"
+                :title="getMatchLevelDesc(me.match_level)"
+              >
+                {{ getMatchLevelLabel(me.match_level) }}
+              </span>
+            </div>
+            <div v-if="me.match_level !== 'exact'" class="mt-1.5 text-xs text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
+              <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+              {{ getMatchLevelDesc(me.match_level) }}
+            </div>
+          </button>
+        </div>
+
+        <div class="flex justify-end mt-4 pt-3 border-t border-gray-200 dark:border-surface-border">
+          <button
+            @click="closeEngineSelectDialog"
+            class="btn-secondary"
+          >
+            {{ t('common.cancel') }}
+          </button>
         </div>
       </div>
     </div>

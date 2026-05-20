@@ -370,6 +370,20 @@ pub fn get_project_bindings(app: AppHandle, project_id: String) -> Result<Vec<Pr
 }
 
 #[tauri::command]
+pub fn get_all_project_bindings(app: AppHandle) -> Result<std::collections::HashMap<String, Vec<ProjectBinding>>, String> {
+    let storage = get_storage(&app);
+    let bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
+
+    let mut map: std::collections::HashMap<String, Vec<ProjectBinding>> = std::collections::HashMap::new();
+    for binding in bindings {
+        map.entry(binding.project_id.clone())
+            .or_default()
+            .push(binding);
+    }
+    Ok(map)
+}
+
+#[tauri::command]
 pub async fn scan_project_plugins(app: AppHandle) -> Result<Vec<crate::models::ScannedPlugin>, String> {
     let storage = get_storage(&app);
     let projects: Vec<Project> = storage.load_or_default("projects.json");
@@ -1017,8 +1031,15 @@ pub fn repair_binding(app: AppHandle, project_id: String, plugin_id: String) -> 
     let settings = load_settings(&app);
     let linker = Linker::new(settings.mount_strategy.clone());
     let plugin_base_path = get_data_dir(&app).join("plugins");
+    let applied_dir = get_data_dir(&app).join("applied_bindings");
 
-    let current_bindings: Vec<ProjectBinding> = Vec::new();
+    let applied_file = applied_dir.join(format!("{}.json", project_id));
+    let current_bindings: Vec<ProjectBinding> = if applied_file.exists() {
+        let applied_storage = Storage::new(applied_dir);
+        applied_storage.load_or_default::<Vec<ProjectBinding>>(&format!("{}.json", project_id))
+    } else {
+        Vec::new()
+    };
     let desired_bindings = vec![binding.clone()];
 
     let result = linker.apply_bindings(
@@ -1677,97 +1698,85 @@ pub async fn batch_apply_changes(app: AppHandle, project_ids: Vec<String>) -> Re
     let plugin_base_path = data_dir.join("plugins");
     let applied_dir = data_dir.join("applied_bindings");
 
-    let futures: Vec<_> = project_ids.iter().map(|project_id| {
-        let project_id = project_id.clone();
-        let projects = projects.clone();
-        let all_bindings = all_bindings.clone();
-        let linker = linker.clone();
-        let applied_dir = applied_dir.clone();
-        let plugin_base_path = plugin_base_path.clone();
-
-        tokio::task::spawn_blocking(move || {
-            let project = match projects.iter().find(|p| p.project_id == project_id) {
-                Some(p) => p,
-                None => {
-                    return ProjectApplyResult {
-                        project_id: project_id.clone(),
-                        project_name: String::new(),
-                        success: false,
-                        created: Vec::new(),
-                        removed: Vec::new(),
-                        errors: vec![format!("未找到项目: {}", project_id)],
-                    };
-                }
-            };
-
-            let desired_bindings: Vec<ProjectBinding> = all_bindings.iter()
-                .filter(|b| b.project_id == project_id)
-                .cloned()
-                .collect();
-
-            if desired_bindings.is_empty() {
-                return ProjectApplyResult {
+    let mut results: Vec<ProjectApplyResult> = Vec::new();
+    for project_id in &project_ids {
+        let project = match projects.iter().find(|p| p.project_id == *project_id) {
+            Some(p) => p,
+            None => {
+                results.push(ProjectApplyResult {
                     project_id: project_id.clone(),
-                    project_name: project.name.clone(),
-                    success: true,
+                    project_name: String::new(),
+                    success: false,
                     created: Vec::new(),
                     removed: Vec::new(),
-                    errors: Vec::new(),
-                };
+                    errors: vec![format!("未找到项目: {}", project_id)],
+                });
+                continue;
             }
+        };
 
-            let applied_file = applied_dir.join(format!("{}.json", project_id));
-            let current_bindings: Vec<ProjectBinding> = if applied_file.exists() {
-                let applied_storage = Storage::new(applied_dir.clone());
-                applied_storage.load_or_default::<Vec<ProjectBinding>>(&format!("{}.json", project_id))
-            } else {
-                Vec::new()
-            };
+        let desired_bindings: Vec<ProjectBinding> = all_bindings.iter()
+            .filter(|b| b.project_id == *project_id)
+            .cloned()
+            .collect();
 
-            match linker.apply_bindings(
-                &project.path,
-                &current_bindings,
-                &desired_bindings,
-                &plugin_base_path.to_string_lossy()
-            ) {
-                Ok(apply_result) => {
-                    if apply_result.success {
-                        if let Err(e) = std::fs::create_dir_all(&applied_dir) {
-                            eprintln!("Failed to create applied_bindings dir: {}", e);
-                        }
-                        let applied_storage = Storage::new(applied_dir.clone());
-                        if let Err(e) = applied_storage.save(&format!("{}.json", project_id), &desired_bindings) {
-                            eprintln!("Failed to save applied bindings: {}", e);
-                        }
+        if desired_bindings.is_empty() {
+            results.push(ProjectApplyResult {
+                project_id: project_id.clone(),
+                project_name: project.name.clone(),
+                success: true,
+                created: Vec::new(),
+                removed: Vec::new(),
+                errors: Vec::new(),
+            });
+            continue;
+        }
+
+        let applied_file = applied_dir.join(format!("{}.json", project_id));
+        let current_bindings: Vec<ProjectBinding> = if applied_file.exists() {
+            let applied_storage = Storage::new(applied_dir.clone());
+            applied_storage.load_or_default::<Vec<ProjectBinding>>(&format!("{}.json", project_id))
+        } else {
+            Vec::new()
+        };
+
+        match linker.apply_bindings(
+            &project.path,
+            &current_bindings,
+            &desired_bindings,
+            &plugin_base_path.to_string_lossy()
+        ) {
+            Ok(apply_result) => {
+                if apply_result.success {
+                    if let Err(e) = std::fs::create_dir_all(&applied_dir) {
+                        eprintln!("Failed to create applied_bindings dir: {}", e);
                     }
-                    ProjectApplyResult {
-                        project_id: project_id.clone(),
-                        project_name: project.name.clone(),
-                        success: apply_result.success,
-                        created: apply_result.created,
-                        removed: apply_result.removed,
-                        errors: apply_result.errors,
+                    let applied_storage = Storage::new(applied_dir.clone());
+                    if let Err(e) = applied_storage.save(&format!("{}.json", project_id), &desired_bindings) {
+                        eprintln!("Failed to save applied bindings: {}", e);
                     }
                 }
-                Err(e) => {
-                    ProjectApplyResult {
-                        project_id: project_id.clone(),
-                        project_name: project.name.clone(),
-                        success: false,
-                        created: Vec::new(),
-                        removed: Vec::new(),
-                        errors: vec![format!("应用变更失败: {}", e)],
-                    }
-                }
+                results.push(ProjectApplyResult {
+                    project_id: project_id.clone(),
+                    project_name: project.name.clone(),
+                    success: apply_result.success,
+                    created: apply_result.created,
+                    removed: apply_result.removed,
+                    errors: apply_result.errors,
+                });
             }
-        })
-    }).collect();
-
-    let results: Vec<ProjectApplyResult> = join_all(futures)
-        .await
-        .into_iter()
-        .filter_map(|r| r.ok())
-        .collect();
+            Err(e) => {
+                results.push(ProjectApplyResult {
+                    project_id: project_id.clone(),
+                    project_name: project.name.clone(),
+                    success: false,
+                    created: Vec::new(),
+                    removed: Vec::new(),
+                    errors: vec![format!("应用变更失败: {}", e)],
+                });
+            }
+        }
+    }
 
     log_operation(&app, "batch_apply_changes", "",
         &format!("批量应用变更完成，共处理 {} 个项目", results.len()));

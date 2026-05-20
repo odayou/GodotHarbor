@@ -172,6 +172,23 @@ const showUidConflictDialog = ref(false)
 const uidConflicts = ref<{ plugin_id: string; plugin_name: string; conflicting_uids: string[] }[]>([])
 const pendingBindAfterUidCheck = ref<(() => void) | null>(null)
 
+const handleBindWithCopyMode = async () => {
+  showUidConflictDialog.value = false
+  if (mountStrategyDisplay.value !== 'Copy') {
+    try {
+      const settings = await api.getSettings()
+      settings.mount_strategy = 'Copy'
+      await api.saveSettings(settings)
+      mountStrategyDisplay.value = 'Copy'
+      toast.success(t('settings.saved'))
+    } catch (error) {
+      toast.error(t('common.operationFailed', { error: String(error) }))
+      return
+    }
+  }
+  pendingBindAfterUidCheck.value?.()
+}
+
 const {
   searchQuery,
   filterCompatibility,
@@ -2015,7 +2032,7 @@ const retryBatchFailed = async () => {
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <div
             v-for="fp in featuredPlugins.plugins"
             :key="fp.source_url"
@@ -3331,17 +3348,63 @@ const retryBatchFailed = async () => {
   <Teleport to="body">
     <div v-if="showUidConflictDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showUidConflictDialog = false; pendingBindAfterUidCheck = null">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('linker.uidConflictTitle') }}</h3>
-        <p class="text-sm text-yellow-600 dark:text-yellow-400 mb-3">{{ t('linker.uidConflictDesc') }}</p>
-        <div class="space-y-2 mb-4 max-h-48 overflow-y-auto">
-          <div v-for="conflict in uidConflicts" :key="conflict.plugin_id" class="p-2 bg-yellow-50 dark:bg-yellow-900/10 rounded-lg border border-yellow-200 dark:border-yellow-800">
-            <div class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ conflict.plugin_name }}</div>
-            <div class="text-xs text-gray-500 dark:text-content-secondary">{{ t('linker.uidConflictCount', { count: conflict.conflicting_uids.length }) }}</div>
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-10 h-10 rounded-full bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('linker.uidConflictTitle') }}</h3>
+            <p class="text-sm text-gray-500 dark:text-content-secondary mt-0.5">{{ t('linker.uidConflictDesc') }}</p>
           </div>
         </div>
-        <div class="flex justify-end gap-3">
-          <button @click="showUidConflictDialog = false; pendingBindAfterUidCheck = null" class="btn-secondary">{{ t('linker.cancel') }}</button>
-          <button @click="showUidConflictDialog = false; pendingBindAfterUidCheck?.()" class="btn-primary">{{ t('linker.bindAnyway') }}</button>
+
+        <div class="space-y-2 mb-4 max-h-36 overflow-y-auto">
+          <div v-for="conflict in uidConflicts" :key="conflict.plugin_id" class="p-2.5 bg-yellow-50 dark:bg-yellow-900/10 rounded-lg border border-yellow-200 dark:border-yellow-800">
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ conflict.plugin_name }}</span>
+              <span class="text-xs px-1.5 py-0.5 bg-yellow-200 dark:bg-yellow-800/50 text-yellow-700 dark:text-yellow-300 rounded">{{ t('linker.uidConflictCount', { count: conflict.conflicting_uids.length }) }}</span>
+            </div>
+            <div v-if="conflict.conflicting_uids.length <= 5" class="mt-1 flex flex-wrap gap-1">
+              <span v-for="uid in conflict.conflicting_uids" :key="uid" class="text-[10px] font-mono px-1 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded">{{ uid }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <h4 class="text-sm font-medium text-gray-700 dark:text-content-secondary mb-2">{{ t('linker.uidConflictSolution') }}</h4>
+          <div class="space-y-2">
+            <button
+              @click="handleBindWithCopyMode"
+              class="w-full text-left p-3 rounded-lg border-2 transition-colors"
+              :class="mountStrategyDisplay !== 'Copy' ? 'border-primary-300 dark:border-primary-700 bg-primary-50 dark:bg-primary-900/10' : 'border-gray-200 dark:border-surface-border'"
+            >
+              <div class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-primary-600 dark:text-primary-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ t('linker.uidConflictSolutionCopy') }}</span>
+              </div>
+              <p class="text-xs text-gray-500 dark:text-content-muted mt-1 ml-6">{{ t('linker.uidConflictSolutionCopyDesc') }}</p>
+            </button>
+            <button
+              @click="showUidConflictDialog = false; pendingBindAfterUidCheck?.()"
+              class="w-full text-left p-3 rounded-lg border border-gray-200 dark:border-surface-border hover:border-red-300 dark:hover:border-red-700 transition-colors"
+            >
+              <div class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-gray-400 dark:text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+                <span class="text-sm font-medium text-gray-700 dark:text-content-secondary">{{ t('linker.uidConflictSolutionForce') }}</span>
+              </div>
+              <p class="text-xs text-gray-500 dark:text-content-muted mt-1 ml-6">{{ t('linker.uidConflictSolutionForceDesc') }}</p>
+            </button>
+          </div>
+        </div>
+
+        <div class="flex justify-end">
+          <button @click="showUidConflictDialog = false; pendingBindAfterUidCheck = null" class="btn-secondary">{{ t('common.cancel') }}</button>
         </div>
       </div>
     </div>

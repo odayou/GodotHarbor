@@ -226,6 +226,10 @@ export const api = {
     return await invoke('get_project_bindings', { projectId })
   },
 
+  async getAllProjectBindings(): Promise<Record<string, ProjectBinding[]>> {
+    return await invoke('get_all_project_bindings')
+  },
+
   async getPluginBindings(pluginId: string): Promise<ProjectBinding[]> {
     return await invoke('get_plugin_bindings', { pluginId })
   },

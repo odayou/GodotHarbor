@@ -115,6 +115,7 @@ export default {
     matchExactDesc: 'Version is exactly the same',
     matchMinorDesc: 'Major and minor versions match, patch differs. Minor differences possible',
     matchMajorDesc: 'Only major version matches. Compatibility issues may occur',
+    monoLabel: '.NET',
     launchFailed: 'Launch failed: {error}',
     lastUsedEngine: 'Last used',
     selectDefaultEngine: 'Select Default Engine',
@@ -612,9 +613,15 @@ export default {
     syncWarnings: 'Notes',
     syncNoChanges: 'No changes to sync',
     uidConflictTitle: 'UID Conflict Warning',
-    uidConflictDesc: 'This plugin has UID conflicts with other bound plugins in the project, which may cause resource reference issues. Copy mode is recommended.',
+    uidConflictDesc: 'This plugin has UID conflicts with other bound plugins in the project, which may cause resource reference issues.',
     uidConflictCount: '{count} conflicting UID(s)',
+    uidConflictSolution: 'Solutions',
+    uidConflictSolutionCopy: 'Switch to Copy mode and bind (Recommended)',
+    uidConflictSolutionCopyDesc: 'Copy mode gives each project an independent plugin copy, so UID conflicts won\'t affect other projects.',
+    uidConflictSolutionForce: 'Bind with current mode anyway',
+    uidConflictSolutionForceDesc: 'May cause resource reference issues. Only recommended when you are sure there is no impact.',
     bindAnyway: 'Bind Anyway',
+    bindWithCopyMode: 'Bind with Copy Mode',
   },
   engines: {
     title: 'Engine Management',
@@ -1264,6 +1271,13 @@ export default {
     nothingToDo: 'Projects are up to date, no actions needed',
     noScanDirs: 'No scan directories configured. Please add scan directories in Settings first',
     failed: 'Auto setup failed: {error}',
-    pleaseWait: 'Please wait, auto-configuring...'
+    pleaseWait: 'Please wait, auto-configuring...',
+    stepNames: {
+      'scanning-projects': 'Scan Projects',
+      'scanning-plugins': 'Scan Plugins',
+      'importing-plugins': 'Import Plugins',
+      'binding-plugins': 'Create Bindings',
+      'applying-changes': 'Apply Changes'
+    }
   }
 }

@@ -5,6 +5,7 @@ import { useProjectStore } from '@/stores'
 import { usePluginStore } from '@/stores'
 import { useTheme } from '@/composables/useTheme'
 import { useSidebar } from '@/composables/useSidebar'
+import { useEngineLauncher } from '@/composables/useEngineLauncher'
 import { api } from '@/api'
 
 export interface SearchItem {
@@ -157,6 +158,18 @@ export function useCommandPalette() {
   const { setTheme, cycleTheme, ALL_THEMES } = useTheme()
   const { toggleSidebar } = useSidebar()
   const { t, locale } = useI18n()
+  const {
+    showEngineSelectDialog,
+    engineSelectProject,
+    matchedEngines,
+    isLoadingEngines,
+    openProjectWithEngine,
+    launchWithEngine,
+    closeEngineSelectDialog,
+    getMatchLevelClass,
+    getMatchLevelLabel,
+    getMatchLevelDesc,
+  } = useEngineLauncher()
 
   const allItems = computed<SearchItem[]>(() => {
     const items: SearchItem[] = []
@@ -360,7 +373,7 @@ export function useCommandPalette() {
         category: 'project',
         icon: 'folder',
         keywords: `${p.name} ${p.path} ${p.godot_version} ${p.group || ''}`,
-        action: () => { router.push('/projects'); closePalette() }
+        action: () => { closePalette(); openProjectWithEngine(p) }
       })
     })
 
@@ -489,6 +502,15 @@ export function useCommandPalette() {
     moveSelection,
     selectCurrentItem,
     selectByShortcutKey,
-    t
+    t,
+    showEngineSelectDialog,
+    engineSelectProject,
+    matchedEngines,
+    isLoadingEngines,
+    launchWithEngine,
+    closeEngineSelectDialog,
+    getMatchLevelClass,
+    getMatchLevelLabel,
+    getMatchLevelDesc,
   }
 }

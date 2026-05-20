@@ -441,6 +441,8 @@ pub struct Engine {
     pub path: String,
     pub engine_type: EngineType,
     pub version: String,
+    #[serde(default)]
+    pub is_mono: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -448,12 +450,14 @@ pub struct Engine {
 impl Engine {
     pub fn new(name: String, path: String, engine_type: EngineType, version: String) -> Self {
         let now = Utc::now();
+        let is_mono = name.to_lowercase().contains("mono") || version.to_lowercase().contains("mono");
         Self {
             engine_id: Uuid::new_v4().to_string(),
             name,
             path,
             engine_type,
             version,
+            is_mono,
             created_at: now,
             updated_at: now,
         }

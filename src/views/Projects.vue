@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '@/api'
-import type { Project, Engine, MovedProjectCandidate, ProjectBinding, Plugin, MatchedEngine } from '@/types'
+import type { Project, Engine, MovedProjectCandidate, ProjectBinding, Plugin } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
@@ -13,6 +13,7 @@ import { useAutoSetup } from '@/composables/useAutoSetup'
 import { useFileManager } from '@/composables/useFileManager'
 import { getStatusBadgeClass, getStatusInlineClass } from '@/utils/statusBadge'
 import { preloadIcons, getIconUrl, getIconDebugInfo } from '@/composables/useIconCache'
+import { useEngineLauncher } from '@/composables/useEngineLauncher'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import SkeletonList from '@/components/SkeletonList.vue'
 import ErrorState from '@/components/ErrorState.vue'
@@ -331,14 +332,16 @@ const loadProjects = async () => {
 }
 
 const loadAllProjectBindings = async () => {
-  const map = new Map<string, ProjectBinding[]>()
-  const bindingResults = await Promise.allSettled(
-    projects.value.map(p => api.getProjectBindings(p.project_id))
-  )
-  bindingResults.forEach((result, i) => {
-    map.set(projects.value[i].project_id, result.status === 'fulfilled' ? result.value : [])
-  })
-  projectBindingMap.value = map
+  try {
+    const map = await api.getAllProjectBindings()
+    const bindingMap = new Map<string, ProjectBinding[]>()
+    for (const [projectId, bindings] of Object.entries(map)) {
+      bindingMap.set(projectId, bindings)
+    }
+    projectBindingMap.value = bindingMap
+  } catch {
+    projectBindingMap.value = new Map()
+  }
 }
 
 const showMovedDialog = ref(false)
@@ -666,11 +669,20 @@ const showRelocateDialog = ref(false)
 const relocateProjectId = ref('')
 const relocateNewPath = ref('')
 
-const showEngineSelectDialog = ref(false)
-const engineSelectProject = ref<Project | null>(null)
-const matchedEngines = ref<MatchedEngine[]>([])
-const isLoadingEngines = ref(false)
-const engineSelectMode = ref<'launch' | 'select'>('launch')
+const {
+  showEngineSelectDialog,
+  engineSelectProject,
+  matchedEngines,
+  isLoadingEngines,
+  engineSelectMode,
+  openProjectWithEngine,
+  selectDefaultEngine,
+  launchWithEngine,
+  closeEngineSelectDialog,
+  getMatchLevelClass,
+  getMatchLevelLabel,
+  getMatchLevelDesc,
+} = useEngineLauncher(() => loadProjects())
 
 useDialogEscape(showScanDialog)
 useDialogEscape(showProjectDetail)
@@ -681,103 +693,9 @@ useDialogEscape(showBatchGroupDialog)
 useDialogEscape(showGitDialog)
 useDialogEscape(showEngineSelectDialog)
 
-const openProjectWithEngine = async (project: Project) => {
+const openProjectWithEngineWrapper = async (project: Project) => {
   projectMenuId.value = ''
-  if (project.last_used_engine_id) {
-    const engineExists = engines.value.some(e => e.engine_id === project.last_used_engine_id)
-    if (engineExists) {
-      try {
-        await api.launchEngine(project.last_used_engine_id!, project.path, project.project_id)
-        toast.success(t('engines.launchSuccess'))
-        await loadProjects()
-        return
-      } catch (error) {
-        toast.error(t('projects.launchFailed', { error: String(error) }))
-        return
-      }
-    }
-  }
-  isLoadingEngines.value = true
-  showEngineSelectDialog.value = true
-  engineSelectProject.value = project
-  engineSelectMode.value = 'launch'
-  try {
-    const result = await api.findMatchingEngines(project.godot_version)
-    matchedEngines.value = result
-  } catch (error) {
-    toast.error(t('projects.launchFailed', { error }))
-    matchedEngines.value = []
-  } finally {
-    isLoadingEngines.value = false
-  }
-}
-
-const selectDefaultEngine = async (project: Project) => {
-  isLoadingEngines.value = true
-  showEngineSelectDialog.value = true
-  engineSelectProject.value = project
-  engineSelectMode.value = 'select'
-  try {
-    const result = await api.findMatchingEngines(project.godot_version)
-    matchedEngines.value = result
-  } catch (error) {
-    toast.error(t('projects.launchFailed', { error }))
-    matchedEngines.value = []
-  } finally {
-    isLoadingEngines.value = false
-  }
-}
-
-const launchWithEngine = async (engineId: string) => {
-  if (!engineSelectProject.value) return
-  if (engineSelectMode.value === 'select') {
-    try {
-      await api.setProjectDefaultEngine(engineSelectProject.value.project_id, engineId)
-      toast.success(t('projects.defaultEngineSet'))
-      showEngineSelectDialog.value = false
-      engineSelectProject.value = null
-      await loadProjects()
-    } catch (error) {
-      toast.error(t('projects.launchFailed', { error: String(error) }))
-    }
-    return
-  }
-  try {
-    await api.launchEngine(engineId, engineSelectProject.value.path, engineSelectProject.value.project_id)
-    toast.success(t('engines.launchSuccess'))
-    showEngineSelectDialog.value = false
-    engineSelectProject.value = null
-    await loadProjects()
-  } catch (error) {
-    toast.error(t('projects.launchFailed', { error: String(error) }))
-  }
-}
-
-const getMatchLevelClass = (level: string) => {
-  switch (level) {
-    case 'exact': return 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-    case 'minor': return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
-    case 'major': return 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400'
-    default: return ''
-  }
-}
-
-const getMatchLevelLabel = (level: string) => {
-  switch (level) {
-    case 'exact': return t('projects.matchExact')
-    case 'minor': return t('projects.matchMinor')
-    case 'major': return t('projects.matchMajor')
-    default: return level
-  }
-}
-
-const getMatchLevelDesc = (level: string) => {
-  switch (level) {
-    case 'exact': return t('projects.matchExactDesc')
-    case 'minor': return t('projects.matchMinorDesc')
-    case 'major': return t('projects.matchMajorDesc')
-    default: return ''
-  }
+  await openProjectWithEngine(project, engines.value)
 }
 
 const openRelocateDialog = (project: Project) => {
@@ -1306,7 +1224,7 @@ const toggleAddPluginPanel = () => {
             </div>
             <div class="flex items-center gap-1">
               <button
-                @click.stop="openProjectWithEngine(project)"
+                @click.stop="openProjectWithEngineWrapper(project)"
                 class="p-2.5 rounded-lg text-gray-500 dark:text-content-muted hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors"
                 :title="t('projects.openWithEngine')"
               >
@@ -1882,7 +1800,7 @@ const toggleAddPluginPanel = () => {
   </Teleport>
 
   <Teleport to="body">
-    <div v-if="showEngineSelectDialog && engineSelectProject" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showEngineSelectDialog = false; engineSelectProject = null">
+    <div v-if="showEngineSelectDialog && engineSelectProject" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="closeEngineSelectDialog">
       <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl max-h-[80vh] flex flex-col" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-1">{{ engineSelectMode === 'select' ? t('projects.selectDefaultEngine') : t('projects.openWithEngine') }}</h3>
         <p class="text-sm text-gray-500 dark:text-content-muted mb-4">
@@ -1920,7 +1838,7 @@ const toggleAddPluginPanel = () => {
                   {{ me.engine.name }}
                   <span v-if="me.engine.engine_id === engineSelectProject?.last_used_engine_id" class="text-xs text-primary-600 dark:text-primary-400 font-normal">{{ t('projects.lastUsedEngine') }}</span>
                 </div>
-                <div class="text-xs text-gray-500 dark:text-content-muted mt-0.5 font-mono">v{{ me.engine.version }}</div>
+                <div class="text-xs text-gray-500 dark:text-content-muted mt-0.5 font-mono flex items-center gap-1.5">v{{ me.engine.version }}<span v-if="me.engine.is_mono" class="text-[10px] px-1 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 font-sans font-medium">{{ t('projects.monoLabel') }}</span></div>
               </div>
               <span
                 :class="['text-xs px-2 py-0.5 rounded-full font-medium ml-2 flex-shrink-0', getMatchLevelClass(me.match_level)]"
@@ -1938,7 +1856,7 @@ const toggleAddPluginPanel = () => {
 
         <div class="flex justify-end mt-4 pt-3 border-t border-gray-200 dark:border-surface-border">
           <button
-            @click="showEngineSelectDialog = false; engineSelectProject = null"
+            @click="closeEngineSelectDialog"
             class="btn-secondary"
           >
             {{ t('common.cancel') }}

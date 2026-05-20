@@ -3,15 +3,14 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { api } from '@/api'
-import type { DashboardStats, MatchedEngine, Project } from '@/types'
+import type { DashboardStats } from '@/types'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import { useToast } from '@/composables/useToast'
 import { useAutoSetup } from '@/composables/useAutoSetup'
 import { preloadIcons, getIconUrl, getIconDebugInfo } from '@/composables/useIconCache'
+import { useEngineLauncher } from '@/composables/useEngineLauncher'
 
 const router = useRouter()
 const { t } = useI18n()
-const toast = useToast()
 const { isRunning: isAutoSetupRunning, stepMessage: autoSetupMessage, runAutoSetup } = useAutoSetup()
 const debugMode = ref(false)
 const toggleDebug = (e: KeyboardEvent) => {
@@ -90,92 +89,22 @@ const navigateTo = (path: string) => {
   router.push(path)
 }
 
-const openInFileManager = async (path: string) => {
-  try {
-    await api.openInFileManager(path)
-  } catch (error) {
-    toast.error(t('projects.openInFileManagerFailed', { error }))
-  }
-}
-
 const healthyCount = computed(() => stats.value.recent_projects.filter(p => p.status === 'Ready').length)
 const warningCount = computed(() => stats.value.recent_projects.filter(p => p.status === 'Warning').length)
 const errorCount = computed(() => stats.value.recent_projects.filter(p => p.status !== 'Ready' && p.status !== 'Warning').length)
 
-const showEngineSelectDialog = ref(false)
-const engineSelectProject = ref<Project | null>(null)
-const matchedEngines = ref<MatchedEngine[]>([])
-const isLoadingEngines = ref(false)
-
-const openProjectWithEngine = async (project: Project) => {
-  if (project.last_used_engine_id) {
-    try {
-      const engines = await api.getEngines()
-      const engineExists = engines.some(e => e.engine_id === project.last_used_engine_id)
-      if (engineExists) {
-        await api.launchEngine(project.last_used_engine_id!, project.path, project.project_id)
-        toast.success(t('engines.launchSuccess'))
-        await loadStats()
-        return
-      }
-    } catch (error) {
-      toast.error(t('projects.launchFailed', { error: String(error) }))
-      return
-    }
-  }
-  isLoadingEngines.value = true
-  showEngineSelectDialog.value = true
-  engineSelectProject.value = project
-  try {
-    const result = await api.findMatchingEngines(project.godot_version)
-    matchedEngines.value = result
-  } catch (error) {
-    toast.error(t('projects.launchFailed', { error }))
-    matchedEngines.value = []
-  } finally {
-    isLoadingEngines.value = false
-  }
-}
-
-const launchWithEngine = async (engineId: string) => {
-  if (!engineSelectProject.value) return
-  try {
-    await api.launchEngine(engineId, engineSelectProject.value.path, engineSelectProject.value.project_id)
-    toast.success(t('engines.launchSuccess'))
-    showEngineSelectDialog.value = false
-    engineSelectProject.value = null
-    await loadStats()
-  } catch (error) {
-    toast.error(t('projects.launchFailed', { error: String(error) }))
-  }
-}
-
-const getMatchLevelClass = (level: string) => {
-  switch (level) {
-    case 'exact': return 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-    case 'minor': return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
-    case 'major': return 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400'
-    default: return ''
-  }
-}
-
-const getMatchLevelLabel = (level: string) => {
-  switch (level) {
-    case 'exact': return t('projects.matchExact')
-    case 'minor': return t('projects.matchMinor')
-    case 'major': return t('projects.matchMajor')
-    default: return level
-  }
-}
-
-const getMatchLevelDesc = (level: string) => {
-  switch (level) {
-    case 'exact': return t('projects.matchExactDesc')
-    case 'minor': return t('projects.matchMinorDesc')
-    case 'major': return t('projects.matchMajorDesc')
-    default: return ''
-  }
-}
+const {
+  showEngineSelectDialog,
+  engineSelectProject,
+  matchedEngines,
+  isLoadingEngines,
+  openProjectWithEngine,
+  launchWithEngine,
+  closeEngineSelectDialog,
+  getMatchLevelClass,
+  getMatchLevelLabel,
+  getMatchLevelDesc,
+} = useEngineLauncher(() => loadStats())
 </script>
 
 <template>
@@ -311,7 +240,7 @@ const getMatchLevelDesc = (level: string) => {
           >
             <div
               class="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
-              @click="openInFileManager(project.path)"
+              @click="openProjectWithEngine(project)"
             >
               <div class="w-10 h-10 rounded-lg bg-gray-50 dark:bg-surface-layer flex items-center justify-center shrink-0 overflow-hidden border border-gray-100 dark:border-surface-border">
                 <img
@@ -445,7 +374,7 @@ const getMatchLevelDesc = (level: string) => {
     </template>
 
     <Teleport to="body">
-      <div v-if="showEngineSelectDialog && engineSelectProject" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showEngineSelectDialog = false; engineSelectProject = null">
+      <div v-if="showEngineSelectDialog && engineSelectProject" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="closeEngineSelectDialog">
         <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl max-h-[80vh] flex flex-col" @click.stop>
           <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-1">{{ t('projects.openWithEngine') }}</h3>
           <p class="text-sm text-gray-500 dark:text-content-muted mb-4">
@@ -483,7 +412,7 @@ const getMatchLevelDesc = (level: string) => {
                     {{ me.engine.name }}
                     <span v-if="me.engine.engine_id === engineSelectProject?.last_used_engine_id" class="text-xs text-primary-600 dark:text-primary-400 font-normal">{{ t('projects.lastUsedEngine') }}</span>
                   </div>
-                  <div class="text-xs text-gray-500 dark:text-content-muted mt-0.5 font-mono">v{{ me.engine.version }}</div>
+                  <div class="text-xs text-gray-500 dark:text-content-muted mt-0.5 font-mono flex items-center gap-1.5">v{{ me.engine.version }}<span v-if="me.engine.is_mono" class="text-[10px] px-1 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 font-sans font-medium">{{ t('projects.monoLabel') }}</span></div>
                 </div>
                 <span
                   :class="['text-xs px-2 py-0.5 rounded-full font-medium ml-2 flex-shrink-0', getMatchLevelClass(me.match_level)]"
@@ -501,7 +430,7 @@ const getMatchLevelDesc = (level: string) => {
 
           <div class="flex justify-end mt-4 pt-3 border-t border-gray-200 dark:border-surface-border">
             <button
-              @click="showEngineSelectDialog = false; engineSelectProject = null"
+              @click="closeEngineSelectDialog"
               class="btn-secondary"
             >
               {{ t('common.cancel') }}
