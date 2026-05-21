@@ -4,7 +4,7 @@
 
 中文 | **[English](README.md)**
 
-Godot Harbor is a standalone desktop application that provides Godot developers with a unified plugin repository, project binding management, and engine download management.
+Godot Harbor helps you manage Godot plugins, projects, and engines. No more manually copying addons folders, dealing with plugin version conflicts, or hunting for engines — one-click mounting, multi-version coexistence, and smart engine matching make project environment management effortless.
 
 ## Screenshots
 
@@ -101,11 +101,11 @@ Godot Harbor is a standalone desktop application that provides Godot developers 
 
 ## Features
 
-- **Plugin Management**: Import plugins from local directories or Git repositories, manage plugin versions
-- **Project Management**: Auto-scan or manually add Godot projects
-- **Plugin Binding**: Select plugins and versions for projects
-- **One-Click Apply**: Mount plugins to project addons directories
-- **Engine Management**: Discover, download, and register Godot engines
+- **One-Click Plugin Mounting**: Import plugins from local directories, Git repos, or Asset Library, then mount to any project's addons directory with one click. Supports symlink / junction / copy modes
+- **Multi-Version Coexistence**: Maintain multiple versions of the same plugin, bind different versions to different projects without conflicts
+- **Batch Updates**: Update a plugin once and sync to all bound projects — no more replacing one by one
+- **Engine Management**: Auto-discover local engines, download and install online, intelligently match engine versions for projects
+- **One-Click Launch**: Remember the last used engine, launch projects with the correct version in one click
 
 ## Tech Stack
 

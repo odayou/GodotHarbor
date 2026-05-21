@@ -1124,15 +1124,15 @@ export default {
   onboarding: {
     welcome: {
       title: '欢迎使用 Godot Harbor',
-      desc: 'Godot Harbor 是 Godot 的插件与项目管理工具。\n接下来将介绍核心功能，帮助你快速上手。'
+      desc: 'Godot Harbor 帮助你管理 Godot 插件、项目和引擎。\n接下来将介绍核心功能，帮助你快速上手。'
     },
     plugin: {
       title: '插件管理',
-      desc: '从项目、Git 仓库或 Asset Library 导入插件，\n然后一键挂载到任意项目的 addons 目录。'
+      desc: '从项目、Git 仓库或 Asset Library 导入插件，\n一键挂载到任意项目，更新一次同步到所有项目。'
     },
     project: {
       title: '项目与引擎',
-      desc: '自动扫描磁盘发现 Godot 项目，\n注册本地引擎版本，为项目自动绑定匹配的引擎。'
+      desc: '自动扫描磁盘发现 Godot 项目，\n智能匹配引擎版本，一键用正确引擎打开项目。'
     },
     shortcuts: {
       title: '快捷键',
@@ -1158,19 +1158,19 @@ export default {
       credits: '鸣谢',
       sponsor: '赞助'
     },
-    appDescription: 'Godot Harbor 是一款实用的桌面应用，用于管理 Godot 引擎的插件、项目和引擎版本。统一管理所有插件，通过符号链接等方式，一键挂载到任意项目。',
+    appDescription: 'Godot Harbor 帮助你管理 Godot 插件、项目和引擎。不再烦恼于手动复制 addons 文件夹、插件版本混乱、到处找引擎——一键挂载、多版本共存、智能匹配引擎，让项目环境管理变得简单。',
     features: {
       symlinkEngine: {
-        title: '符号链接引擎',
-        desc: '零复制安装，磁盘占用最小'
+        title: '一键挂载',
+        desc: '插件更新一次，同步到所有项目'
       },
       versionManagement: {
-        title: '版本精细管理',
-        desc: '同一插件多版本共存，项目按需绑定'
+        title: '多版本共存',
+        desc: '同一插件多版本并存，项目按需绑定'
       },
       teamCollaboration: {
-        title: '团队协作',
-        desc: '团队配置导入导出，环境一致性保证'
+        title: '智能引擎匹配',
+        desc: '自动发现引擎，为项目匹配正确版本'
       }
     },
     techStack: '技术栈',

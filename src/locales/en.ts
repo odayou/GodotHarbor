@@ -1124,15 +1124,15 @@ export default {
   onboarding: {
     welcome: {
       title: 'Welcome to Godot Harbor',
-      desc: 'Godot Harbor is a plugin and project manager for Godot.\nLet\'s walk through the core features to get you started.'
+      desc: 'Godot Harbor helps you manage Godot plugins, projects, and engines.\nLet\'s walk through the core features to get you started.'
     },
     plugin: {
       title: 'Plugin Management',
-      desc: 'Import plugins from projects, Git repos, or Asset Library,\nthen mount them to any project\'s addons directory with one click.'
+      desc: 'Import plugins from projects, Git repos, or Asset Library,\nmount to any project with one click, update once and sync everywhere.'
     },
     project: {
       title: 'Projects & Engines',
-      desc: 'Auto-scan your disk to discover Godot projects,\nregister local engine versions, and auto-bind matching engines to projects.'
+      desc: 'Auto-scan your disk to discover Godot projects,\nsmart-match engine versions, launch projects with the right engine in one click.'
     },
     shortcuts: {
       title: 'Keyboard Shortcuts',
@@ -1158,19 +1158,19 @@ export default {
       credits: 'Credits',
       sponsor: 'Sponsor'
     },
-    appDescription: 'Godot Harbor is a useful desktop application for managing Godot engine plugins, projects, and engine versions. Manage all plugins in one place and mount them to any project with one click via symbolic links.',
+    appDescription: 'Godot Harbor helps you manage Godot plugins, projects, and engines. No more manually copying addons folders, dealing with plugin version conflicts, or hunting for engines — one-click mounting, multi-version coexistence, and smart engine matching make project environment management effortless.',
     features: {
       symlinkEngine: {
-        title: 'Symbolic Link Engine',
-        desc: 'Zero-copy installation, minimal disk usage, change once apply everywhere'
+        title: 'One-Click Mount',
+        desc: 'Update a plugin once, sync to all projects'
       },
       versionManagement: {
-        title: 'Fine-grained Version Management',
+        title: 'Multi-Version Coexistence',
         desc: 'Multiple plugin versions coexist, projects bind on demand'
       },
       teamCollaboration: {
-        title: 'Team Collaboration',
-        desc: 'Team config import/export, environment consistency guaranteed'
+        title: 'Smart Engine Matching',
+        desc: 'Auto-discover engines, match correct versions for projects'
       }
     },
     techStack: 'Tech Stack',

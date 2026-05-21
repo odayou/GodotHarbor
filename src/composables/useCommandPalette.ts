@@ -108,15 +108,25 @@ function fuzzyMatch(text: string, searchQuery: string): { matched: boolean; scor
   if (pinyinText.includes(lowerQuery)) return { matched: true, score: 60 }
   if (pinyinInitials.includes(lowerQuery)) return { matched: true, score: 55 }
 
+  const words = lowerText.split(/[\s\-_/.]+/)
+  for (const word of words) {
+    if (word.startsWith(lowerQuery)) return { matched: true, score: 65 }
+    if (word.includes(lowerQuery)) return { matched: true, score: 50 }
+  }
+
   let queryIdx = 0
   let score = 0
   let lastMatchIdx = -1
+  let consecutiveCount = 0
 
   for (let i = 0; i < lowerText.length && queryIdx < lowerQuery.length; i++) {
     if (lowerText[i] === lowerQuery[queryIdx]) {
       score += 10
       if (lastMatchIdx === -1 || i === lastMatchIdx + 1) {
+        consecutiveCount++
         score += 5
+      } else {
+        consecutiveCount = 0
       }
       if (i === 0 || lowerText[i - 1] === ' ' || lowerText[i - 1] === '-' || lowerText[i - 1] === '_') {
         score += 8
@@ -127,16 +137,20 @@ function fuzzyMatch(text: string, searchQuery: string): { matched: boolean; scor
   }
 
   if (queryIdx === lowerQuery.length) {
+    const consecutiveRatio = consecutiveCount / lowerQuery.length
+    if (consecutiveRatio < 0.3) return { matched: false, score: 0 }
     return { matched: true, score }
   }
 
   queryIdx = 0
   lastMatchIdx = -1
   score = 0
+  let pinyinConsecutive = 0
   for (let i = 0; i < pinyinText.length && queryIdx < lowerQuery.length; i++) {
     if (pinyinText[i] === lowerQuery[queryIdx]) {
       score += 8
       if (lastMatchIdx === -1 || i === lastMatchIdx + 1) {
+        pinyinConsecutive++
         score += 3
       }
       lastMatchIdx = i
@@ -145,6 +159,8 @@ function fuzzyMatch(text: string, searchQuery: string): { matched: boolean; scor
   }
 
   if (queryIdx === lowerQuery.length) {
+    const pinyinConsecutiveRatio = pinyinConsecutive / lowerQuery.length
+    if (pinyinConsecutiveRatio < 0.5) return { matched: false, score: 0 }
     return { matched: true, score }
   }
 
@@ -392,9 +408,9 @@ export function useCommandPalette() {
     return items
   })
 
-  const filteredItems = computed(() => {
+  const filteredItemsWithScore = computed<{ item: SearchItem; score: number }[]>(() => {
     if (!query.value.trim()) {
-      return allItems.value.slice(0, 30)
+      return allItems.value.slice(0, 30).map(item => ({ item, score: 0 }))
     }
 
     const results: { item: SearchItem; score: number }[] = []
@@ -408,28 +424,39 @@ export function useCommandPalette() {
     }
 
     results.sort((a, b) => b.score - a.score)
-    return results.map(r => r.item)
+    return results
+  })
+
+  const filteredItems = computed(() => {
+    return filteredItemsWithScore.value.map(r => r.item)
   })
 
   const groupedResults = computed(() => {
-    const groups: { category: SearchItem['category']; items: SearchItem[] }[] = []
-    const categoryOrder: SearchItem['category'][] = ['navigation', 'command', 'project', 'plugin', 'engine', 'setting']
-    const categoryMap = new Map<SearchItem['category'], SearchItem[]>()
+    const groups: { category: SearchItem['category']; items: SearchItem[]; topScore: number }[] = []
+    const categoryMap = new Map<SearchItem['category'], { items: SearchItem[]; topScore: number }>()
 
-    for (const item of filteredItems.value) {
+    for (const { item, score } of filteredItemsWithScore.value) {
       const existing = categoryMap.get(item.category)
       if (existing) {
-        existing.push(item)
+        existing.items.push(item)
+        if (score > existing.topScore) existing.topScore = score
       } else {
-        categoryMap.set(item.category, [item])
+        categoryMap.set(item.category, { items: [item], topScore: score })
       }
     }
 
-    for (const cat of categoryOrder) {
-      const items = categoryMap.get(cat)
-      if (items && items.length > 0) {
-        groups.push({ category: cat, items })
-      }
+    const hasQuery = query.value.trim().length > 0
+    const entries = Array.from(categoryMap.entries())
+
+    if (hasQuery) {
+      entries.sort((a, b) => b[1].topScore - a[1].topScore)
+    } else {
+      const categoryOrder: SearchItem['category'][] = ['navigation', 'command', 'project', 'plugin', 'engine', 'setting']
+      entries.sort((a, b) => categoryOrder.indexOf(a[0]) - categoryOrder.indexOf(b[0]))
+    }
+
+    for (const [category, data] of entries) {
+      groups.push({ category, items: data.items, topScore: data.topScore })
     }
 
     return groups
