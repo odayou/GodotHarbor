@@ -521,6 +521,10 @@ impl EngineManager {
                         continue;
                     }
 
+                    if file_name.contains("harbor") {
+                        continue;
+                    }
+
                     let macos_dir = path.join("Contents").join("MacOS");
                     if !macos_dir.exists() {
                         continue;
