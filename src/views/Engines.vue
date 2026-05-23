@@ -240,6 +240,36 @@ const formatEta = (seconds: number) => {
   return `${h}h ${m % 60}m`
 }
 
+const formatProgressMessage = (progress: EngineDownloadProgress) => {
+  switch (progress.stage) {
+    case 'downloading':
+      if (progress.total_bytes > 0) {
+        return t('engines.download.downloadProgress', {
+          downloaded: formatFileSize(progress.downloaded_bytes),
+          total: formatFileSize(progress.total_bytes),
+          speed: formatFileSize(progress.speed)
+        })
+      }
+      return t('engines.download.downloadProgressNoTotal', {
+        downloaded: formatFileSize(progress.downloaded_bytes),
+        speed: formatFileSize(progress.speed)
+      })
+    case 'extracting':
+      return t('engines.download.extractingProgress', {
+        current: formatFileSize(progress.downloaded_bytes),
+        total: formatFileSize(progress.total_bytes)
+      })
+    case 'parsing':
+      return t('engines.download.parsingProgress')
+    case 'error':
+      return t('engines.download.errorProgress')
+    case 'complete':
+      return t('engines.download.downloadComplete')
+    default:
+      return progress.message
+  }
+}
+
 const formatDate = (dateStr: string) => {
   try {
     return new Date(dateStr).toLocaleDateString()
@@ -670,7 +700,7 @@ const initCollapsedGroups = () => {
       <div class="space-y-2">
         <div v-for="[key, progress] in activeDownloads" :key="key">
           <div class="flex items-center justify-between mb-1">
-            <span class="text-xs text-blue-700 dark:text-blue-300">v{{ progress.version }}{{ progress.variant === 'mono' ? ' (.NET)' : '' }} - {{ progress.message }}</span>
+            <span class="text-xs text-blue-700 dark:text-blue-300">v{{ progress.version }}{{ progress.variant === 'mono' ? ' (.NET)' : '' }} - {{ formatProgressMessage(progress) }}</span>
             <div class="flex items-center gap-2">
               <span v-if="progress.speed > 0" class="text-xs text-blue-600 dark:text-blue-400">{{ formatFileSize(progress.speed) }}/s</span>
               <span class="text-xs text-blue-600 dark:text-blue-400">{{ progress.progress.toFixed(1) }}%</span>
@@ -1045,7 +1075,7 @@ const initCollapsedGroups = () => {
           <div v-if="activeDownloads.size > 0" class="space-y-2">
             <div v-for="[key, progress] in activeDownloads" :key="key" class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
               <div class="flex justify-between items-center mb-1">
-                <span class="text-sm font-medium text-blue-800 dark:text-blue-300">v{{ progress.version }}{{ progress.variant === 'mono' ? ' (.NET)' : '' }} - {{ progress.message }}</span>
+                <span class="text-sm font-medium text-blue-800 dark:text-blue-300">v{{ progress.version }}{{ progress.variant === 'mono' ? ' (.NET)' : '' }} - {{ formatProgressMessage(progress) }}</span>
                 <span class="text-xs text-blue-600 dark:text-blue-400">{{ progress.progress.toFixed(1) }}%</span>
               </div>
               <div class="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
