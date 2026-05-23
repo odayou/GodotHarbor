@@ -107,6 +107,14 @@ for (const file of files) {
   console.log(`  ${path.relative(rootDir, file.path)} → ${newVersion}`);
 }
 
+console.log('\nSyncing Cargo.lock...');
+try {
+  execSync('cargo check --manifest-path src-tauri/Cargo.toml 2>&1', { stdio: 'pipe', cwd: rootDir });
+  console.log('  Cargo.lock synced');
+} catch {
+  console.warn('  Warning: cargo check failed, Cargo.lock may not be updated');
+}
+
 const customMessage = getCustomMessage();
 const commitMessage = customMessage
   ? `chore: release ${tag}\n\n${customMessage}`
