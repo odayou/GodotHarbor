@@ -24,7 +24,19 @@ pub async fn check_app_update(app: AppHandle, force_refresh: Option<bool>) -> Re
                     if let Ok(cached_time) = chrono::DateTime::parse_from_rfc3339(&cached.cached_at) {
                         let elapsed = chrono::Utc::now().signed_duration_since(cached_time.with_timezone(&chrono::Utc));
                         if elapsed.num_minutes() < 30 {
-                            return Ok(cached.update_info);
+                            let current_version = app.config().version.clone().unwrap_or_default();
+                            let mut result = cached.update_info;
+                            if let Some(ref mut info) = result {
+                                info.current_version = current_version.clone();
+                                let cur = semver::Version::parse(current_version.trim_start_matches('v')).ok();
+                                let lat = semver::Version::parse(info.latest_version.trim_start_matches('v')).ok();
+                                if let (Some(c), Some(l)) = (cur, lat) {
+                                    if l <= c {
+                                        return Ok(None);
+                                    }
+                                }
+                            }
+                            return Ok(result);
                         }
                     }
                 } else {
@@ -145,7 +157,11 @@ pub async fn check_app_update(app: AppHandle, force_refresh: Option<bool>) -> Re
 
 #[tauri::command]
 pub async fn install_app_update(app: AppHandle) -> Result<(), String> {
-    let update_info = check_app_update(app.clone(), Some(true)).await
+    let temp_dir = std::env::temp_dir().join("godot-harbor-update");
+    fs::create_dir_all(&temp_dir)
+        .map_err(|e| format!("创建临时目录失败: {}", e))?;
+
+    let update_info = check_app_update(app.clone(), None).await
         .map_err(|e| format!("检查更新失败: {}", e))?
         .ok_or("没有可用的更新".to_string())?;
 
@@ -156,16 +172,12 @@ pub async fn install_app_update(app: AppHandle) -> Result<(), String> {
         let storage = get_storage(&app);
         let settings: Settings = storage.load_or_default("settings.json");
         if !settings.github_api_proxy.is_empty() {
-            download_url.replace("https://github.com/odayou/GodotHarbor/releases/download", 
+            download_url.replace("https://github.com/odayou/GodotHarbor/releases/download",
                 &format!("https://gitee.com/odayou/godot-harbor/releases/download"))
         } else {
             download_url
         }
     };
-
-    let temp_dir = std::env::temp_dir().join("godot-harbor-update");
-    fs::create_dir_all(&temp_dir)
-        .map_err(|e| format!("创建临时目录失败: {}", e))?;
 
     let file_name = download_url.split('/').last().unwrap_or("update.exe").to_string();
     let file_path = temp_dir.join(&file_name);
@@ -175,7 +187,7 @@ pub async fn install_app_update(app: AppHandle) -> Result<(), String> {
             if let Some(expected_size) = update_info.download_size {
                 metadata.len() == expected_size
             } else {
-                metadata.len() > 0
+                metadata.len() > 10_000_00
             }
         } else {
             false
@@ -185,6 +197,27 @@ pub async fn install_app_update(app: AppHandle) -> Result<(), String> {
     };
 
     if !already_downloaded {
+        let update_info = check_app_update(app.clone(), Some(true)).await
+            .map_err(|e| format!("检查更新失败: {}", e))?
+            .ok_or("没有可用的更新".to_string())?;
+
+        let download_url = update_info.download_url.clone()
+            .ok_or("未找到下载链接".to_string())?;
+
+        let download_url = {
+            let storage = get_storage(&app);
+            let settings: Settings = storage.load_or_default("settings.json");
+            if !settings.github_api_proxy.is_empty() {
+                download_url.replace("https://github.com/odayou/GodotHarbor/releases/download",
+                    &format!("https://gitee.com/odayou/godot-harbor/releases/download"))
+            } else {
+                download_url
+            }
+        };
+
+        let file_name = download_url.split('/').last().unwrap_or("update.exe").to_string();
+        let file_path = temp_dir.join(&file_name);
+
         let client = create_http_client(None)?;
 
         let _ = app.emit("app-update-progress", serde_json::json!({
@@ -250,6 +283,7 @@ pub async fn install_app_update(app: AppHandle) -> Result<(), String> {
     if cfg!(target_os = "windows") {
         if file_name.ends_with(".nsis.zip") {
             let extract_dir = temp_dir.join("nsis_extract");
+            let _ = fs::remove_dir_all(&extract_dir);
             let _ = fs::create_dir_all(&extract_dir);
             let extract_result = no_window_cmd("powershell")
                 .args(["-NoProfile", "-Command", &format!(
@@ -258,13 +292,21 @@ pub async fn install_app_update(app: AppHandle) -> Result<(), String> {
                 )])
                 .output();
 
-            if let Err(e) = extract_result {
-                return Err(format!("解压更新包失败: {}", e));
+            match extract_result {
+                Ok(output) => {
+                    if !output.status.success() {
+                        let stderr = String::from_utf8_lossy(&output.stderr);
+                        return Err(format!("解压更新包失败: {}", stderr));
+                    }
+                }
+                Err(e) => {
+                    return Err(format!("解压更新包失败: {}", e));
+                }
             }
 
             let installer = walk_dir_for_exe(&extract_dir);
             if let Some(installer) = installer {
-                no_window_cmd(&installer)
+                std::process::Command::new(&installer)
                     .args(&["/S", "--force-run"])
                     .spawn()
                     .map_err(|e| format!("启动安装程序失败: {}", e))?;
@@ -272,9 +314,11 @@ pub async fn install_app_update(app: AppHandle) -> Result<(), String> {
                 open_file_in_os(&file_path)?;
             }
         } else {
-            no_window_cmd(&file_path)
+            std::process::Command::new(&file_path)
                 .spawn()
                 .map_err(|e| format!("启动安装程序失败: {}", e))?;
+
+            std::thread::sleep(std::time::Duration::from_secs(2));
         }
     } else if cfg!(target_os = "macos") {
         let app_dir = std::env::current_exe()
@@ -292,8 +336,16 @@ pub async fn install_app_update(app: AppHandle) -> Result<(), String> {
             .args(["-xzf", &file_path.to_string_lossy(), "-C", &app_dir.to_string_lossy()])
             .output();
 
-        if let Err(e) = extract_result {
-            return Err(format!("解压更新包失败: {}", e));
+        match extract_result {
+            Ok(output) => {
+                if !output.status.success() {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    return Err(format!("解压更新包失败: {}", stderr));
+                }
+            }
+            Err(e) => {
+                return Err(format!("解压更新包失败: {}", e));
+            }
         }
 
         let app_name = "Godot Harbor.app";
@@ -301,6 +353,8 @@ pub async fn install_app_update(app: AppHandle) -> Result<(), String> {
             .arg(app_dir.join(app_name))
             .spawn()
             .map_err(|e| format!("启动应用失败: {}", e))?;
+
+        std::thread::sleep(std::time::Duration::from_secs(2));
     } else {
         let _ = app.emit("app-update-progress", serde_json::json!({
             "stage": "installing",
@@ -309,14 +363,23 @@ pub async fn install_app_update(app: AppHandle) -> Result<(), String> {
         }));
 
         let extract_dir = temp_dir.join("appimage_extract");
+        let _ = fs::remove_dir_all(&extract_dir);
         let _ = fs::create_dir_all(&extract_dir);
 
         let extract_result = std::process::Command::new("tar")
             .args(["-xzf", &file_path.to_string_lossy(), "-C", &extract_dir.to_string_lossy()])
             .output();
 
-        if let Err(e) = extract_result {
-            return Err(format!("解压更新包失败: {}", e));
+        match extract_result {
+            Ok(output) => {
+                if !output.status.success() {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    return Err(format!("解压更新包失败: {}", stderr));
+                }
+            }
+            Err(e) => {
+                return Err(format!("解压更新包失败: {}", e));
+            }
         }
 
         let appimage = walk_dir_for_appimage(&extract_dir);
@@ -333,8 +396,11 @@ pub async fn install_app_update(app: AppHandle) -> Result<(), String> {
             std::process::Command::new(&dest)
                 .spawn()
                 .map_err(|e| format!("启动应用失败: {}", e))?;
+
+            std::thread::sleep(std::time::Duration::from_secs(2));
         } else {
             open_file_in_os(&file_path)?;
+            std::thread::sleep(std::time::Duration::from_secs(1));
         }
     }
 
@@ -430,7 +496,18 @@ pub async fn check_all_updates(app: AppHandle, force_refresh: Option<bool>) -> R
                 if elapsed.num_minutes() < 5 {
                     let cache_file = cache_dir.join("last_update_check_result.json");
                     if let Ok(cached) = fs::read_to_string(&cache_file) {
-                        if let Ok(result) = serde_json::from_str::<UpdateCheckResult>(&cached) {
+                        if let Ok(mut result) = serde_json::from_str::<UpdateCheckResult>(&cached) {
+                            let current_version = app.config().version.clone().unwrap_or_default();
+                            if let Some(ref mut info) = result.app_update {
+                                info.current_version = current_version.clone();
+                                let cur = semver::Version::parse(current_version.trim_start_matches('v')).ok();
+                                let lat = semver::Version::parse(info.latest_version.trim_start_matches('v')).ok();
+                                if let (Some(c), Some(l)) = (cur, lat) {
+                                    if l <= c {
+                                        result.app_update = None;
+                                    }
+                                }
+                            }
                             return Ok(result);
                         }
                     }

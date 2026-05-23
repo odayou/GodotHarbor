@@ -72,6 +72,22 @@ pub fn run() {
             fs_watcher: Mutex::new(watcher::FsWatcher::new(5)),
         })
         .setup(|app| {
+            #[cfg(desktop)]
+            {
+                app.handle().plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                        let _ = window.set_always_on_top(true);
+                        let win = window.clone();
+                        tauri::async_runtime::spawn(async move {
+                            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                            let _ = win.set_always_on_top(false);
+                        });
+                    }
+                }))?;
+            }
+
             let app_handle = app.handle();
             let config_dir = app_handle.path().app_data_dir()
                 .expect("Failed to get app data directory");

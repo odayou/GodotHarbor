@@ -19,36 +19,46 @@
       <p class="text-xs text-gray-500 dark:text-content-secondary mt-1">{{ store.installMessage }}</p>
     </div>
 
-    <div v-if="store.appUpdate" class="card">
+    <div v-if="store.hasChecked && !store.isChecking" class="card">
       <div class="flex items-center justify-between">
-        <div>
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('statusbar.appUpdate') }}</h3>
-          <p class="text-sm text-gray-500 dark:text-content-secondary mt-1">
-            {{ t('updates.currentVersion') }} {{ store.appUpdate.current_version }} → {{ t('updates.latestVersion') }} {{ store.appUpdate.latest_version }}
-          </p>
-          <p v-if="store.appUpdate.release_notes" class="text-sm text-gray-600 dark:text-content-secondary mt-2 whitespace-pre-wrap bg-gray-50 dark:bg-surface-layer rounded-lg p-3">
-            {{ store.appUpdate.release_notes }}
-          </p>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('statusbar.appUpdate') }}</h3>
+      </div>
+      <div v-if="store.appUpdate" class="mt-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-gray-500 dark:text-content-secondary mt-1">
+              {{ t('updates.currentVersion') }} {{ store.appUpdate.current_version }} → {{ t('updates.latestVersion') }} {{ store.appUpdate.latest_version }}
+            </p>
+            <p v-if="store.appUpdate.release_notes" class="text-sm text-gray-600 dark:text-content-secondary mt-2 whitespace-pre-wrap bg-gray-50 dark:bg-surface-layer rounded-lg p-3">
+              {{ store.appUpdate.release_notes }}
+            </p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button @click="showSkipVersionConfirm = true" class="px-3 py-1.5 text-sm border border-gray-300 dark:border-surface-border rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer text-gray-700 dark:text-content-secondary">
+              {{ t('updates.skipVersion') }}
+            </button>
+            <button @click="store.installAppUpdate()" :disabled="store.isInstallingApp" class="btn-primary">
+              {{ store.isInstallingApp ? t('statusbar.installing') : t('statusbar.update') }}
+            </button>
+          </div>
         </div>
-        <div class="flex items-center gap-2">
-          <button @click="showSkipVersionConfirm = true" class="px-3 py-1.5 text-sm border border-gray-300 dark:border-surface-border rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer text-gray-700 dark:text-content-secondary">
-            {{ t('updates.skipVersion') }}
-          </button>
-          <button @click="store.installAppUpdate()" :disabled="store.isInstallingApp" class="btn-primary">
-            {{ store.isInstallingApp ? t('statusbar.installing') : t('statusbar.update') }}
-          </button>
+        <div class="mt-3 pt-3 border-t border-gray-100 dark:border-surface-border">
+          <p class="text-xs text-gray-400 dark:text-content-muted">{{ t('updates.offlineUpdateTip') }}</p>
+          <a :href="githubReleaseUrl" target="_blank" class="inline-flex items-center gap-1 mt-1 text-xs text-primary-600 dark:text-primary-400 hover:underline">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+            {{ t('updates.githubRelease') }}
+          </a>
+          <a :href="giteeReleaseUrl" target="_blank" class="inline-flex items-center gap-1 mt-1 text-xs text-primary-600 dark:text-primary-400 hover:underline">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+            {{ t('updates.giteeRelease') }}
+          </a>
         </div>
       </div>
-      <div class="mt-3 pt-3 border-t border-gray-100 dark:border-surface-border">
-        <p class="text-xs text-gray-400 dark:text-content-muted">{{ t('updates.offlineUpdateTip') }}</p>
-        <a :href="githubReleaseUrl" target="_blank" class="inline-flex items-center gap-1 mt-1 text-xs text-primary-600 dark:text-primary-400 hover:underline">
-          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-          {{ t('updates.githubRelease') }}
-        </a>
-        <a :href="giteeReleaseUrl" target="_blank" class="inline-flex items-center gap-1 mt-1 text-xs text-primary-600 dark:text-primary-400 hover:underline">
-          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-          {{ t('updates.giteeRelease') }}
-        </a>
+      <div v-else class="flex items-center gap-2 mt-2 py-2">
+        <svg class="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+        </svg>
+        <span class="text-sm text-green-600 dark:text-green-400">{{ t('statusbar.upToDate') }}</span>
       </div>
     </div>
 
@@ -81,16 +91,16 @@
       </p>
     </div>
 
-    <div v-if="store.pluginUpdates.length > 0" class="card">
+    <div v-if="store.hasChecked && !store.isChecking" class="card">
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">
-          {{ t('statusbar.plugins') }} ({{ store.pluginUpdates.length }})
+          {{ t('statusbar.plugins') }}
         </h3>
-        <button @click="store.batchUpdateAllPlugins()" :disabled="store.isUpdatingPlugins" class="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50">
+        <button v-if="store.pluginUpdates.length > 0" @click="store.batchUpdateAllPlugins()" :disabled="store.isUpdatingPlugins" class="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50">
           {{ store.isUpdatingPlugins ? t('statusbar.installing') : t('statusbar.updateAll') }}
         </button>
       </div>
-      <div class="space-y-3">
+      <div v-if="store.pluginUpdates.length > 0" class="space-y-3">
         <div v-for="update in store.pluginUpdates" :key="update.plugin_id" class="flex items-center justify-between py-3 border-b border-gray-200 dark:border-surface-border last:border-0">
           <div>
             <span class="font-medium text-gray-900 dark:text-content-primary">{{ update.plugin_name }}</span>
@@ -103,18 +113,24 @@
           </button>
         </div>
       </div>
+      <div v-else class="flex items-center gap-2 py-2">
+        <svg class="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+        </svg>
+        <span class="text-sm text-green-600 dark:text-green-400">{{ t('statusbar.upToDate') }}</span>
+      </div>
     </div>
 
-    <div v-if="store.engineUpdates.length > 0" class="card">
+    <div v-if="store.hasChecked && !store.isChecking" class="card">
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">
-          {{ t('statusbar.engine') }} {{ t('statusbar.update') }} ({{ store.engineUpdates.length }})
+          {{ t('statusbar.engine') }} {{ t('statusbar.update') }}
         </h3>
-        <router-link to="/engines" class="px-3 py-1.5 text-sm border border-primary-600 text-primary-600 dark:text-primary-400 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20">
+        <router-link v-if="store.engineUpdates.length > 0" to="/engines" class="px-3 py-1.5 text-sm border border-primary-600 text-primary-600 dark:text-primary-400 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20">
           {{ t('updates.goToEngines') }}
         </router-link>
       </div>
-      <div class="space-y-3">
+      <div v-if="store.engineUpdates.length > 0" class="space-y-3">
         <div v-for="update in store.engineUpdates" :key="update.engine_id" class="flex items-center justify-between py-3 border-b border-gray-200 dark:border-surface-border last:border-0">
           <div>
             <span class="font-medium text-gray-900 dark:text-content-primary">{{ update.engine_name }}</span>
@@ -127,6 +143,12 @@
             {{ t('updates.download') }}
           </a>
         </div>
+      </div>
+      <div v-else class="flex items-center gap-2 py-2">
+        <svg class="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+        </svg>
+        <span class="text-sm text-green-600 dark:text-green-400">{{ t('statusbar.upToDate') }}</span>
       </div>
     </div>
 
