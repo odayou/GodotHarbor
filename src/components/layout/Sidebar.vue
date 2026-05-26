@@ -19,6 +19,7 @@ const asideClass = computed(() => {
 const menuItems = [
   { path: '/', icon: 'home', labelKey: 'nav.home' },
   { path: '/projects', icon: 'folder', labelKey: 'nav.projects' },
+  { path: '/templates', icon: 'template', labelKey: 'nav.templates' },
   { path: '/plugins', icon: 'puzzle', labelKey: 'nav.plugins' },
   { path: '/engines', icon: 'engine', labelKey: 'nav.engines' },
   { path: '/updates', icon: 'updates', labelKey: 'nav.updates' },
@@ -75,6 +76,9 @@ const navigateTo = (path: string) => {
             </svg>
             <svg v-else-if="item.icon === 'engine'" class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <svg v-else-if="item.icon === 'template'" class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
             </svg>
             <svg v-else-if="item.icon === 'updates'" class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />

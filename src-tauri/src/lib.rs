@@ -15,6 +15,7 @@ pub mod hot_update;
 pub mod utils;
 pub mod featured;
 pub mod harbor_config;
+pub mod asset_store;
 
 use tauri::{Emitter, Manager};
 use tauri_plugin_notification::NotificationExt;
@@ -129,6 +130,11 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 tokio::time::sleep(std::time::Duration::from_secs(3)).await;
                 let _ = featured::report_usage_ping(ping_handle).await;
+            });
+
+            let builtin_handle = app_handle.clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = commands::ensure_builtin_templates(builtin_handle);
             });
 
             let watcher_handle = app_handle.clone();
@@ -389,6 +395,18 @@ pub fn run() {
             commands::get_asset_detail,
             commands::import_from_asset_library_with_progress,
             commands::import_project_from_asset_library,
+            commands::search_assets,
+            commands::get_asset_detail_v2,
+            commands::get_asset_store_categories,
+            commands::check_asset_api_availability,
+            commands::list_hub_templates,
+            commands::get_hub_template,
+            commands::save_hub_template,
+            commands::delete_hub_template,
+            commands::import_template_from_url,
+            commands::instantiate_template,
+            commands::generate_template_from_project,
+            commands::ensure_builtin_templates,
             commands::read_harbor_config,
             commands::read_harbor_config_raw,
             commands::write_harbor_config,

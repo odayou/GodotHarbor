@@ -96,7 +96,7 @@ export function useAssetLibrary(options: {
         return
       }
 
-      const result = await api.searchAssetLibrary({
+      const result = await api.searchAssets({
         filter: assetSearchQuery.value || undefined,
         type: assetFilterType.value as 'any' | 'addon' | 'project',
         category: assetFilterCategory.value || undefined,
@@ -212,7 +212,7 @@ export function useAssetLibrary(options: {
 
   const openAssetDetail = async (assetId: string) => {
     try {
-      assetDetail.value = await api.getAssetDetail(assetId)
+      assetDetail.value = await api.getAssetDetailV2(assetId)
       showAssetDetailDialog.value = true
     } catch (error) {
       toast.error(t('common.loadFailed', { error }))

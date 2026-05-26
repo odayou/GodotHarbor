@@ -693,6 +693,38 @@ useDialogEscape(showBatchGroupDialog)
 useDialogEscape(showGitDialog)
 useDialogEscape(showEngineSelectDialog)
 
+const showSaveAsTemplateDialog = ref(false)
+useDialogEscape(showSaveAsTemplateDialog)
+const saveAsTemplateProjectId = ref('')
+const saveAsTemplateName = ref('')
+const saveAsTemplateCategory = ref('Custom')
+const isSavingAsTemplate = ref(false)
+
+const openSaveAsTemplateDialog = (project: Project) => {
+  saveAsTemplateProjectId.value = project.project_id
+  saveAsTemplateName.value = project.name
+  saveAsTemplateCategory.value = 'Custom'
+  showSaveAsTemplateDialog.value = true
+}
+
+const handleSaveAsTemplate = async () => {
+  if (!saveAsTemplateName.value.trim()) return
+  isSavingAsTemplate.value = true
+  try {
+    await api.generateTemplateFromProject(
+      saveAsTemplateProjectId.value,
+      saveAsTemplateName.value.trim(),
+      saveAsTemplateCategory.value
+    )
+    toast.success(t('templates.saveSuccess'))
+    showSaveAsTemplateDialog.value = false
+  } catch (e: any) {
+    toast.error(`Failed: ${e?.toString() || e}`)
+  } finally {
+    isSavingAsTemplate.value = false
+  }
+}
+
 const openProjectWithEngineWrapper = async (project: Project) => {
   projectMenuId.value = ''
   await openProjectWithEngine(project, engines.value)
@@ -1283,6 +1315,13 @@ const toggleAddPluginPanel = () => {
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                     {{ t('projects.selectDefaultEngine') }}
                   </button>
+                  <button
+                    @click.stop="openSaveAsTemplateDialog(project); projectMenuId = ''"
+                    class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-content-primary hover:bg-gray-100 dark:hover:bg-surface-layer flex items-center gap-2"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" /></svg>
+                    {{ t('templates.saveFromProject') }}
+                  </button>
                   <hr class="my-1 border-gray-200 dark:border-surface-border" />
                   <button
                     @click.stop="removeProject(project.project_id); projectMenuId = ''"
@@ -1861,6 +1900,61 @@ const toggleAddPluginPanel = () => {
           >
             {{ t('common.cancel') }}
           </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div v-if="showSaveAsTemplateDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="!isSavingAsTemplate && (showSaveAsTemplateDialog = false)">
+      <div class="bg-white dark:bg-surface-card rounded-2xl shadow-2xl max-w-md w-full mx-4" @click.stop>
+        <div class="p-6">
+          <h2 class="text-lg font-bold text-gray-900 dark:text-content-primary mb-4">{{ t('templates.saveFromProject') }}</h2>
+          <p class="text-sm text-gray-500 dark:text-content-muted mb-4">{{ t('templates.saveFromProjectDesc') }}</p>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('templates.templateName') }}</label>
+              <input
+                v-model="saveAsTemplateName"
+                type="text"
+                :disabled="isSavingAsTemplate"
+                class="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none disabled:opacity-50"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('templates.templateCategory') }}</label>
+              <select
+                v-model="saveAsTemplateCategory"
+                :disabled="isSavingAsTemplate"
+                class="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none disabled:opacity-50"
+              >
+                <option value="Starter2D">{{ t('templates.category.Starter2D') }}</option>
+                <option value="Starter3D">{{ t('templates.category.Starter3D') }}</option>
+                <option value="RPG">{{ t('templates.category.RPG') }}</option>
+                <option value="Platformer">{{ t('templates.category.Platformer') }}</option>
+                <option value="Multiplayer">{{ t('templates.category.Multiplayer') }}</option>
+                <option value="Mobile">{{ t('templates.category.Mobile') }}</option>
+                <option value="Blank">{{ t('templates.category.Blank') }}</option>
+                <option value="Custom">{{ t('templates.category.Custom') }}</option>
+              </select>
+            </div>
+          </div>
+          <div class="flex gap-3 mt-6">
+            <button
+              @click="showSaveAsTemplateDialog = false"
+              :disabled="isSavingAsTemplate"
+              class="flex-1 py-2.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors disabled:opacity-50"
+            >
+              {{ t('common.cancel') || 'Cancel' }}
+            </button>
+            <button
+              @click="handleSaveAsTemplate"
+              :disabled="isSavingAsTemplate || !saveAsTemplateName.trim()"
+              class="flex-1 py-2.5 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
+            >
+              {{ isSavingAsTemplate ? '...' : t('common.save') || 'Save' }}
+            </button>
+          </div>
         </div>
       </div>
     </div>

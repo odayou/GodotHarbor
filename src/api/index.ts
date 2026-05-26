@@ -19,6 +19,7 @@ import type {
   AssetLibrarySearchResponse,
   AssetLibraryConfigure,
   AssetLibraryAsset,
+  AssetApiAvailability,
   ScannedPlugin,
   PluginStorageStats,
   DuplicateCheckResult,
@@ -32,7 +33,9 @@ import type {
   DownloadEngineResult,
   EngineDownloadProgress,
   AddonBackupInfo,
-  ProjectTemplate
+  ProjectTemplate,
+  Template,
+  TemplateInstantiationResult
 } from '@/types'
 
 export const api = {
@@ -353,6 +356,22 @@ export const api = {
     return await invoke('import_project_from_asset_library', { assetId, targetDir })
   },
 
+  async searchAssets(params: AssetLibrarySearchParams): Promise<any> {
+    return await invoke('search_assets', { params })
+  },
+
+  async getAssetDetailV2(assetId: string): Promise<any> {
+    return await invoke('get_asset_detail_v2', { assetId })
+  },
+
+  async getAssetStoreCategories(): Promise<any> {
+    return await invoke('get_asset_store_categories')
+  },
+
+  async checkAssetApiAvailability(): Promise<AssetApiAvailability> {
+    return await invoke('check_asset_api_availability')
+  },
+
   async readHarborConfig(projectId: string): Promise<any | null> {
     return await invoke('read_harbor_config', { projectId })
   },
@@ -502,6 +521,39 @@ export const api = {
 
   async recordPluginInstall(pluginId: string): Promise<void> {
     return await invoke('record_plugin_install', { pluginId })
+  },
+
+  // ─── Template Hub ───
+  async listHubTemplates(): Promise<Template[]> {
+    return await invoke('list_hub_templates')
+  },
+
+  async getHubTemplate(templateId: string): Promise<Template> {
+    return await invoke('get_hub_template', { templateId })
+  },
+
+  async saveHubTemplate(template: Template): Promise<Template> {
+    return await invoke('save_hub_template', { template })
+  },
+
+  async deleteHubTemplate(templateId: string): Promise<void> {
+    return await invoke('delete_hub_template', { templateId })
+  },
+
+  async importTemplateFromUrl(url: string): Promise<Template> {
+    return await invoke('import_template_from_url', { url })
+  },
+
+  async instantiateTemplate(templateId: string, projectName: string, targetDir: string): Promise<TemplateInstantiationResult> {
+    return await invoke('instantiate_template', { templateId, projectName, targetDir })
+  },
+
+  async generateTemplateFromProject(projectId: string, templateName: string, category: string): Promise<Template> {
+    return await invoke('generate_template_from_project', { projectId, templateName, category })
+  },
+
+  async ensureBuiltinTemplates(): Promise<Template[]> {
+    return await invoke('ensure_builtin_templates')
   },
 }
 

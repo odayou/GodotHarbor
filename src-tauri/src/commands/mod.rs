@@ -6,6 +6,8 @@ pub mod plugin;
 pub mod engine;
 pub mod update;
 pub mod asset;
+pub mod asset_store;
+pub mod template;
 pub mod system;
 pub mod harbor_config;
 
@@ -17,5 +19,7 @@ pub use plugin::*;
 pub use engine::*;
 pub use update::*;
 pub use asset::*;
+pub use asset_store::*;
+pub use template::*;
 pub use system::*;
 pub use harbor_config::*;

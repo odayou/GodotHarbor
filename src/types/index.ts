@@ -97,6 +97,8 @@ export interface Settings {
   auto_apply?: boolean
   github_api_proxy?: string
   asset_library_mirror?: string
+  asset_store_mirror?: string
+  asset_api_mode?: 'auto' | 'legacy' | 'new_store'
   engine_update_channels?: string[]
   enable_anonymous_usage_stats?: boolean
   anonymous_user_id?: string
@@ -322,6 +324,14 @@ export interface AssetLibrarySearchParams {
   reverse?: boolean
 }
 
+export interface AssetApiAvailability {
+  new_store_available: boolean
+  legacy_available: boolean
+  recommended_mode: 'new_store' | 'legacy' | 'none'
+}
+
+export type AssetApiMode = 'auto' | 'legacy' | 'new_store'
+
 export interface AssetImportProgress {
   asset_id: string
   stage: 'downloading' | 'extracting' | 'parsing' | 'complete' | 'error'
@@ -527,4 +537,93 @@ export interface UidConflictInfo {
   plugin_id: string
   plugin_name: string
   conflicting_uids: string[]
+}
+
+export type TemplateCategory =
+  | 'Starter2D'
+  | 'Starter3D'
+  | 'RPG'
+  | 'Platformer'
+  | 'Multiplayer'
+  | 'Mobile'
+  | 'Blank'
+  | 'Custom'
+
+export type TemplatePluginSource = 'AssetStore' | 'Git' | 'Local'
+
+export interface TemplatePlugin {
+  name: string
+  version: string
+  source: TemplatePluginSource
+  url: string
+  git_ref: string
+  mount: string
+  subdirectory: string
+}
+
+export interface TemplateDirectory {
+  path: string
+  description: string
+}
+
+export interface TemplateExportPreset {
+  platform: string
+  name: string
+  config: unknown
+}
+
+export interface TemplateGodotConfig {
+  version: string
+  mono: boolean
+  rendering: string
+}
+
+export interface TemplateProjectConfig {
+  input_mappings: unknown
+  layer_names: unknown
+  autoloads: unknown
+  project_settings: unknown
+}
+
+export interface Template {
+  template_id: string
+  name: string
+  description: string
+  author: string
+  category: TemplateCategory
+  tags: string[]
+  icon_url: string
+  preview_images: string[]
+  godot: TemplateGodotConfig
+  plugins: TemplatePlugin[]
+  directories: TemplateDirectory[]
+  export_presets: TemplateExportPreset[]
+  project_config: TemplateProjectConfig
+  is_builtin: boolean
+  source_url: string
+  version: string
+  created_at: string
+  updated_at: string | null
+}
+
+export interface TemplateInstantiationProgress {
+  template_id: string
+  stage: string
+  progress: number
+  message: string
+  detail: string
+}
+
+export interface TemplateInstantiationResult {
+  project_id: string
+  project_name: string
+  project_path: string
+  template_id: string
+  godot_version: string
+  installed_plugins: string[]
+  failed_plugins: string[]
+  created_directories: string[]
+  applied_presets: string[]
+  engine_installed: boolean
+  duration_secs: number
 }

@@ -75,7 +75,7 @@ pub fn write_harbor_config(app: AppHandle, project_id: String) -> Result<ExportR
         .map_err(|e| format!("写入 .harbor.yml 失败: {}", e))?;
 
     Ok(ExportResult {
-        exported: config.bindings.len() as u32,
+        exported: config.plugins.len() as u32,
         skipped_local,
     })
 }
@@ -98,31 +98,46 @@ pub fn sync_harbor_config(app: AppHandle, project_id: String) -> Result<SyncResu
     let mut skipped = 0u32;
     let mut errors: Vec<String> = Vec::new();
 
-    for binding_config in &config.bindings {
-        if binding_config.source.starts_with("local:") {
-            errors.push(format!("插件 \"{}\" 为本地导入类型，无法通过配置文件自动安装，需手动导入", binding_config.name));
+    let config_upgraded = if config.version < 2 {
+        config.upgrade_to_v2()
+    } else {
+        config
+    };
+
+    for plugin_config in &config_upgraded.plugins {
+        let source_url = if plugin_config.url.is_empty() {
+            match plugin_config.source.as_str() {
+                "git" | "asset-store" | "url" => continue,
+                _ => continue,
+            }
+        } else {
+            &plugin_config.url
+        };
+
+        if plugin_config.source == "local" {
+            errors.push(format!("插件 \"{}\" 为本地导入类型，无法通过配置文件自动安装，需手动导入", plugin_config.name));
             skipped += 1;
             continue;
         }
 
         let existing_plugin = plugins.iter().find(|p| {
             let source_match = match p.source.source_type {
-                crate::models::SourceType::Git => p.source.url == binding_config.source,
+                crate::models::SourceType::Git => p.source.url == *source_url,
                 crate::models::SourceType::AssetLibrary => {
-                    let id = binding_config.source.trim_start_matches("asset-library:");
-                    p.source.url == format!("asset-library://{}", id) || p.source.url == binding_config.source
+                    let id = source_url.trim_start_matches("asset-library:");
+                    p.source.url == format!("asset-library://{}", id) || p.source.url == *source_url
                 }
-                _ => p.source.url == binding_config.source,
+                _ => p.source.url == *source_url,
             };
-            source_match || p.name.to_lowercase() == binding_config.name.to_lowercase()
+            source_match || p.name.to_lowercase() == plugin_config.name.to_lowercase()
         });
 
         let plugin_id = if let Some(plugin) = existing_plugin {
             plugin.plugin_id.clone()
         } else {
-            let source_type = if binding_config.source.starts_with("asset-library:") {
+            let source_type = if plugin_config.source == "asset-store" || source_url.starts_with("asset-library:") {
                 crate::models::SourceType::AssetLibrary
-            } else if binding_config.source.ends_with(".git") || binding_config.source.contains("github.com") {
+            } else if plugin_config.source == "git" || source_url.ends_with(".git") || source_url.contains("github.com") {
                 crate::models::SourceType::Git
             } else {
                 crate::models::SourceType::Url
@@ -130,25 +145,25 @@ pub fn sync_harbor_config(app: AppHandle, project_id: String) -> Result<SyncResu
 
             let plugin_source = crate::models::PluginSource {
                 source_type: source_type.clone(),
-                url: binding_config.source.clone(),
-                git_ref: binding_config.r#ref.clone(),
+                url: source_url.clone(),
+                git_ref: plugin_config.r#ref.clone(),
                 imported_at: chrono::Utc::now(),
             };
 
-            let mut plugin = Plugin::new(binding_config.name.clone(), plugin_source);
-            plugin.asset_type = binding_config.asset_type.clone();
+            let mut plugin = Plugin::new(plugin_config.name.clone(), plugin_source);
+            plugin.asset_type = plugin_config.asset_type.clone();
 
             match source_type {
                 crate::models::SourceType::Git => {
                     let manager = get_plugin_manager(&app);
-                    let git_ref = if binding_config.r#ref.is_empty() { None } else { Some(binding_config.r#ref.as_str()) };
-                    match manager.import_from_git(&binding_config.source, git_ref, &app) {
+                    let git_ref = if plugin_config.r#ref.is_empty() { None } else { Some(plugin_config.r#ref.as_str()) };
+                    match manager.import_from_git(source_url, git_ref, &app) {
                         Ok(imported_plugin) => {
                             plugin = imported_plugin;
                             imported += 1;
                         }
                         Err(e) => {
-                            errors.push(format!("导入 {} 失败: {}", binding_config.name, e));
+                            errors.push(format!("导入 {} 失败: {}", plugin_config.name, e));
                             skipped += 1;
                             continue;
                         }
@@ -158,13 +173,13 @@ pub fn sync_harbor_config(app: AppHandle, project_id: String) -> Result<SyncResu
                     let version_id = uuid::Uuid::new_v4().to_string();
                     let version = crate::models::PluginVersion {
                         version_id: version_id.clone(),
-                        version: "1.0.0".to_string(),
-                        path: binding_config.source.clone(),
+                        version: plugin_config.version.clone(),
+                        path: source_url.clone(),
                         created_at: chrono::Utc::now(),
                         units: vec![crate::models::PluginUnit {
                             unit_id: uuid::Uuid::new_v4().to_string(),
-                            name: binding_config.name.clone(),
-                            dir_name: binding_config.name.clone(),
+                            name: plugin_config.name.clone(),
+                            dir_name: plugin_config.name.clone(),
                             description: String::new(),
                             author: String::new(),
                             version: String::new(),
@@ -183,14 +198,15 @@ pub fn sync_harbor_config(app: AppHandle, project_id: String) -> Result<SyncResu
             pid
         };
 
+        let mount_path = format!("addons/{}", plugin_config.name);
         let already_bound = bindings.iter().any(|b| b.project_id == project_id && b.plugin_id == plugin_id);
         let mount_conflict = bindings.iter().any(|b| {
-            b.project_id == project_id && b.plugin_id != plugin_id && b.mount_path == binding_config.mount_path
+            b.project_id == project_id && b.plugin_id != plugin_id && b.mount_path == mount_path
         });
         if mount_conflict {
             errors.push(format!(
                 "插件 \"{}\" 的挂载路径 {} 已被其他插件占用，跳过绑定",
-                binding_config.name, binding_config.mount_path
+                plugin_config.name, mount_path
             ));
             skipped += 1;
             continue;
@@ -206,7 +222,7 @@ pub fn sync_harbor_config(app: AppHandle, project_id: String) -> Result<SyncResu
                     plugin_id.clone(),
                     version.version_id.clone(),
                     unit.unit_id.clone(),
-                    binding_config.mount_path.clone(),
+                    mount_path,
                     String::new(),
                 ));
                 bound += 1;

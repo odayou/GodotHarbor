@@ -355,6 +355,10 @@ pub struct Settings {
     pub github_api_proxy: String,
     #[serde(default)]
     pub asset_library_mirror: String,
+    #[serde(default)]
+    pub asset_store_mirror: String,
+    #[serde(default = "default_asset_api_mode")]
+    pub asset_api_mode: String,
     #[serde(default = "default_engine_update_channels")]
     pub engine_update_channels: Vec<String>,
     #[serde(default = "default_true")]
@@ -365,6 +369,7 @@ pub struct Settings {
 
 fn default_true() -> bool { true }
 fn default_four() -> u32 { 4 }
+fn default_asset_api_mode() -> String { "auto".to_string() }
 fn default_engine_update_channels() -> Vec<String> {
     vec!["stable".to_string()]
 }
@@ -395,6 +400,8 @@ impl Default for Settings {
             auto_apply: true,
             github_api_proxy: String::new(),
             asset_library_mirror: String::new(),
+            asset_store_mirror: String::new(),
+            asset_api_mode: default_asset_api_mode(),
             engine_update_channels: default_engine_update_channels(),
             enable_anonymous_usage_stats: true,
             anonymous_user_id: String::new(),
@@ -702,6 +709,296 @@ pub struct ProjectTemplate {
     pub name: String,
     pub bindings: Vec<TemplateBinding>,
     pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum DriftStatus {
+    InSync,
+    VersionMismatch,
+    Missing,
+    Unexpected,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DriftItem {
+    pub item_type: String,
+    pub name: String,
+    pub status: DriftStatus,
+    pub expected: String,
+    pub actual: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DriftReport {
+    pub project_id: String,
+    pub project_name: String,
+    pub items: Vec<DriftItem>,
+    pub checked_at: DateTime<Utc>,
+    pub has_drift: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum ExportPlatform {
+    Windows,
+    MacOS,
+    Linux,
+    Web,
+    Android,
+    IOS,
+}
+
+impl std::fmt::Display for ExportPlatform {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ExportPlatform::Windows => write!(f, "windows"),
+            ExportPlatform::MacOS => write!(f, "macos"),
+            ExportPlatform::Linux => write!(f, "linux"),
+            ExportPlatform::Web => write!(f, "web"),
+            ExportPlatform::Android => write!(f, "android"),
+            ExportPlatform::IOS => write!(f, "ios"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExportPreset {
+    pub preset_id: String,
+    pub platform: ExportPlatform,
+    pub name: String,
+    #[serde(default)]
+    pub config: serde_json::Value,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl ExportPreset {
+    pub fn new(platform: ExportPlatform, name: String) -> Self {
+        let now = Utc::now();
+        Self {
+            preset_id: Uuid::new_v4().to_string(),
+            platform,
+            name,
+            config: serde_json::Value::Object(serde_json::Map::new()),
+            created_at: now,
+            updated_at: now,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BuildRecord {
+    pub build_id: String,
+    pub project_id: String,
+    pub project_name: String,
+    pub platform: ExportPlatform,
+    pub engine_version: String,
+    pub status: BuildStatus,
+    pub started_at: DateTime<Utc>,
+    #[serde(default)]
+    pub completed_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub output_path: String,
+    #[serde(default)]
+    pub error_message: String,
+    #[serde(default)]
+    pub duration_secs: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum BuildStatus {
+    Pending,
+    Running,
+    Success,
+    Failed,
+    Cancelled,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum TemplatePluginSource {
+    AssetStore,
+    Git,
+    Local,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TemplatePlugin {
+    pub name: String,
+    pub version: String,
+    pub source: TemplatePluginSource,
+    #[serde(default)]
+    pub url: String,
+    #[serde(default)]
+    pub git_ref: String,
+    #[serde(default)]
+    pub mount: String,
+    #[serde(default)]
+    pub subdirectory: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TemplateExportPreset {
+    pub platform: String,
+    pub name: String,
+    #[serde(default)]
+    pub config: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TemplateGodotConfig {
+    pub version: String,
+    #[serde(default)]
+    pub mono: bool,
+    #[serde(default)]
+    pub rendering: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct TemplateProjectConfig {
+    #[serde(default)]
+    pub input_mappings: serde_json::Value,
+    #[serde(default)]
+    pub layer_names: serde_json::Value,
+    #[serde(default)]
+    pub autoloads: serde_json::Value,
+    #[serde(default)]
+    pub project_settings: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TemplateDirectory {
+    pub path: String,
+    #[serde(default)]
+    pub description: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum TemplateCategory {
+    Starter2D,
+    Starter3D,
+    RPG,
+    Platformer,
+    Multiplayer,
+    Mobile,
+    Blank,
+    Custom,
+}
+
+impl std::fmt::Display for TemplateCategory {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TemplateCategory::Starter2D => write!(f, "starter_2d"),
+            TemplateCategory::Starter3D => write!(f, "starter_3d"),
+            TemplateCategory::RPG => write!(f, "rpg"),
+            TemplateCategory::Platformer => write!(f, "platformer"),
+            TemplateCategory::Multiplayer => write!(f, "multiplayer"),
+            TemplateCategory::Mobile => write!(f, "mobile"),
+            TemplateCategory::Blank => write!(f, "blank"),
+            TemplateCategory::Custom => write!(f, "custom"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Template {
+    pub template_id: String,
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub author: String,
+    pub category: TemplateCategory,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub icon_url: String,
+    #[serde(default)]
+    pub preview_images: Vec<String>,
+    pub godot: TemplateGodotConfig,
+    #[serde(default)]
+    pub plugins: Vec<TemplatePlugin>,
+    #[serde(default)]
+    pub directories: Vec<TemplateDirectory>,
+    #[serde(default)]
+    pub export_presets: Vec<TemplateExportPreset>,
+    #[serde(default)]
+    pub project_config: TemplateProjectConfig,
+    #[serde(default)]
+    pub is_builtin: bool,
+    #[serde(default)]
+    pub source_url: String,
+    #[serde(default)]
+    pub version: String,
+    pub created_at: DateTime<Utc>,
+    #[serde(default)]
+    pub updated_at: Option<DateTime<Utc>>,
+}
+
+impl Template {
+    pub fn new(name: String, category: TemplateCategory, godot_version: String) -> Self {
+        Self {
+            template_id: Uuid::new_v4().to_string(),
+            name,
+            description: String::new(),
+            author: String::new(),
+            category,
+            tags: Vec::new(),
+            icon_url: String::new(),
+            preview_images: Vec::new(),
+            godot: TemplateGodotConfig {
+                version: godot_version,
+                mono: false,
+                rendering: String::new(),
+            },
+            plugins: Vec::new(),
+            directories: Vec::new(),
+            export_presets: Vec::new(),
+            project_config: TemplateProjectConfig {
+                input_mappings: serde_json::Value::Null,
+                layer_names: serde_json::Value::Null,
+                autoloads: serde_json::Value::Null,
+                project_settings: serde_json::Value::Null,
+            },
+            is_builtin: false,
+            source_url: String::new(),
+            version: "1.0.0".to_string(),
+            created_at: Utc::now(),
+            updated_at: None,
+        }
+    }
+
+    pub fn to_yaml(&self) -> Result<String, String> {
+        serde_yaml::to_string(self).map_err(|e| format!("序列化模板失败: {}", e))
+    }
+
+    pub fn from_yaml(content: &str) -> Result<Self, String> {
+        serde_yaml::from_str(content).map_err(|e| format!("解析模板失败: {}", e))
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TemplateInstantiationProgress {
+    pub template_id: String,
+    pub stage: String,
+    pub progress: f64,
+    pub message: String,
+    #[serde(default)]
+    pub detail: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TemplateInstantiationResult {
+    pub project_id: String,
+    pub project_name: String,
+    pub project_path: String,
+    pub template_id: String,
+    pub godot_version: String,
+    pub installed_plugins: Vec<String>,
+    pub failed_plugins: Vec<String>,
+    pub created_directories: Vec<String>,
+    pub applied_presets: Vec<String>,
+    pub engine_installed: bool,
+    pub duration_secs: u64,
 }
 
 #[cfg(test)]

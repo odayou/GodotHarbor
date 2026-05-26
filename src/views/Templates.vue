@@ -1,0 +1,594 @@
+<script setup lang="ts">
+import { ref, onMounted, computed, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
+import { api } from '@/api'
+import type { Template, TemplateCategory, TemplateInstantiationProgress } from '@/types'
+import { open } from '@tauri-apps/plugin-dialog'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { useToast } from '@/composables/useToast'
+import { useDialogEscape } from '@/composables/useDialogEscape'
+import { isOnline } from '@/composables/useNetworkStatus'
+import EmptyState from '@/components/EmptyState.vue'
+import SkeletonList from '@/components/SkeletonList.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
+
+const toast = useToast()
+const { t } = useI18n()
+const router = useRouter()
+
+const templates = ref<Template[]>([])
+const isLoading = ref(true)
+const loadError = ref<string | null>(null)
+const categoryFilter = ref<TemplateCategory | 'all'>('all')
+const searchQuery = ref('')
+
+const showDetailDialog = ref(false)
+const selectedTemplate = ref<Template | null>(null)
+
+const showCreateDialog = ref(false)
+const createProjectName = ref('')
+const createTargetDir = ref('')
+const isCreating = ref(false)
+const createProgress = ref<TemplateInstantiationProgress | null>(null)
+const projectNameError = ref('')
+
+const isValidProjectName = computed(() => {
+  const name = createProjectName.value.trim()
+  if (!name) return false
+  if (/[<>:"/\\|?*]/.test(name)) return false
+  if (name.startsWith('.') || name.endsWith('.')) return false
+  if (name.length > 200) return false
+  return true
+})
+
+const validateProjectName = () => {
+  const name = createProjectName.value.trim()
+  if (!name) {
+    projectNameError.value = ''
+    return
+  }
+  if (/[<>:"/\\|?*]/.test(name)) {
+    projectNameError.value = t('templates.invalidChars') || '项目名包含非法字符'
+  } else if (name.startsWith('.') || name.endsWith('.')) {
+    projectNameError.value = t('templates.invalidStartEnd') || '项目名不能以点号开头或结尾'
+  } else {
+    projectNameError.value = ''
+  }
+}
+
+const showImportDialog = ref(false)
+const importUrl = ref('')
+const isImporting = ref(false)
+
+const showDeleteConfirm = ref(false)
+const deleteTargetId = ref('')
+
+useDialogEscape(showDetailDialog)
+useDialogEscape(showCreateDialog)
+useDialogEscape(showImportDialog)
+
+let unlistenProgress: UnlistenFn | null = null
+
+onMounted(async () => {
+  await loadTemplates()
+  unlistenProgress = await listen('template-instantiation-progress', (event) => {
+    createProgress.value = event.payload as TemplateInstantiationProgress
+  })
+})
+
+onUnmounted(() => {
+  if (unlistenProgress) {
+    unlistenProgress()
+  }
+})
+
+const loadTemplates = async () => {
+  isLoading.value = true
+  loadError.value = null
+  try {
+    await api.ensureBuiltinTemplates()
+    templates.value = await api.listHubTemplates()
+  } catch (e: any) {
+    loadError.value = e?.toString() || 'Failed to load templates'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const filteredTemplates = computed(() => {
+  return templates.value.filter(tpl => {
+    const matchesCategory = categoryFilter.value === 'all' || tpl.category === categoryFilter.value
+    const matchesSearch = searchQuery.value === '' ||
+      tpl.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+      tpl.description.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+      tpl.tags.some(tag => tag.toLowerCase().includes(searchQuery.value.toLowerCase()))
+    return matchesCategory && matchesSearch
+  })
+})
+
+const categories = computed(() => {
+  const cats = new Set<TemplateCategory>(templates.value.map(t => t.category))
+  return ['all', ...Array.from(cats)] as const
+})
+
+const categoryIcon = (cat: TemplateCategory | 'all') => {
+  switch (cat) {
+    case 'all': return '📋'
+    case 'Starter2D': return '🎮'
+    case 'Starter3D': return '🌐'
+    case 'RPG': return '⚔️'
+    case 'Platformer': return '🏃'
+    case 'Multiplayer': return '👥'
+    case 'Mobile': return '📱'
+    case 'Blank': return '📄'
+    case 'Custom': return '🔧'
+    default: return '📁'
+  }
+}
+
+const openDetail = (tpl: Template) => {
+  selectedTemplate.value = tpl
+  showDetailDialog.value = true
+}
+
+const openCreateDialog = async (tpl: Template) => {
+  selectedTemplate.value = tpl
+  createProjectName.value = ''
+  createProgress.value = null
+  projectNameError.value = ''
+  if (!createTargetDir.value) {
+    try {
+      const paths = await api.getStoragePaths()
+      const docsDir = paths.app_data_dir.replace(/[/\\]GodotHarbor[/\\]?$/, '')
+      createTargetDir.value = docsDir
+    } catch {
+      createTargetDir.value = ''
+    }
+  }
+  showCreateDialog.value = true
+}
+
+const selectTargetDir = async () => {
+  const selected = await open({ directory: true, multiple: false, title: t('projects.selectDir') || 'Select Directory' })
+  if (selected) {
+    createTargetDir.value = selected as string
+  }
+}
+
+const lastCreatedProjectId = ref('')
+
+const handleCreate = async () => {
+  if (!selectedTemplate.value || !createProjectName.value.trim() || !createTargetDir.value.trim()) return
+  if (!isValidProjectName.value) return
+
+  isCreating.value = true
+  createProgress.value = null
+  try {
+    const result = await api.instantiateTemplate(
+      selectedTemplate.value.template_id,
+      createProjectName.value.trim(),
+      createTargetDir.value.trim()
+    )
+    showCreateDialog.value = false
+    lastCreatedProjectId.value = result.project_id
+
+    if (result.failed_plugins.length > 0) {
+      toast.warning(`${t('templates.createSuccess')} (${result.failed_plugins.length} ${t('templates.partialFailed') || '项未完成'})`)
+    } else {
+      toast.success(t('templates.createSuccess'))
+    }
+
+    router.push('/projects')
+  } catch (e: any) {
+    toast.error(`${t('templates.createFailed')}: ${e?.toString() || e}`)
+  } finally {
+    isCreating.value = false
+  }
+}
+
+const handleImport = async () => {
+  if (!importUrl.value.trim()) return
+  if (!isOnline.value) {
+    toast.error(t('common.offlineError') || '网络不可用')
+    return
+  }
+  isImporting.value = true
+  try {
+    await api.importTemplateFromUrl(importUrl.value.trim())
+    toast.success(t('templates.importSuccess'))
+    showImportDialog.value = false
+    importUrl.value = ''
+    await loadTemplates()
+  } catch (e: any) {
+    toast.error(`${t('templates.importFailed') || 'Import failed'}: ${e?.toString() || e}`)
+  } finally {
+    isImporting.value = false
+  }
+}
+
+const handleDelete = async () => {
+  try {
+    await api.deleteHubTemplate(deleteTargetId.value)
+    toast.success(t('templates.deleteSuccess') || t('templates.saveSuccess'))
+    await loadTemplates()
+  } catch (e: any) {
+    toast.error(`Delete failed: ${e?.toString() || e}`)
+  }
+  showDeleteConfirm.value = false
+}
+
+const progressPercent = computed(() => {
+  if (!createProgress.value) return 0
+  return Math.round(createProgress.value.progress * 100)
+})
+</script>
+
+<template>
+  <div class="h-full flex flex-col overflow-hidden">
+    <div class="shrink-0 px-6 pt-6 pb-4">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900 dark:text-content-primary">{{ t('templates.title') }}</h1>
+          <p class="text-sm text-gray-500 dark:text-content-muted mt-1">{{ t('templates.subtitle') }}</p>
+        </div>
+        <button
+          @click="showImportDialog = true"
+          class="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors"
+        >
+          {{ t('templates.importUrl') }}
+        </button>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <div class="flex-1 relative">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            v-model="searchQuery"
+            type="text"
+            :placeholder="t('projects.search') || 'Search...'"
+            class="w-full pl-10 pr-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+          />
+        </div>
+        <div class="flex gap-1 flex-wrap">
+          <button
+            v-for="cat in categories"
+            :key="cat"
+            @click="categoryFilter = cat"
+            :class="[
+              'px-3 py-1.5 text-xs font-medium rounded-full transition-colors',
+              categoryFilter === cat
+                ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
+                : 'bg-gray-100 dark:bg-surface-layer text-gray-600 dark:text-content-secondary hover:bg-gray-200 dark:hover:bg-surface-border'
+            ]"
+          >
+            {{ categoryIcon(cat) }} {{ cat === 'all' ? t('templates.category.all') : t(`templates.category.${cat}`) }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex-1 overflow-y-auto px-6 pb-6">
+      <SkeletonList v-if="isLoading" :count="4" />
+
+      <EmptyState
+        v-else-if="filteredTemplates.length === 0"
+        :title="t('templates.empty')"
+        :description="t('templates.emptyDesc')"
+        icon="template"
+      />
+
+      <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div
+          v-for="tpl in filteredTemplates"
+          :key="tpl.template_id"
+          class="group relative bg-white dark:bg-surface-card rounded-xl border border-gray-200 dark:border-surface-border hover:border-primary-300 dark:hover:border-primary-600 hover:shadow-lg transition-all duration-200 cursor-pointer overflow-hidden"
+          @click="openDetail(tpl)"
+        >
+          <div class="p-5">
+            <div class="flex items-start justify-between mb-3">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center text-xl">
+                  {{ categoryIcon(tpl.category) }}
+                </div>
+                <div>
+                  <h3 class="font-semibold text-gray-900 dark:text-content-primary text-sm">{{ tpl.name }}</h3>
+                  <p class="text-xs text-gray-500 dark:text-content-muted">{{ t(`templates.category.${tpl.category}`) }}</p>
+                </div>
+              </div>
+              <span
+                v-if="tpl.is_builtin"
+                class="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+              >
+                {{ t('templates.builtin') }}
+              </span>
+            </div>
+
+            <p class="text-xs text-gray-600 dark:text-content-secondary line-clamp-2 mb-3">{{ tpl.description }}</p>
+
+            <div class="flex items-center gap-3 text-xs text-gray-500 dark:text-content-muted mb-4">
+              <span class="flex items-center gap-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                {{ tpl.godot.version }}
+              </span>
+              <span v-if="tpl.plugins.length > 0" class="flex items-center gap-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
+                </svg>
+                {{ tpl.plugins.length }} {{ t('templates.plugins') }}
+              </span>
+              <span class="flex items-center gap-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                </svg>
+                {{ tpl.directories.length }} {{ t('templates.directories') }}
+              </span>
+            </div>
+
+            <div class="flex flex-wrap gap-1.5 mb-4">
+              <span
+                v-for="tag in tpl.tags.slice(0, 4)"
+                :key="tag"
+                class="px-2 py-0.5 text-xs rounded-full bg-gray-100 dark:bg-surface-layer text-gray-600 dark:text-content-secondary"
+              >
+                {{ tag }}
+              </span>
+            </div>
+
+            <button
+              @click.stop="openCreateDialog(tpl)"
+              class="w-full py-2 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors"
+            >
+              {{ t('templates.createProject') }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Detail Dialog -->
+    <Teleport to="body">
+      <div v-if="showDetailDialog && selectedTemplate" class="fixed inset-0 z-50 flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/50" @click="showDetailDialog = false"></div>
+        <div class="relative bg-white dark:bg-surface-card rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+          <div class="p-6">
+            <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center text-2xl">
+                  {{ categoryIcon(selectedTemplate.category) }}
+                </div>
+                <div>
+                  <h2 class="text-lg font-bold text-gray-900 dark:text-content-primary">{{ selectedTemplate.name }}</h2>
+                  <p class="text-sm text-gray-500 dark:text-content-muted">
+                    {{ t(`templates.category.${selectedTemplate.category}`) }}
+                    <span v-if="selectedTemplate.author"> · {{ selectedTemplate.author }}</span>
+                  </p>
+                </div>
+              </div>
+              <button @click="showDetailDialog = false" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-surface-layer text-gray-500">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <p class="text-sm text-gray-600 dark:text-content-secondary mb-5">{{ selectedTemplate.description }}</p>
+
+            <div class="grid grid-cols-2 gap-4 mb-5">
+              <div class="p-3 rounded-lg bg-gray-50 dark:bg-surface-layer">
+                <p class="text-xs text-gray-500 dark:text-content-muted mb-1">{{ t('templates.godotVersion') }}</p>
+                <p class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ selectedTemplate.godot.version }}{{ selectedTemplate.godot.mono ? ' (Mono)' : '' }}</p>
+              </div>
+              <div class="p-3 rounded-lg bg-gray-50 dark:bg-surface-layer">
+                <p class="text-xs text-gray-500 dark:text-content-muted mb-1">{{ t('templates.plugins') }}</p>
+                <p class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ selectedTemplate.plugins.length }}</p>
+              </div>
+            </div>
+
+            <div v-if="selectedTemplate.plugins.length > 0" class="mb-5">
+              <h3 class="text-sm font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('templates.plugins') }}</h3>
+              <div class="space-y-2">
+                <div
+                  v-for="plugin in selectedTemplate.plugins"
+                  :key="plugin.name"
+                  class="flex items-center justify-between p-2.5 rounded-lg bg-gray-50 dark:bg-surface-layer"
+                >
+                  <div>
+                    <p class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ plugin.name }}</p>
+                    <p class="text-xs text-gray-500 dark:text-content-muted">v{{ plugin.version }} · {{ plugin.source }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="selectedTemplate.directories.length > 0" class="mb-5">
+              <h3 class="text-sm font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('templates.directories') }}</h3>
+              <div class="flex flex-wrap gap-2">
+                <span
+                  v-for="dir in selectedTemplate.directories"
+                  :key="dir.path"
+                  class="px-2.5 py-1 text-xs rounded-lg bg-gray-50 dark:bg-surface-layer text-gray-700 dark:text-content-secondary font-mono"
+                >
+                  {{ dir.path }}
+                </span>
+              </div>
+            </div>
+
+            <div v-if="selectedTemplate.export_presets.length > 0" class="mb-5">
+              <h3 class="text-sm font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('templates.exportPresets') }}</h3>
+              <div class="flex flex-wrap gap-2">
+                <span
+                  v-for="preset in selectedTemplate.export_presets"
+                  :key="preset.name"
+                  class="px-2.5 py-1 text-xs rounded-lg bg-gray-50 dark:bg-surface-layer text-gray-700 dark:text-content-secondary"
+                >
+                  {{ preset.name }} ({{ preset.platform }})
+                </span>
+              </div>
+            </div>
+
+            <div class="flex gap-3">
+              <button
+                @click="showDetailDialog = false; openCreateDialog(selectedTemplate!)"
+                class="flex-1 py-2.5 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors"
+              >
+                {{ t('templates.createProject') }}
+              </button>
+              <button
+                v-if="!selectedTemplate.is_builtin"
+                @click="deleteTargetId = selectedTemplate.template_id; showDeleteConfirm = true"
+                class="px-4 py-2.5 text-sm font-medium rounded-lg border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              >
+                {{ t('common.delete') || 'Delete' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Create Project Dialog -->
+    <Teleport to="body">
+      <div v-if="showCreateDialog && selectedTemplate" class="fixed inset-0 z-50 flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/50" @click="!isCreating && (showCreateDialog = false)"></div>
+        <div class="relative bg-white dark:bg-surface-card rounded-2xl shadow-2xl max-w-md w-full mx-4">
+          <div class="p-6">
+            <h2 class="text-lg font-bold text-gray-900 dark:text-content-primary mb-4">
+              {{ t('templates.createProject') }} — {{ selectedTemplate.name }}
+            </h2>
+
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('projects.projectName') || 'Project Name' }}</label>
+                <input
+                  v-model="createProjectName"
+                  type="text"
+                  :disabled="isCreating"
+                  @input="validateProjectName"
+                  class="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none disabled:opacity-50"
+                  :class="{ 'border-red-400 dark:border-red-500': projectNameError }"
+                />
+                <p v-if="projectNameError" class="mt-1 text-xs text-red-500">{{ projectNameError }}</p>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('projects.targetDir') || 'Target Directory' }}</label>
+                <div class="flex gap-2">
+                  <input
+                    v-model="createTargetDir"
+                    type="text"
+                    :disabled="isCreating"
+                    class="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none disabled:opacity-50"
+                  />
+                  <button
+                    @click="selectTargetDir"
+                    :disabled="isCreating"
+                    class="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border hover:bg-gray-50 dark:hover:bg-surface-layer disabled:opacity-50"
+                  >
+                    ...
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="createProgress" class="mt-4">
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-xs text-gray-500 dark:text-content-muted">{{ createProgress.message }}</span>
+                <span class="text-xs font-medium text-primary-600 dark:text-primary-400">{{ progressPercent }}%</span>
+              </div>
+              <div class="w-full bg-gray-200 dark:bg-surface-border rounded-full h-1.5">
+                <div
+                  class="bg-primary-600 h-1.5 rounded-full transition-all duration-300"
+                  :style="{ width: `${progressPercent}%` }"
+                ></div>
+              </div>
+            </div>
+
+            <div class="flex gap-3 mt-6">
+              <button
+                @click="showCreateDialog = false"
+                :disabled="isCreating"
+                class="flex-1 py-2.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors disabled:opacity-50"
+              >
+                {{ t('common.cancel') || 'Cancel' }}
+              </button>
+              <button
+                @click="handleCreate"
+                :disabled="isCreating || !isValidProjectName || !createTargetDir.trim()"
+                class="flex-1 py-2.5 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
+              >
+                {{ isCreating ? t('templates.creating') : t('templates.createProject') }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Created Success Quick Access -->
+    <Teleport to="body">
+      <div v-if="lastCreatedProjectId" class="fixed bottom-6 right-6 z-50 animate-fade-in">
+        <div class="bg-green-600 text-white rounded-xl shadow-lg px-4 py-3 flex items-center gap-3">
+          <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span class="text-sm font-medium">{{ t('templates.createSuccess') }}</span>
+          <button
+            @click="lastCreatedProjectId = ''"
+            class="ml-1 text-green-200 hover:text-white transition-colors"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Import URL Dialog -->
+    <Teleport to="body">
+      <div v-if="showImportDialog" class="fixed inset-0 z-50 flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/50" @click="!isImporting && (showImportDialog = false)"></div>
+        <div class="relative bg-white dark:bg-surface-card rounded-2xl shadow-2xl max-w-md w-full mx-4">
+          <div class="p-6">
+            <h2 class="text-lg font-bold text-gray-900 dark:text-content-primary mb-4">{{ t('templates.importUrl') }}</h2>
+            <input
+              v-model="importUrl"
+              type="url"
+              :placeholder="t('templates.importUrlPlaceholder')"
+              :disabled="isImporting"
+              class="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none disabled:opacity-50"
+            />
+            <div class="flex gap-3 mt-6">
+              <button
+                @click="showImportDialog = false"
+                :disabled="isImporting"
+                class="flex-1 py-2.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors disabled:opacity-50"
+              >
+                {{ t('common.cancel') || 'Cancel' }}
+              </button>
+              <button
+                @click="handleImport"
+                :disabled="isImporting || !importUrl.trim() || !isOnline"
+                class="flex-1 py-2.5 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
+              >
+                {{ isImporting ? '...' : !isOnline ? (t('common.offlineImportTip') || '离线无法导入') : (t('common.import') || '导入') }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <ConfirmDialog
+      v-model="showDeleteConfirm"
+      :title="t('templates.deleteConfirm')"
+      :confirm-text="t('common.delete')"
+      confirm-color="red"
+      @confirm="handleDelete"
+    />
+  </div>
+</template>
