@@ -110,7 +110,71 @@ pub async fn import_template_from_url(app: AppHandle, url: String) -> Result<Tem
     save_hub_template(app, template)
 }
 
-fn generate_project_godot(template: &Template) -> String {
+fn get_builtin_framework_dir() -> std::path::PathBuf {
+    let exe_dir = std::env::current_exe()
+        .unwrap_or_default()
+        .parent()
+        .unwrap_or(std::path::Path::new("."))
+        .to_path_buf();
+    exe_dir.join("templates")
+}
+
+fn get_builtin_modules_dir() -> std::path::PathBuf {
+    let exe_dir = std::env::current_exe()
+        .unwrap_or_default()
+        .parent()
+        .unwrap_or(std::path::Path::new("."))
+        .to_path_buf();
+    exe_dir.join("modules")
+}
+
+fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
+    if !src.exists() {
+        return Err(format!("源目录不存在: {}", src.display()));
+    }
+    fs::create_dir_all(dst)
+        .map_err(|e| format!("创建目录 {} 失败: {}", dst.display(), e))?;
+    let entries = fs::read_dir(src)
+        .map_err(|e| format!("读取目录 {} 失败: {}", src.display(), e))?;
+    for entry in entries.flatten() {
+        let src_path = entry.path();
+        let dst_path = dst.join(entry.file_name());
+        if src_path.is_dir() {
+            copy_dir_recursive(&src_path, &dst_path)?;
+        } else {
+            fs::copy(&src_path, &dst_path)
+                .map_err(|e| format!("拷贝 {} 失败: {}", src_path.display(), e))?;
+        }
+    }
+    Ok(())
+}
+
+fn scaffold_template_framework(project_dir: &Path, template: &Template) -> Result<(), String> {
+    let framework_dir = get_builtin_framework_dir().join(&template.template_id).join("framework");
+    if framework_dir.exists() {
+        copy_dir_recursive(&framework_dir, project_dir)?;
+    } else {
+        let cached_dir = get_templates_dir_from_template(template).join("framework");
+        if cached_dir.exists() {
+            copy_dir_recursive(&cached_dir, project_dir)?;
+        }
+    }
+    Ok(())
+}
+
+fn get_templates_dir_from_template(_template: &Template) -> std::path::PathBuf {
+    std::path::PathBuf::new()
+}
+
+fn apply_mobile_support(project_dir: &Path) -> Result<(), String> {
+    let module_dir = get_builtin_modules_dir().join("mobile-support").join("framework");
+    if module_dir.exists() {
+        copy_dir_recursive(&module_dir, project_dir)?;
+    }
+    Ok(())
+}
+
+fn generate_project_godot(template: &Template, enable_mobile: bool) -> String {
     let mut content = String::new();
     content.push_str("; Engine configuration file.\n; It's best edited using the editor UI and not directly,\n; since the parameters that go here are not all obvious.\n;\n; Format:\n;   [section] ; section goes between []\n;   param=value ; assign values to parameters\n\n");
 
@@ -123,10 +187,54 @@ fn generate_project_godot(template: &Template) -> String {
 
     content.push_str("config/features=PackedStringArray(\"4.2\", \"Forward+\")\n\n");
 
+    let mut autoloads = collect_autoloads_from_config(&template.project_config);
+    if enable_mobile {
+        autoloads.push(("TouchManager".to_string(), "res://scripts/autoload/touch_manager.gd".to_string()));
+    }
+    if !autoloads.is_empty() {
+        content.push_str("[autoload]\n\n");
+        for (name, path) in &autoloads {
+            content.push_str(&format!("{}=*\"{}\"\n", name, path));
+        }
+        content.push('\n');
+    }
+
+    let mut input_mappings = collect_input_mappings_from_config(&template.project_config);
+    if enable_mobile {
+        input_mappings.push(("touch_left".to_string(), r#""deadzone": 0.5,
+"events": [Object(InputEventScreenTouch,"resource_local_to_scene":false,"resource_name":"","device":-1,"index":0,"pressed":false,"canceled":false,"position":Vector2(0, 0),"double_click":false,"script":null)]"#.to_string()));
+        input_mappings.push(("touch_right".to_string(), r#""deadzone": 0.5,
+"events": [Object(InputEventScreenTouch,"resource_local_to_scene":false,"resource_name":"","device":-1,"index":1,"pressed":false,"canceled":false,"position":Vector2(0, 0),"double_click":false,"script":null)]"#.to_string()));
+        input_mappings.push(("joystick_left".to_string(), r#""deadzone": 0.5,
+"events": [Object(InputEventScreenDrag,"resource_local_to_scene":false,"resource_name":"","device":-1,"index":0,"position":Vector2(0, 0),"relative":Vector2(0, 0),"velocity":Vector2(0, 0),"script":null)]"#.to_string()));
+    }
+    if !input_mappings.is_empty() {
+        content.push_str("[input]\n\n");
+        for (action, mapping) in &input_mappings {
+            content.push_str(&format!("{}={{\n{}\n}}\n", action, mapping));
+        }
+        content.push('\n');
+    }
+
+    let layer_names = collect_layer_names_from_config(&template.project_config);
+    if !layer_names.is_empty() {
+        content.push_str("[layer_names]\n");
+        content.push_str(&layer_names);
+        content.push('\n');
+    }
+
     content.push_str("[display]\n");
-    content.push_str("window/size/viewport_width=1280\n");
-    content.push_str("window/size/viewport_height=720\n");
-    content.push_str("window/stretch/mode=\"canvas_items\"\n\n");
+    if enable_mobile {
+        content.push_str("window/size/viewport_width=720\n");
+        content.push_str("window/size/viewport_height=1280\n");
+        content.push_str("window/stretch/mode=\"canvas_items\"\n");
+        content.push_str("window/handheld/orientation=1\n");
+        content.push_str("window/stretch/aspect=\"keep\"\n\n");
+    } else {
+        content.push_str("window/size/viewport_width=1280\n");
+        content.push_str("window/size/viewport_height=720\n");
+        content.push_str("window/stretch/mode=\"canvas_items\"\n\n");
+    }
 
     content.push_str("[rendering]\n");
     if !template.godot.rendering.is_empty() {
@@ -138,57 +246,92 @@ fn generate_project_godot(template: &Template) -> String {
     content
 }
 
-fn create_directory_structure(project_dir: &Path, template: &Template) -> Result<Vec<String>, String> {
-    let default_dirs = vec![
-        "scenes",
-        "scripts",
-        "assets",
-        "assets/sprites",
-        "assets/audio",
-        "assets/fonts",
-    ];
-
-    let mut created = Vec::new();
-
-    for dir in &default_dirs {
-        let path = project_dir.join(dir);
-        fs::create_dir_all(&path)
-            .map_err(|e| format!("创建目录失败: {}", e))?;
-        created.push(dir.to_string());
+fn collect_autoloads_from_config(config: &TemplateProjectConfig) -> Vec<(String, String)> {
+    let mut result = Vec::new();
+    if let serde_json::Value::Object(map) = &config.autoloads {
+        for (key, value) in map {
+            if let serde_json::Value::String(path) = value {
+                result.push((key.clone(), path.clone()));
+            }
+        }
     }
+    result
+}
 
-    for dir_spec in &template.directories {
-        let path = project_dir.join(&dir_spec.path);
-        fs::create_dir_all(&path)
-            .map_err(|e| format!("创建目录 {} 失败: {}", dir_spec.path, e))?;
-        if !created.contains(&dir_spec.path) {
-            created.push(dir_spec.path.clone());
+fn collect_input_mappings_from_config(config: &TemplateProjectConfig) -> Vec<(String, String)> {
+    let mut result = Vec::new();
+    if let serde_json::Value::Object(map) = &config.input_mappings {
+        for (key, value) in map {
+            let mapping = json_input_to_godot_format(key, value);
+            result.push((key.clone(), mapping));
+        }
+    }
+    result
+}
+
+fn json_input_to_godot_format(_action: &str, value: &serde_json::Value) -> String {
+    let deadzone = value.get("deadzone").and_then(|v| v.as_f64()).unwrap_or(0.5);
+    let events = value.get("events").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+
+    let mut event_strs = Vec::new();
+    for ev in &events {
+        let ev_type = ev.get("type").and_then(|v| v.as_str()).unwrap_or("InputEventKey");
+        let keycode = ev.get("keycode").and_then(|v| v.as_u64()).unwrap_or(0);
+        match ev_type {
+            "InputEventKey" => {
+                event_strs.push(format!(
+                    "Object(InputEventKey,\"resource_local_to_scene\":false,\"resource_name\":\"\",\"device\":-1,\"window_id\":0,\"alt_pressed\":false,\"shift_pressed\":false,\"ctrl_pressed\":false,\"meta_pressed\":false,\"pressed\":false,\"keycode\":{},\"physical_keycode\":0,\"key_label\":0,\"unicode\":0,\"location\":0,\"echo\":false,\"script\":null)",
+                    keycode
+                ));
+            }
+            "InputEventScreenTouch" => {
+                let index = ev.get("index").and_then(|v| v.as_u64()).unwrap_or(0);
+                event_strs.push(format!(
+                    "Object(InputEventScreenTouch,\"resource_local_to_scene\":false,\"resource_name\":\"\",\"device\":-1,\"index\":{},\"pressed\":false,\"canceled\":false,\"position\":Vector2(0, 0),\"double_click\":false,\"script\":null)",
+                    index
+                ));
+            }
+            "InputEventScreenDrag" => {
+                let index = ev.get("index").and_then(|v| v.as_u64()).unwrap_or(0);
+                event_strs.push(format!(
+                    "Object(InputEventScreenDrag,\"resource_local_to_scene\":false,\"resource_name\":\"\",\"device\":-1,\"index\":{},\"position\":Vector2(0, 0),\"relative\":Vector2(0, 0),\"velocity\":Vector2(0, 0),\"script\":null)",
+                    index
+                ));
+            }
+            _ => {}
         }
     }
 
-    Ok(created)
+    format!("\"deadzone\": {},\n\"events\": [{}]", deadzone, event_strs.join(", "))
 }
 
-fn create_main_scene(project_dir: &Path) -> Result<(), String> {
-    let scenes_dir = project_dir.join("scenes");
-    fs::create_dir_all(&scenes_dir)
-        .map_err(|e| format!("创建场景目录失败: {}", e))?;
+fn collect_layer_names_from_config(config: &TemplateProjectConfig) -> String {
+    let mut result = String::new();
+    if let serde_json::Value::Object(map) = &config.layer_names {
+        for (section, value) in map {
+            if let serde_json::Value::Array(layers) = value {
+                for (i, layer) in layers.iter().enumerate() {
+                    if let serde_json::Value::String(name) = layer {
+                        result.push_str(&format!("{}_physics/layer_{}=\"{}\"\n", section, i + 1, name));
+                    }
+                }
+            }
+        }
+    }
+    result
+}
 
-    let main_tscn = scenes_dir.join("main.tscn");
-    let content = "[gd_scene load_steps=2 format=3]\n\n[ext_resource type=\"Script\" path=\"res://scripts/main.gd\" id=\"1\"]\n\n[node name=\"Main\" type=\"Node2D\"]\nscript = ExtResource(\"1\")\n";
-    fs::write(&main_tscn, content)
-        .map_err(|e| format!("创建主场景失败: {}", e))?;
-
-    let scripts_dir = project_dir.join("scripts");
-    fs::create_dir_all(&scripts_dir)
-        .map_err(|e| format!("创建脚本目录失败: {}", e))?;
-
-    let main_gd = scripts_dir.join("main.gd");
-    let script_content = "extends Node2D\n\nfunc _ready() -> void:\n\tpass\n";
-    fs::write(&main_gd, script_content)
-        .map_err(|e| format!("创建主脚本失败: {}", e))?;
-
-    Ok(())
+fn create_directory_structure(project_dir: &Path, template: &Template) -> Result<Vec<String>, String> {
+    let mut created = Vec::new();
+    for dir in &template.directories {
+        let dir_path = project_dir.join(&dir.path);
+        if !dir_path.exists() {
+            fs::create_dir_all(&dir_path)
+                .map_err(|e| format!("创建目录 {} 失败: {}", dir.path, e))?;
+            created.push(dir.path.clone());
+        }
+    }
+    Ok(created)
 }
 
 fn generate_export_presets_cfg(template: &Template) -> String {
@@ -321,6 +464,7 @@ pub async fn instantiate_template(
     template_id: String,
     project_name: String,
     target_dir: String,
+    enable_mobile_support: Option<bool>,
 ) -> Result<TemplateInstantiationResult, String> {
     let start = std::time::Instant::now();
 
@@ -350,13 +494,26 @@ pub async fn instantiate_template(
         detail: String::new(),
     });
 
-    let project_godot_content = generate_project_godot(&template);
+    let enable_mobile = enable_mobile_support.unwrap_or(false);
+
+    let project_godot_content = generate_project_godot(&template, enable_mobile);
     fs::write(project_dir.join("project.godot"), project_godot_content)
         .map_err(|e| format!("写入 project.godot 失败: {}", e))?;
 
     let created_dirs = create_directory_structure(&project_dir, &template)?;
 
-    create_main_scene(&project_dir)?;
+    scaffold_template_framework(&project_dir, &template)?;
+
+    if enable_mobile {
+        let _ = app.emit("template-instantiation-progress", TemplateInstantiationProgress {
+            template_id: template.template_id.clone(),
+            stage: "applying_module".to_string(),
+            progress: 0.13,
+            message: "正在应用移动端支持模块...".to_string(),
+            detail: String::new(),
+        });
+        apply_mobile_support(&project_dir)?;
+    }
 
     let _ = app.emit("template-instantiation-progress", TemplateInstantiationProgress {
         template_id: template.template_id.clone(),
@@ -1073,77 +1230,7 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
         updated_at: None,
     };
 
-    let mobile_template = Template {
-        template_id: "builtin-mobile".to_string(),
-        name: "移动端起步包".to_string(),
-        description: "移动端游戏起步模板，包含触摸输入映射、虚拟摇杆和移动端优化设置，适合手机/平板游戏开发".to_string(),
-        author: "Godot Harbor".to_string(),
-        category: TemplateCategory::Mobile,
-        tags: vec!["mobile".to_string(), "touch".to_string(), "android".to_string(), "ios".to_string(), "starter".to_string()],
-        icon_url: String::new(),
-        preview_images: Vec::new(),
-        godot: TemplateGodotConfig {
-            version: "4.4.1".to_string(),
-            mono: false,
-            rendering: "mobile".to_string(),
-        },
-        plugins: vec![
-            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::AssetStore, url: String::new(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
-        ],
-        directories: vec![
-            TemplateDirectory { path: "scenes/levels".to_string(), description: "关卡场景".to_string() },
-            TemplateDirectory { path: "scenes/player".to_string(), description: "玩家场景".to_string() },
-            TemplateDirectory { path: "scenes/ui".to_string(), description: "UI 场景".to_string() },
-            TemplateDirectory { path: "scenes/ui/touch".to_string(), description: "触摸控件".to_string() },
-            TemplateDirectory { path: "scripts/player".to_string(), description: "玩家脚本".to_string() },
-            TemplateDirectory { path: "scripts/autoload".to_string(), description: "全局管理器".to_string() },
-            TemplateDirectory { path: "scripts/touch".to_string(), description: "触摸输入处理".to_string() },
-            TemplateDirectory { path: "assets/sprites".to_string(), description: "精灵图".to_string() },
-            TemplateDirectory { path: "assets/sprites/ui".to_string(), description: "UI 精灵".to_string() },
-            TemplateDirectory { path: "assets/audio/sfx".to_string(), description: "音效".to_string() },
-            TemplateDirectory { path: "assets/audio/music".to_string(), description: "背景音乐".to_string() },
-        ],
-        export_presets: vec![
-            TemplateExportPreset { platform: "android".to_string(), name: "Android".to_string(), config: serde_json::Value::Null },
-            TemplateExportPreset { platform: "ios".to_string(), name: "iOS".to_string(), config: serde_json::Value::Null },
-        ],
-        project_config: TemplateProjectConfig {
-            input_mappings: serde_json::json!({
-                "touch_left": { "deadzone": 0.5, "events": [{"type": "InputEventScreenTouch", "index": 0}] },
-                "touch_right": { "deadzone": 0.5, "events": [{"type": "InputEventScreenTouch", "index": 1}] },
-                "joystick_left": { "deadzone": 0.5, "events": [{"type": "InputEventScreenDrag", "index": 0}] },
-                "move_left": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 65}] },
-                "move_right": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 68}] },
-                "move_up": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 87}] },
-                "move_down": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 83}] },
-                "jump": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194320}] },
-                "ui_accept": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194309}] },
-                "ui_cancel": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194305}] }
-            }),
-            layer_names: serde_json::json!({
-                "2d_physics": ["player", "enemy", "environment", "pickup", "hazard"],
-                "2d_render": ["background", "foreground", "touch_ui", "system_ui"]
-            }),
-            autoloads: serde_json::json!({
-                "GameManager": "res://scripts/autoload/game_manager.gd",
-                "TouchManager": "res://scripts/autoload/touch_manager.gd",
-                "AudioManager": "res://scripts/autoload/audio_manager.gd"
-            }),
-            project_settings: serde_json::json!({
-                "display/window/handheld/orientation": 1,
-                "rendering/renderer/rendering_method": "mobile",
-                "display/window/stretch/mode": "canvas_items",
-                "display/window/stretch/aspect": "keep"
-            }),
-        },
-        is_builtin: true,
-        source_url: String::new(),
-        version: "1.0.0".to_string(),
-        created_at: chrono::Utc::now(),
-        updated_at: None,
-    };
-
-    for template in [blank_template, platformer_template, rpg_template, starter_3d_template, multiplayer_template, mobile_template] {
+    for template in [blank_template, platformer_template, rpg_template, starter_3d_template, multiplayer_template] {
         if !builtin_ids.contains(&template.template_id.as_str()) {
             let saved = save_hub_template(app.clone(), template)?;
             created.push(saved);

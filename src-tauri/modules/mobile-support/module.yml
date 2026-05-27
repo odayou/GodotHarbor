@@ -1,0 +1,28 @@
+id: mobile-support
+name: Mobile Support Module
+version: 1.0.0
+description: Adds touch input, virtual joystick, and mobile-optimized UI overlay to any template
+author: Godot Harbor
+type: module
+autoloads:
+  TouchManager: "res://scripts/autoload/touch_manager.gd"
+input_mappings:
+  touch_left:
+    deadzone: 0.5
+    events:
+      - type: InputEventScreenTouch
+        index: 0
+  touch_right:
+    deadzone: 0.5
+    events:
+      - type: InputEventScreenTouch
+        index: 1
+  joystick_left:
+    deadzone: 0.5
+    events:
+      - type: InputEventScreenDrag
+        index: 0
+project_settings:
+  display/window/handheld/orientation: 1
+  display/window/stretch/mode: "canvas_items"
+  display/window/stretch/aspect: "keep"

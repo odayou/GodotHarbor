@@ -560,8 +560,8 @@ export const api = {
     return await invoke('import_template_from_url', { url })
   },
 
-  async instantiateTemplate(templateId: string, projectName: string, targetDir: string): Promise<TemplateInstantiationResult> {
-    return await invoke('instantiate_template', { templateId, projectName, targetDir })
+  async instantiateTemplate(templateId: string, projectName: string, targetDir: string, enableMobileSupport: boolean = false): Promise<TemplateInstantiationResult> {
+    return await invoke('instantiate_template', { templateId, projectName, targetDir, enableMobileSupport })
   },
 
   async generateTemplateFromProject(projectId: string, templateName: string, category: string): Promise<Template> {

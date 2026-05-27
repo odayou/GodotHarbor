@@ -1359,6 +1359,7 @@ export default {
     templateCategory: 'Category',
     saveSuccess: 'Template saved successfully',
     deleteConfirm: 'Are you sure you want to delete this template?',
+    enableMobileSupport: 'Add mobile support (touch controls + virtual joystick)',
     importUrl: 'Import from URL',
     importUrlPlaceholder: 'Enter the URL of a template.yml file',
     importSuccess: 'Template imported successfully',

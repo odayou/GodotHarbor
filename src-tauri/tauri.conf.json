@@ -45,7 +45,11 @@
       "icons/icon.ico",
       "icons/icon.png"
     ],
-    "createUpdaterArtifacts": false
+    "createUpdaterArtifacts": false,
+    "resources": [
+      "templates/**/*",
+      "modules/**/*"
+    ]
   },
 
   "plugins": {}

@@ -1359,6 +1359,7 @@ export default {
     templateCategory: '模板分类',
     saveSuccess: '模板保存成功',
     deleteConfirm: '确定要删除此模板吗？',
+    enableMobileSupport: '添加移动端支持（触摸控件 + 虚拟摇杆）',
     importUrl: '从 URL 导入',
     importUrlPlaceholder: '输入 template.yml 的 URL 地址',
     importSuccess: '模板导入成功',

@@ -29,6 +29,7 @@ const selectedTemplate = ref<Template | null>(null)
 const showCreateDialog = ref(false)
 const createProjectName = ref('')
 const createTargetDir = ref('')
+const enableMobileSupport = ref(false)
 const isCreating = ref(false)
 const createProgress = ref<TemplateInstantiationProgress | null>(null)
 const projectNameError = ref('')
@@ -148,6 +149,7 @@ const openCreateDialog = async (tpl: Template) => {
   createProjectName.value = ''
   createProgress.value = null
   projectNameError.value = ''
+  enableMobileSupport.value = false
   if (!createTargetDir.value) {
     try {
       const paths = await api.getStoragePaths()
@@ -179,7 +181,8 @@ const handleCreate = async () => {
     const result = await api.instantiateTemplate(
       selectedTemplate.value.template_id,
       createProjectName.value.trim(),
-      createTargetDir.value.trim()
+      createTargetDir.value.trim(),
+      enableMobileSupport.value
     )
     showCreateDialog.value = false
     lastCreatedProjectId.value = result.project_id
@@ -437,6 +440,18 @@ const progressPercent = computed(() => {
                     <p class="text-xs text-gray-500 dark:text-content-muted">v{{ plugin.version }} · {{ plugin.source }}</p>
                   </div>
                 </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <input
+                  id="mobile-support"
+                  v-model="enableMobileSupport"
+                  type="checkbox"
+                  :disabled="isCreating"
+                  class="w-4 h-4 rounded border-gray-300 dark:border-surface-border text-primary-600 focus:ring-primary-500"
+                />
+                <label for="mobile-support" class="text-sm text-gray-700 dark:text-content-secondary cursor-pointer">
+                  {{ t('templates.enableMobileSupport') || '添加移动端支持（触摸控件 + 虚拟摇杆）' }}
+                </label>
               </div>
             </div>
 
