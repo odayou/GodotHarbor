@@ -11,6 +11,27 @@ use crate::utils::{create_http_client, no_window_cmd};
 use super::utils::*;
 use super::update::record_update_history;
 
+fn auto_update_harbor_yml(app: &AppHandle, project_id: &str) -> Result<(), String> {
+    let storage = get_storage(app);
+    let projects: Vec<Project> = storage.load_or_default("projects.json");
+    let project = match projects.iter().find(|p| p.project_id == project_id) {
+        Some(p) => p,
+        None => return Ok(()),
+    };
+
+    let config_path = crate::harbor_config::get_harbor_config_path(&project.path);
+    if !config_path.exists() {
+        return Ok(());
+    }
+
+    let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+    let bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
+    let (config, _) = crate::harbor_config::generate_config_from_bindings(project, &plugins, &bindings);
+    crate::harbor_config::write_harbor_config_to_project(&project.path, &config)
+        .map_err(|e| format!("自动更新 .harbor.yml 失败: {}", e))?;
+    Ok(())
+}
+
 #[tauri::command]
 pub fn import_plugin_from_local(app: AppHandle, path: String) -> Result<Plugin, String> {
     if !std::path::Path::new(&path).exists() {
@@ -210,6 +231,8 @@ pub fn bind_plugin(
     storage.save("bindings.json", &bindings)
         .map_err(|e| format!("保存绑定关系失败: {}", e))?;
 
+    let _ = auto_update_harbor_yml(&app, &project_id);
+
     log_operation(&app, "bind_plugin", &project_id, "已绑定插件到项目");
     Ok(())
 }
@@ -268,6 +291,8 @@ pub fn unbind_plugin(app: AppHandle, project_id: String, plugin_id: String) -> R
 
     storage.save("bindings.json", &bindings)
         .map_err(|e| format!("保存绑定关系失败: {}", e))?;
+
+    let _ = auto_update_harbor_yml(&app, &project_id);
 
     log_operation(&app, "unbind_plugin", &project_id, "已取消插件绑定");
     Ok(())

@@ -16,6 +16,7 @@ pub mod utils;
 pub mod featured;
 pub mod harbor_config;
 pub mod asset_store;
+pub mod mcp;
 
 use tauri::{Emitter, Manager};
 use tauri_plugin_notification::NotificationExt;
@@ -413,6 +414,10 @@ pub fn run() {
             commands::delete_harbor_config,
             commands::sync_harbor_config,
             commands::check_harbor_configs,
+            commands::check_project_drift,
+            commands::check_all_drifts,
+            commands::preview_sync,
+            commands::sync_project_environment,
             commands::check_uid_conflicts,
             commands::get_dashboard_stats,
             commands::auto_scan_projects,
@@ -472,6 +477,22 @@ pub fn run() {
             featured::get_featured_plugins,
             featured::report_usage_ping,
             featured::record_plugin_install,
+            commands::list_export_templates,
+            commands::download_export_template,
+            commands::delete_export_template,
+            commands::list_export_presets,
+            commands::apply_export_preset,
+            commands::save_export_preset_to_harbor,
+            commands::build_project,
+            commands::get_build_records,
+            commands::delete_build_record,
+            commands::generate_github_actions,
+            commands::generate_gitlab_ci,
+            commands::write_ci_config,
+            commands::get_builtin_export_presets,
+            commands::export_preset_to_json,
+            commands::import_preset_from_json,
+            commands::start_mcp_server,
         ))
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

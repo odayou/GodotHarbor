@@ -212,6 +212,24 @@ const {
         </div>
       </div>
 
+      <!-- Drift Alert Banner -->
+      <div
+        v-if="(stats.drift_count ?? 0) > 0"
+        class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 flex items-center gap-3 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+        @click="navigateTo('/projects')"
+      >
+        <svg class="w-6 h-6 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+        </svg>
+        <div class="flex-1">
+          <p class="text-sm font-medium text-amber-800 dark:text-amber-300">{{ t('home.driftAlert', { count: stats.drift_count }) }}</p>
+          <p class="text-xs text-amber-600 dark:text-amber-400 mt-0.5">{{ t('home.driftAlertDesc') }}</p>
+        </div>
+        <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+      </div>
+
       <!-- Project Health Overview -->
       <div v-if="stats.recent_projects.length > 0" class="card">
         <div class="flex items-center justify-between mb-4">

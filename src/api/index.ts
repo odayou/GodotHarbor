@@ -396,6 +396,22 @@ export const api = {
     return await invoke('check_harbor_configs', { projectIds })
   },
 
+  async checkProjectDrift(projectId: string): Promise<import('@/types').DriftReport> {
+    return await invoke('check_project_drift', { projectId })
+  },
+
+  async checkAllDrifts(): Promise<import('@/types').DriftReport[]> {
+    return await invoke('check_all_drifts')
+  },
+
+  async previewSync(projectId: string): Promise<import('@/types').SyncPreview> {
+    return await invoke('preview_sync', { projectId })
+  },
+
+  async syncProjectEnvironment(projectId: string, onlyItems?: string[]): Promise<import('@/types').SyncEnvironmentResult> {
+    return await invoke('sync_project_environment', { projectId, onlyItems: onlyItems ?? null })
+  },
+
   async checkUidConflicts(projectId: string, pluginId: string): Promise<import('@/types').UidConflictInfo[]> {
     return await invoke('check_uid_conflicts', { projectId, pluginId })
   },
@@ -554,6 +570,72 @@ export const api = {
 
   async ensureBuiltinTemplates(): Promise<Template[]> {
     return await invoke('ensure_builtin_templates')
+  },
+
+  // ─── Build Pipeline ───
+  async listExportTemplates(): Promise<import('@/types').ExportTemplateInfo[]> {
+    return await invoke('list_export_templates')
+  },
+
+  async downloadExportTemplate(version: string, mono: boolean): Promise<string> {
+    return await invoke('download_export_template', { version, mono })
+  },
+
+  async deleteExportTemplate(version: string, mono: boolean): Promise<void> {
+    return await invoke('delete_export_template', { version, mono })
+  },
+
+  async listExportPresets(projectId: string): Promise<import('@/types').ExportPreset[]> {
+    return await invoke('list_export_presets', { projectId })
+  },
+
+  async applyExportPreset(projectId: string, preset: import('@/types').ExportPreset): Promise<void> {
+    return await invoke('apply_export_preset', { projectId, preset })
+  },
+
+  async saveExportPresetToHarbor(projectId: string, platform: string, name: string, config: unknown): Promise<void> {
+    return await invoke('save_export_preset_to_harbor', { projectId, platform, name, config })
+  },
+
+  async buildProject(projectId: string, platform: import('@/types').ExportPlatform, presetName?: string): Promise<import('@/types').BuildRecord> {
+    return await invoke('build_project', { projectId, platform, presetName })
+  },
+
+  async getBuildRecords(projectId?: string): Promise<import('@/types').BuildRecord[]> {
+    return await invoke('get_build_records', { projectId })
+  },
+
+  async deleteBuildRecord(buildId: string): Promise<void> {
+    return await invoke('delete_build_record', { buildId })
+  },
+
+  async generateGithubActions(projectId: string, platforms: string[], godotVersion: string): Promise<string> {
+    return await invoke('generate_github_actions', { projectId, platforms, godotVersion })
+  },
+
+  async generateGitlabCi(projectId: string, platforms: string[], godotVersion: string): Promise<string> {
+    return await invoke('generate_gitlab_ci', { projectId, platforms, godotVersion })
+  },
+
+  async writeCiConfig(projectId: string, provider: string, content: string): Promise<void> {
+    return await invoke('write_ci_config', { projectId, provider, content })
+  },
+
+  async getBuiltinExportPresets(): Promise<import('@/types').BuiltinExportPreset[]> {
+    return await invoke('get_builtin_export_presets')
+  },
+
+  async exportPresetToJson(projectId: string, presetName: string): Promise<string> {
+    return await invoke('export_preset_to_json', { projectId, presetName })
+  },
+
+  async importPresetFromJson(projectId: string, json: string): Promise<void> {
+    return await invoke('import_preset_from_json', { projectId, json })
+  },
+
+  // ─── MCP Server ───
+  async startMcpServer(): Promise<string> {
+    return await invoke('start_mcp_server')
   },
 }
 

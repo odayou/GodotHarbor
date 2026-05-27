@@ -256,3 +256,340 @@ pub struct SyncResult {
     pub skipped: u32,
     pub errors: Vec<String>,
 }
+
+#[tauri::command]
+pub fn check_project_drift(app: AppHandle, project_id: String) -> Result<crate::models::DriftReport, String> {
+    let storage = get_storage(&app);
+    let projects: Vec<crate::models::Project> = storage.load_or_default("projects.json");
+    let project = projects.iter().find(|p| p.project_id == project_id)
+        .ok_or("项目不存在".to_string())?;
+
+    let config = harbor_config::read_harbor_config_from_project(&project.path)
+        .map_err(|e| format!("读取 .harbor.yml 失败: {}", e))?;
+
+    let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+    let bindings: Vec<crate::models::ProjectBinding> = storage.load_or_default("bindings.json");
+    let engines: Vec<crate::models::Engine> = storage.load_or_default("engines.json");
+    let project_bindings: Vec<&crate::models::ProjectBinding> = bindings.iter()
+        .filter(|b| b.project_id == project_id)
+        .collect();
+
+    let mut items = Vec::new();
+
+    if let Some(ref config) = config {
+        let config_upgraded = if config.version < 2 { config.upgrade_to_v2() } else { config.clone() };
+
+        if let Some(ref godot_cfg) = config_upgraded.godot {
+            let engine_match = engines.iter().find(|e| {
+                let ev: Vec<&str> = e.version.split('.').collect();
+                let tv: Vec<&str> = godot_cfg.version.split('.').collect();
+                if ev.len() >= 2 && tv.len() >= 2 {
+                    ev[0] == tv[0] && ev[1] == tv[1] && e.is_mono == godot_cfg.mono
+                } else {
+                    e.version == godot_cfg.version && e.is_mono == godot_cfg.mono
+                }
+            });
+            if let Some(engine) = engine_match {
+                if engine.version != godot_cfg.version {
+                    items.push(crate::models::DriftItem {
+                        item_type: "engine".to_string(),
+                        name: "Godot".to_string(),
+                        status: crate::models::DriftStatus::VersionMismatch,
+                        expected: godot_cfg.version.clone(),
+                        actual: engine.version.clone(),
+                        message: format!("引擎版本不一致：声明 {}，实际 {}", godot_cfg.version, engine.version),
+                    });
+                }
+            } else {
+                items.push(crate::models::DriftItem {
+                    item_type: "engine".to_string(),
+                    name: "Godot".to_string(),
+                    status: crate::models::DriftStatus::Missing,
+                    expected: godot_cfg.version.clone(),
+                    actual: "未安装".to_string(),
+                    message: format!("声明的引擎 Godot {} 未安装", godot_cfg.version),
+                });
+            }
+        }
+
+        for plugin_cfg in &config_upgraded.plugins {
+            let binding = project_bindings.iter().find(|b| {
+                let plugin = plugins.iter().find(|p| p.plugin_id == b.plugin_id);
+                plugin.map_or(false, |p| p.name.to_lowercase() == plugin_cfg.name.to_lowercase())
+            });
+
+            if let Some(binding) = binding {
+                let plugin = plugins.iter().find(|p| p.plugin_id == binding.plugin_id);
+                if let Some(plugin) = plugin {
+                    if !plugin_cfg.version.is_empty() {
+                        if let Some(version) = plugin.versions.first() {
+                            if version.version != plugin_cfg.version {
+                                items.push(crate::models::DriftItem {
+                                    item_type: "plugin".to_string(),
+                                    name: plugin_cfg.name.clone(),
+                                    status: crate::models::DriftStatus::VersionMismatch,
+                                    expected: plugin_cfg.version.clone(),
+                                    actual: version.version.clone(),
+                                    message: format!("插件 {} 版本不一致：声明 {}，实际 {}", plugin_cfg.name, plugin_cfg.version, version.version),
+                                });
+                            }
+                        }
+                    }
+                }
+            } else {
+                items.push(crate::models::DriftItem {
+                    item_type: "plugin".to_string(),
+                    name: plugin_cfg.name.clone(),
+                    status: crate::models::DriftStatus::Missing,
+                    expected: plugin_cfg.version.clone(),
+                    actual: "未安装".to_string(),
+                    message: format!("声明的插件 {} 未安装", plugin_cfg.name),
+                });
+            }
+        }
+
+        for binding in &project_bindings {
+            let plugin = plugins.iter().find(|p| p.plugin_id == binding.plugin_id);
+            let plugin_name = plugin.map_or("unknown", |p| &p.name);
+            let in_config = config_upgraded.plugins.iter().any(|pc| pc.name.to_lowercase() == plugin_name.to_lowercase());
+            if !in_config {
+                items.push(crate::models::DriftItem {
+                    item_type: "plugin".to_string(),
+                    name: plugin_name.to_string(),
+                    status: crate::models::DriftStatus::Unexpected,
+                    expected: "未声明".to_string(),
+                    actual: "已安装".to_string(),
+                    message: format!("插件 {} 已安装但未在 .harbor.yml 中声明", plugin_name),
+                });
+            }
+        }
+    } else {
+        items.push(crate::models::DriftItem {
+            item_type: "config".to_string(),
+            name: ".harbor.yml".to_string(),
+            status: crate::models::DriftStatus::Missing,
+            expected: "存在".to_string(),
+            actual: "不存在".to_string(),
+            message: "项目缺少 .harbor.yml 配置文件".to_string(),
+        });
+    }
+
+    let has_drift = items.iter().any(|i| i.status != crate::models::DriftStatus::InSync);
+
+    Ok(crate::models::DriftReport {
+        project_id: project.project_id.clone(),
+        project_name: project.name.clone(),
+        items,
+        checked_at: chrono::Utc::now(),
+        has_drift,
+    })
+}
+
+#[tauri::command]
+pub fn check_all_drifts(app: AppHandle) -> Result<Vec<crate::models::DriftReport>, String> {
+    let storage = get_storage(&app);
+    let projects: Vec<crate::models::Project> = storage.load_or_default("projects.json");
+    let mut reports = Vec::new();
+    for project in &projects {
+        let report = check_project_drift(app.clone(), project.project_id.clone())?;
+        reports.push(report);
+    }
+    Ok(reports)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncPreview {
+    pub project_id: String,
+    pub actions: Vec<SyncAction>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncAction {
+    pub action_type: String,
+    pub item_type: String,
+    pub name: String,
+    pub detail: String,
+}
+
+#[tauri::command]
+pub fn preview_sync(app: AppHandle, project_id: String) -> Result<SyncPreview, String> {
+    let report = check_project_drift(app.clone(), project_id.clone())?;
+    let mut actions = Vec::new();
+
+    for item in &report.items {
+        match item.status {
+            crate::models::DriftStatus::Missing => {
+                actions.push(SyncAction {
+                    action_type: "install".to_string(),
+                    item_type: item.item_type.clone(),
+                    name: item.name.clone(),
+                    detail: format!("安装 {} ({})", item.name, item.expected),
+                });
+            }
+            crate::models::DriftStatus::VersionMismatch => {
+                actions.push(SyncAction {
+                    action_type: "update".to_string(),
+                    item_type: item.item_type.clone(),
+                    name: item.name.clone(),
+                    detail: format!("{} {} → {}", item.name, item.actual, item.expected),
+                });
+            }
+            crate::models::DriftStatus::Unexpected => {
+                actions.push(SyncAction {
+                    action_type: "remove".to_string(),
+                    item_type: item.item_type.clone(),
+                    name: item.name.clone(),
+                    detail: format!("移除未声明的 {}", item.name),
+                });
+            }
+            crate::models::DriftStatus::InSync => {}
+        }
+    }
+
+    Ok(SyncPreview {
+        project_id,
+        actions,
+    })
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncEnvironmentResult {
+    pub synced: u32,
+    pub failed: u32,
+    pub skipped: u32,
+    pub details: Vec<String>,
+}
+
+#[tauri::command]
+pub fn sync_project_environment(app: AppHandle, project_id: String, only_items: Option<Vec<String>>) -> Result<SyncEnvironmentResult, String> {
+    let report = check_project_drift(app.clone(), project_id.clone())?;
+    let storage = get_storage(&app);
+    let projects: Vec<crate::models::Project> = storage.load_or_default("projects.json");
+    let project = projects.iter().find(|p| p.project_id == project_id)
+        .ok_or("项目不存在".to_string())?;
+
+    let config = harbor_config::read_harbor_config_from_project(&project.path)
+        .map_err(|e| format!("读取 .harbor.yml 失败: {}", e))?
+        .ok_or("项目缺少 .harbor.yml".to_string())?;
+
+    let config_upgraded = if config.version < 2 { config.upgrade_to_v2() } else { config };
+
+    let mut synced = 0u32;
+    let mut failed = 0u32;
+    let mut skipped = 0u32;
+    let mut details = Vec::new();
+
+    for item in &report.items {
+        if let Some(ref items) = only_items {
+            let item_key = format!("{}:{}", item.item_type, item.name);
+            if !items.contains(&item_key) {
+                continue;
+            }
+        }
+        match item.status {
+            crate::models::DriftStatus::Missing => {
+                if item.item_type == "plugin" {
+                    let plugin_cfg = config_upgraded.plugins.iter().find(|p| p.name == item.name);
+                    if let Some(pc) = plugin_cfg {
+                        if pc.source == "local" {
+                            details.push(format!("插件 {} 为本地来源，需手动安装", pc.name));
+                            skipped += 1;
+                            continue;
+                        }
+                        details.push(format!("正在安装插件 {}...", pc.name));
+                    } else {
+                        details.push(format!("未找到插件 {} 的配置信息", item.name));
+                        failed += 1;
+                        continue;
+                    }
+                } else if item.item_type == "engine" {
+                    details.push(format!("引擎 {} 需手动下载或通过模板实例化安装", item.expected));
+                    skipped += 1;
+                    continue;
+                } else if item.item_type == "config" {
+                    let result = write_harbor_config(app.clone(), project_id.clone())?;
+                    details.push(format!("已生成 .harbor.yml（导出 {} 个插件配置）", result.exported));
+                    synced += 1;
+                    continue;
+                }
+                synced += 1;
+            }
+            crate::models::DriftStatus::VersionMismatch => {
+                if item.item_type == "engine" {
+                    details.push(format!("引擎版本不一致（{} → {}），请手动下载对应版本", item.actual, item.expected));
+                    skipped += 1;
+                } else if item.item_type == "plugin" {
+                    let plugin_cfg = config_upgraded.plugins.iter().find(|p| p.name == item.name);
+                    if let Some(pc) = plugin_cfg {
+                        if pc.source == "local" {
+                            details.push(format!("插件 {} 为本地来源，版本不一致需手动更新", pc.name));
+                            skipped += 1;
+                        } else {
+                            details.push(format!("插件 {} 版本不一致（{} → {}），将重新导入", item.name, item.actual, item.expected));
+                            synced += 1;
+                        }
+                    } else {
+                        details.push(format!("{} 版本不一致（{} → {}），需手动处理", item.name, item.actual, item.expected));
+                        skipped += 1;
+                    }
+                } else {
+                    details.push(format!("{} 版本不一致（{} → {}），需手动处理", item.name, item.actual, item.expected));
+                    skipped += 1;
+                }
+            }
+            crate::models::DriftStatus::Unexpected => {
+                details.push(format!("将插件 {} 添加到 .harbor.yml 声明中", item.name));
+                let mut updated = config_upgraded.clone();
+                let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+                let bindings: Vec<crate::models::ProjectBinding> = storage.load_or_default("bindings.json");
+                let binding = bindings.iter().find(|b| {
+                    b.project_id == project_id && plugins.iter()
+                        .find(|p| p.plugin_id == b.plugin_id)
+                        .map_or(false, |p| p.name.to_lowercase() == item.name.to_lowercase())
+                });
+                if let Some(binding) = binding {
+                    let plugin = plugins.iter().find(|p| p.plugin_id == binding.plugin_id);
+                    let version = plugin.and_then(|p| p.versions.first()).map(|v| v.version.clone()).unwrap_or_default();
+                    let source = plugin.map(|p| match p.source.source_type {
+                        crate::models::SourceType::Git => "git",
+                        crate::models::SourceType::AssetLibrary => "asset-store",
+                        crate::models::SourceType::Url => "url",
+                        crate::models::SourceType::Local => "local",
+                    }).unwrap_or("local").to_string();
+                    let url = plugin.map(|p| p.source.url.clone()).unwrap_or_default();
+                    let git_ref = plugin.map(|p| p.source.git_ref.clone()).unwrap_or_default();
+                    updated.plugins.push(harbor_config::HarborPlugin {
+                        name: item.name.clone(),
+                        version,
+                        source,
+                        url,
+                        r#ref: git_ref,
+                        mount: "copy".to_string(),
+                        asset_type: plugin.map(|p| p.asset_type.clone()).unwrap_or_default(),
+                    });
+                    let _ = harbor_config::write_harbor_config_to_project(&project.path, &updated);
+                    synced += 1;
+                } else {
+                    skipped += 1;
+                }
+            }
+            crate::models::DriftStatus::InSync => {}
+        }
+    }
+
+    if report.items.iter().any(|i| i.status == crate::models::DriftStatus::Missing && i.item_type == "plugin") {
+        let sync_result = sync_harbor_config(app.clone(), project_id.clone())?;
+        synced += sync_result.imported + sync_result.bound;
+        failed += sync_result.skipped;
+        for err in &sync_result.errors {
+            details.push(err.clone());
+        }
+    }
+
+    Ok(SyncEnvironmentResult {
+        synced,
+        failed,
+        skipped,
+        details,
+    })
+}

@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '@/api'
-import type { Project, Engine, MovedProjectCandidate, ProjectBinding, Plugin } from '@/types'
+import type { Project, Engine, MovedProjectCandidate, ProjectBinding, Plugin, DriftReport, SyncPreview, SyncEnvironmentResult } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
@@ -49,6 +49,15 @@ const isCloningFromGit = ref(false)
 const showAddMenu = ref(false)
 const editingProjectId = ref<string | null>(null)
 const projectMenuId = ref('')
+
+const driftReport = ref<DriftReport | null>(null)
+const isCheckingDrift = ref(false)
+const syncPreview = ref<SyncPreview | null>(null)
+const isSyncing = ref(false)
+const showSyncPreview = ref(false)
+const syncResult = ref<SyncEnvironmentResult | null>(null)
+const driftMap = ref<Map<string, DriftReport>>(new Map())
+const selectedSyncItems = ref<Set<string>>(new Set())
 
 const toggleProjectMenu = (projectId: string) => {
   projectMenuId.value = projectMenuId.value === projectId ? '' : projectId
@@ -189,6 +198,7 @@ onMounted(async () => {
     try {
       const synced = await api.syncProjects()
       projects.value = synced
+      await loadAllDrifts()
     } catch (error) {
       console.error('增量同步失败:', error)
     }
@@ -302,11 +312,60 @@ const showProjectDetails = async (project: Project) => {
   selectedProject.value = project
   showProjectDetail.value = true
   showAddPluginPanel.value = false
+  driftReport.value = null
+  syncPreview.value = null
+  syncResult.value = null
   try {
     projectBindings.value = await api.getProjectBindings(project.project_id)
     await loadPluginEnabledState()
+    await checkDrift(project.project_id)
   } catch (error) {
     console.error('Failed to load project details:', error)
+  }
+}
+
+const checkDrift = async (projectId: string) => {
+  isCheckingDrift.value = true
+  try {
+    driftReport.value = await api.checkProjectDrift(projectId)
+    driftMap.value.set(projectId, driftReport.value)
+  } catch {
+    driftReport.value = null
+  } finally {
+    isCheckingDrift.value = false
+  }
+}
+
+const openSyncPreview = async () => {
+  if (!selectedProject.value) return
+  try {
+    syncPreview.value = await api.previewSync(selectedProject.value.project_id)
+    const allKeys = new Set(syncPreview.value.actions.map((a: any) => `${a.item_type}:${a.name}`))
+    selectedSyncItems.value = allKeys
+    showSyncPreview.value = true
+  } catch (e: any) {
+    toast.error(`${t('projects.syncFailed')}: ${e?.toString() || e}`)
+  }
+}
+
+const executeSync = async () => {
+  if (!selectedProject.value) return
+  isSyncing.value = true
+  try {
+    const onlyItems = selectedSyncItems.value.size > 0 ? Array.from(selectedSyncItems.value) : undefined
+    syncResult.value = await api.syncProjectEnvironment(selectedProject.value.project_id, onlyItems)
+    showSyncPreview.value = false
+    if (syncResult.value.failed > 0) {
+      toast.warning(t('projects.syncPartialWarning') || `同步完成，${syncResult.value.failed} 项失败`)
+    } else {
+      toast.success(t('projects.syncEnvironmentSuccess') || '环境同步完成')
+    }
+    await checkDrift(selectedProject.value.project_id)
+    projectBindings.value = await api.getProjectBindings(selectedProject.value.project_id)
+  } catch (e: any) {
+    toast.error(`${t('projects.syncFailed')}: ${e?.toString() || e}`)
+  } finally {
+    isSyncing.value = false
   }
 }
 
@@ -321,13 +380,27 @@ const loadProjects = async () => {
       loadGroups(),
       checkMovedProjects(),
       loadAllProjectBindings(),
-      api.getPlugins().then(p => { allPlugins.value = p }).catch(() => { allPlugins.value = [] })
+      api.getPlugins().then(p => { allPlugins.value = p }).catch(() => { allPlugins.value = [] }),
+      loadAllDrifts(),
     ])
   } catch (error) {
     loadError.value = String(error)
     toast.error(t('common.loadFailed', { error }))
   } finally {
     isLoading.value = false
+  }
+}
+
+const loadAllDrifts = async () => {
+  try {
+    const reports = await api.checkAllDrifts()
+    const map = new Map<string, DriftReport>()
+    for (const report of reports) {
+      map.set(report.project_id, report)
+    }
+    driftMap.value = map
+  } catch {
+    driftMap.value = new Map()
   }
 }
 
@@ -1252,6 +1325,17 @@ const toggleAddPluginPanel = () => {
                   ></span>
                   {{ projectBindingMap.get(project.project_id)!.length }} {{ t('projects.pluginCount') }}
                 </span>
+                <span
+                  v-if="driftMap.get(project.project_id)?.has_drift"
+                  class="text-sm text-amber-500 flex items-center gap-1 cursor-pointer hover:text-amber-600 transition-colors"
+                  :title="t('projects.hasDrift') || '环境漂移'"
+                  @click.stop="showProjectDetails(project)"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                  {{ t('projects.hasDrift') || '漂移' }}
+                </span>
               </div>
             </div>
             <div class="flex items-center gap-1">
@@ -1391,6 +1475,61 @@ const toggleAddPluginPanel = () => {
           <span v-if="selectedProject.last_synced_at" class="text-xs text-gray-400 dark:text-content-muted ml-3">
             {{ t('projects.lastSynced') }} {{ new Date(selectedProject.last_synced_at).toLocaleString() }}
           </span>
+        </div>
+
+        <!-- Drift Status -->
+        <div class="mb-4">
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-sm font-medium text-gray-700 dark:text-content-secondary">{{ t('projects.environmentStatus') || '环境状态' }}</h4>
+            <button
+              @click="checkDrift(selectedProject!.project_id)"
+              :disabled="isCheckingDrift"
+              class="text-xs text-primary-600 hover:text-primary-800 dark:text-primary-400 disabled:opacity-50"
+            >
+              {{ isCheckingDrift ? '...' : (t('projects.recheck') || '重新检测') }}
+            </button>
+          </div>
+          <div v-if="isCheckingDrift" class="text-sm text-gray-400">{{ t('common.loading') }}</div>
+          <div v-else-if="driftReport">
+            <div v-if="!driftReport.has_drift" class="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+              <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg>
+              <span class="text-sm text-green-700 dark:text-green-400">{{ t('projects.environmentInSync') || '环境一致，无漂移' }}</span>
+            </div>
+            <div v-else class="space-y-2">
+              <div v-for="item in driftReport.items" :key="`${item.item_type}-${item.name}`"
+                class="flex items-start gap-2 p-2.5 rounded-lg text-sm"
+                :class="{
+                  'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800': item.status === 'VersionMismatch',
+                  'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800': item.status === 'Missing',
+                  'bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800': item.status === 'Unexpected',
+                }"
+              >
+                <svg v-if="item.status === 'VersionMismatch'" class="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+                <svg v-else-if="item.status === 'Missing'" class="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                <svg v-else class="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span :class="{
+                  'text-yellow-700 dark:text-yellow-400': item.status === 'VersionMismatch',
+                  'text-red-700 dark:text-red-400': item.status === 'Missing',
+                  'text-orange-700 dark:text-orange-400': item.status === 'Unexpected',
+                }">{{ item.message }}</span>
+              </div>
+              <button
+                @click="openSyncPreview"
+                class="w-full mt-2 py-2 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors"
+              >
+                {{ t('projects.syncEnvironment') || '一键同步环境' }}
+              </button>
+            </div>
+          </div>
+          <div v-else class="text-sm text-gray-400">{{ t('projects.noDriftData') || '未检测' }}</div>
         </div>
         <div class="mb-4">
           <div class="flex items-center justify-between mb-2">
@@ -1536,6 +1675,74 @@ const toggleAddPluginPanel = () => {
             class="btn-secondary"
           >
             {{ t('common.close') }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <!-- Sync Preview Dialog -->
+  <Teleport to="body">
+    <div v-if="showSyncPreview && syncPreview" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showSyncPreview = false">
+      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('projects.syncPreviewTitle') || '同步预览' }}</h3>
+        <div v-if="syncPreview.actions.length === 0" class="text-sm text-gray-500 dark:text-content-muted mb-4">
+          {{ t('projects.noActionsNeeded') || '无需操作，环境已一致' }}
+        </div>
+        <div v-else class="space-y-2 mb-4 max-h-60 overflow-y-auto">
+          <label
+            v-for="(action, idx) in syncPreview.actions"
+            :key="idx"
+            class="flex items-center gap-2 p-2 rounded-lg text-sm cursor-pointer"
+            :class="{
+              'bg-blue-50 dark:bg-blue-900/20': action.action_type === 'install',
+              'bg-yellow-50 dark:bg-yellow-900/20': action.action_type === 'update',
+              'bg-orange-50 dark:bg-orange-900/20': action.action_type === 'remove',
+              'opacity-50': !selectedSyncItems.has(`${action.item_type}:${action.name}`),
+            }"
+          >
+            <input
+              type="checkbox"
+              :checked="selectedSyncItems.has(`${action.item_type}:${action.name}`)"
+              @change="(e: any) => {
+                const key = `${action.item_type}:${action.name}`
+                const s = new Set(selectedSyncItems)
+                if (e.target.checked) s.add(key); else s.delete(key)
+                selectedSyncItems = s
+              }"
+              class="rounded border-gray-300 dark:border-gray-600"
+            />
+            <span class="font-medium px-1.5 py-0.5 rounded text-xs"
+              :class="{
+                'bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-300': action.action_type === 'install',
+                'bg-yellow-100 text-yellow-700 dark:bg-yellow-800 dark:text-yellow-300': action.action_type === 'update',
+                'bg-orange-100 text-orange-700 dark:bg-orange-800 dark:text-orange-300': action.action_type === 'remove',
+              }"
+            >
+              {{ action.action_type === 'install' ? (t('projects.actionInstall') || '安装') : action.action_type === 'update' ? (t('projects.actionUpdate') || '更新') : (t('projects.actionRemove') || '移除') }}
+            </span>
+            <span class="text-gray-700 dark:text-content-secondary">{{ action.detail }}</span>
+          </label>
+        </div>
+        <div v-if="syncResult" class="mb-4 p-3 rounded-lg text-sm"
+          :class="syncResult.failed > 0 ? 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800' : 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'"
+        >
+          <p class="font-medium mb-1">{{ t('projects.syncResult') || '同步结果' }}</p>
+          <p>{{ t('projects.syncedCount') || '已同步' }}: {{ syncResult.synced }} | {{ t('projects.skippedCount') || '跳过' }}: {{ syncResult.skipped }} | {{ t('projects.failedCount') || '失败' }}: {{ syncResult.failed }}</p>
+          <div v-if="syncResult.details.length > 0" class="mt-1 text-xs space-y-0.5">
+            <p v-for="(d, i) in syncResult.details" :key="i">{{ d }}</p>
+          </div>
+        </div>
+        <div class="flex gap-3">
+          <button @click="showSyncPreview = false" class="flex-1 py-2.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors">
+            {{ t('common.cancel') }}
+          </button>
+          <button
+            @click="executeSync"
+            :disabled="isSyncing || selectedSyncItems.size === 0"
+            class="flex-1 py-2.5 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
+          >
+            {{ isSyncing ? '...' : (t('projects.confirmSync') || '确认同步') }}
           </button>
         </div>
       </div>

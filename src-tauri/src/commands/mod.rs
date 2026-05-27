@@ -10,6 +10,8 @@ pub mod asset_store;
 pub mod template;
 pub mod system;
 pub mod harbor_config;
+pub mod build;
+pub mod mcp_cmd;
 
 pub use utils::*;
 pub use backup::*;
@@ -23,3 +25,5 @@ pub use asset_store::*;
 pub use template::*;
 pub use system::*;
 pub use harbor_config::*;
+pub use build::*;
+pub use mcp_cmd::*;

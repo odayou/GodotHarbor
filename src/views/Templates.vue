@@ -61,17 +61,28 @@ const showImportDialog = ref(false)
 const importUrl = ref('')
 const isImporting = ref(false)
 
+const showGenerateFromProjectDialog = ref(false)
+const generateProjectId = ref('')
+const generateTemplateName = ref('')
+const generateCategory = ref<TemplateCategory>('Custom')
+const isGenerating = ref(false)
+const projects = ref<any[]>([])
+
 const showDeleteConfirm = ref(false)
 const deleteTargetId = ref('')
 
 useDialogEscape(showDetailDialog)
 useDialogEscape(showCreateDialog)
 useDialogEscape(showImportDialog)
+useDialogEscape(showGenerateFromProjectDialog)
 
 let unlistenProgress: UnlistenFn | null = null
 
 onMounted(async () => {
   await loadTemplates()
+  try {
+    projects.value = await api.getProjects()
+  } catch { /* ignore */ }
   unlistenProgress = await listen('template-instantiation-progress', (event) => {
     createProgress.value = event.payload as TemplateInstantiationProgress
   })
@@ -218,6 +229,24 @@ const handleDelete = async () => {
   showDeleteConfirm.value = false
 }
 
+const handleGenerateFromProject = async () => {
+  if (!generateProjectId.value || !generateTemplateName.value.trim()) return
+  isGenerating.value = true
+  try {
+    await api.generateTemplateFromProject(generateProjectId.value, generateTemplateName.value.trim(), generateCategory.value)
+    toast.success(t('templates.generateSuccess') || '模板生成成功')
+    showGenerateFromProjectDialog.value = false
+    generateProjectId.value = ''
+    generateTemplateName.value = ''
+    generateCategory.value = 'Custom'
+    await loadTemplates()
+  } catch (e: any) {
+    toast.error(`${t('templates.generateFailed') || '生成失败'}: ${e?.toString() || e}`)
+  } finally {
+    isGenerating.value = false
+  }
+}
+
 const progressPercent = computed(() => {
   if (!createProgress.value) return 0
   return Math.round(createProgress.value.progress * 100)
@@ -237,6 +266,12 @@ const progressPercent = computed(() => {
           class="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors"
         >
           {{ t('templates.importUrl') }}
+        </button>
+        <button
+          @click="showGenerateFromProjectDialog = true"
+          class="px-4 py-2 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors"
+        >
+          {{ t('templates.generateFromProject') || '从项目生成' }}
         </button>
       </div>
 
@@ -576,6 +611,68 @@ const progressPercent = computed(() => {
                 class="flex-1 py-2.5 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
               >
                 {{ isImporting ? '...' : !isOnline ? (t('common.offlineImportTip') || '离线无法导入') : (t('common.import') || '导入') }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="showGenerateFromProjectDialog" class="fixed inset-0 z-50 flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/50" @click="!isGenerating && (showGenerateFromProjectDialog = false)"></div>
+        <div class="relative bg-white dark:bg-surface-card rounded-2xl shadow-2xl max-w-md w-full mx-4">
+          <div class="p-6">
+            <h2 class="text-lg font-bold text-gray-900 dark:text-content-primary mb-4">{{ t('templates.generateFromProject') || '从项目生成模板' }}</h2>
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('templates.selectProject') || '选择项目' }}</label>
+                <select
+                  v-model="generateProjectId"
+                  class="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none"
+                >
+                  <option value="" disabled>{{ t('templates.selectProjectPlaceholder') || '请选择项目' }}</option>
+                  <option v-for="p in projects" :key="p.project_id" :value="p.project_id">{{ p.name }}</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('templates.templateName') || '模板名称' }}</label>
+                <input
+                  v-model="generateTemplateName"
+                  type="text"
+                  :placeholder="t('templates.templateNamePlaceholder') || '输入模板名称'"
+                  :disabled="isGenerating"
+                  class="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none disabled:opacity-50"
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('templates.category') || '分类' }}</label>
+                <select
+                  v-model="generateCategory"
+                  class="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none"
+                >
+                  <option value="Custom">{{ t('templates.category.Custom') || '自定义' }}</option>
+                  <option value="Starter2D">{{ t('templates.category.Starter2D') || '2D入门' }}</option>
+                  <option value="Starter3D">{{ t('templates.category.Starter3D') || '3D入门' }}</option>
+                  <option value="RPG">{{ t('templates.category.RPG') || 'RPG' }}</option>
+                  <option value="Platformer">{{ t('templates.category.Platformer') || '平台跳跃' }}</option>
+                  <option value="Multiplayer">{{ t('templates.category.Multiplayer') || '多人游戏' }}</option>
+                  <option value="Mobile">{{ t('templates.category.Mobile') || '移动端' }}</option>
+                </select>
+              </div>
+            </div>
+            <div class="flex gap-3 mt-6">
+              <button
+                @click="showGenerateFromProjectDialog = false"
+                :disabled="isGenerating"
+                class="flex-1 py-2.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors disabled:opacity-50"
+              >
+                {{ t('common.cancel') || '取消' }}
+              </button>
+              <button
+                @click="handleGenerateFromProject"
+                :disabled="isGenerating || !generateProjectId || !generateTemplateName.trim()"
+                class="flex-1 py-2.5 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
+              >
+                {{ isGenerating ? '...' : (t('common.generate') || '生成') }}
               </button>
             </div>
           </div>

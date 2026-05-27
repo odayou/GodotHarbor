@@ -743,7 +743,7 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
     let blank_template = Template {
         template_id: "builtin-blank-recommended".to_string(),
         name: "空白项目（推荐插件）".to_string(),
-        description: "空白 Godot 4 项目，预装推荐插件，适合大多数2D/3D项目".to_string(),
+        description: "空白 Godot 4 项目，预装 Phantom Camera 和 Gut 测试框架，适合大多数2D/3D项目快速起步".to_string(),
         author: "Godot Harbor".to_string(),
         category: TemplateCategory::Blank,
         tags: vec!["blank".to_string(), "recommended".to_string(), "2d".to_string(), "3d".to_string()],
@@ -756,21 +756,40 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
         },
         plugins: vec![
             TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::AssetStore, url: String::new(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
+            TemplatePlugin { name: "gut".to_string(), version: "9.2.0".to_string(), source: TemplatePluginSource::AssetStore, url: String::new(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
         ],
         directories: vec![
             TemplateDirectory { path: "scenes".to_string(), description: "场景文件".to_string() },
             TemplateDirectory { path: "scripts".to_string(), description: "脚本文件".to_string() },
+            TemplateDirectory { path: "scripts/autoload".to_string(), description: "全局自动加载脚本".to_string() },
+            TemplateDirectory { path: "test".to_string(), description: "单元测试".to_string() },
             TemplateDirectory { path: "assets/sprites".to_string(), description: "精灵图".to_string() },
             TemplateDirectory { path: "assets/audio".to_string(), description: "音频文件".to_string() },
             TemplateDirectory { path: "assets/fonts".to_string(), description: "字体文件".to_string() },
+            TemplateDirectory { path: "assets/shaders".to_string(), description: "着色器".to_string() },
         ],
         export_presets: vec![
             TemplateExportPreset { platform: "windows".to_string(), name: "Windows Desktop".to_string(), config: serde_json::Value::Null },
         ],
-        project_config: TemplateProjectConfig::default(),
+        project_config: TemplateProjectConfig {
+            input_mappings: serde_json::json!({
+                "move_left": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 65}] },
+                "move_right": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 68}] },
+                "move_up": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 87}] },
+                "move_down": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 83}] },
+                "ui_accept": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194309}] },
+                "ui_cancel": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194305}] }
+            }),
+            layer_names: serde_json::json!({
+                "2d_physics": ["player", "enemy", "environment", "pickup"],
+                "2d_render": ["background", "foreground", "ui"]
+            }),
+            autoloads: serde_json::json!({}),
+            project_settings: serde_json::json!({}),
+        },
         is_builtin: true,
         source_url: String::new(),
-        version: "1.0.0".to_string(),
+        version: "1.1.0".to_string(),
         created_at: chrono::Utc::now(),
         updated_at: None,
     };
@@ -778,7 +797,7 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
     let platformer_template = Template {
         template_id: "builtin-2d-platformer".to_string(),
         name: "2D 平台起步包".to_string(),
-        description: "2D 平台游戏起步模板，包含 Phantom Camera、输入映射和基础场景组织".to_string(),
+        description: "2D 平台游戏起步模板，包含 Phantom Camera、输入映射、粒子系统和基础场景组织，适合横版跳跃类游戏".to_string(),
         author: "Godot Harbor".to_string(),
         category: TemplateCategory::Starter2D,
         tags: vec!["2d".to_string(), "platformer".to_string(), "starter".to_string()],
@@ -791,17 +810,23 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
         },
         plugins: vec![
             TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::AssetStore, url: String::new(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
+            TemplatePlugin { name: "godot-states".to_string(), version: "2.0.2".to_string(), source: TemplatePluginSource::AssetStore, url: String::new(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
         ],
         directories: vec![
             TemplateDirectory { path: "scenes/levels".to_string(), description: "关卡场景".to_string() },
             TemplateDirectory { path: "scenes/player".to_string(), description: "玩家场景".to_string() },
             TemplateDirectory { path: "scenes/enemies".to_string(), description: "敌人场景".to_string() },
             TemplateDirectory { path: "scenes/ui".to_string(), description: "UI 场景".to_string() },
+            TemplateDirectory { path: "scenes/particles".to_string(), description: "粒子效果场景".to_string() },
             TemplateDirectory { path: "scripts/player".to_string(), description: "玩家脚本".to_string() },
+            TemplateDirectory { path: "scripts/player/states".to_string(), description: "玩家状态机".to_string() },
             TemplateDirectory { path: "scripts/enemies".to_string(), description: "敌人脚本".to_string() },
+            TemplateDirectory { path: "scripts/enemies/states".to_string(), description: "敌人状态机".to_string() },
+            TemplateDirectory { path: "scripts/autoload".to_string(), description: "全局管理器".to_string() },
             TemplateDirectory { path: "assets/sprites/player".to_string(), description: "玩家精灵".to_string() },
             TemplateDirectory { path: "assets/sprites/enemies".to_string(), description: "敌人精灵".to_string() },
             TemplateDirectory { path: "assets/sprites/tilesets".to_string(), description: "瓦片集".to_string() },
+            TemplateDirectory { path: "assets/sprites/vfx".to_string(), description: "特效精灵".to_string() },
             TemplateDirectory { path: "assets/audio/sfx".to_string(), description: "音效".to_string() },
             TemplateDirectory { path: "assets/audio/music".to_string(), description: "背景音乐".to_string() },
         ],
@@ -809,7 +834,173 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
             TemplateExportPreset { platform: "windows".to_string(), name: "Windows Desktop".to_string(), config: serde_json::Value::Null },
             TemplateExportPreset { platform: "web".to_string(), name: "HTML5".to_string(), config: serde_json::Value::Null },
         ],
-        project_config: TemplateProjectConfig::default(),
+        project_config: TemplateProjectConfig {
+            input_mappings: serde_json::json!({
+                "move_left": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 65}, {"type": "InputEventJoypadButton", "button": 14}] },
+                "move_right": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 68}, {"type": "InputEventJoypadButton", "button": 15}] },
+                "jump": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 87}, {"type": "InputEventKey", "keycode": 4194320}, {"type": "InputEventJoypadButton", "button": 0}] },
+                "attack": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 74}, {"type": "InputEventJoypadButton", "button": 2}] },
+                "dash": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194324}, {"type": "InputEventJoypadButton", "button": 1}] },
+                "ui_accept": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194309}] },
+                "ui_cancel": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194305}] }
+            }),
+            layer_names: serde_json::json!({
+                "2d_physics": ["player", "enemy", "environment", "pickup", "hazard", "platform"],
+                "2d_render": ["background", "midground", "foreground", "ui"]
+            }),
+            autoloads: serde_json::json!({
+                "GameManager": "res://scripts/autoload/game_manager.gd",
+                "AudioManager": "res://scripts/autoload/audio_manager.gd"
+            }),
+            project_settings: serde_json::json!({
+                "physics/common/physics_fps": 60
+            }),
+        },
+        is_builtin: true,
+        source_url: String::new(),
+        version: "1.1.0".to_string(),
+        created_at: chrono::Utc::now(),
+        updated_at: None,
+    };
+
+    let rpg_template = Template {
+        template_id: "builtin-2d-rpg".to_string(),
+        name: "2D RPG 起步包".to_string(),
+        description: "2D RPG 游戏起步模板，包含 Dialogic 对话系统、Phantom Camera 和状态机，适合叙事驱动的RPG项目".to_string(),
+        author: "Godot Harbor".to_string(),
+        category: TemplateCategory::RPG,
+        tags: vec!["2d".to_string(), "rpg".to_string(), "dialogue".to_string(), "starter".to_string()],
+        icon_url: String::new(),
+        preview_images: Vec::new(),
+        godot: TemplateGodotConfig {
+            version: "4.4.1".to_string(),
+            mono: false,
+            rendering: "compatible".to_string(),
+        },
+        plugins: vec![
+            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::AssetStore, url: String::new(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
+            TemplatePlugin { name: "dialogic".to_string(), version: "2.0".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/dialogic-godot/dialogic.git".to_string(), git_ref: "main".to_string(), mount: "copy".to_string(), subdirectory: String::new() },
+            TemplatePlugin { name: "godot-states".to_string(), version: "2.0.2".to_string(), source: TemplatePluginSource::AssetStore, url: String::new(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
+        ],
+        directories: vec![
+            TemplateDirectory { path: "scenes/maps".to_string(), description: "地图场景".to_string() },
+            TemplateDirectory { path: "scenes/characters".to_string(), description: "角色场景".to_string() },
+            TemplateDirectory { path: "scenes/ui".to_string(), description: "UI 场景".to_string() },
+            TemplateDirectory { path: "scenes/ui/menus".to_string(), description: "菜单场景".to_string() },
+            TemplateDirectory { path: "scenes/ui/hud".to_string(), description: "HUD 场景".to_string() },
+            TemplateDirectory { path: "scenes/dialogue".to_string(), description: "对话场景".to_string() },
+            TemplateDirectory { path: "scenes/cutscenes".to_string(), description: "过场动画".to_string() },
+            TemplateDirectory { path: "scripts/characters".to_string(), description: "角色脚本".to_string() },
+            TemplateDirectory { path: "scripts/characters/states".to_string(), description: "角色状态机".to_string() },
+            TemplateDirectory { path: "scripts/items".to_string(), description: "物品系统".to_string() },
+            TemplateDirectory { path: "scripts/quests".to_string(), description: "任务系统".to_string() },
+            TemplateDirectory { path: "scripts/autoload".to_string(), description: "全局管理器".to_string() },
+            TemplateDirectory { path: "assets/sprites/characters".to_string(), description: "角色精灵".to_string() },
+            TemplateDirectory { path: "assets/sprites/tilesets".to_string(), description: "瓦片集".to_string() },
+            TemplateDirectory { path: "assets/portraits".to_string(), description: "角色立绘".to_string() },
+            TemplateDirectory { path: "assets/audio/bgm".to_string(), description: "背景音乐".to_string() },
+            TemplateDirectory { path: "assets/audio/sfx".to_string(), description: "音效".to_string() },
+            TemplateDirectory { path: "assets/dialogue".to_string(), description: "对话资源".to_string() },
+        ],
+        export_presets: vec![
+            TemplateExportPreset { platform: "windows".to_string(), name: "Windows Desktop".to_string(), config: serde_json::Value::Null },
+            TemplateExportPreset { platform: "web".to_string(), name: "HTML5".to_string(), config: serde_json::Value::Null },
+        ],
+        project_config: TemplateProjectConfig {
+            input_mappings: serde_json::json!({
+                "move_left": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 65}] },
+                "move_right": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 68}] },
+                "move_up": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 87}] },
+                "move_down": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 83}] },
+                "interact": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 69}] },
+                "menu": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194305}] },
+                "ui_accept": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194309}] },
+                "ui_cancel": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194305}] }
+            }),
+            layer_names: serde_json::json!({
+                "2d_physics": ["player", "npc", "environment", "pickup", "trigger"],
+                "2d_render": ["background", "midground", "foreground", "ui"]
+            }),
+            autoloads: serde_json::json!({
+                "GameManager": "res://scripts/autoload/game_manager.gd",
+                "QuestManager": "res://scripts/autoload/quest_manager.gd",
+                "AudioManager": "res://scripts/autoload/audio_manager.gd"
+            }),
+            project_settings: serde_json::json!({}),
+        },
+        is_builtin: true,
+        source_url: String::new(),
+        version: "1.1.0".to_string(),
+        created_at: chrono::Utc::now(),
+        updated_at: None,
+    };
+
+    let starter_3d_template = Template {
+        template_id: "builtin-3d-starter".to_string(),
+        name: "3D 起步包".to_string(),
+        description: "3D 游戏起步模板，包含 Phantom Camera 3D、基础3D场景组织、灯光和相机设置，适合3D游戏快速起步".to_string(),
+        author: "Godot Harbor".to_string(),
+        category: TemplateCategory::Starter3D,
+        tags: vec!["3d".to_string(), "starter".to_string()],
+        icon_url: String::new(),
+        preview_images: Vec::new(),
+        godot: TemplateGodotConfig {
+            version: "4.4.1".to_string(),
+            mono: false,
+            rendering: "forward_plus".to_string(),
+        },
+        plugins: vec![
+            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::AssetStore, url: String::new(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
+            TemplatePlugin { name: "godot-states".to_string(), version: "2.0.2".to_string(), source: TemplatePluginSource::AssetStore, url: String::new(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
+        ],
+        directories: vec![
+            TemplateDirectory { path: "scenes/levels".to_string(), description: "关卡场景".to_string() },
+            TemplateDirectory { path: "scenes/player".to_string(), description: "玩家场景".to_string() },
+            TemplateDirectory { path: "scenes/enemies".to_string(), description: "敌人场景".to_string() },
+            TemplateDirectory { path: "scenes/ui".to_string(), description: "UI 场景".to_string() },
+            TemplateDirectory { path: "scenes/environment".to_string(), description: "环境场景".to_string() },
+            TemplateDirectory { path: "scripts/player".to_string(), description: "玩家脚本".to_string() },
+            TemplateDirectory { path: "scripts/player/states".to_string(), description: "玩家状态机".to_string() },
+            TemplateDirectory { path: "scripts/enemies".to_string(), description: "敌人脚本".to_string() },
+            TemplateDirectory { path: "scripts/autoload".to_string(), description: "全局管理器".to_string() },
+            TemplateDirectory { path: "scripts/camera".to_string(), description: "相机控制".to_string() },
+            TemplateDirectory { path: "assets/models".to_string(), description: "3D 模型".to_string() },
+            TemplateDirectory { path: "assets/models/characters".to_string(), description: "角色模型".to_string() },
+            TemplateDirectory { path: "assets/models/environment".to_string(), description: "环境模型".to_string() },
+            TemplateDirectory { path: "assets/textures".to_string(), description: "纹理贴图".to_string() },
+            TemplateDirectory { path: "assets/materials".to_string(), description: "材质".to_string() },
+            TemplateDirectory { path: "assets/audio/sfx".to_string(), description: "音效".to_string() },
+            TemplateDirectory { path: "assets/audio/music".to_string(), description: "背景音乐".to_string() },
+            TemplateDirectory { path: "assets/shaders".to_string(), description: "着色器".to_string() },
+        ],
+        export_presets: vec![
+            TemplateExportPreset { platform: "windows".to_string(), name: "Windows Desktop".to_string(), config: serde_json::Value::Null },
+        ],
+        project_config: TemplateProjectConfig {
+            input_mappings: serde_json::json!({
+                "move_left": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 65}, {"type": "InputEventJoypadButton", "button": 14}] },
+                "move_right": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 68}, {"type": "InputEventJoypadButton", "button": 15}] },
+                "move_forward": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 87}, {"type": "InputEventJoypadButton", "button": 12}] },
+                "move_backward": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 83}, {"type": "InputEventJoypadButton", "button": 13}] },
+                "jump": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194320}, {"type": "InputEventJoypadButton", "button": 0}] },
+                "interact": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 69}, {"type": "InputEventJoypadButton", "button": 2}] },
+                "camera_up": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194320}] },
+                "camera_down": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194322}] },
+                "ui_accept": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194309}] },
+                "ui_cancel": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194305}] }
+            }),
+            layer_names: serde_json::json!({
+                "3d_physics": ["player", "enemy", "environment", "pickup", "hazard"],
+                "3d_render": ["background", "environment", "characters", "foreground", "ui"]
+            }),
+            autoloads: serde_json::json!({
+                "GameManager": "res://scripts/autoload/game_manager.gd",
+                "AudioManager": "res://scripts/autoload/audio_manager.gd"
+            }),
+            project_settings: serde_json::json!({
+                "rendering/renderer/rendering_method": "forward_plus"
+            }),
+        },
         is_builtin: true,
         source_url: String::new(),
         version: "1.0.0".to_string(),
@@ -817,7 +1008,142 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
         updated_at: None,
     };
 
-    for template in [blank_template, platformer_template] {
+    let multiplayer_template = Template {
+        template_id: "builtin-multiplayer".to_string(),
+        name: "多人游戏起步包".to_string(),
+        description: "多人联机游戏起步模板，包含 SceneMultiplayer 配置、网络同步架构和聊天系统，适合局域网/在线多人游戏".to_string(),
+        author: "Godot Harbor".to_string(),
+        category: TemplateCategory::Multiplayer,
+        tags: vec!["multiplayer".to_string(), "networking".to_string(), "online".to_string(), "starter".to_string()],
+        icon_url: String::new(),
+        preview_images: Vec::new(),
+        godot: TemplateGodotConfig {
+            version: "4.4.1".to_string(),
+            mono: false,
+            rendering: "compatible".to_string(),
+        },
+        plugins: vec![
+            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::AssetStore, url: String::new(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
+        ],
+        directories: vec![
+            TemplateDirectory { path: "scenes/lobby".to_string(), description: "大厅场景".to_string() },
+            TemplateDirectory { path: "scenes/game".to_string(), description: "游戏场景".to_string() },
+            TemplateDirectory { path: "scenes/ui".to_string(), description: "UI 场景".to_string() },
+            TemplateDirectory { path: "scenes/ui/chat".to_string(), description: "聊天UI".to_string() },
+            TemplateDirectory { path: "scripts/network".to_string(), description: "网络管理".to_string() },
+            TemplateDirectory { path: "scripts/network/rpc".to_string(), description: "RPC 调用".to_string() },
+            TemplateDirectory { path: "scripts/network/sync".to_string(), description: "状态同步".to_string() },
+            TemplateDirectory { path: "scripts/player".to_string(), description: "玩家脚本".to_string() },
+            TemplateDirectory { path: "scripts/autoload".to_string(), description: "全局管理器".to_string() },
+            TemplateDirectory { path: "assets/sprites".to_string(), description: "精灵图".to_string() },
+            TemplateDirectory { path: "assets/audio/sfx".to_string(), description: "音效".to_string() },
+            TemplateDirectory { path: "assets/audio/music".to_string(), description: "背景音乐".to_string() },
+        ],
+        export_presets: vec![
+            TemplateExportPreset { platform: "windows".to_string(), name: "Windows Desktop".to_string(), config: serde_json::Value::Null },
+            TemplateExportPreset { platform: "web".to_string(), name: "HTML5".to_string(), config: serde_json::Value::Null },
+        ],
+        project_config: TemplateProjectConfig {
+            input_mappings: serde_json::json!({
+                "move_left": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 65}, {"type": "InputEventJoypadButton", "button": 14}] },
+                "move_right": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 68}, {"type": "InputEventJoypadButton", "button": 15}] },
+                "move_up": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 87}] },
+                "move_down": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 83}] },
+                "chat": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194306}] },
+                "ui_accept": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194309}] },
+                "ui_cancel": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194305}] }
+            }),
+            layer_names: serde_json::json!({
+                "2d_physics": ["player", "other_player", "environment", "pickup", "hazard"],
+                "2d_render": ["background", "foreground", "ui"]
+            }),
+            autoloads: serde_json::json!({
+                "NetworkManager": "res://scripts/autoload/network_manager.gd",
+                "GameManager": "res://scripts/autoload/game_manager.gd",
+                "AudioManager": "res://scripts/autoload/audio_manager.gd"
+            }),
+            project_settings: serde_json::json!({
+                "network/limits/max_packet_size": 65536
+            }),
+        },
+        is_builtin: true,
+        source_url: String::new(),
+        version: "1.0.0".to_string(),
+        created_at: chrono::Utc::now(),
+        updated_at: None,
+    };
+
+    let mobile_template = Template {
+        template_id: "builtin-mobile".to_string(),
+        name: "移动端起步包".to_string(),
+        description: "移动端游戏起步模板，包含触摸输入映射、虚拟摇杆和移动端优化设置，适合手机/平板游戏开发".to_string(),
+        author: "Godot Harbor".to_string(),
+        category: TemplateCategory::Mobile,
+        tags: vec!["mobile".to_string(), "touch".to_string(), "android".to_string(), "ios".to_string(), "starter".to_string()],
+        icon_url: String::new(),
+        preview_images: Vec::new(),
+        godot: TemplateGodotConfig {
+            version: "4.4.1".to_string(),
+            mono: false,
+            rendering: "mobile".to_string(),
+        },
+        plugins: vec![
+            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::AssetStore, url: String::new(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
+        ],
+        directories: vec![
+            TemplateDirectory { path: "scenes/levels".to_string(), description: "关卡场景".to_string() },
+            TemplateDirectory { path: "scenes/player".to_string(), description: "玩家场景".to_string() },
+            TemplateDirectory { path: "scenes/ui".to_string(), description: "UI 场景".to_string() },
+            TemplateDirectory { path: "scenes/ui/touch".to_string(), description: "触摸控件".to_string() },
+            TemplateDirectory { path: "scripts/player".to_string(), description: "玩家脚本".to_string() },
+            TemplateDirectory { path: "scripts/autoload".to_string(), description: "全局管理器".to_string() },
+            TemplateDirectory { path: "scripts/touch".to_string(), description: "触摸输入处理".to_string() },
+            TemplateDirectory { path: "assets/sprites".to_string(), description: "精灵图".to_string() },
+            TemplateDirectory { path: "assets/sprites/ui".to_string(), description: "UI 精灵".to_string() },
+            TemplateDirectory { path: "assets/audio/sfx".to_string(), description: "音效".to_string() },
+            TemplateDirectory { path: "assets/audio/music".to_string(), description: "背景音乐".to_string() },
+        ],
+        export_presets: vec![
+            TemplateExportPreset { platform: "android".to_string(), name: "Android".to_string(), config: serde_json::Value::Null },
+            TemplateExportPreset { platform: "ios".to_string(), name: "iOS".to_string(), config: serde_json::Value::Null },
+        ],
+        project_config: TemplateProjectConfig {
+            input_mappings: serde_json::json!({
+                "touch_left": { "deadzone": 0.5, "events": [{"type": "InputEventScreenTouch", "index": 0}] },
+                "touch_right": { "deadzone": 0.5, "events": [{"type": "InputEventScreenTouch", "index": 1}] },
+                "joystick_left": { "deadzone": 0.5, "events": [{"type": "InputEventScreenDrag", "index": 0}] },
+                "move_left": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 65}] },
+                "move_right": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 68}] },
+                "move_up": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 87}] },
+                "move_down": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 83}] },
+                "jump": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194320}] },
+                "ui_accept": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194309}] },
+                "ui_cancel": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194305}] }
+            }),
+            layer_names: serde_json::json!({
+                "2d_physics": ["player", "enemy", "environment", "pickup", "hazard"],
+                "2d_render": ["background", "foreground", "touch_ui", "system_ui"]
+            }),
+            autoloads: serde_json::json!({
+                "GameManager": "res://scripts/autoload/game_manager.gd",
+                "TouchManager": "res://scripts/autoload/touch_manager.gd",
+                "AudioManager": "res://scripts/autoload/audio_manager.gd"
+            }),
+            project_settings: serde_json::json!({
+                "display/window/handheld/orientation": 1,
+                "rendering/renderer/rendering_method": "mobile",
+                "display/window/stretch/mode": "canvas_items",
+                "display/window/stretch/aspect": "keep"
+            }),
+        },
+        is_builtin: true,
+        source_url: String::new(),
+        version: "1.0.0".to_string(),
+        created_at: chrono::Utc::now(),
+        updated_at: None,
+    };
+
+    for template in [blank_template, platformer_template, rpg_template, starter_3d_template, multiplayer_template, mobile_template] {
         if !builtin_ids.contains(&template.template_id.as_str()) {
             let saved = save_hub_template(app.clone(), template)?;
             created.push(saved);

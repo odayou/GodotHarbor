@@ -158,6 +158,7 @@ export interface DashboardStats {
   binding_count: number
   engine_count: number
   recent_projects: Project[]
+  drift_count?: number
 }
 
 export interface MovedProjectCandidate {
@@ -627,3 +628,82 @@ export interface TemplateInstantiationResult {
   engine_installed: boolean
   duration_secs: number
 }
+
+export type DriftStatus = 'InSync' | 'VersionMismatch' | 'Missing' | 'Unexpected'
+
+export interface DriftItem {
+  item_type: string
+  name: string
+  status: DriftStatus
+  expected: string
+  actual: string
+  message: string
+}
+
+export interface DriftReport {
+  project_id: string
+  project_name: string
+  items: DriftItem[]
+  checked_at: string
+  has_drift: boolean
+}
+
+export interface SyncAction {
+  action_type: string
+  item_type: string
+  name: string
+  detail: string
+}
+
+export interface SyncPreview {
+  project_id: string
+  actions: SyncAction[]
+}
+
+export interface SyncEnvironmentResult {
+  synced: number
+  failed: number
+  skipped: number
+  details: string[]
+}
+
+export interface ExportTemplateInfo {
+  version: string
+  mono: boolean
+  installed: boolean
+  path: string | null
+  file_size: number | null
+}
+
+export interface ExportPreset {
+  preset_id: string
+  platform: ExportPlatform
+  name: string
+  config: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface BuiltinExportPreset {
+  platform: string
+  name: string
+  description: string
+  config: Record<string, unknown>
+}
+
+export interface BuildRecord {
+  build_id: string
+  project_id: string
+  project_name: string
+  platform: ExportPlatform
+  engine_version: string
+  status: BuildStatus
+  started_at: string
+  completed_at: string | null
+  output_path: string
+  error_message: string
+  duration_secs: number
+}
+
+export type ExportPlatform = 'Windows' | 'MacOS' | 'Linux' | 'Web' | 'Android' | 'IOS'
+export type BuildStatus = 'Pending' | 'Running' | 'Success' | 'Failed' | 'Cancelled'

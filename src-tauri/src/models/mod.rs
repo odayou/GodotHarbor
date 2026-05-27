@@ -529,6 +529,8 @@ pub struct DashboardStats {
     pub binding_count: usize,
     pub engine_count: usize,
     pub recent_projects: Vec<Project>,
+    #[serde(default)]
+    pub drift_count: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

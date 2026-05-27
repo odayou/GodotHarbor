@@ -61,9 +61,27 @@ pub fn set_project_default_engine(app: AppHandle, project_id: String, engine_id:
     let mut projects: Vec<Project> = storage.load_or_default("projects.json");
     let proj = projects.iter_mut().find(|p| p.project_id == project_id)
         .ok_or("未找到指定项目".to_string())?;
-    proj.last_used_engine_id = Some(engine_id);
+    proj.last_used_engine_id = Some(engine_id.clone());
+    let project_path = proj.path.clone();
     storage.save("projects.json", &projects)
         .map_err(|e| format!("保存失败: {}", e))?;
+
+    let config_path = crate::harbor_config::get_harbor_config_path(&project_path);
+    if config_path.exists() {
+        let engines: Vec<Engine> = storage.load_or_default("engines.json");
+        if let Some(engine) = engines.iter().find(|e| e.engine_id == engine_id) {
+            if let Ok(Some(config)) = crate::harbor_config::read_harbor_config_from_project(&project_path) {
+                let config_upgraded = if config.version < 2 { config.upgrade_to_v2() } else { config };
+                let mut updated = config_upgraded.clone();
+                updated.godot = Some(crate::harbor_config::HarborGodot {
+                    version: engine.version.clone(),
+                    mono: engine.is_mono,
+                });
+                let _ = crate::harbor_config::write_harbor_config_to_project(&project_path, &updated);
+            }
+        }
+    }
+
     let _ = app.emit("project-opened", ());
     Ok(())
 }

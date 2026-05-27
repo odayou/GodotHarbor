@@ -67,13 +67,19 @@ impl FsWatcher {
                         .unwrap_or(false)
                 });
 
+                let has_harbor_yml = event.paths.iter().any(|p| {
+                    p.file_name()
+                        .map(|f| f == ".harbor.yml")
+                        .unwrap_or(false)
+                });
+
                 let is_in_project_dir = event.paths.iter().any(|p| {
                     p.parent()
                         .map(|dir| dir.join("project.godot").exists())
                         .unwrap_or(false)
                 });
 
-                if !has_project_godot && !is_in_project_dir {
+                if !has_project_godot && !has_harbor_yml && !is_in_project_dir {
                     continue;
                 }
 
