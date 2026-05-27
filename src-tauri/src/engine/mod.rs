@@ -40,6 +40,10 @@ impl EngineManager {
     }
 
     pub fn find_executable_in_dir(dir: &Path) -> Option<std::path::PathBuf> {
+        if dir.is_file() && Self::is_godot_executable(dir) {
+            return Some(dir.to_path_buf());
+        }
+
         if let Ok(entries) = std::fs::read_dir(dir) {
             for entry in entries.flatten() {
                 let path = entry.path();

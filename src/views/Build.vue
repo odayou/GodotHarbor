@@ -156,12 +156,8 @@ async function applyPreset(preset: BuiltinExportPreset) {
 }
 
 async function exportPreset(preset: BuiltinExportPreset) {
-  if (!presetProjectId.value) {
-    toast.error(t('build.selectProject'))
-    return
-  }
   try {
-    const json = await api.exportPresetToJson(presetProjectId.value, preset.name)
+    const json = await api.exportPresetToJson(preset as unknown as Record<string, unknown>)
     await navigator.clipboard.writeText(json)
     toast.success(t('build.presetExported') || '预设已复制到剪贴板')
   } catch (e) {
@@ -721,7 +717,7 @@ onUnmounted(() => {
     </div>
 
     <ConfirmDialog
-      v-model="!!deleteTarget"
+      :model-value="!!deleteTarget"
       :title="t('build.deleteTemplate')"
       :description="t('build.deleteTemplateConfirm')"
       @confirm="deleteTemplate"

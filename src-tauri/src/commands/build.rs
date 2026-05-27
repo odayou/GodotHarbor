@@ -1,4 +1,4 @@
-use crate::commands::utils::{get_storage, get_data_dir};
+use crate::commands::utils::get_storage;
 use crate::models::*;
 use crate::utils::create_http_client;
 use tauri::{AppHandle, Emitter};
@@ -7,6 +7,139 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 const GODOT_EXPORT_TEMPLATES_URL: &str = "https://downloads.tuxfamily.org/godotengine";
+
+fn get_godot_templates_dir() -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        let appdata = std::env::var("APPDATA").unwrap_or_else(|_| {
+            let home = std::env::var("USERPROFILE").unwrap_or_else(|_| "C:\\".to_string());
+            format!("{}\\AppData\\Roaming", home)
+        });
+        PathBuf::from(appdata).join("Godot").join("export_templates")
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        PathBuf::from(home).join("Library").join("Application Support").join("Godot").join("export_templates")
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        let data_dir = std::env::var("XDG_DATA_HOME").unwrap_or_else(|_| format!("{}/.local/share", home));
+        PathBuf::from(data_dir).join("godot").join("export_templates")
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        PathBuf::from(home).join(".local").join("share").join("godot").join("export_templates")
+    }
+}
+
+fn get_godot_template_version_dir(version: &str) -> PathBuf {
+    let stable_version = version
+        .split('-')
+        .next()
+        .unwrap_or(version);
+    get_godot_templates_dir().join(format!("{}.stable", stable_version))
+}
+
+fn extract_tpz_to_godot_dir(tpz_path: &Path, version: &str, _mono: bool) -> Result<(), String> {
+    let target_dir = get_godot_template_version_dir(version);
+    fs::create_dir_all(&target_dir)
+        .map_err(|e| format!("创建 Godot 模板目录 {} 失败: {}", target_dir.display(), e))?;
+
+    let file = fs::File::open(tpz_path)
+        .map_err(|e| format!("打开 tpz 文件失败: {}", e))?;
+    let mut archive = zip::ZipArchive::new(file)
+        .map_err(|e| format!("解析 tpz 文件失败: {}", e))?;
+
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i)
+            .map_err(|e| format!("读取 zip 条目失败: {}", e))?;
+
+        let entry_path = entry.name().to_string();
+        let parts: Vec<&str> = entry_path.splitn(2, '/').collect();
+
+        let relative_path = if parts.len() > 1 {
+            parts[1].to_string()
+        } else {
+            continue;
+        };
+
+        if relative_path.is_empty() {
+            continue;
+        }
+
+        let out_path = target_dir.join(&relative_path);
+
+        if entry.is_dir() {
+            fs::create_dir_all(&out_path)
+                .map_err(|e| format!("创建目录 {} 失败: {}", out_path.display(), e))?;
+        } else {
+            if let Some(parent) = out_path.parent() {
+                fs::create_dir_all(parent)
+                    .map_err(|e| format!("创建父目录 {} 失败: {}", parent.display(), e))?;
+            }
+            let mut outfile = fs::File::create(&out_path)
+                .map_err(|e| format!("创建文件 {} 失败: {}", out_path.display(), e))?;
+            std::io::copy(&mut entry, &mut outfile)
+                .map_err(|e| format!("写入文件 {} 失败: {}", out_path.display(), e))?;
+        }
+    }
+
+    Ok(())
+}
+
+fn platform_to_godot_platform(platform: &ExportPlatform) -> &'static str {
+    match platform {
+        ExportPlatform::Windows => "Windows Desktop",
+        ExportPlatform::MacOS => "macOS",
+        ExportPlatform::Linux => "Linux/X11",
+        ExportPlatform::Web => "Web",
+        ExportPlatform::Android => "Android",
+        ExportPlatform::IOS => "iOS",
+    }
+}
+
+fn find_preset_name_for_platform(export_presets_path: &Path, platform: &ExportPlatform) -> Result<String, String> {
+    let content = fs::read_to_string(export_presets_path)
+        .map_err(|e| format!("读取 export_presets.cfg 失败: {}", e))?;
+
+    let godot_platform = platform_to_godot_platform(platform);
+
+    let mut current_preset_name: Option<String> = None;
+    let mut current_platform: Option<String> = None;
+    let mut found_presets: Vec<(String, String)> = Vec::new();
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("name=") {
+            let name = trimmed.strip_prefix("name=").unwrap_or("").trim_matches('"').to_string();
+            current_preset_name = Some(name);
+        } else if trimmed.starts_with("platform=") {
+            let plat = trimmed.strip_prefix("platform=").unwrap_or("").trim_matches('"').to_string();
+            current_platform = Some(plat);
+        } else if trimmed.starts_with('[') && current_preset_name.is_some() && current_platform.is_some() {
+            found_presets.push((current_preset_name.take().unwrap(), current_platform.take().unwrap()));
+        }
+    }
+    if current_preset_name.is_some() && current_platform.is_some() {
+        found_presets.push((current_preset_name.take().unwrap(), current_platform.take().unwrap()));
+    }
+
+    for (name, plat) in &found_presets {
+        if plat == godot_platform {
+            return Ok(name.clone());
+        }
+    }
+
+    let available: Vec<String> = found_presets.iter().map(|(n, p)| format!("{} ({})", n, p)).collect();
+    Err(format!(
+        "未找到 {} 平台的导出预设，可用预设: {}",
+        godot_platform,
+        if available.is_empty() { "无".to_string() } else { available.join(", ") }
+    ))
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExportTemplateInfo {
@@ -19,57 +152,58 @@ pub struct ExportTemplateInfo {
 
 #[tauri::command]
 pub fn list_export_templates(app: AppHandle) -> Result<Vec<ExportTemplateInfo>, String> {
-    let data_dir = get_data_dir(&app);
-    let templates_dir = data_dir.join("export_templates");
-    if !templates_dir.exists() {
-        return Ok(Vec::new());
-    }
-
     let engines: Vec<Engine> = get_storage(&app).load_or_default("engines.json");
+    let godot_templates_dir = get_godot_templates_dir();
     let mut result = Vec::new();
 
-    let entries = fs::read_dir(&templates_dir)
-        .map_err(|e| format!("读取导出模板目录失败: {}", e))?;
+    if godot_templates_dir.exists() {
+        if let Ok(entries) = fs::read_dir(&godot_templates_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if !path.is_dir() {
+                    continue;
+                }
+                let dir_name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                let version = dir_name.trim_end_matches(".stable").to_string();
+                if version.is_empty() {
+                    continue;
+                }
 
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if !path.is_dir() {
-            continue;
+                let has_templates = path.join("templates").exists()
+                    || fs::read_dir(&path).map(|mut e| e.any(|_| true)).unwrap_or(false);
+
+                let mono = dir_name.contains("mono");
+                let total_size: u64 = fs::read_dir(&path)
+                    .ok()
+                    .map(|entries| {
+                        entries.filter_map(|e| e.ok())
+                            .filter_map(|e| e.metadata().ok())
+                            .filter(|m| m.is_file())
+                            .map(|m| m.len())
+                            .sum()
+                    })
+                    .unwrap_or(0);
+
+                result.push(ExportTemplateInfo {
+                    version: version.clone(),
+                    mono,
+                    installed: has_templates,
+                    path: Some(path.to_string_lossy().to_string()),
+                    file_size: if total_size > 0 { Some(total_size) } else { None },
+                });
+            }
         }
-        let dir_name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
-        let parts: Vec<&str> = dir_name.splitn(2, '_').collect();
-        let version = parts[0].to_string();
-        let mono = parts.len() > 1 && parts[1] == "mono";
-
-        let tpk_file = path.join("templates.tpz");
-        let installed = tpk_file.exists();
-        let file_size = if installed {
-            fs::metadata(&tpk_file).ok().map(|m| m.len())
-        } else {
-            None
-        };
-
-        result.push(ExportTemplateInfo {
-            version: version.clone(),
-            mono,
-            installed,
-            path: if installed { Some(tpk_file.to_string_lossy().to_string()) } else { None },
-            file_size,
-        });
     }
 
     for engine in &engines {
-        let _key = if engine.is_mono {
-            format!("{}_mono", engine.version)
-        } else {
-            engine.version.clone()
-        };
         if !result.iter().any(|t| t.version == engine.version && t.mono == engine.is_mono) {
+            let version_dir = get_godot_template_version_dir(&engine.version);
+            let installed = version_dir.exists();
             result.push(ExportTemplateInfo {
                 version: engine.version.clone(),
                 mono: engine.is_mono,
-                installed: false,
-                path: None,
+                installed,
+                path: if installed { Some(version_dir.to_string_lossy().to_string()) } else { None },
                 file_size: None,
             });
         }
@@ -94,15 +228,9 @@ pub async fn download_export_template(app: AppHandle, version: String, mono: boo
         "message": format!("正在下载 Godot {} 导出模板...", version),
     }));
 
-    let data_dir = get_data_dir(&app);
-    let templates_dir = data_dir.join("export_templates");
-    let version_dir = if mono {
-        templates_dir.join(format!("{}_mono", version))
-    } else {
-        templates_dir.join(&version)
-    };
-    fs::create_dir_all(&version_dir)
-        .map_err(|e| format!("创建导出模板目录失败: {}", e))?;
+    let temp_dir = std::env::temp_dir().join(format!("godot_harbor_template_{}", version.replace('.', "_")));
+    fs::create_dir_all(&temp_dir)
+        .map_err(|e| format!("创建临时目录失败: {}", e))?;
 
     let stable_version = version.trim_end_matches("-dev").trim_end_matches("-beta").trim_end_matches("-rc");
     let url = if mono {
@@ -128,7 +256,7 @@ pub async fn download_export_template(app: AppHandle, version: String, mono: boo
         }
     }
 
-    let tpz_path = version_dir.join("templates.tpz");
+    let tpz_path = temp_dir.join("templates.tpz");
     let mut file = fs::File::create(&tpz_path)
         .map_err(|e| format!("创建临时文件失败: {}", e))?;
 
@@ -144,23 +272,28 @@ pub async fn download_export_template(app: AppHandle, version: String, mono: boo
 
     let _ = app.emit("export-template-download-progress", serde_json::json!({
         "version": &version,
-        "stage": "complete",
-        "progress": 1.0,
-        "message": format!("Godot {} 导出模板下载完成", version),
+        "stage": "extracting",
+        "progress": 0.8,
+        "message": format!("正在解压 Godot {} 导出模板到标准路径...", version),
     }));
 
-    Ok(format!("导出模板 {} 下载完成", version))
+    extract_tpz_to_godot_dir(&tpz_path, &version, mono)?;
+
+    let _ = fs::remove_dir_all(&temp_dir);
+
+    let _ = app.emit("export-template-download-progress", serde_json::json!({
+        "version": &version,
+        "stage": "complete",
+        "progress": 1.0,
+        "message": format!("Godot {} 导出模板安装完成", version),
+    }));
+
+    Ok(format!("导出模板 {} 安装完成", version))
 }
 
 #[tauri::command]
-pub fn delete_export_template(app: AppHandle, version: String, mono: bool) -> Result<(), String> {
-    let data_dir = get_data_dir(&app);
-    let templates_dir = data_dir.join("export_templates");
-    let version_dir = if mono {
-        templates_dir.join(format!("{}_mono", version))
-    } else {
-        templates_dir.join(&version)
-    };
+pub fn delete_export_template(_app: AppHandle, version: String, _mono: bool) -> Result<(), String> {
+    let version_dir = get_godot_template_version_dir(&version);
 
     if version_dir.exists() {
         fs::remove_dir_all(&version_dir)
@@ -306,16 +439,20 @@ pub async fn build_project(app: AppHandle, project_id: String, platform: ExportP
     }));
 
     let engine_path = PathBuf::from(&engine.path);
-    let godot_executable = if engine.is_mono {
-        engine_path.join("GodotSharp")
-    } else {
-        engine_path.join("Godot")
-    };
 
-    let godot_bin = if cfg!(windows) {
-        godot_executable.with_extension("exe")
+    let godot_bin = if engine_path.is_file() {
+        engine_path.clone()
     } else {
-        godot_executable
+        let godot_executable = if engine.is_mono {
+            engine_path.join("GodotSharp")
+        } else {
+            engine_path.join("Godot")
+        };
+        if cfg!(windows) {
+            godot_executable.with_extension("exe")
+        } else {
+            godot_executable
+        }
     };
 
     if !godot_bin.exists() {
@@ -328,16 +465,8 @@ pub async fn build_project(app: AppHandle, project_id: String, platform: ExportP
         return Err(format!("引擎可执行文件不存在: {}", godot_bin.display()));
     }
 
-    let data_dir = get_data_dir(&app);
-    let templates_dir = data_dir.join("export_templates");
-    let template_key = if engine.is_mono {
-        format!("{}_mono", engine.version)
-    } else {
-        engine.version.clone()
-    };
-    let template_dir = templates_dir.join(&template_key);
-    let tpk_file = template_dir.join("templates.tpz");
-    if !tpk_file.exists() {
+    let template_dir = get_godot_template_version_dir(&engine.version);
+    if !template_dir.exists() {
         let _ = app.emit("build-progress", serde_json::json!({
             "build_id": &build_id,
             "stage": "failed",
@@ -351,8 +480,32 @@ pub async fn build_project(app: AppHandle, project_id: String, platform: ExportP
     fs::create_dir_all(&output_dir)
         .map_err(|e| format!("创建输出目录失败: {}", e))?;
 
-    let _preset_flag = preset_name.as_ref().map_or(String::new(), |n| format!("--export-release=\"{}\"", n));
-    let platform_flag = format!("--export-release {}", platform);
+    let export_presets_path = PathBuf::from(&project.path).join("export_presets.cfg");
+    if !export_presets_path.exists() {
+        let _ = app.emit("build-progress", serde_json::json!({
+            "build_id": &build_id,
+            "stage": "failed",
+            "progress": 0.0,
+            "message": "项目缺少 export_presets.cfg，请先在 Godot 编辑器中配置导出预设".to_string(),
+        }));
+        return Err("项目缺少 export_presets.cfg，请先在 Godot 编辑器中配置导出预设".to_string());
+    }
+
+    let preset_name = match preset_name {
+        Some(name) => name,
+        None => find_preset_name_for_platform(&export_presets_path, &platform)?,
+    };
+
+    let output_extension = match platform {
+        ExportPlatform::Windows => ".exe",
+        ExportPlatform::MacOS => ".app",
+        ExportPlatform::Linux => "",
+        ExportPlatform::Web => "",
+        ExportPlatform::Android => ".apk",
+        ExportPlatform::IOS => ".ipa",
+    };
+    let output_filename = format!("{}{}", project.name, output_extension);
+    let output_path = output_dir.join(&output_filename);
 
     let _ = app.emit("build-progress", serde_json::json!({
         "build_id": &build_id,
@@ -361,20 +514,32 @@ pub async fn build_project(app: AppHandle, project_id: String, platform: ExportP
         "message": format!("正在构建 {} ({} {})...", project.name, platform, engine.version),
     }));
 
-    let _project_godot = PathBuf::from(&project.path).join("project.godot");
-
-    let output = tokio::process::Command::new(&godot_bin)
-        .arg("--headless")
-        .arg("--path").arg(&project.path)
-        .arg(&platform_flag)
-        .output()
+    let build_result = tokio::time::timeout(
+        std::time::Duration::from_secs(600),
+        tokio::process::Command::new(&godot_bin)
+            .arg("--headless")
+            .arg("--path").arg(&project.path)
+            .arg("--export-release")
+            .arg(&preset_name)
+            .arg(output_path.to_string_lossy().as_ref())
+            .output()
+    )
         .await
+        .map_err(|_| {
+            let _ = app.emit("build-progress", serde_json::json!({
+                "build_id": &build_id,
+                "stage": "failed",
+                "progress": 1.0,
+                "message": "构建超时（10分钟）".to_string(),
+            }));
+            "构建超时（10分钟）".to_string()
+        })?
         .map_err(|e| format!("执行构建命令失败: {}", e))?;
 
     let duration = (chrono::Utc::now() - now).num_seconds() as u64;
-    let success = output.status.success();
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    let success = build_result.status.success();
+    let stdout = String::from_utf8_lossy(&build_result.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&build_result.stderr).to_string();
 
     let (status, error_message) = if success {
         let _ = app.emit("build-progress", serde_json::json!({
@@ -614,7 +779,7 @@ pub struct BuiltinExportPreset {
 }
 
 #[tauri::command]
-pub fn export_preset_to_json(preset: ExportPreset) -> Result<String, String> {
+pub fn export_preset_to_json(preset: BuiltinExportPreset) -> Result<String, String> {
     serde_json::to_string_pretty(&preset)
         .map_err(|e| format!("序列化预设失败: {}", e))
 }

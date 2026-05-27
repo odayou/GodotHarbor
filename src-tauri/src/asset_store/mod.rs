@@ -185,8 +185,15 @@ impl AssetStoreClient {
             return Err(format!("Asset Store 搜索返回错误: {}", resp.status()));
         }
 
-        resp.json().await
-            .map_err(|e| format!("解析 Asset Store 搜索结果失败: {}", e))
+        let text = resp.text().await
+            .map_err(|e| format!("读取 Asset Store 响应失败: {}", e))?;
+
+        if text.trim().starts_with('<') {
+            return Err("Asset Store 返回了非 JSON 响应，可能服务暂时不可用，请尝试切换到 Legacy 模式".to_string());
+        }
+
+        serde_json::from_str(&text)
+            .map_err(|e| format!("解析 Asset Store 搜索结果失败: {} (响应前200字符: {})", e, &text[..text.len().min(200)]))
     }
 
     pub async fn get_detail(&self, asset_id: &str) -> Result<serde_json::Value, String> {
@@ -200,7 +207,12 @@ impl AssetStoreClient {
             return Err(format!("Asset Store 详情返回错误: {}", resp.status()));
         }
 
-        resp.json().await
+        let text = resp.text().await
+            .map_err(|e| format!("读取 Asset Store 详情响应失败: {}", e))?;
+        if text.trim().starts_with('<') {
+            return Err("Asset Store 返回了非 JSON 响应，可能服务暂时不可用".to_string());
+        }
+        serde_json::from_str(&text)
             .map_err(|e| format!("解析 Asset Store 详情失败: {}", e))
     }
 
@@ -215,7 +227,12 @@ impl AssetStoreClient {
             return Err(format!("Asset Store 版本列表返回错误: {}", resp.status()));
         }
 
-        resp.json().await
+        let text = resp.text().await
+            .map_err(|e| format!("读取 Asset Store 版本列表响应失败: {}", e))?;
+        if text.trim().starts_with('<') {
+            return Err("Asset Store 返回了非 JSON 响应，可能服务暂时不可用".to_string());
+        }
+        serde_json::from_str(&text)
             .map_err(|e| format!("解析 Asset Store 版本列表失败: {}", e))
     }
 
@@ -230,18 +247,33 @@ impl AssetStoreClient {
             return Err(format!("Asset Store 分类返回错误: {}", resp.status()));
         }
 
-        resp.json().await
+        let text = resp.text().await
+            .map_err(|e| format!("读取 Asset Store 分类响应失败: {}", e))?;
+        if text.trim().starts_with('<') {
+            return Err("Asset Store 返回了非 JSON 响应，可能服务暂时不可用".to_string());
+        }
+        serde_json::from_str(&text)
             .map_err(|e| format!("解析 Asset Store 分类失败: {}", e))
     }
 
     pub async fn check_available(&self) -> bool {
         let url = format!("{}/asset", self.base_url);
-        self.client.get(&url)
+        match self.client.get(&url)
             .query(&[("max_results", "1")])
             .send()
             .await
-            .map(|r| r.status().is_success())
-            .unwrap_or(false)
+        {
+            Ok(resp) => {
+                if !resp.status().is_success() {
+                    return false;
+                }
+                match resp.text().await {
+                    Ok(text) => !text.trim().starts_with('<'),
+                    Err(_) => false,
+                }
+            }
+            Err(_) => false,
+        }
     }
 }
 

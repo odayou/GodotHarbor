@@ -14,6 +14,7 @@ const PROTOCOL_VERSION: &str = "2024-11-05";
 
 #[derive(Debug, Deserialize)]
 struct JsonRpcRequest {
+    #[allow(dead_code)]
     jsonrpc: String,
     id: Option<Value>,
     method: String,

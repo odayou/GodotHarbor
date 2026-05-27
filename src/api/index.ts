@@ -625,8 +625,8 @@ export const api = {
     return await invoke('get_builtin_export_presets')
   },
 
-  async exportPresetToJson(projectId: string, presetName: string): Promise<string> {
-    return await invoke('export_preset_to_json', { projectId, presetName })
+  async exportPresetToJson(preset: Record<string, unknown>): Promise<string> {
+    return await invoke('export_preset_to_json', { preset })
   },
 
   async importPresetFromJson(projectId: string, json: string): Promise<void> {

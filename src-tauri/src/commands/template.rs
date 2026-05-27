@@ -1,6 +1,6 @@
 use std::fs;
 use std::path::Path;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use crate::models::*;
 use crate::utils::create_http_client;
 use crate::linker::Linker;
@@ -110,25 +110,31 @@ pub async fn import_template_from_url(app: AppHandle, url: String) -> Result<Tem
     save_hub_template(app, template)
 }
 
-fn get_builtin_framework_dir() -> std::path::PathBuf {
-    let exe_dir = std::env::current_exe()
-        .unwrap_or_default()
-        .parent()
-        .unwrap_or(std::path::Path::new("."))
-        .to_path_buf();
-    exe_dir.join("templates")
+fn get_builtin_framework_dir(app: &AppHandle) -> std::path::PathBuf {
+    app.path().resource_dir()
+        .unwrap_or_else(|_| {
+            std::env::current_exe()
+                .unwrap_or_default()
+                .parent()
+                .unwrap_or(std::path::Path::new("."))
+                .to_path_buf()
+        })
+        .join("templates")
 }
 
-fn get_builtin_modules_dir() -> std::path::PathBuf {
-    let exe_dir = std::env::current_exe()
-        .unwrap_or_default()
-        .parent()
-        .unwrap_or(std::path::Path::new("."))
-        .to_path_buf();
-    exe_dir.join("modules")
+fn get_builtin_modules_dir(app: &AppHandle) -> std::path::PathBuf {
+    app.path().resource_dir()
+        .unwrap_or_else(|_| {
+            std::env::current_exe()
+                .unwrap_or_default()
+                .parent()
+                .unwrap_or(std::path::Path::new("."))
+                .to_path_buf()
+        })
+        .join("modules")
 }
 
-fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
+fn copy_dir_recursive_skip(src: &Path, dst: &Path, skip_names: &[&str]) -> Result<(), String> {
     if !src.exists() {
         return Err(format!("源目录不存在: {}", src.display()));
     }
@@ -138,9 +144,14 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
         .map_err(|e| format!("读取目录 {} 失败: {}", src.display(), e))?;
     for entry in entries.flatten() {
         let src_path = entry.path();
-        let dst_path = dst.join(entry.file_name());
+        let file_name = entry.file_name();
+        let name_str = file_name.to_string_lossy();
+        if skip_names.iter().any(|s| *s == name_str) {
+            continue;
+        }
+        let dst_path = dst.join(&file_name);
         if src_path.is_dir() {
-            copy_dir_recursive(&src_path, &dst_path)?;
+            copy_dir_recursive_skip(&src_path, &dst_path, skip_names)?;
         } else {
             fs::copy(&src_path, &dst_path)
                 .map_err(|e| format!("拷贝 {} 失败: {}", src_path.display(), e))?;
@@ -149,14 +160,14 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn scaffold_template_framework(project_dir: &Path, template: &Template) -> Result<(), String> {
-    let framework_dir = get_builtin_framework_dir().join(&template.template_id).join("framework");
+fn scaffold_template_framework(app: &AppHandle, project_dir: &Path, template: &Template) -> Result<(), String> {
+    let framework_dir = get_builtin_framework_dir(app).join(&template.template_id).join("framework");
     if framework_dir.exists() {
-        copy_dir_recursive(&framework_dir, project_dir)?;
+        copy_dir_recursive_skip(&framework_dir, project_dir, &["project.godot"])?;
     } else {
         let cached_dir = get_templates_dir_from_template(template).join("framework");
         if cached_dir.exists() {
-            copy_dir_recursive(&cached_dir, project_dir)?;
+            copy_dir_recursive_skip(&cached_dir, project_dir, &["project.godot"])?;
         }
     }
     Ok(())
@@ -166,10 +177,10 @@ fn get_templates_dir_from_template(_template: &Template) -> std::path::PathBuf {
     std::path::PathBuf::new()
 }
 
-fn apply_mobile_support(project_dir: &Path) -> Result<(), String> {
-    let module_dir = get_builtin_modules_dir().join("mobile-support").join("framework");
+fn apply_mobile_support(app: &AppHandle, project_dir: &Path) -> Result<(), String> {
+    let module_dir = get_builtin_modules_dir(app).join("mobile-support").join("framework");
     if module_dir.exists() {
-        copy_dir_recursive(&module_dir, project_dir)?;
+        copy_dir_recursive_skip(&module_dir, project_dir, &["project.godot"])?;
     }
     Ok(())
 }
@@ -181,11 +192,17 @@ fn generate_project_godot(template: &Template, enable_mobile: bool) -> String {
     content.push_str("[application]\n");
     content.push_str(&format!("config/name=\"{}\"\n", template.name));
 
-    if !template.godot.mono {
-        content.push_str("run/main_scene=\"res://scenes/main.tscn\"\n");
-    }
+    content.push_str("run/main_scene=\"res://scenes/main.tscn\"\n");
 
-    content.push_str("config/features=PackedStringArray(\"4.2\", \"Forward+\")\n\n");
+    let major_minor = template.godot.version.split('.').take(2).collect::<Vec<_>>().join(".");
+    let rendering_method = if template.godot.rendering.is_empty() {
+        "Forward+"
+    } else if template.godot.rendering == "compatible" {
+        "Compatibility"
+    } else {
+        "Forward+"
+    };
+    content.push_str(&format!("config/features=PackedStringArray(\"{}\", \"{}\")\n\n", major_minor, rendering_method));
 
     let mut autoloads = collect_autoloads_from_config(&template.project_config);
     if enable_mobile {
@@ -336,14 +353,20 @@ fn create_directory_structure(project_dir: &Path, template: &Template) -> Result
 
 fn generate_export_presets_cfg(template: &Template) -> String {
     let mut content = String::new();
-    content.push_str("[preset.0]\n\n");
 
     for (i, preset) in template.export_presets.iter().enumerate() {
-        if i > 0 {
-            content.push_str(&format!("[preset.{}]\n\n", i));
-        }
+        content.push_str(&format!("[preset.{}]\n\n", i));
         content.push_str(&format!("name=\"{}\"\n", preset.name));
-        content.push_str(&format!("platform=\"{}\"\n", preset.platform));
+        let godot_platform = match preset.platform.as_str() {
+            "windows" => "Windows Desktop",
+            "macos" => "macOS",
+            "linux" => "Linux/X11",
+            "web" => "Web",
+            "android" => "Android",
+            "ios" => "iOS",
+            other => other,
+        };
+        content.push_str(&format!("platform=\"{}\"\n", godot_platform));
         content.push_str("runnable=true\n");
         content.push_str("dedicated_server=false\n");
         content.push_str("custom_features=\"\"\n");
@@ -358,8 +381,8 @@ fn generate_export_presets_cfg(template: &Template) -> String {
         content.push('\n');
     }
 
-    content.push_str("[preset.0.options]\n\n");
-    for preset in &template.export_presets {
+    for (i, preset) in template.export_presets.iter().enumerate() {
+        content.push_str(&format!("[preset.{}.options]\n\n", i));
         match preset.platform.as_str() {
             "windows" => {
                 content.push_str("custom_template/debug=\"\"\n");
@@ -409,9 +432,34 @@ fn generate_export_presets_cfg(template: &Template) -> String {
                 content.push_str("privacy/camera_usage_description=\"\"\n");
                 content.push_str("privacy/microphone_usage_description=\"\"\n");
             }
+            "android" => {
+                content.push_str("custom_template/debug=\"\"\n");
+                content.push_str("custom_template/release=\"\"\n");
+                content.push_str("gradle_build/gradle_build_dir=\"\"\n");
+                content.push_str("gradle_build/gradle_build_dir.editable=false\n");
+                content.push_str("architectures/armeabi-v7a=false\n");
+                content.push_str("architectures/arm64-v8a=true\n");
+                content.push_str("architectures/x86=false\n");
+                content.push_str("architectures/x86_64=false\n");
+                content.push_str("version/code=1\n");
+                content.push_str("version/name=\"1.0\"\n");
+                content.push_str("package/unique_name=\"com.example.game\"\n");
+                content.push_str("package/name=\"\"\n");
+                content.push_str("package/signing/debug_keystore=\"\"\n");
+            }
+            "ios" => {
+                content.push_str("custom_template/debug=\"\"\n");
+                content.push_str("custom_template/release=\"\"\n");
+                content.push_str("application/bundle_identifier=\"\"\n");
+                content.push_str("application/icon=\"\"\n");
+                content.push_str("application/signature=\"\"\n");
+                content.push_str("application/short_version=\"1.0\"\n");
+                content.push_str("application/version=\"1.0\"\n");
+                content.push_str("application/copyright=\"\"\n");
+            }
             _ => {}
         }
-        break;
+        content.push('\n');
     }
 
     content
@@ -502,7 +550,7 @@ pub async fn instantiate_template(
 
     let created_dirs = create_directory_structure(&project_dir, &template)?;
 
-    scaffold_template_framework(&project_dir, &template)?;
+    scaffold_template_framework(&app, &project_dir, &template)?;
 
     if enable_mobile {
         let _ = app.emit("template-instantiation-progress", TemplateInstantiationProgress {
@@ -512,7 +560,7 @@ pub async fn instantiate_template(
             message: "正在应用移动端支持模块...".to_string(),
             detail: String::new(),
         });
-        apply_mobile_support(&project_dir)?;
+        apply_mobile_support(&app, &project_dir)?;
     }
 
     let _ = app.emit("template-instantiation-progress", TemplateInstantiationProgress {
@@ -907,13 +955,13 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
         icon_url: String::new(),
         preview_images: Vec::new(),
         godot: TemplateGodotConfig {
-            version: "4.4.1".to_string(),
+            version: "4.6".to_string(),
             mono: false,
             rendering: String::new(),
         },
         plugins: vec![
-            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::AssetStore, url: String::new(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
-            TemplatePlugin { name: "gut".to_string(), version: "9.2.0".to_string(), source: TemplatePluginSource::AssetStore, url: String::new(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
+            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
+            TemplatePlugin { name: "gut".to_string(), version: "9.2.0".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/bitwes/Gut.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
         ],
         directories: vec![
             TemplateDirectory { path: "scenes".to_string(), description: "场景文件".to_string() },
@@ -961,13 +1009,13 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
         icon_url: String::new(),
         preview_images: Vec::new(),
         godot: TemplateGodotConfig {
-            version: "4.4.1".to_string(),
+            version: "4.6".to_string(),
             mono: false,
             rendering: "compatible".to_string(),
         },
         plugins: vec![
-            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::AssetStore, url: String::new(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
-            TemplatePlugin { name: "godot-states".to_string(), version: "2.0.2".to_string(), source: TemplatePluginSource::AssetStore, url: String::new(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
+            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
+            TemplatePlugin { name: "godot-states".to_string(), version: "2.0.2".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/quitbug/godot-state-machines.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
         ],
         directories: vec![
             TemplateDirectory { path: "scenes/levels".to_string(), description: "关卡场景".to_string() },
@@ -1030,14 +1078,14 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
         icon_url: String::new(),
         preview_images: Vec::new(),
         godot: TemplateGodotConfig {
-            version: "4.4.1".to_string(),
+            version: "4.6".to_string(),
             mono: false,
             rendering: "compatible".to_string(),
         },
         plugins: vec![
-            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::AssetStore, url: String::new(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
+            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
             TemplatePlugin { name: "dialogic".to_string(), version: "2.0".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/dialogic-godot/dialogic.git".to_string(), git_ref: "main".to_string(), mount: "copy".to_string(), subdirectory: String::new() },
-            TemplatePlugin { name: "godot-states".to_string(), version: "2.0.2".to_string(), source: TemplatePluginSource::AssetStore, url: String::new(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
+            TemplatePlugin { name: "godot-states".to_string(), version: "2.0.2".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/quitbug/godot-state-machines.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
         ],
         directories: vec![
             TemplateDirectory { path: "scenes/maps".to_string(), description: "地图场景".to_string() },
@@ -1102,13 +1150,13 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
         icon_url: String::new(),
         preview_images: Vec::new(),
         godot: TemplateGodotConfig {
-            version: "4.4.1".to_string(),
+            version: "4.6".to_string(),
             mono: false,
             rendering: "forward_plus".to_string(),
         },
         plugins: vec![
-            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::AssetStore, url: String::new(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
-            TemplatePlugin { name: "godot-states".to_string(), version: "2.0.2".to_string(), source: TemplatePluginSource::AssetStore, url: String::new(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
+            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
+            TemplatePlugin { name: "godot-states".to_string(), version: "2.0.2".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/quitbug/godot-state-machines.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
         ],
         directories: vec![
             TemplateDirectory { path: "scenes/levels".to_string(), description: "关卡场景".to_string() },
@@ -1175,12 +1223,12 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
         icon_url: String::new(),
         preview_images: Vec::new(),
         godot: TemplateGodotConfig {
-            version: "4.4.1".to_string(),
+            version: "4.6".to_string(),
             mono: false,
             rendering: "compatible".to_string(),
         },
         plugins: vec![
-            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::AssetStore, url: String::new(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
+            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
         ],
         directories: vec![
             TemplateDirectory { path: "scenes/lobby".to_string(), description: "大厅场景".to_string() },

@@ -188,7 +188,8 @@ const handleCreate = async () => {
     lastCreatedProjectId.value = result.project_id
 
     if (result.failed_plugins.length > 0) {
-      toast.warning(`${t('templates.createSuccess')} (${result.failed_plugins.length} ${t('templates.partialFailed') || '项未完成'})`)
+      const details = result.failed_plugins.join('\n')
+      toast.warning(`${t('templates.createSuccess')} (${result.failed_plugins.length} ${t('templates.partialFailed') || '项未完成'}):\n${details}`, { timeout: 8000 })
     } else {
       toast.success(t('templates.createSuccess'))
     }
