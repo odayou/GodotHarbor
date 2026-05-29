@@ -6,7 +6,6 @@ use crate::models::*;
 use crate::storage::Storage;
 use crate::linker::Linker;
 use uuid::Uuid;
-use futures::future::join_all;
 use crate::utils::{create_http_client, no_window_cmd};
 use super::utils::*;
 use super::update::record_update_history;

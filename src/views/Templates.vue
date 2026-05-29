@@ -3,7 +3,7 @@ import { ref, onMounted, computed, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { api } from '@/api'
-import type { Template, TemplateCategory, TemplateInstantiationProgress } from '@/types'
+import type { Template, TemplateCategory, TemplateInstantiationProgress, Project } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
@@ -68,7 +68,7 @@ const generateProjectId = ref('')
 const generateTemplateName = ref('')
 const generateCategory = ref<TemplateCategory>('Custom')
 const isGenerating = ref(false)
-const projects = ref<any[]>([])
+const projects = ref<Project[]>([])
 
 const showDeleteConfirm = ref(false)
 const deleteTargetId = ref('')
@@ -83,7 +83,7 @@ let unlistenProgress: UnlistenFn | null = null
 onMounted(async () => {
   const [, projectList] = await Promise.all([
     loadTemplates(),
-    api.getProjects().catch(() => [] as any[])
+    api.getProjects().catch(() => [] as Project[])
   ])
   projects.value = projectList
   unlistenProgress = await listen('template-instantiation-progress', (event) => {

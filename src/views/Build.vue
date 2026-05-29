@@ -6,7 +6,7 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
 import { useFileManager } from '@/composables/useFileManager'
 import { useDialogEscape } from '@/composables/useDialogEscape'
-import { formatSize, formatDate, buildStatusClass, buildStatusText } from '@/utils/formatUtils'
+import { formatSize, formatDate, buildStatusClass, buildStatusText, copyToClipboard } from '@/utils/formatUtils'
 import type { ExportTemplateInfo, BuiltinExportPreset, BuildRecord, ExportPlatform, Project } from '@/types'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import ProjectSelector from '@/components/ProjectSelector.vue'
@@ -63,9 +63,12 @@ const ciPlatformOptions = [
   { value: 'macos', label: 'macOS' },
 ]
 
+interface BuildProgressPayload { stage: string; progress: number; message: string }
+interface DownloadProgressPayload { version: string; stage: string; progress: number; message: string }
+
 const mcpServerRunning = ref(false)
-const buildProgress = ref<{ stage: string; progress: number; message: string } | null>(null)
-const downloadProgress = ref<{ version: string; stage: string; progress: number; message: string } | null>(null)
+const buildProgress = ref<BuildProgressPayload | null>(null)
+const downloadProgress = ref<DownloadProgressPayload | null>(null)
 const importPresetJson = ref('')
 
 const mcpConfig = computed(() => {
@@ -79,6 +82,11 @@ const mcpConfig = computed(() => {
     }
   }, null, 2)
 })
+
+const mcpClients = computed(() => [
+  { key: 'claude', title: t('mcp.claudeDesktop'), desc: t('mcp.claudeDesktopDesc') },
+  { key: 'cursor', title: t('mcp.cursor'), desc: t('mcp.cursorDesc') }
+])
 
 let unlistenProgress: UnlistenFn | null = null
 let unlistenDownloadProgress: UnlistenFn | null = null
@@ -106,20 +114,20 @@ async function loadData() {
       ciGodotVersion.value = proj.godot_version || '4.4.1'
     }
   } catch (e) {
-    toast.error(String(e))
+    toast.error(e)
   } finally {
     isLoading.value = false
   }
 }
 
 async function downloadTemplate(version: string, mono: boolean) {
-  downloadingVersion.value = version
+  downloadingVersion.value = `${version}-${mono}`
   try {
     await api.downloadExportTemplate(version, mono)
     toast.success(t('build.templateDownloaded'))
     await loadData()
   } catch (e) {
-    toast.error(String(e))
+    toast.error(e)
   } finally {
     downloadingVersion.value = null
   }
@@ -133,7 +141,7 @@ async function deleteTemplate() {
     deleteTarget.value = null
     await loadData()
   } catch (e) {
-    toast.error(String(e))
+    toast.error(e)
   }
 }
 
@@ -146,7 +154,7 @@ async function applyPreset(preset: BuiltinExportPreset) {
     await api.saveExportPresetToHarbor(presetProjectId.value, preset.platform, preset.name, preset.config)
     toast.success(t('build.presetSaved'))
   } catch (e) {
-    toast.error(String(e))
+    toast.error(e)
   }
 }
 
@@ -156,7 +164,7 @@ async function exportPreset(preset: BuiltinExportPreset) {
     await navigator.clipboard.writeText(json)
     toast.success(t('build.presetExported') || '预设已复制到剪贴板')
   } catch (e) {
-    toast.error(String(e))
+    toast.error(e)
   }
 }
 
@@ -167,7 +175,7 @@ async function importPreset() {
     toast.success(t('build.presetImported') || '预设导入成功')
     importPresetJson.value = ''
   } catch (e) {
-    toast.error(String(e))
+    toast.error(e)
   }
 }
 
@@ -186,7 +194,7 @@ async function startBuild() {
     }
     await loadData()
   } catch (e) {
-    toast.error(String(e))
+    toast.error(e)
   } finally {
     building.value = false
   }
@@ -214,7 +222,7 @@ async function generateCi() {
     generatedConfig.value = config
     toast.success(t('build.configGenerated'))
   } catch (e) {
-    toast.error(String(e))
+    toast.error(e)
   }
 }
 
@@ -224,7 +232,7 @@ async function writeCiConfig() {
     await api.writeCiConfig(ciProjectId.value, ciProvider.value, generatedConfig.value)
     toast.success(t('build.configWritten'))
   } catch (e) {
-    toast.error(String(e))
+    toast.error(e)
   }
 }
 
@@ -233,7 +241,7 @@ async function removeBuildRecord(buildId: string) {
     await api.deleteBuildRecord(buildId)
     buildRecords.value = buildRecords.value.filter(r => r.build_id !== buildId)
   } catch (e) {
-    toast.error(String(e))
+    toast.error(e)
   }
 }
 
@@ -243,7 +251,7 @@ async function startMcpServer() {
     mcpServerRunning.value = true
     toast.success(t('mcp.serverRunning'))
   } catch (e) {
-    toast.error(String(e))
+    toast.error(e)
   }
 }
 
@@ -253,16 +261,7 @@ async function stopMcpServer() {
     mcpServerRunning.value = false
     toast.success(t('mcp.serverStopped') || 'MCP 服务器已停止')
   } catch (e) {
-    toast.error(String(e))
-  }
-}
-
-async function copyToClipboard(text: string) {
-  try {
-    await navigator.clipboard.writeText(text)
-    toast.success(t('mcp.configCopied'))
-  } catch {
-    toast.error('Failed to copy')
+    toast.error(e)
   }
 }
 
@@ -270,13 +269,13 @@ useDialogEscape(computed(() => !!deleteTarget.value))
 
 onMounted(async () => {
   await Promise.all([loadData(), resolveMcpExePath()])
-  unlistenProgress = await listen('build-progress', (event: any) => {
+  unlistenProgress = await listen<BuildProgressPayload>('build-progress', (event) => {
     buildProgress.value = event.payload
     if (event.payload.stage === 'complete' || event.payload.stage === 'failed') {
       setTimeout(() => { buildProgress.value = null }, 3000)
     }
   })
-  unlistenDownloadProgress = await listen('export-template-download-progress', (event: any) => {
+  unlistenDownloadProgress = await listen<DownloadProgressPayload>('export-template-download-progress', (event) => {
     downloadProgress.value = event.payload
     if (event.payload.stage === 'complete') {
       setTimeout(() => { downloadProgress.value = null; loadData() }, 1500)
@@ -318,6 +317,10 @@ onUnmounted(() => {
     </div>
 
     <div class="flex-1 overflow-y-auto px-6 pb-6">
+      <div v-if="isLoading" class="flex items-center justify-center py-20">
+        <div class="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent"></div>
+      </div>
+      <div v-else>
       <!-- Export Templates Tab -->
       <div v-if="activeTab === 'templates'">
         <p class="text-sm text-gray-500 dark:text-content-muted mb-4">{{ t('build.exportTemplatesDesc') }}</p>
@@ -349,10 +352,10 @@ onUnmounted(() => {
               <button
                 v-if="!tmpl.installed"
                 class="px-3 py-1.5 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors disabled:opacity-50"
-                :disabled="downloadingVersion === tmpl.version"
+                :disabled="downloadingVersion === `${tmpl.version}-${tmpl.mono}`"
                 @click="downloadTemplate(tmpl.version, tmpl.mono)"
               >
-                {{ downloadingVersion === tmpl.version ? t('build.downloading') : t('build.download') }}
+                {{ downloadingVersion === `${tmpl.version}-${tmpl.mono}` ? t('build.downloading') : t('build.download') }}
               </button>
               <button
                 v-if="tmpl.installed"
@@ -649,31 +652,17 @@ onUnmounted(() => {
         </div>
 
         <div class="grid gap-6 sm:grid-cols-2">
-          <div class="bg-white dark:bg-surface-card rounded-xl border border-gray-200 dark:border-surface-border p-6">
+          <div v-for="client in mcpClients" :key="client.key" class="bg-white dark:bg-surface-card rounded-xl border border-gray-200 dark:border-surface-border p-6">
             <div class="flex items-center justify-between mb-3">
-              <h3 class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ t('mcp.claudeDesktop') }}</h3>
+              <h3 class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ client.title }}</h3>
               <button
                 class="px-3 py-1.5 text-xs font-medium text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/20 dark:text-primary-400 dark:hover:bg-primary-900/30 rounded-lg transition-colors"
-                @click="copyToClipboard(mcpConfig)"
+                @click="copyToClipboard(mcpConfig).then(ok => ok ? toast.success(t('mcp.configCopied')) : toast.error('Failed to copy'))"
               >
                 {{ t('mcp.copyConfig') }}
               </button>
             </div>
-            <p class="text-xs text-gray-500 dark:text-content-muted mb-3">{{ t('mcp.claudeDesktopDesc') }}</p>
-            <pre class="bg-gray-50 dark:bg-surface-layer rounded-lg p-3 text-xs text-gray-800 dark:text-content-secondary overflow-x-auto max-h-48 overflow-y-auto">{{ mcpConfig }}</pre>
-          </div>
-
-          <div class="bg-white dark:bg-surface-card rounded-xl border border-gray-200 dark:border-surface-border p-6">
-            <div class="flex items-center justify-between mb-3">
-              <h3 class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ t('mcp.cursor') }}</h3>
-              <button
-                class="px-3 py-1.5 text-xs font-medium text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/20 dark:text-primary-400 dark:hover:bg-primary-900/30 rounded-lg transition-colors"
-                @click="copyToClipboard(mcpConfig)"
-              >
-                {{ t('mcp.copyConfig') }}
-              </button>
-            </div>
-            <p class="text-xs text-gray-500 dark:text-content-muted mb-3">{{ t('mcp.cursorDesc') }}</p>
+            <p class="text-xs text-gray-500 dark:text-content-muted mb-3">{{ client.desc }}</p>
             <pre class="bg-gray-50 dark:bg-surface-layer rounded-lg p-3 text-xs text-gray-800 dark:text-content-secondary overflow-x-auto max-h-48 overflow-y-auto">{{ mcpConfig }}</pre>
           </div>
         </div>
@@ -687,5 +676,6 @@ onUnmounted(() => {
       @confirm="deleteTemplate"
       @update:model-value="(v: boolean) => { if (!v) deleteTarget = null }"
     />
+      </div>
   </div>
 </template>

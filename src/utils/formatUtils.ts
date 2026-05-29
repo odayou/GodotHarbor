@@ -36,3 +36,12 @@ export function buildStatusText(status: BuildStatus, t: (key: string) => string)
     default: return status
   }
 }
+
+export async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch {
+    return false
+  }
+}
