@@ -16,10 +16,20 @@ pub fn get_data_dir(app: &AppHandle) -> PathBuf {
     let config_dir = get_config_dir(app);
     let config_storage = Storage::new(config_dir.clone());
     let settings: Settings = config_storage.load_or_default("settings.json");
-    if settings.custom_data_dir.is_empty() {
-        config_dir
-    } else {
+    if !settings.custom_data_dir.is_empty() {
         PathBuf::from(&settings.custom_data_dir)
+    } else if !settings.data_dir_initialized {
+        if let Ok(exe_path) = std::env::current_exe() {
+            if let Some(exe_dir) = exe_path.parent() {
+                exe_dir.join("GodotHarborData")
+            } else {
+                config_dir
+            }
+        } else {
+            config_dir
+        }
+    } else {
+        config_dir
     }
 }
 

@@ -92,6 +92,7 @@ export interface Settings {
   skipped_app_version?: string
   engine_mirrors?: EngineMirrorConfig[]
   custom_data_dir?: string
+  data_dir_initialized?: boolean
   selected_mirror_id?: string
   known_engine_paths?: string[]
   auto_apply?: boolean

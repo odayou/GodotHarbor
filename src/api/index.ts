@@ -69,8 +69,8 @@ export const api = {
     return await invoke('import_project_from_git', { gitUrl, targetDir: targetDir || null })
   },
 
-  async removeProject(projectId: string): Promise<void> {
-    return await invoke('remove_project', { projectId })
+  async removeProject(projectId: string, deleteFiles?: boolean): Promise<void> {
+    return await invoke('remove_project', { projectId, deleteFiles })
   },
 
   async updateProjectGroup(projectId: string, group: string): Promise<void> {
@@ -97,8 +97,8 @@ export const api = {
     return await invoke('sync_projects')
   },
 
-  async batchRemoveProjects(projectIds: string[]): Promise<BatchResult> {
-    return await invoke('batch_remove_projects', { projectIds })
+  async batchRemoveProjects(projectIds: string[], deleteFiles?: boolean): Promise<BatchResult> {
+    return await invoke('batch_remove_projects', { projectIds, deleteFiles })
   },
 
   // ─── Plugins ───
@@ -502,6 +502,14 @@ export const api = {
     return await invoke('migrate_data_dir', { newDataDir })
   },
 
+  async checkDataDirSetupNeeded(): Promise<boolean> {
+    return await invoke('check_data_dir_setup_needed')
+  },
+
+  async confirmDataDir(customDir?: string): Promise<string> {
+    return await invoke('confirm_data_dir', { customDir: customDir ?? null })
+  },
+
   // ─── System ───
   async getOperationLogs(limit?: number): Promise<LogEntry[]> {
     return await invoke('get_operation_logs', { limit })
@@ -579,6 +587,10 @@ export const api = {
 
   async downloadExportTemplate(version: string, mono: boolean): Promise<string> {
     return await invoke('download_export_template', { version, mono })
+  },
+
+  async importExportTemplateFromFile(tpzPath: string, version: string, mono: boolean): Promise<string> {
+    return await invoke('import_export_template_from_file', { tpzPath, version, mono })
   },
 
   async deleteExportTemplate(version: string, mono: boolean): Promise<void> {

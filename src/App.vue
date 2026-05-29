@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { RouterView, useRouter } from 'vue-router'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { listen } from '@tauri-apps/api/event'
@@ -16,6 +16,7 @@ import Header from './components/layout/Header.vue'
 import StatusBar from './components/layout/StatusBar.vue'
 import ToastContainer from './components/ToastContainer.vue'
 import OnboardingGuide from './components/OnboardingGuide.vue'
+import DataDirSetupDialog from './components/DataDirSetupDialog.vue'
 import CommandPalette from './components/CommandPalette.vue'
 import { useAutoSetup } from './composables/useAutoSetup'
 import { useNetworkStatus } from './composables/useNetworkStatus'
@@ -29,6 +30,7 @@ const toast = useToast()
 
 const pluginStore = usePluginStore()
 const { runAutoSetup, isRunning: isAutoSetupRunning } = useAutoSetup()
+const showDataDirSetup = ref(false)
 let unlistenProgress: any = null
 let unlistenScanComplete: any = null
 let unlistenEnginesDiscovered: any = null
@@ -51,7 +53,13 @@ getCurrentWindow().show().then(() => {
 onMounted(async () => {
   initSidebarState()
   
-  // 检查是否首次启动，显示语言选择提示
+  try {
+    const needSetup = await api.checkDataDirSetupNeeded()
+    if (needSetup) {
+      showDataDirSetup.value = true
+    }
+  } catch {}
+
   const hasSetLanguage = localStorage.getItem('godotharbor-language')
   const hasLaunchedBefore = localStorage.getItem('godotharbor-launched')
   
@@ -193,6 +201,7 @@ registerShortcut({
     </div>
     <ToastContainer />
     <OnboardingGuide />
+    <DataDirSetupDialog v-model:visible="showDataDirSetup" />
     <CommandPalette />
   </div>
   

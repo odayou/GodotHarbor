@@ -1049,6 +1049,9 @@ export default {
     addProjectSuccess: '成功添加项目: {name}',
     addProjectFailed: '添加项目失败: {error}',
     projectDeleted: '项目已删除',
+    deletedWithFiles: '项目及文件已彻底删除',
+    batchDeletedWithFiles: '{count} 个项目及文件已彻底删除',
+    deleteWithFiles: '同时删除项目文件（不可恢复）',
     deleteFailed: '删除项目失败: {error}',
     groupUpdated: '分组已更新',
     groupUpdateFailed: '更新分组失败: {error}',
@@ -1159,6 +1162,18 @@ export default {
     switchToChinese: '切换为中文',
     chineseEnglish: '中英',
     switchLanguage: '切换语言'
+  },
+  dataDirSetup: {
+    title: '选择数据存储位置',
+    desc: '应用数据（项目、引擎、插件等）将存储在此目录。建议选择非系统盘以节省 C 盘空间。',
+    selectDir: '选择目录',
+    customDir: '自定义目录',
+    customDirHint: '点击选择其他位置',
+    useAppDir: '使用应用同级目录（推荐）',
+    useAppDirHint: '在应用所在目录下创建 GodotHarborData 文件夹',
+    confirm: '确认',
+    laterHint: '选择"使用应用同级目录"将直接确认',
+    confirmed: '数据目录已设置为: {dir}',
   },
   onboarding: {
     welcome: {
@@ -1437,6 +1452,9 @@ export default {
     statusCancelled: '已取消',
     openOutput: '打开输出目录',
     templateDownloaded: '导出模板下载完成',
+    templateImported: '导出模板导入完成',
+    importLocal: '本地导入',
+    selectTemplateFile: '选择导出模板文件',
     templateDeleted: '导出模板已删除',
     mcpServer: 'MCP Server',
     retry: '重试',

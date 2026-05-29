@@ -1,4 +1,4 @@
-use crate::commands::utils::get_storage;
+use crate::commands::utils::{get_storage, load_settings};
 use crate::models::*;
 use crate::utils::create_http_client;
 use tauri::{AppHandle, Emitter};
@@ -7,6 +7,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 const GODOT_EXPORT_TEMPLATES_URL: &str = "https://downloads.tuxfamily.org/godotengine";
+const GITHUB_RELEASES_API: &str = "https://api.github.com/repos/godotengine/godot-builds/releases";
 
 fn get_godot_templates_dir() -> PathBuf {
     #[cfg(target_os = "windows")]
@@ -219,6 +220,99 @@ pub fn list_export_templates(app: AppHandle) -> Result<Vec<ExportTemplateInfo>, 
     Ok(result)
 }
 
+async fn resolve_template_download_url(app: &AppHandle, version: &str, mono: bool) -> Result<String, String> {
+    let settings = load_settings(app);
+    let mirror = settings.engine_mirrors.iter().find(|m| m.enabled);
+
+    if let Some(mirror) = mirror {
+        if mirror.mirror_type == "direct" && !mirror.is_official {
+            let tpz_name = if mono {
+                format!("Godot_v{}_mono_export_templates.tpz", version)
+            } else {
+                format!("Godot_v{}_export_templates.tpz", version)
+            };
+            let mirror_url = format!("{}/{}/{}",
+                mirror.base_url.trim_end_matches('/'),
+                version,
+                tpz_name
+            );
+            let client = create_http_client(Some(std::time::Duration::from_secs(10)))?;
+            if client.head(&mirror_url).send().await.is_ok() {
+                return Ok(mirror_url);
+            }
+        }
+    }
+
+    let stable_version = version.trim_end_matches("-dev").trim_end_matches("-beta").trim_end_matches("-rc");
+    let tuxfamily_urls: Vec<String> = if mono {
+        vec![
+            format!("{}/{}/mono/Godot_v{}_mono_export_templates.tpz", GODOT_EXPORT_TEMPLATES_URL, stable_version, version),
+            format!("{}/{}/mono/Godot_v{}_stable_mono_export_templates.tpz", GODOT_EXPORT_TEMPLATES_URL, stable_version, stable_version),
+        ]
+    } else {
+        vec![
+            format!("{}/{}/Godot_v{}_export_templates.tpz", GODOT_EXPORT_TEMPLATES_URL, stable_version, version),
+            format!("{}/{}/Godot_v{}_stable_export_templates.tpz", GODOT_EXPORT_TEMPLATES_URL, stable_version, stable_version),
+        ]
+    };
+
+    let client = create_http_client(Some(std::time::Duration::from_secs(15)))?;
+    for url in &tuxfamily_urls {
+        match client.head(url).send().await {
+            Ok(resp) if resp.status().is_success() => return Ok(url.clone()),
+            _ => continue,
+        }
+    }
+
+    let github_url = find_template_on_github(&client, version, mono).await?;
+    Ok(github_url)
+}
+
+async fn find_template_on_github(client: &reqwest::Client, version: &str, mono: bool) -> Result<String, String> {
+    let tag_prefix = format!("v{}-", version.split('-').next().unwrap_or(version));
+    let tpz_keyword = if mono { "mono_export_templates.tpz" } else { "export_templates.tpz" };
+
+    for page in 1..=5 {
+        let url = format!("{}?per_page=50&page={}", GITHUB_RELEASES_API, page);
+        let resp = client.get(&url)
+            .header("Accept", "application/vnd.github+json")
+            .send().await
+            .map_err(|e| format!("访问 GitHub Releases 失败: {}", e))?;
+
+        if !resp.status().is_success() {
+            break;
+        }
+
+        let releases: Vec<serde_json::Value> = resp.json().await
+            .map_err(|e| format!("解析 GitHub Releases 失败: {}", e))?;
+
+        if releases.is_empty() {
+            break;
+        }
+
+        for release in &releases {
+            let tag = release.get("tag_name").and_then(|t| t.as_str()).unwrap_or("");
+            if !tag.starts_with(&tag_prefix) && tag != format!("v{}", version) {
+                continue;
+            }
+
+            if let Some(assets) = release.get("assets").and_then(|a| a.as_array()) {
+                for asset in assets {
+                    let name = asset.get("name").and_then(|n| n.as_str()).unwrap_or("");
+                    let download_url = asset.get("browser_download_url")
+                        .and_then(|u| u.as_str()).unwrap_or("");
+
+                    if name.contains(tpz_keyword) {
+                        return Ok(download_url.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    Err("无法找到导出模板下载地址，请检查网络连接或配置镜像源".to_string())
+}
+
 #[tauri::command]
 pub async fn download_export_template(app: AppHandle, version: String, mono: bool) -> Result<String, String> {
     let _ = app.emit("export-template-download-progress", serde_json::json!({
@@ -232,28 +326,14 @@ pub async fn download_export_template(app: AppHandle, version: String, mono: boo
     fs::create_dir_all(&temp_dir)
         .map_err(|e| format!("创建临时目录失败: {}", e))?;
 
-    let stable_version = version.trim_end_matches("-dev").trim_end_matches("-beta").trim_end_matches("-rc");
-    let url = if mono {
-        format!("{}/{}/mono/Godot_v{}_mono_export_templates.tpz", GODOT_EXPORT_TEMPLATES_URL, stable_version, version)
-    } else {
-        format!("{}/{}/Godot_v{}_export_templates.tpz", GODOT_EXPORT_TEMPLATES_URL, stable_version, version)
-    };
+    let download_url = resolve_template_download_url(&app, &version, mono).await?;
 
     let client = create_http_client(Some(std::time::Duration::from_secs(300)))?;
-    let mut resp = client.get(&url).send().await
+    let resp = client.get(&download_url).send().await
         .map_err(|e| format!("下载导出模板失败: {}", e))?;
 
     if !resp.status().is_success() {
-        let alt_url = if mono {
-            format!("{}/{}/mono/Godot_v{}_stable_mono_export_templates.tpz", GODOT_EXPORT_TEMPLATES_URL, stable_version, stable_version)
-        } else {
-            format!("{}/{}/Godot_v{}_stable_export_templates.tpz", GODOT_EXPORT_TEMPLATES_URL, stable_version, stable_version)
-        };
-        resp = client.get(&alt_url).send().await
-            .map_err(|e| format!("下载导出模板失败(备用URL): {}", e))?;
-        if !resp.status().is_success() {
-            return Err(format!("下载导出模板失败: HTTP {}", resp.status()));
-        }
+        return Err(format!("下载导出模板失败: HTTP {}", resp.status()));
     }
 
     let tpz_path = temp_dir.join("templates.tpz");
@@ -289,6 +369,35 @@ pub async fn download_export_template(app: AppHandle, version: String, mono: boo
     }));
 
     Ok(format!("导出模板 {} 安装完成", version))
+}
+
+#[tauri::command]
+pub fn import_export_template_from_file(app: AppHandle, tpz_path: String, version: String, mono: bool) -> Result<String, String> {
+    let path = Path::new(&tpz_path);
+    if !path.exists() {
+        return Err(format!("文件不存在: {}", tpz_path));
+    }
+    if !tpz_path.to_lowercase().ends_with(".tpz") && !tpz_path.to_lowercase().ends_with(".zip") {
+        return Err("请选择 .tpz 或 .zip 格式的导出模板文件".to_string());
+    }
+
+    let _ = app.emit("export-template-download-progress", serde_json::json!({
+        "version": &version,
+        "stage": "extracting",
+        "progress": 0.5,
+        "message": format!("正在从本地文件导入 Godot {} 导出模板...", version),
+    }));
+
+    extract_tpz_to_godot_dir(path, &version, mono)?;
+
+    let _ = app.emit("export-template-download-progress", serde_json::json!({
+        "version": &version,
+        "stage": "complete",
+        "progress": 1.0,
+        "message": format!("Godot {} 导出模板导入完成", version),
+    }));
+
+    Ok(format!("导出模板 {} 导入完成", version))
 }
 
 #[tauri::command]
@@ -443,16 +552,8 @@ pub async fn build_project(app: AppHandle, project_id: String, platform: ExportP
     let godot_bin = if engine_path.is_file() {
         engine_path.clone()
     } else {
-        let godot_executable = if engine.is_mono {
-            engine_path.join("GodotSharp")
-        } else {
-            engine_path.join("Godot")
-        };
-        if cfg!(windows) {
-            godot_executable.with_extension("exe")
-        } else {
-            godot_executable
-        }
+        crate::engine::EngineManager::find_executable_in_dir(&engine_path)
+            .ok_or_else(|| format!("在 {} 中未找到 Godot 可执行文件", engine_path.display()))?
     };
 
     if !godot_bin.exists() {

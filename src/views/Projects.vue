@@ -143,11 +143,11 @@ const batchRemoveProjects = async () => {
   if (ids.length === 0) return
   confirm(t('common.confirmDelete'), t('projects.deleteConfirm', { count: ids.length }), async () => {
     try {
-      const result = await api.batchRemoveProjects(ids)
+      const result = await api.batchRemoveProjects(ids, deleteWithFiles.value)
       if (result.failed_count > 0) {
         toast.warning(t('common.batchDeleteComplete', { success: result.success_count, failed: result.failed_count }))
       } else {
-        toast.success(t('common.batchDeleteSuccess', { count: result.success_count }))
+        toast.success(deleteWithFiles.value ? t('projects.batchDeletedWithFiles', { count: result.success_count }) : t('common.batchDeleteSuccess', { count: result.success_count }))
       }
       clearSelection()
       await loadProjects()
@@ -586,9 +586,11 @@ const browseGitTargetDir = async () => {
 
 const showConfirmDialog = ref(false)
 const confirmAction = ref<{ title: string; message: string; onConfirm: () => void } | null>(null)
+const deleteWithFiles = ref(false)
 
 const confirm = (title: string, message: string, onConfirm: () => void) => {
   confirmAction.value = { title, message, onConfirm }
+  deleteWithFiles.value = false
   showConfirmDialog.value = true
 }
 
@@ -670,8 +672,8 @@ const removeProject = async (projectId: string) => {
           await api.unbindPlugin(projectId, binding.plugin_id)
         } catch { /* ignore unbind errors during removal */ }
       }
-      await api.removeProject(projectId)
-      toast.success(t('common.projectDeleted'))
+      await api.removeProject(projectId, deleteWithFiles.value)
+      toast.success(deleteWithFiles.value ? t('projects.deletedWithFiles') : t('common.projectDeleted'))
       await loadProjects()
     } catch (error) {
       toast.error(t('common.deleteFailed', { error }))
@@ -747,6 +749,7 @@ const {
   engineSelectProject,
   matchedEngines,
   isLoadingEngines,
+  isLaunching,
   engineSelectMode,
   openProjectWithEngine,
   selectDefaultEngine,
@@ -1341,7 +1344,8 @@ const toggleAddPluginPanel = () => {
             <div class="flex items-center gap-1">
               <button
                 @click.stop="openProjectWithEngineWrapper(project)"
-                class="p-2.5 rounded-lg text-gray-500 dark:text-content-muted hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors"
+                :disabled="isLaunching"
+                class="p-2.5 rounded-lg text-gray-500 dark:text-content-muted hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 :title="t('projects.openWithEngine')"
               >
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -1945,7 +1949,12 @@ const toggleAddPluginPanel = () => {
     :description="confirmAction?.message || ''"
     :confirm-text="t('common.confirmDelete')"
     @confirm="onConfirmDialogConfirm"
-  />
+  >
+    <label class="flex items-center gap-2 mt-2 cursor-pointer select-none">
+      <input type="checkbox" v-model="deleteWithFiles" class="rounded border-gray-300 dark:border-gray-600 text-red-600 focus:ring-red-500" />
+      <span class="text-sm text-red-600 dark:text-red-400">{{ t('projects.deleteWithFiles') }}</span>
+    </label>
+  </ConfirmDialog>
 
   <Teleport to="body">
     <div v-if="showMovedDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showMovedDialog = false">
@@ -2071,8 +2080,9 @@ const toggleAddPluginPanel = () => {
             v-for="me in matchedEngines"
             :key="me.engine.engine_id"
             @click="launchWithEngine(me.engine.engine_id)"
+            :disabled="isLaunching"
             :class="[
-              'w-full text-left p-3 rounded-lg border transition-colors',
+              'w-full text-left p-3 rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
               me.engine.engine_id === engineSelectProject?.last_used_engine_id
                 ? 'border-primary-300 dark:border-primary-700 bg-primary-50 dark:bg-primary-900/10'
                 : 'border-gray-200 dark:border-surface-border hover:border-primary-300 dark:hover:border-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900/10'

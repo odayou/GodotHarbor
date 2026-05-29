@@ -220,13 +220,22 @@ pub async fn import_project_from_git(
 }
 
 #[tauri::command]
-pub fn remove_project(app: AppHandle, project_id: String) -> Result<(), String> {
+pub fn remove_project(app: AppHandle, project_id: String, delete_files: Option<bool>) -> Result<(), String> {
     let storage = get_storage(&app);
     let mut projects: Vec<Project> = storage.load_or_default("projects.json");
 
     let project = projects.iter().find(|p| p.project_id == project_id)
         .ok_or("未找到指定项目".to_string())?;
     let project_name = project.name.clone();
+    let project_path = project.path.clone();
+
+    if delete_files.unwrap_or(false) {
+        let path = std::path::Path::new(&project_path);
+        if path.exists() {
+            std::fs::remove_dir_all(path)
+                .map_err(|e| format!("删除项目文件失败: {}", e))?;
+        }
+    }
 
     projects.retain(|p| p.project_id != project_id);
 
@@ -241,7 +250,7 @@ pub fn remove_project(app: AppHandle, project_id: String) -> Result<(), String> 
     storage.save("projects.json", &projects)
         .map_err(|e| format!("保存项目列表失败: {}", e))?;
 
-    log_operation(&app, "remove_project", &project_id, &format!("已删除项目: {}", project_name));
+    log_operation(&app, "remove_project", &project_id, &format!("已删除项目: {}{}", project_name, if delete_files.unwrap_or(false) { "（含文件）" } else { "" }));
     Ok(())
 }
 
@@ -481,7 +490,7 @@ pub fn sync_projects(app: AppHandle) -> Result<Vec<Project>, String> {
 
 
 #[tauri::command]
-pub fn batch_remove_projects(app: AppHandle, project_ids: Vec<String>) -> Result<BatchResult, String> {
+pub fn batch_remove_projects(app: AppHandle, project_ids: Vec<String>, delete_files: Option<bool>) -> Result<BatchResult, String> {
     let storage = get_storage(&app);
     let mut projects: Vec<Project> = storage.load_or_default("projects.json");
     let mut success_count = 0;
@@ -490,6 +499,16 @@ pub fn batch_remove_projects(app: AppHandle, project_ids: Vec<String>) -> Result
 
     let ids_set: std::collections::HashSet<_> = project_ids.iter().cloned().collect();
 
+    let should_delete_files = delete_files.unwrap_or(false);
+    let paths_to_delete: Vec<String> = if should_delete_files {
+        projects.iter()
+            .filter(|p| ids_set.contains(&p.project_id))
+            .map(|p| p.path.clone())
+            .collect()
+    } else {
+        Vec::new()
+    };
+
     for project_id in &project_ids {
         if projects.iter().any(|p| p.project_id == *project_id) {
             projects.retain(|p| p.project_id != *project_id);
@@ -497,6 +516,15 @@ pub fn batch_remove_projects(app: AppHandle, project_ids: Vec<String>) -> Result
         } else {
             failed_count += 1;
             errors.push(format!("未找到项目: {}", project_id));
+        }
+    }
+
+    for project_path in &paths_to_delete {
+        let path = std::path::Path::new(project_path);
+        if path.exists() {
+            if let Err(e) = std::fs::remove_dir_all(path) {
+                errors.push(format!("删除项目文件失败 {}: {}", project_path, e));
+            }
         }
     }
 
@@ -512,7 +540,7 @@ pub fn batch_remove_projects(app: AppHandle, project_ids: Vec<String>) -> Result
         .map_err(|e| format!("保存项目列表失败: {}", e))?;
 
     log_operation(&app, "batch_remove_projects", "",
-        &format!("批量删除项目: 成功 {}, 失败 {}", success_count, failed_count));
+        &format!("批量删除项目: 成功 {}, 失败 {}{}", success_count, failed_count, if should_delete_files { "（含文件）" } else { "" }));
 
     Ok(BatchResult { success_count, failed_count, errors })
 }

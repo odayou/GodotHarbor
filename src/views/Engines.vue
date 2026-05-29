@@ -404,12 +404,18 @@ const onRemoveEngineConfirm = async () => {
   }
 }
 
+const isLaunchingEngine = ref(false)
+
 const launchEngine = async (engineId: string) => {
+  if (isLaunchingEngine.value) return
+  isLaunchingEngine.value = true
   try {
     await api.launchEngine(engineId)
     toast.success(t('engines.launchSuccess'))
   } catch (error) {
     toast.error(t('engines.launchFailed', { error }))
+  } finally {
+    isLaunchingEngine.value = false
   }
 }
 
@@ -869,7 +875,7 @@ const initCollapsedGroups = () => {
                 <div class="flex items-center justify-end gap-1">
                   <button
                     @click="launchEngine(engine.engine_id)"
-                    :disabled="engineHealthMap.get(engine.engine_id) === false"
+                    :disabled="engineHealthMap.get(engine.engine_id) === false || isLaunchingEngine"
                     class="text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-300 p-2.5 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     :title="t('engines.launch')"
                   >
@@ -894,7 +900,8 @@ const initCollapsedGroups = () => {
                     >
                       <button
                         @click="launchEngine(engine.engine_id); openMenuId = ''"
-                        class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-content-primary hover:bg-gray-100 dark:hover:bg-surface-layer flex items-center gap-2"
+                        :disabled="isLaunchingEngine"
+                        class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-content-primary hover:bg-gray-100 dark:hover:bg-surface-layer flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                         {{ t('engines.launch') }}

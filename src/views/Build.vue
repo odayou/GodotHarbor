@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
+import { open } from '@tauri-apps/plugin-dialog'
 import { useFileManager } from '@/composables/useFileManager'
 import { useDialogEscape } from '@/composables/useDialogEscape'
 import { formatSize, formatDate, buildStatusClass, buildStatusText, copyToClipboard } from '@/utils/formatUtils'
@@ -130,6 +131,28 @@ async function downloadTemplate(version: string, mono: boolean) {
     toast.error(e)
   } finally {
     downloadingVersion.value = null
+  }
+}
+
+async function importTemplateFromFile(version: string, mono: boolean) {
+  try {
+    const selected = await open({
+      multiple: false,
+      filters: [{ name: 'Export Template', extensions: ['tpz', 'zip'] }],
+      title: t('build.selectTemplateFile'),
+    })
+    if (!selected) return
+    const filePath = typeof selected === 'string' ? selected : selected as unknown as string
+    downloadingVersion.value = `${version}-import`
+    try {
+      await api.importExportTemplateFromFile(filePath, version, mono)
+      toast.success(t('build.templateImported'))
+      await loadData()
+    } finally {
+      downloadingVersion.value = null
+    }
+  } catch (e) {
+    toast.error(e)
   }
 }
 
@@ -356,6 +379,14 @@ onUnmounted(() => {
                 @click="downloadTemplate(tmpl.version, tmpl.mono)"
               >
                 {{ downloadingVersion === `${tmpl.version}-${tmpl.mono}` ? t('build.downloading') : t('build.download') }}
+              </button>
+              <button
+                v-if="!tmpl.installed"
+                class="px-3 py-1.5 text-sm font-medium text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/10 rounded-lg transition-colors disabled:opacity-50"
+                :disabled="downloadingVersion === `${tmpl.version}-import`"
+                @click="importTemplateFromFile(tmpl.version, tmpl.mono)"
+              >
+                {{ t('build.importLocal') }}
               </button>
               <button
                 v-if="tmpl.installed"

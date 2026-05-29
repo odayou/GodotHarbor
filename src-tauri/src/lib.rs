@@ -97,11 +97,27 @@ pub fn run() {
                 .expect("Failed to create app data directory");
 
             let config_storage = crate::storage::Storage::new(config_dir.clone());
-            let settings: crate::models::Settings = config_storage.load_or_default("settings.json");
-            let data_dir = if settings.custom_data_dir.is_empty() {
-                config_dir
-            } else {
+            let mut settings: crate::models::Settings = config_storage.load_or_default("settings.json");
+            let data_dir = if !settings.custom_data_dir.is_empty() {
                 std::path::PathBuf::from(&settings.custom_data_dir)
+            } else if !settings.data_dir_initialized {
+                if let Ok(exe_path) = std::env::current_exe() {
+                    if let Some(exe_dir) = exe_path.parent() {
+                        let fallback = exe_dir.join("GodotHarborData");
+                        if !fallback.exists() {
+                            let _ = std::fs::create_dir_all(&fallback);
+                        }
+                        settings.custom_data_dir = fallback.to_string_lossy().to_string();
+                        let _ = config_storage.save("settings.json", &settings);
+                        fallback
+                    } else {
+                        config_dir
+                    }
+                } else {
+                    config_dir
+                }
+            } else {
+                config_dir
             };
             std::fs::create_dir_all(&data_dir)
                 .expect("Failed to create data directory");
@@ -474,11 +490,14 @@ pub fn run() {
             commands::cleanup_download_temp,
             commands::get_storage_paths,
             commands::migrate_data_dir,
+            commands::check_data_dir_setup_needed,
+            commands::confirm_data_dir,
             featured::get_featured_plugins,
             featured::report_usage_ping,
             featured::record_plugin_install,
             commands::list_export_templates,
             commands::download_export_template,
+            commands::import_export_template_from_file,
             commands::delete_export_template,
             commands::list_export_presets,
             commands::apply_export_preset,

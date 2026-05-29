@@ -13,9 +13,12 @@ export function useEngineLauncher(onLaunched?: () => void) {
   const matchedEngines = ref<MatchedEngine[]>([])
   const isLoadingEngines = ref(false)
   const engineSelectMode = ref<'launch' | 'select'>('launch')
+  const isLaunching = ref(false)
 
   const openProjectWithEngine = async (project: Project, engines?: Engine[]) => {
+    if (isLaunching.value) return
     if (project.last_used_engine_id) {
+      isLaunching.value = true
       try {
         const engineList = engines || await api.getEngines()
         const engineExists = engineList.some(e => e.engine_id === project.last_used_engine_id)
@@ -28,6 +31,8 @@ export function useEngineLauncher(onLaunched?: () => void) {
       } catch (error) {
         toast.error(t('projects.launchFailed', { error: String(error) }))
         return
+      } finally {
+        isLaunching.value = false
       }
     }
     isLoadingEngines.value = true
@@ -63,6 +68,7 @@ export function useEngineLauncher(onLaunched?: () => void) {
 
   const launchWithEngine = async (engineId: string) => {
     if (!engineSelectProject.value) return
+    if (isLaunching.value) return
     if (engineSelectMode.value === 'select') {
       try {
         await api.setProjectDefaultEngine(engineSelectProject.value.project_id, engineId)
@@ -75,6 +81,7 @@ export function useEngineLauncher(onLaunched?: () => void) {
       }
       return
     }
+    isLaunching.value = true
     try {
       await api.launchEngine(engineId, engineSelectProject.value.path, engineSelectProject.value.project_id)
       toast.success(t('engines.launchSuccess'))
@@ -83,6 +90,8 @@ export function useEngineLauncher(onLaunched?: () => void) {
       onLaunched?.()
     } catch (error) {
       toast.error(t('projects.launchFailed', { error: String(error) }))
+    } finally {
+      isLaunching.value = false
     }
   }
 
@@ -123,6 +132,7 @@ export function useEngineLauncher(onLaunched?: () => void) {
     engineSelectProject,
     matchedEngines,
     isLoadingEngines,
+    isLaunching,
     engineSelectMode,
     openProjectWithEngine,
     selectDefaultEngine,

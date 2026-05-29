@@ -1802,7 +1802,7 @@ const retryBatchFailed = async () => {
         <button
           @click="importFromProjects"
           :disabled="isLoading"
-          class="btn-primary disabled:opacity-50 text-sm"
+          class="btn-secondary disabled:opacity-50 text-sm"
         >
           {{ t('plugins.importFromProject.title') }}
         </button>

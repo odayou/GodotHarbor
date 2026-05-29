@@ -60,6 +60,52 @@ pub fn mark_auto_setup_done(app: AppHandle) -> Result<(), String> {
 
 
 #[tauri::command]
+pub fn check_data_dir_setup_needed(app: AppHandle) -> Result<bool, String> {
+    let settings = load_settings(&app);
+    Ok(!settings.data_dir_initialized)
+}
+
+#[tauri::command]
+pub fn confirm_data_dir(app: AppHandle, custom_dir: Option<String>) -> Result<String, String> {
+    let config_dir = get_config_dir(&app);
+    let config_storage = Storage::new(config_dir.clone());
+    let mut settings: Settings = config_storage.load_or_default("settings.json");
+
+    let data_dir = if let Some(dir) = custom_dir {
+        if !dir.is_empty() {
+            let path = PathBuf::from(&dir);
+            std::fs::create_dir_all(&path)
+                .map_err(|e| format!("创建数据目录失败: {}", e))?;
+            settings.custom_data_dir = dir.clone();
+            dir
+        } else {
+            settings.custom_data_dir = String::new();
+            config_dir.to_string_lossy().to_string()
+        }
+    } else {
+        if let Ok(exe_path) = std::env::current_exe() {
+            if let Some(exe_dir) = exe_path.parent() {
+                let fallback = exe_dir.join("GodotHarborData");
+                std::fs::create_dir_all(&fallback)
+                    .map_err(|e| format!("创建数据目录失败: {}", e))?;
+                settings.custom_data_dir = fallback.to_string_lossy().to_string();
+                fallback.to_string_lossy().to_string()
+            } else {
+                config_dir.to_string_lossy().to_string()
+            }
+        } else {
+            config_dir.to_string_lossy().to_string()
+        }
+    };
+
+    settings.data_dir_initialized = true;
+    config_storage.save("settings.json", &settings)
+        .map_err(|e| format!("保存设置失败: {}", e))?;
+
+    Ok(data_dir)
+}
+
+#[tauri::command]
 pub fn migrate_data_dir(app: AppHandle, new_data_dir: String) -> Result<(), String> {
     let new_path = Path::new(&new_data_dir);
     if new_path.exists() && !new_path.is_dir() {

@@ -416,15 +416,11 @@ fn tool_build_project(ctx: &McpContext, args: &Value) -> Result<String, String> 
     }).ok_or("No engine bound to this project".to_string())?;
 
     let engine_path = std::path::PathBuf::from(&engine.path);
-    let godot_executable = if engine.is_mono {
-        engine_path.join("GodotSharp")
+    let godot_bin = if engine_path.is_file() {
+        engine_path
     } else {
-        engine_path.join("Godot")
-    };
-    let godot_bin = if cfg!(windows) {
-        godot_executable.with_extension("exe")
-    } else {
-        godot_executable
+        crate::engine::EngineManager::find_executable_in_dir(&engine_path)
+            .ok_or_else(|| format!("Godot executable not found in {}", engine_path.display()))?
     };
 
     if !godot_bin.exists() {

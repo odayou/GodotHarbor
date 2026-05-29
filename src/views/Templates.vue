@@ -268,18 +268,20 @@ const progressPercent = computed(() => {
           <h1 class="text-2xl font-bold text-gray-900 dark:text-content-primary">{{ t('templates.title') }}</h1>
           <p class="text-sm text-gray-500 dark:text-content-muted mt-1">{{ t('templates.subtitle') }}</p>
         </div>
-        <button
-          @click="showImportDialog = true"
-          class="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors"
-        >
-          {{ t('templates.importUrl') }}
-        </button>
-        <button
-          @click="showGenerateFromProjectDialog = true"
-          class="px-4 py-2 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors"
-        >
-          {{ t('templates.generateFromProject') || '从项目生成' }}
-        </button>
+        <div class="flex items-center gap-2">
+          <button
+            @click="showGenerateFromProjectDialog = true"
+            class="px-4 py-2 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors"
+          >
+            {{ t('templates.generateFromProject') || '从项目生成' }}
+          </button>
+          <button
+            @click="showImportDialog = true"
+            class="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors"
+          >
+            {{ t('templates.importUrl') }}
+          </button>
+        </div>
       </div>
 
       <div class="flex items-center gap-3">

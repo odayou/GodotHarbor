@@ -346,6 +346,8 @@ pub struct Settings {
     #[serde(default)]
     pub custom_data_dir: String,
     #[serde(default)]
+    pub data_dir_initialized: bool,
+    #[serde(default)]
     pub selected_mirror_id: String,
     #[serde(default)]
     pub known_engine_paths: Vec<String>,
@@ -395,6 +397,7 @@ impl Default for Settings {
             skipped_app_version: String::new(),
             engine_mirrors: default_engine_mirrors(),
             custom_data_dir: String::new(),
+            data_dir_initialized: false,
             selected_mirror_id: String::new(),
             known_engine_paths: Vec::new(),
             auto_apply: true,

@@ -98,6 +98,7 @@ const {
   engineSelectProject,
   matchedEngines,
   isLoadingEngines,
+  isLaunching,
   openProjectWithEngine,
   launchWithEngine,
   closeEngineSelectDialog,
@@ -285,7 +286,8 @@ const {
             <div class="flex items-center gap-2 shrink-0 ml-3">
               <button
                 @click.stop="openProjectWithEngine(project)"
-                class="p-2.5 rounded-lg text-gray-500 dark:text-content-muted hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors"
+                :disabled="isLaunching"
+                class="p-2.5 rounded-lg text-gray-500 dark:text-content-muted hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 :title="t('projects.openWithEngine')"
               >
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -417,8 +419,9 @@ const {
               v-for="me in matchedEngines"
               :key="me.engine.engine_id"
               @click="launchWithEngine(me.engine.engine_id)"
+              :disabled="isLaunching"
               :class="[
-                'w-full text-left p-3 rounded-lg border transition-colors',
+                'w-full text-left p-3 rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
                 me.engine.engine_id === engineSelectProject?.last_used_engine_id
                   ? 'border-primary-300 dark:border-primary-700 bg-primary-50 dark:bg-primary-900/10'
                   : 'border-gray-200 dark:border-surface-border hover:border-primary-300 dark:hover:border-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900/10'

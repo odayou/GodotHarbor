@@ -1046,6 +1046,9 @@ export default {
     addProjectSuccess: 'Successfully added project: {name}',
     addProjectFailed: 'Add project failed: {error}',
     projectDeleted: 'Project deleted',
+    deletedWithFiles: 'Project and files permanently deleted',
+    batchDeletedWithFiles: '{count} projects and files permanently deleted',
+    deleteWithFiles: 'Also delete project files (irreversible)',
     deleteFailed: 'Delete project failed: {error}',
     groupUpdated: 'Group updated',
     groupUpdateFailed: 'Update group failed: {error}',
@@ -1159,6 +1162,18 @@ export default {
     switchToChinese: 'Switch to Chinese',
     chineseEnglish: 'Chinese English',
     switchLanguage: 'Switch language'
+  },
+  dataDirSetup: {
+    title: 'Choose Data Storage Location',
+    desc: 'Application data (projects, engines, plugins, etc.) will be stored here. Choosing a non-system drive is recommended to save C: drive space.',
+    selectDir: 'Select Directory',
+    customDir: 'Custom Directory',
+    customDirHint: 'Click to choose another location',
+    useAppDir: 'Use app directory (Recommended)',
+    useAppDirHint: 'Create a GodotHarborData folder next to the app',
+    confirm: 'Confirm',
+    laterHint: 'Select "Use app directory" to confirm directly',
+    confirmed: 'Data directory set to: {dir}',
   },
   onboarding: {
     welcome: {
@@ -1437,6 +1452,9 @@ export default {
     statusCancelled: 'Cancelled',
     openOutput: 'Open Output Directory',
     templateDownloaded: 'Export template downloaded',
+    templateImported: 'Export template imported',
+    importLocal: 'Import Local',
+    selectTemplateFile: 'Select export template file',
     templateDeleted: 'Export template deleted',
     mcpServer: 'MCP Server',
     retry: 'Retry',

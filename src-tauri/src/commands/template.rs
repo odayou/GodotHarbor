@@ -111,27 +111,63 @@ pub async fn import_template_from_url(app: AppHandle, url: String) -> Result<Tem
 }
 
 fn get_builtin_framework_dir(app: &AppHandle) -> std::path::PathBuf {
-    app.path().resource_dir()
+    let resource_dir = app.path().resource_dir()
         .unwrap_or_else(|_| {
             std::env::current_exe()
                 .unwrap_or_default()
                 .parent()
                 .unwrap_or(std::path::Path::new("."))
                 .to_path_buf()
-        })
-        .join("templates")
+        });
+    let dir = resource_dir.join("templates");
+    if dir.join("builtin-blank-recommended").exists() {
+        return dir;
+    }
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(parent) = exe_path.parent() {
+            if let Some(grandparent) = parent.parent() {
+                let dev_dir = grandparent.join("templates");
+                if dev_dir.join("builtin-blank-recommended").exists() {
+                    return dev_dir;
+                }
+            }
+        }
+    }
+    let src_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("templates");
+    if src_dir.join("builtin-blank-recommended").exists() {
+        return src_dir;
+    }
+    dir
 }
 
 fn get_builtin_modules_dir(app: &AppHandle) -> std::path::PathBuf {
-    app.path().resource_dir()
+    let resource_dir = app.path().resource_dir()
         .unwrap_or_else(|_| {
             std::env::current_exe()
                 .unwrap_or_default()
                 .parent()
                 .unwrap_or(std::path::Path::new("."))
                 .to_path_buf()
-        })
-        .join("modules")
+        });
+    let dir = resource_dir.join("modules");
+    if dir.join("mobile-support").exists() {
+        return dir;
+    }
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(parent) = exe_path.parent() {
+            if let Some(grandparent) = parent.parent() {
+                let dev_dir = grandparent.join("modules");
+                if dev_dir.join("mobile-support").exists() {
+                    return dev_dir;
+                }
+            }
+        }
+    }
+    let src_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("modules");
+    if src_dir.join("mobile-support").exists() {
+        return src_dir;
+    }
+    dir
 }
 
 fn copy_dir_recursive_skip(src: &Path, dst: &Path, skip_names: &[&str]) -> Result<(), String> {
