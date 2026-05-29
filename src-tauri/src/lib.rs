@@ -493,6 +493,7 @@ pub fn run() {
             commands::export_preset_to_json,
             commands::import_preset_from_json,
             commands::start_mcp_server,
+            commands::stop_mcp_server,
         ))
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

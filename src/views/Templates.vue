@@ -12,6 +12,7 @@ import { isOnline } from '@/composables/useNetworkStatus'
 import EmptyState from '@/components/EmptyState.vue'
 import SkeletonList from '@/components/SkeletonList.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import ProjectSelector from '@/components/ProjectSelector.vue'
 
 const toast = useToast()
 const { t } = useI18n()
@@ -80,10 +81,11 @@ useDialogEscape(showGenerateFromProjectDialog)
 let unlistenProgress: UnlistenFn | null = null
 
 onMounted(async () => {
-  await loadTemplates()
-  try {
-    projects.value = await api.getProjects()
-  } catch { /* ignore */ }
+  const [, projectList] = await Promise.all([
+    loadTemplates(),
+    api.getProjects().catch(() => [] as any[])
+  ])
+  projects.value = projectList
   unlistenProgress = await listen('template-instantiation-progress', (event) => {
     createProgress.value = event.payload as TemplateInstantiationProgress
   })
@@ -189,7 +191,7 @@ const handleCreate = async () => {
 
     if (result.failed_plugins.length > 0) {
       const details = result.failed_plugins.join('\n')
-      toast.warning(`${t('templates.createSuccess')} (${result.failed_plugins.length} ${t('templates.partialFailed') || '项未完成'}):\n${details}`, { timeout: 8000 })
+      toast.warning(`${t('templates.createSuccess')} (${result.failed_plugins.length} ${t('templates.partialFailed') || '项未完成'}):\n${details}`, 8000)
     } else {
       toast.success(t('templates.createSuccess'))
     }
@@ -231,6 +233,7 @@ const handleDelete = async () => {
     toast.error(`Delete failed: ${e?.toString() || e}`)
   }
   showDeleteConfirm.value = false
+  deleteTargetId.value = ''
 }
 
 const handleGenerateFromProject = async () => {
@@ -312,6 +315,19 @@ const progressPercent = computed(() => {
     <div class="flex-1 overflow-y-auto px-6 pb-6">
       <SkeletonList v-if="isLoading" :count="4" />
 
+      <div v-else-if="loadError" class="text-center py-12">
+        <svg class="w-12 h-12 mx-auto text-red-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+        </svg>
+        <p class="text-red-500 text-sm mb-2">{{ loadError }}</p>
+        <button
+          class="px-4 py-2 text-sm font-medium text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/20 dark:text-primary-400 dark:hover:bg-primary-900/30 rounded-lg transition-colors"
+          @click="loadTemplates"
+        >
+          {{ t('common.retry') || '重试' }}
+        </button>
+      </div>
+
       <EmptyState
         v-else-if="filteredTemplates.length === 0"
         :title="t('templates.empty')"
@@ -339,7 +355,7 @@ const progressPercent = computed(() => {
               </div>
               <span
                 v-if="tpl.is_builtin"
-                class="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+                class="px-2 py-0.5 text-xs font-medium rounded-full bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400"
               >
                 {{ t('templates.builtin') }}
               </span>
@@ -632,7 +648,10 @@ const progressPercent = computed(() => {
           </div>
         </div>
       </div>
+    </Teleport>
 
+    <!-- Generate From Project Dialog -->
+    <Teleport to="body">
       <div v-if="showGenerateFromProjectDialog" class="fixed inset-0 z-50 flex items-center justify-center">
         <div class="absolute inset-0 bg-black/50" @click="!isGenerating && (showGenerateFromProjectDialog = false)"></div>
         <div class="relative bg-white dark:bg-surface-card rounded-2xl shadow-2xl max-w-md w-full mx-4">
@@ -641,13 +660,7 @@ const progressPercent = computed(() => {
             <div class="space-y-4">
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('templates.selectProject') || '选择项目' }}</label>
-                <select
-                  v-model="generateProjectId"
-                  class="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none"
-                >
-                  <option value="" disabled>{{ t('templates.selectProjectPlaceholder') || '请选择项目' }}</option>
-                  <option v-for="p in projects" :key="p.project_id" :value="p.project_id">{{ p.name }}</option>
-                </select>
+                <ProjectSelector v-model="generateProjectId" :projects="projects" :placeholder="t('templates.selectProjectPlaceholder') || '请选择项目'" />
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('templates.templateName') || '模板名称' }}</label>
@@ -702,6 +715,7 @@ const progressPercent = computed(() => {
       :confirm-text="t('common.delete')"
       confirm-color="red"
       @confirm="handleDelete"
+      @update:model-value="(v: boolean) => { if (!v) deleteTargetId = '' }"
     />
   </div>
 </template>

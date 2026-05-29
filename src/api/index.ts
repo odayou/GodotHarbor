@@ -637,6 +637,10 @@ export const api = {
   async startMcpServer(): Promise<string> {
     return await invoke('start_mcp_server')
   },
+
+  async stopMcpServer(): Promise<string> {
+    return await invoke('stop_mcp_server')
+  },
 }
 
 export async function withErrorLogging<T>(

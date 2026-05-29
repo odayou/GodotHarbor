@@ -83,6 +83,7 @@ const confirmColorClass = computed(() => {
 </script>
 
 <template>
+  <Teleport to="body">
   <div
     v-if="modelValue"
     class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
@@ -112,4 +113,5 @@ const confirmColorClass = computed(() => {
       </div>
     </div>
   </div>
+  </Teleport>
 </template>

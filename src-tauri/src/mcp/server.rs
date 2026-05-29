@@ -2,11 +2,27 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use crate::storage::Storage;
 use crate::models::*;
 use super::resources;
 use super::tools;
 use super::prompts;
+
+static MCP_RUNNING: AtomicBool = AtomicBool::new(false);
+
+pub fn is_mcp_running() -> bool {
+    MCP_RUNNING.load(Ordering::Relaxed)
+}
+
+pub fn stop_mcp() -> bool {
+    if MCP_RUNNING.load(Ordering::Relaxed) {
+        MCP_RUNNING.store(false, Ordering::Relaxed);
+        true
+    } else {
+        false
+    }
+}
 
 const SERVER_NAME: &str = "godot-harbor-mcp";
 const SERVER_VERSION: &str = "1.0.0";
@@ -67,11 +83,17 @@ fn get_harbor_data_dir() -> PathBuf {
 }
 
 pub fn run_mcp_server() {
+    if MCP_RUNNING.swap(true, Ordering::Relaxed) {
+        return;
+    }
     let ctx = McpContext::new();
     let stdin = io::stdin();
     let mut stdout = io::stdout();
 
     for line in stdin.lock().lines() {
+        if !MCP_RUNNING.load(Ordering::Relaxed) {
+            break;
+        }
         match line {
             Ok(line) => {
                 if line.trim().is_empty() {
@@ -91,6 +113,7 @@ pub fn run_mcp_server() {
             Err(_) => break,
         }
     }
+    MCP_RUNNING.store(false, Ordering::Relaxed);
 }
 
 fn handle_request(ctx: &McpContext, req: &JsonRpcRequest) -> Option<JsonRpcResponse> {
