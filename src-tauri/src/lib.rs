@@ -101,21 +101,12 @@ pub fn run() {
             let data_dir = if !settings.custom_data_dir.is_empty() {
                 std::path::PathBuf::from(&settings.custom_data_dir)
             } else if !settings.data_dir_initialized {
-                if let Ok(exe_path) = std::env::current_exe() {
-                    if let Some(exe_dir) = exe_path.parent() {
-                        let fallback = exe_dir.join("GodotHarborData");
-                        if !fallback.exists() {
-                            let _ = std::fs::create_dir_all(&fallback);
-                        }
-                        settings.custom_data_dir = fallback.to_string_lossy().to_string();
-                        let _ = config_storage.save("settings.json", &settings);
-                        fallback
-                    } else {
-                        config_dir
-                    }
-                } else {
-                    config_dir
-                }
+                let root = crate::commands::utils::get_app_root_dir();
+                let data = root.join("GodotHarborData");
+                let _ = std::fs::create_dir_all(&data);
+                settings.custom_data_dir = data.to_string_lossy().to_string();
+                let _ = config_storage.save("settings.json", &settings);
+                data
             } else {
                 config_dir
             };

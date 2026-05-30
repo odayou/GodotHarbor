@@ -18,7 +18,7 @@ pub fn launch_engine(app: AppHandle, engine_id: String, project_path: Option<Str
 
     let mut cmd = detached_cmd(&exe_path);
     if let Some(ref path) = project_path {
-        cmd.arg("--editor").arg("--path").arg(path);
+        cmd.arg("--path").arg(path).arg("-e");
     }
 
     cmd.spawn()

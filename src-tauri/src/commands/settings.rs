@@ -83,19 +83,12 @@ pub fn confirm_data_dir(app: AppHandle, custom_dir: Option<String>) -> Result<St
             config_dir.to_string_lossy().to_string()
         }
     } else {
-        if let Ok(exe_path) = std::env::current_exe() {
-            if let Some(exe_dir) = exe_path.parent() {
-                let fallback = exe_dir.join("GodotHarborData");
-                std::fs::create_dir_all(&fallback)
-                    .map_err(|e| format!("创建数据目录失败: {}", e))?;
-                settings.custom_data_dir = fallback.to_string_lossy().to_string();
-                fallback.to_string_lossy().to_string()
-            } else {
-                config_dir.to_string_lossy().to_string()
-            }
-        } else {
-            config_dir.to_string_lossy().to_string()
-        }
+        let root = super::utils::get_app_root_dir();
+        let fallback = root.join("GodotHarborData");
+        std::fs::create_dir_all(&fallback)
+            .map_err(|e| format!("创建数据目录失败: {}", e))?;
+        settings.custom_data_dir = fallback.to_string_lossy().to_string();
+        fallback.to_string_lossy().to_string()
     };
 
     settings.data_dir_initialized = true;

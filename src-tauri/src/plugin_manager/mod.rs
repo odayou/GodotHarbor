@@ -407,7 +407,19 @@ fn detect_plugin_source(plugin_dir: &Path) -> (crate::models::SourceType, String
 
         if let Err(e) = builder.clone(git_url, &payload_dir) {
             let _ = fs::remove_dir_all(&version_dir);
-            return Err(anyhow::anyhow!("Failed to clone git repository, cleaned up partial clone: {}", e));
+            let err_msg = format!("{}", e);
+            let user_msg = if err_msg.contains("401") || err_msg.contains("status code: 401") {
+                "仓库需要认证或为私有仓库，无法访问".to_string()
+            } else if err_msg.contains("path too long") || err_msg.contains("Filesystem (30)") {
+                "文件路径过长（Windows 路径限制），请将数据目录移至更短路径".to_string()
+            } else if err_msg.contains("404") || err_msg.contains("status code: 404") {
+                "仓库不存在或地址错误".to_string()
+            } else if err_msg.contains("timed out") || err_msg.contains("connection") {
+                "网络连接失败，请检查网络".to_string()
+            } else {
+                format!("克隆仓库失败: {}", e)
+            };
+            return Err(anyhow::anyhow!("{}", user_msg));
         }
 
         let git_dir = payload_dir.join(".git");
@@ -487,7 +499,22 @@ fn detect_plugin_source(plugin_dir: &Path) -> (crate::models::SourceType, String
             });
 
         if has_project_godot {
-            return (Vec::new(), AssetType::Project);
+            let units = self.parse_plugin_units(payload_dir);
+            if !units.is_empty() {
+                return (units, AssetType::Project);
+            }
+            let virtual_unit = PluginUnit {
+                unit_id: Uuid::new_v4().to_string(),
+                name: fallback_name.to_string(),
+                dir_name: fallback_name.to_string(),
+                description: String::new(),
+                author: String::new(),
+                version: String::new(),
+                subdirectory: String::new(),
+                plugin_cfg_path: String::new(),
+                is_virtual: true,
+            };
+            return (vec![virtual_unit], AssetType::Project);
         }
 
         let units = self.parse_plugin_units(payload_dir);

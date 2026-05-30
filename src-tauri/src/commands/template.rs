@@ -559,6 +559,8 @@ pub async fn instantiate_template(
         return Err(format!("目标目录已存在: {}", project_dir.display()));
     }
 
+    validate_project_path(&app, &project_dir)?;
+
     let _ = app.emit("template-instantiation-progress", TemplateInstantiationProgress {
         template_id: template.template_id.clone(),
         stage: "creating".to_string(),
@@ -824,8 +826,39 @@ fn install_template_plugin(
         p.name.to_lowercase() == plugin_spec.name.to_lowercase()
     });
 
+    let has_valid_units = existing_plugin.map_or(false, |ep| {
+        ep.versions.first().map_or(false, |v| !v.units.is_empty())
+    });
+
     let plugin_id = if let Some(ep) = existing_plugin {
-        ep.plugin_id.clone()
+        if has_valid_units {
+            ep.plugin_id.clone()
+        } else {
+            let idx = plugins.iter().position(|p| p.plugin_id == ep.plugin_id).unwrap();
+            let manager = get_plugin_manager(app);
+            let reimported = match plugin_spec.source {
+                TemplatePluginSource::Git => {
+                    if plugin_spec.url.is_empty() {
+                        return Err(format!("插件 {} 为 Git 来源但未提供 URL", plugin_spec.name));
+                    }
+                    let git_ref = if plugin_spec.git_ref.is_empty() { None } else { Some(plugin_spec.git_ref.as_str()) };
+                    manager.import_from_git(&plugin_spec.url, git_ref, app)
+                        .map_err(|e| format!("重新导入插件 {} 失败: {}", plugin_spec.name, e))?
+                }
+                TemplatePluginSource::AssetStore => {
+                    if plugin_spec.url.is_empty() {
+                        return Err(format!("插件 {} 为 Asset Store 来源但未提供 URL", plugin_spec.name));
+                    }
+                    manager.import_from_url(&plugin_spec.url, app)
+                        .map_err(|e| format!("重新导入插件 {} 失败: {}", plugin_spec.name, e))?
+                }
+                TemplatePluginSource::Local => {
+                    return Err(format!("插件 {} 为本地来源，模板实例化无法自动安装，需手动导入", plugin_spec.name));
+                }
+            };
+            plugins[idx] = reimported.clone();
+            reimported.plugin_id.clone()
+        }
     } else {
         let manager = get_plugin_manager(app);
         let new_plugin = match plugin_spec.source {
@@ -984,7 +1017,7 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
     let blank_template = Template {
         template_id: "builtin-blank-recommended".to_string(),
         name: "空白项目（推荐插件）".to_string(),
-        description: "空白 Godot 4 项目，预装 Phantom Camera 和 Gut 测试框架，适合大多数2D/3D项目快速起步".to_string(),
+        description: "空白 Godot 4 项目，预装 Phantom Camera 和 GdUnit4 测试框架，含 .gitignore 和基础目录结构，适合大多数2D/3D项目快速起步".to_string(),
         author: "Godot Harbor".to_string(),
         category: TemplateCategory::Blank,
         tags: vec!["blank".to_string(), "recommended".to_string(), "2d".to_string(), "3d".to_string()],
@@ -996,8 +1029,8 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
             rendering: String::new(),
         },
         plugins: vec![
-            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
-            TemplatePlugin { name: "gut".to_string(), version: "9.2.0".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/bitwes/Gut.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
+            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: "addons/phantom_camera".to_string() },
+            TemplatePlugin { name: "gdunit4".to_string(), version: "6.1.3".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/godot-gdunit-labs/gdUnit4.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: "addons/gdunit4".to_string() },
         ],
         directories: vec![
             TemplateDirectory { path: "scenes".to_string(), description: "场景文件".to_string() },
@@ -1025,7 +1058,10 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
                 "2d_physics": ["player", "enemy", "environment", "pickup"],
                 "2d_render": ["background", "foreground", "ui"]
             }),
-            autoloads: serde_json::json!({}),
+            autoloads: serde_json::json!({
+                "ScreenManager": "res://scripts/autoload/screen_manager.gd",
+                "AudioManager": "res://scripts/autoload/audio_manager.gd"
+            }),
             project_settings: serde_json::json!({}),
         },
         is_builtin: true,
@@ -1038,7 +1074,7 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
     let platformer_template = Template {
         template_id: "builtin-2d-platformer".to_string(),
         name: "2D 平台起步包".to_string(),
-        description: "2D 平台游戏起步模板，包含 Phantom Camera、输入映射、粒子系统和基础场景组织，适合横版跳跃类游戏".to_string(),
+        description: "2D 平台游戏起步模板，含 Phantom Camera、godot-statecharts 状态机、Coyote Time / Jump Buffer、巡逻敌人、收集品和检查点，适合横版跳跃类游戏".to_string(),
         author: "Godot Harbor".to_string(),
         category: TemplateCategory::Starter2D,
         tags: vec!["2d".to_string(), "platformer".to_string(), "starter".to_string()],
@@ -1050,8 +1086,8 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
             rendering: "compatible".to_string(),
         },
         plugins: vec![
-            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
-            TemplatePlugin { name: "godot-states".to_string(), version: "2.0.2".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/quitbug/godot-state-machines.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
+            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: "addons/phantom_camera".to_string() },
+            TemplatePlugin { name: "godot-statecharts".to_string(), version: "0.22.4".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/derkork/godot-statecharts.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: "addons/godot_state_charts".to_string() },
         ],
         directories: vec![
             TemplateDirectory { path: "scenes/levels".to_string(), description: "关卡场景".to_string() },
@@ -1060,10 +1096,10 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
             TemplateDirectory { path: "scenes/ui".to_string(), description: "UI 场景".to_string() },
             TemplateDirectory { path: "scenes/particles".to_string(), description: "粒子效果场景".to_string() },
             TemplateDirectory { path: "scripts/player".to_string(), description: "玩家脚本".to_string() },
-            TemplateDirectory { path: "scripts/player/states".to_string(), description: "玩家状态机".to_string() },
             TemplateDirectory { path: "scripts/enemies".to_string(), description: "敌人脚本".to_string() },
-            TemplateDirectory { path: "scripts/enemies/states".to_string(), description: "敌人状态机".to_string() },
             TemplateDirectory { path: "scripts/autoload".to_string(), description: "全局管理器".to_string() },
+            TemplateDirectory { path: "scripts/camera".to_string(), description: "相机脚本".to_string() },
+            TemplateDirectory { path: "scripts/objects".to_string(), description: "可交互物体脚本".to_string() },
             TemplateDirectory { path: "assets/sprites/player".to_string(), description: "玩家精灵".to_string() },
             TemplateDirectory { path: "assets/sprites/enemies".to_string(), description: "敌人精灵".to_string() },
             TemplateDirectory { path: "assets/sprites/tilesets".to_string(), description: "瓦片集".to_string() },
@@ -1091,12 +1127,14 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
             }),
             autoloads: serde_json::json!({
                 "GameManager": "res://scripts/autoload/game_manager.gd",
-                "AudioManager": "res://scripts/autoload/audio_manager.gd"
+                "AudioManager": "res://scripts/autoload/audio_manager.gd",
+                "ScreenManager": "res://scripts/autoload/screen_manager.gd"
             }),
             project_settings: serde_json::json!({
                 "physics/common/physics_fps": 60
             }),
         },
+
         is_builtin: true,
         source_url: String::new(),
         version: "1.1.0".to_string(),
@@ -1107,7 +1145,7 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
     let rpg_template = Template {
         template_id: "builtin-2d-rpg".to_string(),
         name: "2D RPG 起步包".to_string(),
-        description: "2D RPG 游戏起步模板，包含 Dialogic 对话系统、Phantom Camera 和状态机，适合叙事驱动的RPG项目".to_string(),
+        description: "2D RPG 游戏起步模板，含 Dialogic 对话系统、Phantom Camera、godot-statecharts 状态机、存档系统和物品背包，适合叙事驱动的RPG项目".to_string(),
         author: "Godot Harbor".to_string(),
         category: TemplateCategory::RPG,
         tags: vec!["2d".to_string(), "rpg".to_string(), "dialogue".to_string(), "starter".to_string()],
@@ -1119,9 +1157,9 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
             rendering: "compatible".to_string(),
         },
         plugins: vec![
-            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
-            TemplatePlugin { name: "dialogic".to_string(), version: "2.0".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/dialogic-godot/dialogic.git".to_string(), git_ref: "main".to_string(), mount: "copy".to_string(), subdirectory: String::new() },
-            TemplatePlugin { name: "godot-states".to_string(), version: "2.0.2".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/quitbug/godot-state-machines.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
+            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: "addons/phantom_camera".to_string() },
+            TemplatePlugin { name: "dialogic".to_string(), version: "2.0".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/dialogic-godot/dialogic.git".to_string(), git_ref: "main".to_string(), mount: "copy".to_string(), subdirectory: "addons/dialogic".to_string() },
+            TemplatePlugin { name: "godot-statecharts".to_string(), version: "0.22.4".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/derkork/godot-statecharts.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: "addons/godot_state_charts".to_string() },
         ],
         directories: vec![
             TemplateDirectory { path: "scenes/maps".to_string(), description: "地图场景".to_string() },
@@ -1132,8 +1170,9 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
             TemplateDirectory { path: "scenes/dialogue".to_string(), description: "对话场景".to_string() },
             TemplateDirectory { path: "scenes/cutscenes".to_string(), description: "过场动画".to_string() },
             TemplateDirectory { path: "scripts/characters".to_string(), description: "角色脚本".to_string() },
-            TemplateDirectory { path: "scripts/characters/states".to_string(), description: "角色状态机".to_string() },
+            TemplateDirectory { path: "scripts/npc".to_string(), description: "NPC 脚本".to_string() },
             TemplateDirectory { path: "scripts/items".to_string(), description: "物品系统".to_string() },
+            TemplateDirectory { path: "scripts/objects".to_string(), description: "场景物体脚本".to_string() },
             TemplateDirectory { path: "scripts/quests".to_string(), description: "任务系统".to_string() },
             TemplateDirectory { path: "scripts/autoload".to_string(), description: "全局管理器".to_string() },
             TemplateDirectory { path: "assets/sprites/characters".to_string(), description: "角色精灵".to_string() },
@@ -1141,7 +1180,7 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
             TemplateDirectory { path: "assets/portraits".to_string(), description: "角色立绘".to_string() },
             TemplateDirectory { path: "assets/audio/bgm".to_string(), description: "背景音乐".to_string() },
             TemplateDirectory { path: "assets/audio/sfx".to_string(), description: "音效".to_string() },
-            TemplateDirectory { path: "assets/dialogue".to_string(), description: "对话资源".to_string() },
+            TemplateDirectory { path: "assets/dialogue".to_string(), description: "Dialogic 对话资源".to_string() },
         ],
         export_presets: vec![
             TemplateExportPreset { platform: "windows".to_string(), name: "Windows Desktop".to_string(), config: serde_json::Value::Null },
@@ -1165,7 +1204,10 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
             autoloads: serde_json::json!({
                 "GameManager": "res://scripts/autoload/game_manager.gd",
                 "QuestManager": "res://scripts/autoload/quest_manager.gd",
-                "AudioManager": "res://scripts/autoload/audio_manager.gd"
+                "SaveManager": "res://scripts/autoload/save_manager.gd",
+                "InventoryManager": "res://scripts/autoload/inventory_manager.gd",
+                "AudioManager": "res://scripts/autoload/audio_manager.gd",
+                "ScreenManager": "res://scripts/autoload/screen_manager.gd"
             }),
             project_settings: serde_json::json!({}),
         },
@@ -1179,7 +1221,7 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
     let starter_3d_template = Template {
         template_id: "builtin-3d-starter".to_string(),
         name: "3D 起步包".to_string(),
-        description: "3D 游戏起步模板，包含 Phantom Camera 3D、基础3D场景组织、灯光和相机设置，适合3D游戏快速起步".to_string(),
+        description: "3D 游戏起步模板，含 Phantom Camera 3D、godot-statecharts、第一人称控制器、昼夜循环、暂停菜单，适合3D游戏快速起步".to_string(),
         author: "Godot Harbor".to_string(),
         category: TemplateCategory::Starter3D,
         tags: vec!["3d".to_string(), "starter".to_string()],
@@ -1191,8 +1233,8 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
             rendering: "forward_plus".to_string(),
         },
         plugins: vec![
-            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
-            TemplatePlugin { name: "godot-states".to_string(), version: "2.0.2".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/quitbug/godot-state-machines.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
+            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: "addons/phantom_camera".to_string() },
+            TemplatePlugin { name: "godot-statecharts".to_string(), version: "0.22.4".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/derkork/godot-statecharts.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: "addons/godot_state_charts".to_string() },
         ],
         directories: vec![
             TemplateDirectory { path: "scenes/levels".to_string(), description: "关卡场景".to_string() },
@@ -1201,10 +1243,11 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
             TemplateDirectory { path: "scenes/ui".to_string(), description: "UI 场景".to_string() },
             TemplateDirectory { path: "scenes/environment".to_string(), description: "环境场景".to_string() },
             TemplateDirectory { path: "scripts/player".to_string(), description: "玩家脚本".to_string() },
-            TemplateDirectory { path: "scripts/player/states".to_string(), description: "玩家状态机".to_string() },
             TemplateDirectory { path: "scripts/enemies".to_string(), description: "敌人脚本".to_string() },
             TemplateDirectory { path: "scripts/autoload".to_string(), description: "全局管理器".to_string() },
             TemplateDirectory { path: "scripts/camera".to_string(), description: "相机控制".to_string() },
+            TemplateDirectory { path: "scripts/objects".to_string(), description: "可交互物体脚本".to_string() },
+            TemplateDirectory { path: "scripts/ui".to_string(), description: "UI 脚本".to_string() },
             TemplateDirectory { path: "assets/models".to_string(), description: "3D 模型".to_string() },
             TemplateDirectory { path: "assets/models/characters".to_string(), description: "角色模型".to_string() },
             TemplateDirectory { path: "assets/models/environment".to_string(), description: "环境模型".to_string() },
@@ -1224,6 +1267,8 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
                 "move_forward": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 87}, {"type": "InputEventJoypadButton", "button": 12}] },
                 "move_backward": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 83}, {"type": "InputEventJoypadButton", "button": 13}] },
                 "jump": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194320}, {"type": "InputEventJoypadButton", "button": 0}] },
+                "sprint": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194324}, {"type": "InputEventJoypadButton", "button": 10}] },
+                "crouch": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194322}, {"type": "InputEventJoypadButton", "button": 11}] },
                 "interact": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 69}, {"type": "InputEventJoypadButton", "button": 2}] },
                 "camera_up": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194320}] },
                 "camera_down": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194322}] },
@@ -1236,7 +1281,8 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
             }),
             autoloads: serde_json::json!({
                 "GameManager": "res://scripts/autoload/game_manager.gd",
-                "AudioManager": "res://scripts/autoload/audio_manager.gd"
+                "AudioManager": "res://scripts/autoload/audio_manager.gd",
+                "ScreenManager": "res://scripts/autoload/screen_manager.gd"
             }),
             project_settings: serde_json::json!({
                 "rendering/renderer/rendering_method": "forward_plus"
@@ -1252,7 +1298,7 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
     let multiplayer_template = Template {
         template_id: "builtin-multiplayer".to_string(),
         name: "多人游戏起步包".to_string(),
-        description: "多人联机游戏起步模板，包含 SceneMultiplayer 配置、网络同步架构和聊天系统，适合局域网/在线多人游戏".to_string(),
+        description: "多人联机游戏起步模板，含 ENet 网络管理器、大厅 UI、聊天系统和玩家同步，适合局域网/在线多人游戏".to_string(),
         author: "Godot Harbor".to_string(),
         category: TemplateCategory::Multiplayer,
         tags: vec!["multiplayer".to_string(), "networking".to_string(), "online".to_string(), "starter".to_string()],
@@ -1264,7 +1310,7 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
             rendering: "compatible".to_string(),
         },
         plugins: vec![
-            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: String::new() },
+            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: "addons/phantom_camera".to_string() },
         ],
         directories: vec![
             TemplateDirectory { path: "scenes/lobby".to_string(), description: "大厅场景".to_string() },
@@ -1276,6 +1322,7 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
             TemplateDirectory { path: "scripts/network/sync".to_string(), description: "状态同步".to_string() },
             TemplateDirectory { path: "scripts/player".to_string(), description: "玩家脚本".to_string() },
             TemplateDirectory { path: "scripts/autoload".to_string(), description: "全局管理器".to_string() },
+            TemplateDirectory { path: "scripts/ui".to_string(), description: "UI 脚本".to_string() },
             TemplateDirectory { path: "assets/sprites".to_string(), description: "精灵图".to_string() },
             TemplateDirectory { path: "assets/audio/sfx".to_string(), description: "音效".to_string() },
             TemplateDirectory { path: "assets/audio/music".to_string(), description: "背景音乐".to_string() },
@@ -1290,6 +1337,7 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
                 "move_right": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 68}, {"type": "InputEventJoypadButton", "button": 15}] },
                 "move_up": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 87}] },
                 "move_down": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 83}] },
+                "jump": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194320}, {"type": "InputEventJoypadButton", "button": 0}] },
                 "chat": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194306}] },
                 "ui_accept": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194309}] },
                 "ui_cancel": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194305}] }
@@ -1314,11 +1362,16 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
         updated_at: None,
     };
 
-    for template in [blank_template, platformer_template, rpg_template, starter_3d_template, multiplayer_template] {
-        if !builtin_ids.contains(&template.template_id.as_str()) {
-            let saved = save_hub_template(app.clone(), template)?;
-            created.push(saved);
+    for template in [blank_template.clone(), platformer_template.clone(), rpg_template.clone(), starter_3d_template.clone(), multiplayer_template.clone()] {
+        if builtin_ids.contains(&template.template_id.as_str()) {
+            let template_dir = templates_dir.join(&template.template_id);
+            let template_file = template_dir.join("template.yml");
+            if template_file.exists() {
+                let _ = fs::remove_file(&template_file);
+            }
         }
+        let saved = save_hub_template(app.clone(), template)?;
+        created.push(saved);
     }
 
     Ok(created)

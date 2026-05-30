@@ -79,6 +79,8 @@ pub fn add_project(app: AppHandle, path: String) -> Result<Project, String> {
         return Err("指定路径下未找到 project.godot 文件，请确认是否为 Godot 项目目录".to_string());
     }
 
+    validate_project_path(&app, project_path)?;
+
     let project = ProjectScanner::parse_project(&project_godot)
         .map_err(|e| format!("解析项目失败: {}", e))?;
 

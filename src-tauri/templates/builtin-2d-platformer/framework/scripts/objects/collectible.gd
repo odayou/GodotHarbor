@@ -1,11 +1,12 @@
 extends Area2D
 
-@export var points: int = 10
-@export var collect_sfx: AudioStream
+@export var score_value: int = 10
+@export var sfx_stream: AudioStream
+
 
 func _on_body_entered(body: Node2D) -> void:
-	if body is CharacterBody2D:
-		GameManager.add_score(points)
-		if collect_sfx:
-			AudioManager.play_sfx(collect_sfx)
-		queue_free()
+    if body.is_in_group("player"):
+        GameManager.add_score(score_value)
+        if sfx_stream:
+            AudioManager.play_sfx(sfx_stream, 0.05)
+        queue_free()

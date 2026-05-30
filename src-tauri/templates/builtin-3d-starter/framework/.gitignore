@@ -1,0 +1,21 @@
+# Godot
+.godot/
+*.tmp
+*.import
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build
+export_presets.cfg
+builds/
+
+# Harbor
+.harbor.yml

@@ -19,18 +19,27 @@ pub fn get_data_dir(app: &AppHandle) -> PathBuf {
     if !settings.custom_data_dir.is_empty() {
         PathBuf::from(&settings.custom_data_dir)
     } else if !settings.data_dir_initialized {
-        if let Ok(exe_path) = std::env::current_exe() {
-            if let Some(exe_dir) = exe_path.parent() {
-                exe_dir.join("GodotHarborData")
-            } else {
-                config_dir
-            }
-        } else {
-            config_dir
-        }
+        get_app_root_dir().join("GodotHarborData")
     } else {
         config_dir
     }
+}
+
+pub fn get_app_root_dir() -> PathBuf {
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let mut dir = exe_dir.to_path_buf();
+            if dir.ends_with("target\\debug") || dir.ends_with("target/release") {
+                if let Some(parent) = dir.parent() {
+                    if let Some(grandparent) = parent.parent() {
+                        dir = grandparent.to_path_buf();
+                    }
+                }
+            }
+            return dir;
+        }
+    }
+    PathBuf::from(".")
 }
 
 pub fn get_config_storage(app: &AppHandle) -> Storage {
@@ -53,6 +62,59 @@ pub fn save_settings_to_config(app: &AppHandle, settings: &Settings) -> Result<(
 pub fn get_plugin_manager(app: &AppHandle) -> PluginManager {
     let plugins_dir = get_data_dir(app).join("plugins");
     PluginManager::new(plugins_dir)
+}
+
+pub fn validate_project_path(app: &AppHandle, project_path: &std::path::Path) -> Result<(), String> {
+    let storage = get_storage(app);
+    let engines: Vec<Engine> = storage.load_or_default("engines.json");
+
+    let canonical_project = project_path.canonicalize()
+        .or_else(|_| std::path::absolute(project_path))
+        .unwrap_or_else(|_| project_path.to_path_buf());
+
+    for engine in &engines {
+        let engine_dir = std::path::Path::new(&engine.path);
+        let exe_path = crate::engine::EngineManager::find_executable_in_dir(engine_dir);
+        let check_path = match &exe_path {
+            Some(exe) => exe.parent().unwrap_or(engine_dir).to_path_buf(),
+            None => engine_dir.to_path_buf(),
+        };
+
+        let canonical_engine = check_path.canonicalize()
+            .or_else(|_| std::path::absolute(&check_path))
+            .unwrap_or_else(|_| check_path.clone());
+
+        if canonical_project == canonical_engine {
+            return Err(format!(
+                "项目路径与引擎目录冲突（{}），Godot 不允许在引擎目录创建项目，请选择其他路径",
+                engine.name
+            ));
+        }
+
+        let mut parent = canonical_project.as_path();
+        while let Some(p) = parent.parent() {
+            if p == canonical_engine {
+                return Err(format!(
+                    "项目路径位于引擎目录内（{}），Godot 不允许在引擎目录创建项目，请选择其他路径",
+                    engine.name
+                ));
+            }
+            parent = p;
+        }
+
+        let mut engine_parent = canonical_engine.as_path();
+        while let Some(p) = engine_parent.parent() {
+            if p == canonical_project {
+                return Err(format!(
+                    "引擎目录（{}）位于项目路径内，Godot 不允许此配置，请选择其他项目路径",
+                    engine.name
+                ));
+            }
+            engine_parent = p;
+        }
+    }
+
+    Ok(())
 }
 
 pub fn get_logger(app: &AppHandle) -> OperationLogger {
