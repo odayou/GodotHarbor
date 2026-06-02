@@ -246,6 +246,23 @@ fn tool_sync_environment(ctx: &McpContext, args: &Value) -> Result<String, Strin
                         }
                     })
                     .unwrap_or_else(|| format!("res://addons/{}", plugin.name.to_lowercase()));
+
+                // 拷贝插件文件到项目 addons 目录
+                let project_dir = std::path::Path::new(&project.path);
+                let plugin_dir = ctx.data_dir.join("plugins").join(&plugin.plugin_id);
+                let mut copied = false;
+                if let Some(first_version) = plugin.versions.first() {
+                    for unit in &first_version.units {
+                        let src = plugin_dir.join(&first_version.version_id).join("payload").join(&unit.dir_name);
+                        let dst = project_dir.join("addons").join(&unit.dir_name);
+                        if src.exists() {
+                            if let Ok(()) = copy_dir_recursive(&src, &dst) {
+                                copied = true;
+                            }
+                        }
+                    }
+                }
+
                 let new_binding = ProjectBinding {
                     project_id: project_id.to_string(),
                     plugin_id: plugin.plugin_id.clone(),
@@ -260,7 +277,11 @@ fn tool_sync_environment(ctx: &McpContext, args: &Value) -> Result<String, Strin
                 all_bindings.push(new_binding);
                 ctx.storage.save("bindings.json", &all_bindings)
                     .map_err(|e| format!("Failed to save binding: {}", e))?;
-                details.push(format!("✅ Plugin {} bound to project", pc.name));
+                if copied {
+                    details.push(format!("✅ Plugin {} installed and bound to project", pc.name));
+                } else {
+                    details.push(format!("✅ Plugin {} bound to project (no files copied)", pc.name));
+                }
                 synced += 1;
             } else {
                 details.push(format!("⚠️ Plugin {} not found in library - please install via Harbor GUI", pc.name));
@@ -276,6 +297,12 @@ fn tool_install_plugin(ctx: &McpContext, args: &Value) -> Result<String, String>
     let project_id = args["project_id"].as_str().ok_or("project_id is required")?;
     let plugin_name = args["plugin_name"].as_str().ok_or("plugin_name is required")?;
     let _source = args["source"].as_str().ok_or("source is required")?;
+
+    // 查找项目
+    let projects: Vec<Project> = ctx.storage.load_or_default("projects.json");
+    let project = projects.iter().find(|p| p.project_id == project_id)
+        .ok_or("Project not found".to_string())?;
+    let project_dir = std::path::Path::new(&project.path);
 
     let plugins: Vec<Plugin> = ctx.storage.load_or_default("plugins.json");
     let plugin = plugins.iter().find(|p| p.name.to_lowercase() == plugin_name.to_lowercase());
@@ -296,6 +323,23 @@ fn tool_install_plugin(ctx: &McpContext, args: &Value) -> Result<String, String>
                 }
             })
             .unwrap_or_else(|| format!("res://addons/{}", plugin.name.to_lowercase()));
+
+        // 拷贝插件文件到项目 addons 目录
+        let plugin_dir = ctx.data_dir.join("plugins").join(&plugin.plugin_id);
+        let mut copied_units = Vec::new();
+        if let Some(first_version) = plugin.versions.first() {
+            for unit in &first_version.units {
+                let src = plugin_dir.join(&first_version.version_id).join("payload").join(&unit.dir_name);
+                let dst = project_dir.join("addons").join(&unit.dir_name);
+                if src.exists() {
+                    match copy_dir_recursive(&src, &dst) {
+                        Ok(()) => copied_units.push(unit.dir_name.clone()),
+                        Err(e) => return Err(format!("Failed to copy plugin files: {}", e)),
+                    }
+                }
+            }
+        }
+
         let new_binding = ProjectBinding {
             project_id: project_id.to_string(),
             plugin_id: plugin.plugin_id.clone(),
@@ -314,7 +358,11 @@ fn tool_install_plugin(ctx: &McpContext, args: &Value) -> Result<String, String>
         all_bindings.push(new_binding);
         ctx.storage.save("bindings.json", &all_bindings)
             .map_err(|e| format!("Failed to save binding: {}", e))?;
-        Ok(format!("✅ Plugin {} bound to project successfully", plugin_name))
+        if copied_units.is_empty() {
+            Ok(format!("✅ Plugin {} bound to project (no files to copy - plugin may need re-import)", plugin_name))
+        } else {
+            Ok(format!("✅ Plugin {} installed and bound to project (copied: {})", plugin_name, copied_units.join(", ")))
+        }
     } else {
         Ok(format!("⚠️ Plugin '{}' not found in library. Please install it via Harbor GUI first, or provide the source URL.", plugin_name))
     }
@@ -369,31 +417,126 @@ fn tool_create_from_template(ctx: &McpContext, args: &Value) -> Result<String, S
     let project_name = args["project_name"].as_str().ok_or("project_name is required")?;
     let target_dir = args["target_dir"].as_str().ok_or("target_dir is required")?;
 
+    // 读取模板
     let templates_dir = ctx.data_dir.join("templates").join(template_id);
     if !templates_dir.exists() {
         return Err(format!("Template {} not found", template_id));
     }
-
     let template_yml = templates_dir.join("template.yml");
     let content = std::fs::read_to_string(&template_yml)
         .map_err(|e| format!("Failed to read template: {}", e))?;
-    let _template: Template = serde_yaml::from_str(&content)
+    let template: Template = serde_yaml::from_str(&content)
         .map_err(|e| format!("Failed to parse template: {}", e))?;
 
     let project_dir = std::path::Path::new(target_dir).join(project_name);
+    if project_dir.exists() {
+        return Err(format!("Target directory already exists: {}", project_dir.display()));
+    }
+
+    // 创建项目目录
     std::fs::create_dir_all(&project_dir)
         .map_err(|e| format!("Failed to create project directory: {}", e))?;
 
-    let project_godot = project_dir.join("project.godot");
-    std::fs::write(&project_godot, "; Engine configuration file.\n; Created by Godot Harbor MCP Server\n\n[application]\nconfig/name=\"\"\nrun/main_scene=\"\"\n\n[rendering]\nrenderer/rendering_method=\"forward_plus\"\n")
+    // 生成 project.godot
+    let project_godot = generate_project_godot_content(&template);
+    std::fs::write(project_dir.join("project.godot"), project_godot)
         .map_err(|e| format!("Failed to create project.godot: {}", e))?;
 
+    // 创建目录结构
+    let mut created_dirs = Vec::new();
+    for dir in &template.directories {
+        let dir_path = project_dir.join(&dir.path);
+        if !dir_path.exists() {
+            std::fs::create_dir_all(&dir_path)
+                .map_err(|e| format!("Failed to create directory {}: {}", dir.path, e))?;
+            created_dirs.push(dir.path.clone());
+        }
+    }
+
+    // 拷贝模板 framework
+    let framework_dir = templates_dir.join("framework");
+    if framework_dir.exists() {
+        copy_dir_recursive(&framework_dir, &project_dir)?;
+    }
+
+    // 生成 .harbor.yml
+    let harbor_yml = generate_harbor_yml_content(&template);
+    std::fs::write(project_dir.join(".harbor.yml"), harbor_yml)
+        .map_err(|e| format!("Failed to create .harbor.yml: {}", e))?;
+
+    // 生成 export_presets.cfg
+    if !template.export_presets.is_empty() {
+        let presets_content = generate_export_presets_content(&template);
+        std::fs::write(project_dir.join("export_presets.cfg"), presets_content)
+            .map_err(|e| format!("Failed to create export_presets.cfg: {}", e))?;
+    }
+
+    // 安装插件（从已安装的插件库中绑定）
+    let mut installed_plugins = Vec::new();
+    let mut skipped_plugins = Vec::new();
+    let plugins: Vec<Plugin> = ctx.storage.load_or_default("plugins.json");
+    let mut all_bindings: Vec<ProjectBinding> = ctx.storage.load_or_default("bindings.json");
+
     let project_id = uuid::Uuid::new_v4().to_string();
+
+    for plugin_spec in &template.plugins {
+        let plugin_match = plugins.iter().find(|p| p.name.to_lowercase() == plugin_spec.name.to_lowercase());
+        if let Some(plugin) = plugin_match {
+            let version_id = plugin.versions.first().map(|v| v.version_id.clone()).unwrap_or_default();
+            let unit_id = plugin.versions.first()
+                .and_then(|v| v.units.first())
+                .map(|u| u.unit_id.clone())
+                .unwrap_or_default();
+            let mount_path = plugin.versions.first()
+                .and_then(|v| v.units.first())
+                .map(|u| {
+                    if u.subdirectory.is_empty() {
+                        format!("res://addons/{}", u.dir_name)
+                    } else {
+                        format!("res://{}", u.subdirectory)
+                    }
+                })
+                .unwrap_or_else(|| format!("res://addons/{}", plugin.name.to_lowercase()));
+
+            // 拷贝插件文件到项目
+            let plugin_dir = ctx.data_dir.join("plugins").join(&plugin.plugin_id);
+            if let Some(first_version) = plugin.versions.first() {
+                for unit in &first_version.units {
+                    let src = plugin_dir.join(&first_version.version_id).join("payload").join(&unit.dir_name);
+                    let dst = project_dir.join("addons").join(&unit.dir_name);
+                    if src.exists() {
+                        if let Ok(()) = copy_dir_recursive(&src, &dst) {
+                            // success
+                        }
+                    }
+                }
+            }
+
+            let new_binding = ProjectBinding {
+                project_id: project_id.clone(),
+                plugin_id: plugin.plugin_id.clone(),
+                version_id,
+                unit_id,
+                mount_path,
+                created_at: chrono::Utc::now(),
+                is_healthy: Some(true),
+                subdirectory: String::new(),
+            };
+            all_bindings.push(new_binding);
+            installed_plugins.push(plugin_spec.name.clone());
+        } else {
+            skipped_plugins.push(plugin_spec.name.clone());
+        }
+    }
+    ctx.storage.save("bindings.json", &all_bindings)
+        .map_err(|e| format!("Failed to save bindings: {}", e))?;
+
+    // 注册项目
     let project = Project {
         project_id: project_id.clone(),
         name: project_name.to_string(),
         path: project_dir.to_string_lossy().to_string(),
-        godot_version: String::new(),
+        godot_version: template.godot.version.clone(),
         icon_path: String::new(),
         group: String::new(),
         status: ProjectStatus::Ready,
@@ -409,7 +552,127 @@ fn tool_create_from_template(ctx: &McpContext, args: &Value) -> Result<String, S
     ctx.storage.save("projects.json", &projects)
         .map_err(|e| format!("Failed to save project: {}", e))?;
 
-    Ok(format!("✅ Project '{}' created from template {} at {}", project_name, template_id, project_dir.display()))
+    let mut result = vec![
+        format!("✅ Project '{}' created from template '{}' at {}", project_name, template_id, project_dir.display()),
+        format!("   Godot version: {}", template.godot.version),
+        format!("   Directories created: {}", created_dirs.len()),
+    ];
+    if !installed_plugins.is_empty() {
+        result.push(format!("   Plugins installed: {}", installed_plugins.join(", ")));
+    }
+    if !skipped_plugins.is_empty() {
+        result.push(format!("   ⚠️ Plugins skipped (not in library): {}", skipped_plugins.join(", ")));
+    }
+
+    Ok(result.join("\n"))
+}
+
+fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> Result<(), String> {
+    if !src.exists() {
+        return Ok(());
+    }
+    std::fs::create_dir_all(dst)
+        .map_err(|e| format!("Failed to create dir {}: {}", dst.display(), e))?;
+    for entry in std::fs::read_dir(src).map_err(|e| format!("Failed to read dir {}: {}", src.display(), e))? {
+        let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
+        let src_path = entry.path();
+        let dst_path = dst.join(entry.file_name());
+        if src_path.is_dir() {
+            copy_dir_recursive(&src_path, &dst_path)?;
+        } else {
+            std::fs::copy(&src_path, &dst_path)
+                .map_err(|e| format!("Failed to copy {}: {}", src_path.display(), e))?;
+        }
+    }
+    Ok(())
+}
+
+fn generate_project_godot_content(template: &Template) -> String {
+    let mut content = String::new();
+    content.push_str("; Engine configuration file.\n; Created by Godot Harbor MCP Server\n\n");
+
+    content.push_str("[application]\n");
+    content.push_str(&format!("config/name=\"{}\"\n", template.name));
+    content.push_str("run/main_scene=\"\"\n\n");
+
+    content.push_str("[display]\n");
+    content.push_str("window/size/viewport_width=1280\n");
+    content.push_str("window/size/viewport_height=720\n");
+    content.push_str("window/stretch/mode=\"canvas_items\"\n\n");
+
+    content.push_str("[rendering]\n");
+    content.push_str("renderer/rendering_method=\"forward_plus\"\n");
+
+    if !template.plugins.is_empty() {
+        content.push('\n');
+        content.push_str("[editor_plugins]\n\n");
+        let plugin_paths: Vec<String> = template.plugins.iter().map(|p| {
+            let dir = if p.subdirectory.is_empty() {
+                p.name.to_lowercase().replace(' ', "_")
+            } else {
+                p.subdirectory.trim_start_matches("addons/").to_string()
+            };
+            format!("res://addons/{}/plugin.cfg", dir)
+        }).collect();
+        content.push_str(&format!("enabled=PackedStringArray({})", plugin_paths.iter().map(|p| format!("\"{}\"", p)).collect::<Vec<_>>().join(", ")));
+    }
+
+    content
+}
+
+fn generate_harbor_yml_content(template: &Template) -> String {
+    let mut yaml = String::new();
+    yaml.push_str("version: 2\n\n");
+    yaml.push_str(&format!("godot:\n  version: \"{}\"\n  mono: {}\n\n", template.godot.version, template.godot.mono));
+
+    if !template.plugins.is_empty() {
+        yaml.push_str("plugins:\n");
+        for plugin in &template.plugins {
+            yaml.push_str(&format!("  - name: {}\n", plugin.name));
+            yaml.push_str(&format!("    version: \"{}\"\n", plugin.version));
+            yaml.push_str(&format!("    source: {}\n", match plugin.source {
+                TemplatePluginSource::AssetStore => "asset-store",
+                TemplatePluginSource::Git => "git",
+                TemplatePluginSource::Local => "local",
+            }));
+            if !plugin.url.is_empty() {
+                yaml.push_str(&format!("    url: \"{}\"\n", plugin.url));
+            }
+        }
+        yaml.push('\n');
+    }
+
+    if !template.export_presets.is_empty() {
+        yaml.push_str("export_presets:\n");
+        for preset in &template.export_presets {
+            yaml.push_str(&format!("  - platform: \"{}\"\n", preset.platform));
+            yaml.push_str(&format!("    name: \"{}\"\n", preset.name));
+        }
+        yaml.push('\n');
+    }
+
+    yaml.push_str("settings:\n  mount_strategy: copy\n  auto_sync: true\n");
+    yaml
+}
+
+fn generate_export_presets_content(template: &Template) -> String {
+    let mut content = String::new();
+    for (i, preset) in template.export_presets.iter().enumerate() {
+        content.push_str(&format!("[preset.{}]\n\n", i));
+        content.push_str(&format!("name=\"{}\"\n", preset.name));
+        let godot_platform = match preset.platform.as_str() {
+            "windows" => "Windows Desktop",
+            "macos" => "macOS",
+            "linux" => "Linux/X11",
+            "web" => "Web",
+            "android" => "Android",
+            "ios" => "iOS",
+            other => other,
+        };
+        content.push_str(&format!("platform=\"{}\"\n", godot_platform));
+        content.push_str("runnable=true\n\n");
+    }
+    content
 }
 
 fn tool_build_project(ctx: &McpContext, args: &Value) -> Result<String, String> {
@@ -451,10 +714,25 @@ fn tool_build_project(ctx: &McpContext, args: &Value) -> Result<String, String> 
     std::fs::create_dir_all(&output_dir)
         .map_err(|e| format!("Failed to create output directory: {}", e))?;
 
+    // 查找匹配的 export preset 名称
+    let preset_name = find_export_preset_name(&project.path, &platform)
+        .unwrap_or_else(|| platform_str.to_string());
+
+    // 根据平台确定输出文件名
+    let output_filename = match platform {
+        ExportPlatform::Windows => format!("{}.exe", project.name),
+        ExportPlatform::MacOS => format!("{}.zip", project.name),
+        ExportPlatform::Linux => project.name.clone(),
+        ExportPlatform::Web => "index.html".to_string(),
+        ExportPlatform::Android => format!("{}.apk", project.name.to_lowercase().replace(' ', "_")),
+        ExportPlatform::IOS => format!("{}.ipa", project.name.to_lowercase().replace(' ', "_")),
+    };
+    let output_path = output_dir.join(&output_filename);
+
     let output = std::process::Command::new(&godot_bin)
         .arg("--headless")
         .arg("--path").arg(&project.path)
-        .arg("--export-release").arg(platform.to_string())
+        .arg("--export-release").arg(&preset_name).arg(output_path.to_string_lossy().as_ref())
         .output()
         .map_err(|e| format!("Failed to execute build: {}", e))?;
 
@@ -501,4 +779,35 @@ fn tool_check_updates(ctx: &McpContext, _args: &Value) -> Result<String, String>
     results.push("💡 Use Harbor GUI to check for detailed update information.".to_string());
 
     Ok(results.join("\n"))
+}
+
+fn find_export_preset_name(project_path: &str, platform: &ExportPlatform) -> Option<String> {
+    let presets_file = std::path::Path::new(project_path).join("export_presets.cfg");
+    if !presets_file.exists() {
+        return None;
+    }
+    let content = std::fs::read_to_string(&presets_file).ok()?;
+    let target_platform = match platform {
+        ExportPlatform::Windows => "Windows Desktop",
+        ExportPlatform::MacOS => "macOS",
+        ExportPlatform::Linux => "Linux/X11",
+        ExportPlatform::Web => "Web",
+        ExportPlatform::Android => "Android",
+        ExportPlatform::IOS => "iOS",
+    };
+    // 简单解析 export_presets.cfg 查找匹配平台的 preset 名称
+    let mut current_name: Option<String> = None;
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if let Some(name_val) = trimmed.strip_prefix("name=") {
+            current_name = Some(name_val.trim_matches('"').to_string());
+        }
+        if let Some(platform_val) = trimmed.strip_prefix("platform=") {
+            let p = platform_val.trim_matches('"');
+            if p == target_platform {
+                return current_name.clone();
+            }
+        }
+    }
+    None
 }

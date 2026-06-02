@@ -16,12 +16,7 @@ const mcpExePath = ref('harbor-mcp-server')
 
 async function resolveMcpExePath() {
   try {
-    const paths = await api.getStoragePaths()
-    if (paths.app_data_dir) {
-      const appDir = paths.app_data_dir.replace(/[/\\]GodotHarbor[/\\]?$/, '')
-      const sep = navigator.platform.startsWith('Win') ? '\\' : '/'
-      mcpExePath.value = `${appDir}${sep}harbor-mcp-server${navigator.platform.startsWith('Win') ? '.exe' : ''}`
-    }
+    mcpExePath.value = await api.getMcpServerPath()
   } catch { /* fallback to default */ }
 }
 
@@ -91,6 +86,7 @@ const mcpClients = computed(() => [
 
 let unlistenProgress: UnlistenFn | null = null
 let unlistenDownloadProgress: UnlistenFn | null = null
+let mcpPollTimer: ReturnType<typeof setInterval> | null = null
 
 async function loadData() {
   isLoading.value = true
@@ -268,6 +264,85 @@ async function removeBuildRecord(buildId: string) {
   }
 }
 
+// 构建记录右键菜单
+const contextMenuRecord = ref<BuildRecord | null>(null)
+const contextMenuPos = ref({ x: 0, y: 0 })
+const showContextMenu = ref(false)
+
+// 构建记录筛选
+const buildFilterProject = ref('')
+
+const filteredBuildRecords = computed(() => {
+  if (!buildFilterProject.value) return buildRecords.value
+  return buildRecords.value.filter(r => r.project_id === buildFilterProject.value)
+})
+
+const uniqueBuildProjects = computed(() => {
+  const seen = new Map<string, string>()
+  for (const r of buildRecords.value) {
+    if (!seen.has(r.project_id)) {
+      seen.set(r.project_id, r.project_name)
+    }
+  }
+  return Array.from(seen.entries()).map(([id, name]) => ({ id, name }))
+})
+
+const showClearRecordsConfirm = ref(false)
+const showDeleteTemplatesConfirm = ref(false)
+
+async function clearAllBuildRecords() {
+  if (buildRecords.value.length === 0) return
+  for (const r of buildRecords.value) {
+    try {
+      await api.deleteBuildRecord(r.build_id)
+    } catch { /* continue */ }
+  }
+  buildRecords.value = []
+  toast.success(t('build.allRecordsCleared') || '构建记录已全部清除')
+}
+
+async function downloadAllMissing() {
+  const missing = exportTemplates.value.filter(t => !t.installed)
+  if (missing.length === 0) return
+  for (const tmpl of missing) {
+    downloadingVersion.value = `${tmpl.version}-${tmpl.mono}`
+    try {
+      await api.downloadExportTemplate(tmpl.version, tmpl.mono)
+    } catch (e) {
+      toast.error(`${tmpl.version}: ${e}`)
+    }
+  }
+  downloadingVersion.value = null
+  toast.success(t('build.allDownloaded') || '全部下载完成')
+  await loadData()
+}
+
+async function deleteAllInstalled() {
+  const installed = exportTemplates.value.filter(t => t.installed)
+  if (installed.length === 0) return
+  for (const tmpl of installed) {
+    try {
+      await api.deleteExportTemplate(tmpl.version, tmpl.mono)
+    } catch (e) {
+      toast.error(`${tmpl.version}: ${e}`)
+    }
+  }
+  toast.success(t('build.allDeleted') || '全部删除完成')
+  await loadData()
+}
+
+const onRecordContextMenu = (e: MouseEvent, record: BuildRecord) => {
+  e.preventDefault()
+  contextMenuRecord.value = record
+  contextMenuPos.value = { x: e.clientX, y: e.clientY }
+  showContextMenu.value = true
+}
+
+const closeContextMenu = () => {
+  showContextMenu.value = false
+  contextMenuRecord.value = null
+}
+
 async function startMcpServer() {
   try {
     await api.startMcpServer()
@@ -295,6 +370,7 @@ onMounted(async () => {
   unlistenProgress = await listen<BuildProgressPayload>('build-progress', (event) => {
     buildProgress.value = event.payload
     if (event.payload.stage === 'complete' || event.payload.stage === 'failed') {
+      building.value = false
       setTimeout(() => { buildProgress.value = null }, 3000)
     }
   })
@@ -304,11 +380,20 @@ onMounted(async () => {
       setTimeout(() => { downloadProgress.value = null; loadData() }, 1500)
     }
   })
+  // 轮询 MCP 服务器状态
+  const syncMcpState = async () => {
+    try {
+      mcpServerRunning.value = await api.isMcpServerRunning()
+    } catch { /* ignore */ }
+  }
+  await syncMcpState()
+  mcpPollTimer = setInterval(syncMcpState, 5000)
 })
 
 onUnmounted(() => {
   unlistenProgress?.()
   unlistenDownloadProgress?.()
+  if (mcpPollTimer) clearInterval(mcpPollTimer)
 })
 </script>
 
@@ -346,7 +431,25 @@ onUnmounted(() => {
       <div v-else>
       <!-- Export Templates Tab -->
       <div v-if="activeTab === 'templates'">
-        <p class="text-sm text-gray-500 dark:text-content-muted mb-4">{{ t('build.exportTemplatesDesc') }}</p>
+        <div class="flex items-center justify-between mb-4">
+          <p class="text-sm text-gray-500 dark:text-content-muted">{{ t('build.exportTemplatesDesc') }}</p>
+          <div v-if="exportTemplates.length > 0" class="flex items-center gap-2">
+            <button
+              v-if="exportTemplates.some(t => !t.installed)"
+              class="text-xs text-primary-500 hover:text-primary-600 transition-colors"
+              @click="downloadAllMissing"
+            >
+              {{ t('build.downloadAll') || '下载全部' }}
+            </button>
+            <button
+              v-if="exportTemplates.some(t => t.installed)"
+              class="text-xs text-red-400 hover:text-red-500 transition-colors"
+              @click="showDeleteTemplatesConfirm = true"
+            >
+              {{ t('build.deleteAll') || '删除全部' }}
+            </button>
+          </div>
+        </div>
         <div v-if="exportTemplates.length === 0" class="text-center py-12 text-gray-400">
           {{ t('build.notInstalled') }}
         </div>
@@ -404,7 +507,10 @@ onUnmounted(() => {
             <div class="animate-spin rounded-full h-5 w-5 border-2 border-primary-600 border-t-transparent flex-shrink-0" v-if="downloadProgress.stage !== 'complete'"></div>
             <svg v-else class="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
             <div class="flex-1 min-w-0">
-              <p class="text-sm font-medium text-primary-800 dark:text-primary-300">{{ downloadProgress.message }}</p>
+              <div class="flex items-center justify-between">
+                <p class="text-sm font-medium text-primary-800 dark:text-primary-300">{{ downloadProgress.message }}</p>
+                <span v-if="downloadProgress.stage !== 'complete'" class="text-xs font-medium text-primary-600 dark:text-primary-400 ml-2">{{ Math.round(downloadProgress.progress * 100) }}%</span>
+              </div>
               <div v-if="downloadProgress.stage !== 'complete'" class="mt-2 w-full bg-primary-200 dark:bg-primary-800 rounded-full h-1.5">
                 <div class="bg-primary-600 h-1.5 rounded-full transition-all" :style="{ width: (downloadProgress.progress * 100) + '%' }"></div>
               </div>
@@ -505,7 +611,10 @@ onUnmounted(() => {
             <svg v-else-if="buildProgress.stage === 'complete'" class="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
             <svg v-else class="w-5 h-5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
             <div class="flex-1 min-w-0">
-              <p class="text-sm font-medium text-primary-800 dark:text-primary-300">{{ buildProgress.message }}</p>
+              <div class="flex items-center justify-between">
+                <p class="text-sm font-medium text-primary-800 dark:text-primary-300">{{ buildProgress.message }}</p>
+                <span v-if="buildProgress.stage !== 'complete' && buildProgress.stage !== 'failed'" class="text-xs font-medium text-primary-600 dark:text-primary-400 ml-2">{{ Math.round(buildProgress.progress * 100) }}%</span>
+              </div>
               <div v-if="buildProgress.stage !== 'complete' && buildProgress.stage !== 'failed'" class="mt-2 w-full bg-primary-200 dark:bg-primary-800 rounded-full h-1.5">
                 <div class="bg-primary-600 h-1.5 rounded-full transition-all" :style="{ width: (buildProgress.progress * 100) + '%' }"></div>
               </div>
@@ -514,14 +623,31 @@ onUnmounted(() => {
         </div>
 
         <h3 class="text-lg font-medium text-gray-900 dark:text-content-primary mb-3">{{ t('build.buildHistory') }}</h3>
-        <div v-if="buildRecords.length === 0" class="text-center py-12 text-gray-400">
-          {{ t('build.noHistory') }}
+        <div v-if="buildRecords.length > 0" class="flex items-center gap-3 mb-3">
+          <select
+            v-model="buildFilterProject"
+            class="px-3 py-1.5 text-sm bg-white dark:bg-surface-layer border border-gray-300 dark:border-surface-border rounded-lg text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none"
+          >
+            <option value="">{{ t('build.allProjects') || '全部项目' }}</option>
+            <option v-for="p in uniqueBuildProjects" :key="p.id" :value="p.id">{{ p.name }}</option>
+          </select>
+          <div class="flex-1"></div>
+          <button
+            class="text-xs text-red-400 hover:text-red-500 transition-colors"
+            @click="showClearRecordsConfirm = true"
+          >
+            {{ t('build.clearAll') || '全部清除' }}
+          </button>
+        </div>
+        <div v-if="filteredBuildRecords.length === 0" class="text-center py-12 text-gray-400">
+          {{ buildRecords.length === 0 ? t('build.noHistory') : (t('build.noMatchingRecords') || '无匹配记录') }}
         </div>
         <div v-else class="space-y-2">
           <div
-            v-for="record in buildRecords.slice().reverse()"
+            v-for="record in filteredBuildRecords.slice().reverse()"
             :key="record.build_id"
             class="flex items-center justify-between p-4 bg-white dark:bg-surface-card rounded-xl border border-gray-200 dark:border-surface-border"
+            @contextmenu="onRecordContextMenu($event, record)"
           >
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 mb-1">
@@ -709,4 +835,57 @@ onUnmounted(() => {
     />
       </div>
   </div>
+
+  <!-- 构建记录右键菜单 -->
+  <Teleport to="body">
+    <div v-if="showContextMenu" class="fixed inset-0 z-50" @click="closeContextMenu" @contextmenu.prevent="closeContextMenu">
+      <div
+        class="fixed bg-white dark:bg-surface-card rounded-lg shadow-xl border border-gray-200 dark:border-surface-border py-1.5 min-w-[180px] z-50"
+        :style="{ left: contextMenuPos.x + 'px', top: contextMenuPos.y + 'px' }"
+        @click.stop
+      >
+        <button
+          v-if="contextMenuRecord?.status === 'Failed'"
+          @click="retryBuild(contextMenuRecord!); closeContextMenu()"
+          class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-100 dark:hover:bg-surface-hover flex items-center gap-2.5"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+          {{ t('build.retry') || '重试' }}
+        </button>
+        <button
+          v-if="contextMenuRecord?.status === 'Success' && contextMenuRecord?.output_path"
+          @click="openInFileManager(contextMenuRecord!.output_path); closeContextMenu()"
+          class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-100 dark:hover:bg-surface-hover flex items-center gap-2.5"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
+          {{ t('build.openOutput') }}
+        </button>
+        <button
+          @click="removeBuildRecord(contextMenuRecord!.build_id); closeContextMenu()"
+          class="w-full px-4 py-2 text-left text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 flex items-center gap-2.5"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+          {{ t('build.delete') }}
+        </button>
+      </div>
+    </div>
+  </Teleport>
+
+  <ConfirmDialog
+    v-model="showClearRecordsConfirm"
+    :title="t('build.clearAll') || '全部清除'"
+    :description="t('build.clearAllConfirm') || '确定要清除所有构建记录吗？此操作不可撤销。'"
+    :confirm-text="t('build.clearAll') || '全部清除'"
+    confirm-color="red"
+    @confirm="clearAllBuildRecords"
+  />
+
+  <ConfirmDialog
+    v-model="showDeleteTemplatesConfirm"
+    :title="t('build.deleteAll') || '删除全部'"
+    :description="t('build.deleteAllConfirm') || '确定要删除所有已安装的导出模板吗？此操作不可撤销。'"
+    :confirm-text="t('build.deleteAll') || '删除全部'"
+    confirm-color="red"
+    @confirm="deleteAllInstalled"
+  />
 </template>

@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
 import { api } from '@/api'
 import type { Template, TemplateCategory, TemplateInstantiationProgress, Project } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
 import { useEngineLauncher } from '@/composables/useEngineLauncher'
+import { useFileManager } from '@/composables/useFileManager'
 import { useDialogEscape } from '@/composables/useDialogEscape'
 import { isOnline } from '@/composables/useNetworkStatus'
 import EmptyState from '@/components/EmptyState.vue'
@@ -18,7 +18,7 @@ import ProjectSelector from '@/components/ProjectSelector.vue'
 const toast = useToast()
 const { t } = useI18n()
 const { openProjectWithEngine } = useEngineLauncher()
-const router = useRouter()
+const { openInFileManager } = useFileManager()
 
 const templates = ref<Template[]>([])
 const isLoading = ref(true)
@@ -74,6 +74,23 @@ const projects = ref<Project[]>([])
 
 const showDeleteConfirm = ref(false)
 const deleteTargetId = ref('')
+
+// 右键菜单
+const contextMenuTemplate = ref<Template | null>(null)
+const contextMenuPos = ref({ x: 0, y: 0 })
+const showContextMenu = ref(false)
+
+const onTemplateContextMenu = (e: MouseEvent, tpl: Template) => {
+  e.preventDefault()
+  contextMenuTemplate.value = tpl
+  contextMenuPos.value = { x: e.clientX, y: e.clientY }
+  showContextMenu.value = true
+}
+
+const closeContextMenu = () => {
+  showContextMenu.value = false
+  contextMenuTemplate.value = null
+}
 
 useDialogEscape(showDetailDialog)
 useDialogEscape(showCreateDialog)
@@ -174,6 +191,7 @@ const selectTargetDir = async () => {
 }
 
 const lastCreatedProjectId = ref('')
+const lastCreatedProject = ref<Project | null>(null)
 
 const handleCreate = async () => {
   if (!selectedTemplate.value || !createProjectName.value.trim() || !createTargetDir.value.trim()) return
@@ -191,14 +209,20 @@ const handleCreate = async () => {
     showCreateDialog.value = false
     lastCreatedProjectId.value = result.project_id
 
+    // 获取创建的项目信息用于成功提示
+    try {
+      const allProjects = await api.getProjects()
+      lastCreatedProject.value = allProjects.find(p => p.project_id === result.project_id) || null
+    } catch {
+      lastCreatedProject.value = null
+    }
+
     if (result.failed_plugins.length > 0) {
       const details = result.failed_plugins.join('\n')
       toast.warning(`${t('templates.createSuccess')} (${result.failed_plugins.length} ${t('templates.partialFailed') || '项未完成'}):\n${details}`, 8000)
     } else {
       toast.success(t('templates.createSuccess'))
     }
-
-    router.push('/projects')
 
     if (result.engine_installed) {
       try {
@@ -254,7 +278,19 @@ const handleGenerateFromProject = async () => {
   if (!generateProjectId.value || !generateTemplateName.value.trim()) return
   isGenerating.value = true
   try {
-    await api.generateTemplateFromProject(generateProjectId.value, generateTemplateName.value.trim(), generateCategory.value)
+    // 前端使用 PascalCase 分类名，后端期望 snake_case
+    const categoryMap: Record<string, string> = {
+      Starter2D: 'starter_2d',
+      Starter3D: 'starter_3d',
+      RPG: 'rpg',
+      Platformer: 'platformer',
+      Multiplayer: 'multiplayer',
+      Mobile: 'mobile',
+      Blank: 'blank',
+      Custom: 'custom',
+    }
+    const backendCategory = categoryMap[generateCategory.value] || 'custom'
+    await api.generateTemplateFromProject(generateProjectId.value, generateTemplateName.value.trim(), backendCategory)
     toast.success(t('templates.generateSuccess') || '模板生成成功')
     showGenerateFromProjectDialog.value = false
     generateProjectId.value = ''
@@ -349,6 +385,9 @@ const progressPercent = computed(() => {
         :title="t('templates.empty')"
         :description="t('templates.emptyDesc')"
         icon="template"
+        :shortcuts="[
+          { key: 'Ctrl+K', description: t('sidebar.openCommandPaletteShortcut') },
+        ]"
       />
 
       <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -357,6 +396,7 @@ const progressPercent = computed(() => {
           :key="tpl.template_id"
           class="group relative bg-white dark:bg-surface-card rounded-xl border border-gray-200 dark:border-surface-border hover:border-primary-300 dark:hover:border-primary-600 hover:shadow-lg transition-all duration-200 cursor-pointer overflow-hidden"
           @click="openDetail(tpl)"
+          @contextmenu="onTemplateContextMenu($event, tpl)"
         >
           <div class="p-5">
             <div class="flex items-start justify-between mb-3">
@@ -448,6 +488,20 @@ const progressPercent = computed(() => {
             </div>
 
             <p class="text-sm text-gray-600 dark:text-content-secondary mb-5">{{ selectedTemplate.description }}</p>
+
+            <div v-if="selectedTemplate.preview_images && selectedTemplate.preview_images.length > 0" class="mb-5">
+              <h3 class="text-sm font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('templates.previewImages') || '预览' }}</h3>
+              <div class="grid grid-cols-2 gap-2">
+                <img
+                  v-for="(img, idx) in selectedTemplate.preview_images"
+                  :key="idx"
+                  :src="img"
+                  :alt="`Preview ${idx + 1}`"
+                  class="w-full h-32 object-cover rounded-lg border border-gray-200 dark:border-surface-border"
+                  @error="($event.target as HTMLImageElement).style.display = 'none'"
+                />
+              </div>
+            </div>
 
             <div class="grid grid-cols-2 gap-4 mb-5">
               <div class="p-3 rounded-lg bg-gray-50 dark:bg-surface-layer">
@@ -620,7 +674,21 @@ const progressPercent = computed(() => {
           </svg>
           <span class="text-sm font-medium">{{ t('templates.createSuccess') }}</span>
           <button
-            @click="lastCreatedProjectId = ''"
+            v-if="lastCreatedProject"
+            @click="openProjectWithEngine(lastCreatedProject!)"
+            class="ml-1 px-2.5 py-1 text-xs font-medium bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
+          >
+            {{ t('projects.openWithEngine') }}
+          </button>
+          <button
+            v-if="lastCreatedProject"
+            @click="openInFileManager(lastCreatedProject!.path)"
+            class="px-2.5 py-1 text-xs font-medium bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
+          >
+            {{ t('projects.openInFileManager') }}
+          </button>
+          <button
+            @click="lastCreatedProjectId = ''; lastCreatedProject = null"
             class="ml-1 text-green-200 hover:text-white transition-colors"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -721,6 +789,40 @@ const progressPercent = computed(() => {
               </button>
             </div>
           </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 右键菜单 -->
+    <Teleport to="body">
+      <div v-if="showContextMenu" class="fixed inset-0 z-50" @click="closeContextMenu" @contextmenu.prevent="closeContextMenu">
+        <div
+          class="fixed bg-white dark:bg-surface-card rounded-lg shadow-xl border border-gray-200 dark:border-surface-border py-1.5 min-w-[180px] z-50"
+          :style="{ left: contextMenuPos.x + 'px', top: contextMenuPos.y + 'px' }"
+          @click.stop
+        >
+          <button
+            @click="openCreateDialog(contextMenuTemplate!); closeContextMenu()"
+            class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-100 dark:hover:bg-surface-hover flex items-center gap-2.5"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+            {{ t('templates.createProject') }}
+          </button>
+          <button
+            @click="openDetail(contextMenuTemplate!); closeContextMenu()"
+            class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-100 dark:hover:bg-surface-hover flex items-center gap-2.5"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+            {{ t('templates.viewDetail') || t('common.viewDetail') }}
+          </button>
+          <button
+            v-if="contextMenuTemplate && !contextMenuTemplate.is_builtin"
+            @click="deleteTargetId = contextMenuTemplate!.template_id; showDeleteConfirm = true; closeContextMenu()"
+            class="w-full px-4 py-2 text-left text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 flex items-center gap-2.5"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+            {{ t('common.delete') }}
+          </button>
         </div>
       </div>
     </Teleport>

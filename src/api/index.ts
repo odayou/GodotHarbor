@@ -653,6 +653,14 @@ export const api = {
   async stopMcpServer(): Promise<string> {
     return await invoke('stop_mcp_server')
   },
+
+  async isMcpServerRunning(): Promise<boolean> {
+    return await invoke('is_mcp_server_running')
+  },
+
+  async getMcpServerPath(): Promise<string> {
+    return await invoke('get_mcp_server_path')
+  },
 }
 
 export async function withErrorLogging<T>(

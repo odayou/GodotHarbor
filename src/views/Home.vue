@@ -8,10 +8,30 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useAutoSetup } from '@/composables/useAutoSetup'
 import { preloadIcons, getIconUrl, getIconDebugInfo } from '@/composables/useIconCache'
 import { useEngineLauncher } from '@/composables/useEngineLauncher'
+import { useFileManager } from '@/composables/useFileManager'
 
 const router = useRouter()
 const { t } = useI18n()
 const { isRunning: isAutoSetupRunning, stepMessage: autoSetupMessage, runAutoSetup } = useAutoSetup()
+const { openInFileManager } = useFileManager()
+
+// 右键菜单
+const contextMenuProject = ref<any>(null)
+const contextMenuPos = ref({ x: 0, y: 0 })
+const showContextMenu = ref(false)
+
+const onProjectContextMenu = (e: MouseEvent, project: any) => {
+  e.preventDefault()
+  contextMenuProject.value = project
+  contextMenuPos.value = { x: e.clientX, y: e.clientY }
+  showContextMenu.value = true
+}
+
+const closeContextMenu = () => {
+  showContextMenu.value = false
+  contextMenuProject.value = null
+}
+
 const debugMode = ref(false)
 const toggleDebug = (e: KeyboardEvent) => {
   if (e.ctrlKey && e.shiftKey && e.key === 'D') {
@@ -256,6 +276,7 @@ const {
             v-for="project in stats.recent_projects"
             :key="project.project_id"
             class="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors group"
+            @contextmenu="onProjectContextMenu($event, project)"
           >
             <div
               class="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
@@ -390,8 +411,47 @@ const {
             <p class="text-sm text-gray-600 dark:text-content-secondary pl-11">{{ t('home.step4Desc') }}</p>
           </div>
         </div>
+        <div class="mt-4 flex flex-wrap gap-2 justify-center">
+          <div class="flex items-center gap-1.5 text-xs text-gray-400 dark:text-content-muted">
+            <kbd class="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-surface-hover border border-gray-200 dark:border-surface-border font-mono text-[11px]">Ctrl+K</kbd>
+            <span>{{ t('sidebar.openCommandPaletteShortcut') }}</span>
+          </div>
+        </div>
       </div>
     </template>
+
+    <!-- 右键菜单 -->
+    <Teleport to="body">
+      <div v-if="showContextMenu" class="fixed inset-0 z-50" @click="closeContextMenu" @contextmenu.prevent="closeContextMenu">
+        <div
+          class="fixed bg-white dark:bg-surface-card rounded-lg shadow-xl border border-gray-200 dark:border-surface-border py-1.5 min-w-[180px] z-50"
+          :style="{ left: contextMenuPos.x + 'px', top: contextMenuPos.y + 'px' }"
+          @click.stop
+        >
+          <button
+            @click="openProjectWithEngine(contextMenuProject); closeContextMenu()"
+            class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-100 dark:hover:bg-surface-hover flex items-center gap-2.5"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            {{ t('projects.openWithEngine') }}
+          </button>
+          <button
+            @click="openInFileManager(contextMenuProject.path); closeContextMenu()"
+            class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-100 dark:hover:bg-surface-hover flex items-center gap-2.5"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
+            {{ t('projects.openInFileManager') }}
+          </button>
+          <button
+            @click="router.push('/projects'); closeContextMenu()"
+            class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-100 dark:hover:bg-surface-hover flex items-center gap-2.5"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+            {{ t('projects.viewDetails') || t('projects.manage') }}
+          </button>
+        </div>
+      </div>
+    </Teleport>
 
     <Teleport to="body">
       <div v-if="showEngineSelectDialog && engineSelectProject" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="closeEngineSelectDialog">

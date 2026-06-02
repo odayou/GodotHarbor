@@ -2053,6 +2053,12 @@ const retryBatchFailed = async () => {
           </div>
         </div>
       </div>
+      <div class="mt-4 flex flex-wrap gap-2 justify-center">
+        <div class="flex items-center gap-1.5 text-xs text-gray-400 dark:text-content-muted">
+          <kbd class="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-surface-hover border border-gray-200 dark:border-surface-border font-mono text-[11px]">Ctrl+K</kbd>
+          <span>{{ t('sidebar.openCommandPaletteShortcut') }}</span>
+        </div>
+      </div>
     </div>
 
     <div v-else-if="filteredPlugins.length === 0 && plugins.length > 0" class="text-center py-12">
