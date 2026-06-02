@@ -250,12 +250,18 @@ pub fn detached_cmd(program: impl AsRef<std::ffi::OsStr>) -> std::process::Comma
     const DETACHED_PROCESS: u32 = 0x00000008;
     let mut cmd = std::process::Command::new(program);
     cmd.creation_flags(CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS);
+    cmd.stdout(std::process::Stdio::null());
+    cmd.stderr(std::process::Stdio::null());
+    cmd.stdin(std::process::Stdio::null());
     cmd
 }
 
 #[cfg(not(windows))]
 pub fn detached_cmd(program: impl AsRef<std::ffi::OsStr>) -> std::process::Command {
     let mut cmd = std::process::Command::new(program);
+    cmd.stdout(std::process::Stdio::null());
+    cmd.stderr(std::process::Stdio::null());
+    cmd.stdin(std::process::Stdio::null());
     cmd
 }
 

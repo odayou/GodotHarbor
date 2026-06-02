@@ -198,7 +198,18 @@ pub fn sync_harbor_config(app: AppHandle, project_id: String) -> Result<SyncResu
             pid
         };
 
-        let mount_path = format!("addons/{}", plugin_config.name);
+        let plugin_ref = plugins.iter().find(|p| p.plugin_id == plugin_id);
+        let mount_path = plugin_ref
+            .and_then(|p| p.versions.first())
+            .and_then(|v| v.units.first())
+            .map(|u| {
+                if u.subdirectory.is_empty() {
+                    format!("addons/{}", u.dir_name)
+                } else {
+                    u.subdirectory.clone()
+                }
+            })
+            .unwrap_or_else(|| format!("addons/{}", plugin_config.name));
         let already_bound = bindings.iter().any(|b| b.project_id == project_id && b.plugin_id == plugin_id);
         let mount_conflict = bindings.iter().any(|b| {
             b.project_id == project_id && b.plugin_id != plugin_id && b.mount_path == mount_path

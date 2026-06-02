@@ -10,7 +10,7 @@ signal died
 @export var interact_range: float = 64.0
 @export var attack_duration: float = 0.3
 
-var state: State = State.IDLE
+var state = State.IDLE
 var health: int = max_health
 var _attack_timer: float = 0.0
 var _interact_timer: float = 0.0

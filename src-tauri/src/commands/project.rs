@@ -222,7 +222,7 @@ pub async fn import_project_from_git(
 }
 
 #[tauri::command]
-pub fn remove_project(app: AppHandle, project_id: String, delete_files: Option<bool>) -> Result<(), String> {
+pub async fn remove_project(app: AppHandle, project_id: String, delete_files: Option<bool>) -> Result<(), String> {
     let storage = get_storage(&app);
     let mut projects: Vec<Project> = storage.load_or_default("projects.json");
 
@@ -232,11 +232,15 @@ pub fn remove_project(app: AppHandle, project_id: String, delete_files: Option<b
     let project_path = project.path.clone();
 
     if delete_files.unwrap_or(false) {
-        let path = std::path::Path::new(&project_path);
-        if path.exists() {
-            std::fs::remove_dir_all(path)
-                .map_err(|e| format!("删除项目文件失败: {}", e))?;
-        }
+        let path = std::path::PathBuf::from(&project_path);
+        tokio::task::spawn_blocking(move || {
+            if path.exists() {
+                std::fs::remove_dir_all(&path)
+                    .map_err(|e| format!("删除项目文件失败: {}", e))
+            } else {
+                Ok(())
+            }
+        }).await.map_err(|e| format!("删除任务失败: {}", e))??;
     }
 
     projects.retain(|p| p.project_id != project_id);
@@ -492,7 +496,7 @@ pub fn sync_projects(app: AppHandle) -> Result<Vec<Project>, String> {
 
 
 #[tauri::command]
-pub fn batch_remove_projects(app: AppHandle, project_ids: Vec<String>, delete_files: Option<bool>) -> Result<BatchResult, String> {
+pub async fn batch_remove_projects(app: AppHandle, project_ids: Vec<String>, delete_files: Option<bool>) -> Result<BatchResult, String> {
     let storage = get_storage(&app);
     let mut projects: Vec<Project> = storage.load_or_default("projects.json");
     let mut success_count = 0;
@@ -521,13 +525,21 @@ pub fn batch_remove_projects(app: AppHandle, project_ids: Vec<String>, delete_fi
         }
     }
 
-    for project_path in &paths_to_delete {
-        let path = std::path::Path::new(project_path);
-        if path.exists() {
-            if let Err(e) = std::fs::remove_dir_all(path) {
-                errors.push(format!("删除项目文件失败 {}: {}", project_path, e));
+    if should_delete_files && !paths_to_delete.is_empty() {
+        let paths = paths_to_delete.clone();
+        let delete_errors: Vec<String> = tokio::task::spawn_blocking(move || {
+            let mut errs = Vec::new();
+            for project_path in &paths {
+                let path = std::path::Path::new(project_path);
+                if path.exists() {
+                    if let Err(e) = std::fs::remove_dir_all(path) {
+                        errs.push(format!("删除项目文件失败 {}: {}", project_path, e));
+                    }
+                }
             }
-        }
+            errs
+        }).await.map_err(|e| format!("删除任务失败: {}", e))?;
+        errors.extend(delete_errors);
     }
 
     let mut bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");

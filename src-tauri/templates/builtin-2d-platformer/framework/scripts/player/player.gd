@@ -15,7 +15,7 @@ enum State { IDLE, RUNNING, JUMPING, FALLING, WALL_SLIDING, DASHING }
 @export var dash_duration: float = 0.15
 @export var dash_cooldown: float = 0.5
 
-var state: State = State.IDLE
+var state = State.IDLE
 var _coyote_timer: float = 0.0
 var _jump_buffer_timer: float = 0.0
 var _was_on_floor: bool = false

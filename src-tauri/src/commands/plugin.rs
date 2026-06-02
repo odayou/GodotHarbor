@@ -1408,6 +1408,18 @@ pub async fn check_plugin_updates(app: AppHandle, force_refresh: Option<bool>) -
 
     let update_infos: Vec<PluginUpdateInfo> = futures::future::join_all(futures).await;
 
+    let mut seen_urls = std::collections::HashSet::new();
+    let update_infos: Vec<PluginUpdateInfo> = update_infos.into_iter().filter(|info| {
+        if info.source_url.is_empty() {
+            true
+        } else if seen_urls.contains(&info.source_url) {
+            false
+        } else {
+            seen_urls.insert(info.source_url.clone());
+            true
+        }
+    }).collect();
+
     let _ = fs::create_dir_all(&cache_dir);
     let cached = crate::models::CachedPluginUpdates {
         cache_version,

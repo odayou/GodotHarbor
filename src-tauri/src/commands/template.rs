@@ -247,7 +247,7 @@ fn generate_project_godot(template: &Template, enable_mobile: bool) -> String {
     if !autoloads.is_empty() {
         content.push_str("[autoload]\n\n");
         for (name, path) in &autoloads {
-            content.push_str(&format!("{}=*\"{}\"\n", name, path));
+            content.push_str(&format!("{}=\"*{}\"\n", name, path));
         }
         content.push('\n');
     }
@@ -294,6 +294,20 @@ fn generate_project_godot(template: &Template, enable_mobile: bool) -> String {
         content.push_str(&format!("renderer/rendering_method=\"{}\"\n", template.godot.rendering));
     } else {
         content.push_str("renderer/rendering_method=\"forward_plus\"\n");
+    }
+
+    if !template.plugins.is_empty() {
+        content.push('\n');
+        content.push_str("[editor_plugins]\n\n");
+        let plugin_paths: Vec<String> = template.plugins.iter().map(|p| {
+            let dir = if p.subdirectory.is_empty() {
+                p.name.to_lowercase().replace(' ', "_")
+            } else {
+                p.subdirectory.trim_start_matches("addons/").to_string()
+            };
+            format!("res://addons/{}/plugin.cfg", dir)
+        }).collect();
+        content.push_str(&format!("enabled=PackedStringArray({})\n", plugin_paths.iter().map(|p| format!("\"{}\"", p)).collect::<Vec<_>>().join(", ")));
     }
 
     content
@@ -407,10 +421,9 @@ fn generate_export_presets_cfg(template: &Template) -> String {
         content.push_str("dedicated_server=false\n");
         content.push_str("custom_features=\"\"\n");
         content.push_str("export_filter=\"all_resources\"\n");
-        content.push_str("export_filter.exclude_filter=\"\"\n");
-        content.push_str("export_filter.export_plugins=PoolStringArray()\n");
+        content.push_str("include_filter=\"\"\n");
+        content.push_str("exclude_filter=\"\"\n");
         content.push_str("script_encryption_key=\"\"\n");
-        content.push_str("script_encryption_key.editable=false\n");
         if !preset.config.is_null() {
             content.push_str(&format!("custom_template={}\n", preset.config));
         }
@@ -889,7 +902,11 @@ fn install_template_plugin(
     storage.save("plugins.json", &plugins)
         .map_err(|e| format!("保存插件列表失败: {}", e))?;
 
-    let mount_path = format!("addons/{}", plugin_spec.name);
+    let mount_path = if plugin_spec.subdirectory.is_empty() {
+        format!("addons/{}", plugin_spec.name)
+    } else {
+        plugin_spec.subdirectory.clone()
+    };
     let already_bound = bindings.iter().any(|b| b.project_id.is_empty() && b.plugin_id == plugin_id && b.mount_path == mount_path);
 
     if !already_bound {
@@ -1024,13 +1041,13 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
         icon_url: String::new(),
         preview_images: Vec::new(),
         godot: TemplateGodotConfig {
-            version: "4.6".to_string(),
+            version: "4.4".to_string(),
             mono: false,
             rendering: String::new(),
         },
         plugins: vec![
-            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: "addons/phantom_camera".to_string() },
-            TemplatePlugin { name: "gdunit4".to_string(), version: "6.1.3".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/godot-gdunit-labs/gdUnit4.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: "addons/gdunit4".to_string() },
+            TemplatePlugin { name: "Phantom Camera".to_string(), version: "0.9.4.2".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: "v0.9.4.2".to_string(), mount: "copy".to_string(), subdirectory: "addons/phantom_camera".to_string() },
+            TemplatePlugin { name: "GdUnit4".to_string(), version: "6.1.3".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/godot-gdunit-labs/gdUnit4.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: "addons/gdunit4".to_string() },
         ],
         directories: vec![
             TemplateDirectory { path: "scenes".to_string(), description: "场景文件".to_string() },
@@ -1051,6 +1068,8 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
                 "move_right": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 68}] },
                 "move_up": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 87}] },
                 "move_down": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 83}] },
+                "jump": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194320}, {"type": "InputEventJoypadButton", "button": 0}] },
+                "dash": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194324}, {"type": "InputEventJoypadButton", "button": 1}] },
                 "ui_accept": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194309}] },
                 "ui_cancel": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194305}] }
             }),
@@ -1081,13 +1100,13 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
         icon_url: String::new(),
         preview_images: Vec::new(),
         godot: TemplateGodotConfig {
-            version: "4.6".to_string(),
+            version: "4.4".to_string(),
             mono: false,
-            rendering: "compatible".to_string(),
+            rendering: "forward_plus".to_string(),
         },
         plugins: vec![
-            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: "addons/phantom_camera".to_string() },
-            TemplatePlugin { name: "godot-statecharts".to_string(), version: "0.22.4".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/derkork/godot-statecharts.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: "addons/godot_state_charts".to_string() },
+            TemplatePlugin { name: "Phantom Camera".to_string(), version: "0.9.4.2".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: "v0.9.4.2".to_string(), mount: "copy".to_string(), subdirectory: "addons/phantom_camera".to_string() },
+            TemplatePlugin { name: "Godot State Charts".to_string(), version: "0.22.4".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/derkork/godot-statecharts.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: "addons/godot_state_charts".to_string() },
         ],
         directories: vec![
             TemplateDirectory { path: "scenes/levels".to_string(), description: "关卡场景".to_string() },
@@ -1152,14 +1171,14 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
         icon_url: String::new(),
         preview_images: Vec::new(),
         godot: TemplateGodotConfig {
-            version: "4.6".to_string(),
+            version: "4.4".to_string(),
             mono: false,
-            rendering: "compatible".to_string(),
+            rendering: "forward_plus".to_string(),
         },
         plugins: vec![
-            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: "addons/phantom_camera".to_string() },
-            TemplatePlugin { name: "dialogic".to_string(), version: "2.0".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/dialogic-godot/dialogic.git".to_string(), git_ref: "main".to_string(), mount: "copy".to_string(), subdirectory: "addons/dialogic".to_string() },
-            TemplatePlugin { name: "godot-statecharts".to_string(), version: "0.22.4".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/derkork/godot-statecharts.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: "addons/godot_state_charts".to_string() },
+            TemplatePlugin { name: "Phantom Camera".to_string(), version: "0.9.4.2".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: "v0.9.4.2".to_string(), mount: "copy".to_string(), subdirectory: "addons/phantom_camera".to_string() },
+            TemplatePlugin { name: "Dialogic".to_string(), version: "2.0-alpha-19".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/dialogic-godot/dialogic.git".to_string(), git_ref: "2.0-alpha-19".to_string(), mount: "copy".to_string(), subdirectory: "addons/dialogic".to_string() },
+            TemplatePlugin { name: "Godot State Charts".to_string(), version: "0.22.4".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/derkork/godot-statecharts.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: "addons/godot_state_charts".to_string() },
         ],
         directories: vec![
             TemplateDirectory { path: "scenes/maps".to_string(), description: "地图场景".to_string() },
@@ -1193,6 +1212,8 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
                 "move_up": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 87}] },
                 "move_down": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 83}] },
                 "interact": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 69}] },
+                "attack": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 74}, {"type": "InputEventJoypadButton", "button": 2}] },
+                "dialogic_default_action": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194309}, {"type": "InputEventMouseButton", "button_index": 1}, {"type": "InputEventJoypadButton", "button": 0}] },
                 "menu": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194305}] },
                 "ui_accept": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194309}] },
                 "ui_cancel": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194305}] }
@@ -1228,13 +1249,13 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
         icon_url: String::new(),
         preview_images: Vec::new(),
         godot: TemplateGodotConfig {
-            version: "4.6".to_string(),
+            version: "4.4".to_string(),
             mono: false,
             rendering: "forward_plus".to_string(),
         },
         plugins: vec![
-            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: "addons/phantom_camera".to_string() },
-            TemplatePlugin { name: "godot-statecharts".to_string(), version: "0.22.4".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/derkork/godot-statecharts.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: "addons/godot_state_charts".to_string() },
+            TemplatePlugin { name: "Phantom Camera".to_string(), version: "0.9.4.2".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: "v0.9.4.2".to_string(), mount: "copy".to_string(), subdirectory: "addons/phantom_camera".to_string() },
+            TemplatePlugin { name: "Godot State Charts".to_string(), version: "0.22.4".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/derkork/godot-statecharts.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: "addons/godot_state_charts".to_string() },
         ],
         directories: vec![
             TemplateDirectory { path: "scenes/levels".to_string(), description: "关卡场景".to_string() },
@@ -1305,12 +1326,12 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
         icon_url: String::new(),
         preview_images: Vec::new(),
         godot: TemplateGodotConfig {
-            version: "4.6".to_string(),
+            version: "4.4".to_string(),
             mono: false,
-            rendering: "compatible".to_string(),
+            rendering: "forward_plus".to_string(),
         },
         plugins: vec![
-            TemplatePlugin { name: "phantom-camera".to_string(), version: "0.11".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: "addons/phantom_camera".to_string() },
+            TemplatePlugin { name: "Phantom Camera".to_string(), version: "0.9.4.2".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: "v0.9.4.2".to_string(), mount: "copy".to_string(), subdirectory: "addons/phantom_camera".to_string() },
         ],
         directories: vec![
             TemplateDirectory { path: "scenes/lobby".to_string(), description: "大厅场景".to_string() },

@@ -171,7 +171,10 @@ export default {
       enterUrl: '请输入 Git 仓库地址',
       success: '项目 {name} 克隆成功',
       failed: '克隆项目失败: {error}'
-    }
+    },
+    deletedWithFiles: '项目及文件已彻底删除',
+    batchDeletedWithFiles: '{count} 个项目及文件已彻底删除',
+    deleteWithFiles: '同时删除项目文件（不可恢复）'
   },
   plugins: {
     title: '插件生态',
@@ -1049,9 +1052,6 @@ export default {
     addProjectSuccess: '成功添加项目: {name}',
     addProjectFailed: '添加项目失败: {error}',
     projectDeleted: '项目已删除',
-    deletedWithFiles: '项目及文件已彻底删除',
-    batchDeletedWithFiles: '{count} 个项目及文件已彻底删除',
-    deleteWithFiles: '同时删除项目文件（不可恢复）',
     deleteFailed: '删除项目失败: {error}',
     groupUpdated: '分组已更新',
     groupUpdateFailed: '更新分组失败: {error}',

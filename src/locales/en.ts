@@ -168,7 +168,10 @@ export default {
       enterUrl: 'Please enter a Git repository URL',
       success: 'Project {name} cloned successfully',
       failed: 'Failed to clone project: {error}'
-    }
+    },
+    deletedWithFiles: 'Project and files permanently deleted',
+    batchDeletedWithFiles: '{count} projects and files permanently deleted',
+    deleteWithFiles: 'Also delete project files (irreversible)'
   },
   plugins: {
     title: 'Plugin Ecosystem',
@@ -1046,9 +1049,6 @@ export default {
     addProjectSuccess: 'Successfully added project: {name}',
     addProjectFailed: 'Add project failed: {error}',
     projectDeleted: 'Project deleted',
-    deletedWithFiles: 'Project and files permanently deleted',
-    batchDeletedWithFiles: '{count} projects and files permanently deleted',
-    deleteWithFiles: 'Also delete project files (irreversible)',
     deleteFailed: 'Delete project failed: {error}',
     groupUpdated: 'Group updated',
     groupUpdateFailed: 'Update group failed: {error}',

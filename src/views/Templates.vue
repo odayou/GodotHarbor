@@ -7,6 +7,7 @@ import type { Template, TemplateCategory, TemplateInstantiationProgress, Project
 import { open } from '@tauri-apps/plugin-dialog'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
+import { useEngineLauncher } from '@/composables/useEngineLauncher'
 import { useDialogEscape } from '@/composables/useDialogEscape'
 import { isOnline } from '@/composables/useNetworkStatus'
 import EmptyState from '@/components/EmptyState.vue'
@@ -16,6 +17,7 @@ import ProjectSelector from '@/components/ProjectSelector.vue'
 
 const toast = useToast()
 const { t } = useI18n()
+const { openProjectWithEngine } = useEngineLauncher()
 const router = useRouter()
 
 const templates = ref<Template[]>([])
@@ -197,6 +199,18 @@ const handleCreate = async () => {
     }
 
     router.push('/projects')
+
+    if (result.engine_installed) {
+      try {
+        const projects = await api.getProjects()
+        const project = projects.find(p => p.project_id === result.project_id)
+        if (project) {
+          await openProjectWithEngine(project)
+        }
+      } catch {
+        // 自动打开失败不影响创建结果
+      }
+    }
   } catch (e: any) {
     toast.error(`${t('templates.createFailed')}: ${e?.toString() || e}`)
   } finally {

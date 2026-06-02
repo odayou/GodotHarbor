@@ -15,9 +15,15 @@ func _ready() -> void:
 
 
 func interact(_actor: Node2D) -> void:
-    if dialogic_timeline != "" and not Dialogic.timeline_ended.is_connected(_on_dialogue_ended):
-        Dialogic.timeline_ended.connect(_on_dialogue_ended, ConnectFlags.ONE_SHOT)
-        Dialogic.start(dialogic_timeline)
+    if dialogic_timeline != "" and _has_dialogic():
+        var dialogic = Engine.get_singleton("Dialogic")
+        if dialogic and not dialogic.timeline_ended.is_connected(_on_dialogue_ended):
+            dialogic.timeline_ended.connect(_on_dialogue_ended, ConnectFlags.ONE_SHOT)
+            dialogic.start(dialogic_timeline)
+
+
+func _has_dialogic() -> bool:
+    return Engine.has_singleton("Dialogic")
 
 
 func _on_body_entered(body: Node2D) -> void:

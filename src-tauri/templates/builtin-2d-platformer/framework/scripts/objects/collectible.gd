@@ -8,5 +8,5 @@ func _on_body_entered(body: Node2D) -> void:
     if body.is_in_group("player"):
         GameManager.add_score(score_value)
         if sfx_stream:
-            AudioManager.play_sfx(sfx_stream, 0.05)
+            AudioManager.play_sfx(sfx_stream)
         queue_free()

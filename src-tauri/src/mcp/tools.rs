@@ -236,12 +236,22 @@ fn tool_sync_environment(ctx: &McpContext, args: &Value) -> Result<String, Strin
                     .and_then(|v| v.units.first())
                     .map(|u| u.unit_id.clone())
                     .unwrap_or_default();
+                let mount_path = plugin.versions.first()
+                    .and_then(|v| v.units.first())
+                    .map(|u| {
+                        if u.subdirectory.is_empty() {
+                            format!("res://addons/{}", u.dir_name)
+                        } else {
+                            format!("res://{}", u.subdirectory)
+                        }
+                    })
+                    .unwrap_or_else(|| format!("res://addons/{}", plugin.name.to_lowercase()));
                 let new_binding = ProjectBinding {
                     project_id: project_id.to_string(),
                     plugin_id: plugin.plugin_id.clone(),
                     version_id,
                     unit_id,
-                    mount_path: format!("res://addons/{}", plugin.name.to_lowercase()),
+                    mount_path,
                     created_at: chrono::Utc::now(),
                     is_healthy: Some(true),
                     subdirectory: String::new(),
@@ -276,12 +286,22 @@ fn tool_install_plugin(ctx: &McpContext, args: &Value) -> Result<String, String>
             .and_then(|v| v.units.first())
             .map(|u| u.unit_id.clone())
             .unwrap_or_default();
+        let mount_path = plugin.versions.first()
+            .and_then(|v| v.units.first())
+            .map(|u| {
+                if u.subdirectory.is_empty() {
+                    format!("res://addons/{}", u.dir_name)
+                } else {
+                    format!("res://{}", u.subdirectory)
+                }
+            })
+            .unwrap_or_else(|| format!("res://addons/{}", plugin.name.to_lowercase()));
         let new_binding = ProjectBinding {
             project_id: project_id.to_string(),
             plugin_id: plugin.plugin_id.clone(),
             version_id,
             unit_id,
-            mount_path: format!("res://addons/{}", plugin.name.to_lowercase()),
+            mount_path,
             created_at: chrono::Utc::now(),
             is_healthy: Some(true),
             subdirectory: String::new(),
