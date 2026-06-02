@@ -16,6 +16,18 @@ const toast = useToast()
 const { t, locale } = useI18n()
 const router = useRouter()
 const { setTheme, initTheme } = useTheme()
+
+const keyboardShortcuts = computed(() => [
+  { key: 'Ctrl+K', description: t('sidebar.openCommandPaletteShortcut') },
+  { key: 'Ctrl+B', description: t('sidebar.toggleShortcut') },
+  { key: 'Ctrl+T', description: t('sidebar.toggleThemeShortcut') },
+  { key: 'Ctrl+D', description: t('sidebar.toggleThemeModeShortcut') },
+  { key: 'Ctrl+1', description: t('sidebar.navHomeShortcut') },
+  { key: 'Ctrl+2', description: t('sidebar.navProjectsShortcut') },
+  { key: 'Ctrl+3', description: t('sidebar.navPluginsShortcut') },
+  { key: 'Ctrl+4', description: t('sidebar.navEnginesShortcut') },
+])
+
 const settings = ref<Settings>({ scan_directories: [], mount_strategy: 'Symlink', language: 'zh-CN', theme: 'system', auto_scan_on_startup: true, auto_discover_engines: true, auto_check_plugin_updates: false, auto_check_app_updates: true, auto_check_engine_updates: true, update_check_interval_hours: 4, skipped_app_version: '', auto_apply: true, github_api_proxy: '', asset_library_mirror: '', asset_store_mirror: '', asset_api_mode: 'auto' })
 const originalSettings = ref<string>('')
 const isLoading = ref(false)
@@ -570,6 +582,15 @@ const toggleMirrorEnabled = (mirrorId: string) => {
               <input type="checkbox" v-model="settings.enable_anonymous_usage_stats" class="sr-only peer" />
               <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary-600"></div>
             </label>
+          </div>
+        </div>
+        <div class="card p-6">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('settings.keyboardShortcuts') }}</h2>
+          <div class="space-y-2">
+            <div v-for="shortcut in keyboardShortcuts" :key="shortcut.key" class="flex items-center justify-between py-1.5">
+              <span class="text-sm text-gray-700 dark:text-content-secondary">{{ shortcut.description }}</span>
+              <kbd class="px-2 py-1 rounded bg-gray-100 dark:bg-surface-hover border border-gray-200 dark:border-surface-border font-mono text-xs">{{ shortcut.key }}</kbd>
+            </div>
           </div>
         </div>
       </div>

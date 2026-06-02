@@ -3,6 +3,7 @@ defineProps<{
   title: string
   description?: string
   actionLabel?: string
+  shortcuts?: { key: string; description: string }[]
 }>()
 
 const emit = defineEmits<{
@@ -26,5 +27,15 @@ const emit = defineEmits<{
         {{ actionLabel }}
       </button>
     </slot>
+    <div v-if="shortcuts && shortcuts.length > 0" class="mt-4 flex flex-wrap gap-2 justify-center">
+      <div
+        v-for="shortcut in shortcuts"
+        :key="shortcut.key"
+        class="flex items-center gap-1.5 text-xs text-gray-400 dark:text-content-muted"
+      >
+        <kbd class="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-surface-hover border border-gray-200 dark:border-surface-border font-mono text-[11px]">{{ shortcut.key }}</kbd>
+        <span>{{ shortcut.description }}</span>
+      </div>
+    </div>
   </div>
 </template>

@@ -698,6 +698,9 @@ export default {
     launch: 'Launch Engine',
     launchSuccess: 'Engine launched',
     launchFailed: 'Failed to launch engine: {error}',
+    launchRecentProject: 'Launch recent project: {name}',
+    launchProjectSuccess: 'Launched project: {name}',
+    noRecentProject: 'No recent project for this engine',
     urlDownload: {
       title: 'Download from URL',
       desc: 'Enter engine archive download URL, will auto download, extract and register',
@@ -855,6 +858,7 @@ export default {
     discardChanges: 'Discard Changes',
     saveAndLeave: 'Save & Leave',
     misc: 'Miscellaneous',
+    keyboardShortcuts: 'Keyboard Shortcuts',
     showOnboarding: 'Show Onboarding Again',
     showOnboardingDesc: 'Click to show the onboarding guide immediately',
     anonymousStats: 'Anonymous Usage Statistics',

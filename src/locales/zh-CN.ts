@@ -701,6 +701,9 @@ export default {
     launch: '启动引擎',
     launchSuccess: '引擎已启动',
     launchFailed: '启动引擎失败: {error}',
+    launchRecentProject: '启动最近项目: {name}',
+    launchProjectSuccess: '已启动项目: {name}',
+    noRecentProject: '该引擎没有最近使用的项目',
     urlDownload: {
       title: '从 URL 下载',
       desc: '输入引擎压缩包的下载地址，将自动下载、解压并注册',
@@ -858,6 +861,7 @@ export default {
     discardChanges: '放弃变更',
     saveAndLeave: '保存并离开',
     misc: '其他',
+    keyboardShortcuts: '键盘快捷键',
     showOnboarding: '重新显示引导',
     showOnboardingDesc: '点击后立即显示新手引导',
     anonymousStats: '匿名使用统计',

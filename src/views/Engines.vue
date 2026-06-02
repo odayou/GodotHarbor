@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { open as openUrl } from '@tauri-apps/plugin-shell'
 import { api } from '@/api'
-import type { Engine, RemoteEngineVersion, EngineMirrorConfig, EngineDownloadProgress, EngineReleaseChannel } from '@/types'
+import type { Engine, RemoteEngineVersion, EngineMirrorConfig, EngineDownloadProgress, EngineReleaseChannel, Project } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
@@ -82,6 +82,7 @@ onMounted(async () => {
     loadEngines(),
     api.getActiveDownloads()
   ])
+  loadProjects()
   if (engines.value.length === 0) {
     isDiscovering.value = true
   }
@@ -405,6 +406,38 @@ const onRemoveEngineConfirm = async () => {
 }
 
 const isLaunchingEngine = ref(false)
+const projects = ref<Project[]>([])
+
+const loadProjects = async () => {
+  try {
+    projects.value = await api.getProjects()
+  } catch { /* ignore */ }
+}
+
+const getRecentProjectForEngine = (engineId: string): Project | null => {
+  const matchingProjects = projects.value
+    .filter(p => p.last_used_engine_id === engineId)
+    .sort((a, b) => (b.last_opened_at || b.updated_at).localeCompare(a.last_opened_at || a.updated_at))
+  return matchingProjects[0] || null
+}
+
+const launchRecentProject = async (engineId: string) => {
+  const project = getRecentProjectForEngine(engineId)
+  if (!project) {
+    toast.warning(t('engines.noRecentProject'))
+    return
+  }
+  if (isLaunchingEngine.value) return
+  isLaunchingEngine.value = true
+  try {
+    await api.launchEngine(engineId, project.path, project.project_id)
+    toast.success(t('engines.launchProjectSuccess', { name: project.name }))
+  } catch (error) {
+    toast.error(t('engines.launchFailed', { error }))
+  } finally {
+    isLaunchingEngine.value = false
+  }
+}
 
 const launchEngine = async (engineId: string) => {
   if (isLaunchingEngine.value) return
@@ -772,6 +805,9 @@ const initCollapsedGroups = () => {
       v-else-if="engines.length === 0"
       :title="t('engines.empty')"
       :description="t('engines.emptyDesc')"
+      :shortcuts="[
+        { key: 'Ctrl+K', description: t('commandPalette.title') },
+      ]"
     >
       <template #actions>
         <div class="flex justify-center gap-3">
@@ -882,6 +918,17 @@ const initCollapsedGroups = () => {
                     <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </button>
+                  <button
+                    v-if="getRecentProjectForEngine(engine.engine_id)"
+                    @click="launchRecentProject(engine.engine_id)"
+                    :disabled="isLaunchingEngine"
+                    class="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 p-2.5 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    :title="t('engines.launchRecentProject', { name: getRecentProjectForEngine(engine.engine_id)!.name })"
+                  >
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
                   </button>
                   <div class="engine-menu-wrapper" style="position: relative; display: inline-block">
