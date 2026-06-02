@@ -201,9 +201,14 @@ export const useUpdateStore = defineStore('updates', () => {
   }
 
   async function updateSinglePlugin(pluginId: string) {
-    await api.updateGitPlugin(pluginId)
-    pluginUpdates.value = pluginUpdates.value.filter(u => u.plugin_id !== pluginId)
-    await reapplyBindingsForPlugin(pluginId)
+    try {
+      const updated = await api.updateGitPlugin(pluginId)
+      pluginUpdates.value = pluginUpdates.value.filter(u => u.plugin_id !== pluginId)
+      await reapplyBindingsForPlugin(pluginId)
+      toast.success(t('plugins.updateSuccess', { name: updated.name }))
+    } catch (error) {
+      toast.error(t('plugins.updateFailed', { error: String(error) }))
+    }
   }
 
   async function batchUpdateAllPlugins() {
@@ -228,6 +233,13 @@ export const useUpdateStore = defineStore('updates', () => {
       }
       pluginUpdates.value = pluginUpdates.value.filter(u => failedIds.has(u.plugin_id))
       await reapplyAllBindings()
+      if (failedIds.size === 0) {
+        toast.success(t('plugins.batchUpdateSuccess'))
+      } else {
+        toast.error(t('plugins.batchUpdatePartial', { failed: failedIds.size }))
+      }
+    } catch (error) {
+      toast.error(t('plugins.batchUpdateFailed', { error: String(error) }))
     } finally {
       isUpdatingPlugins.value = false
     }

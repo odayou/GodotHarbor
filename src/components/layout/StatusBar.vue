@@ -138,12 +138,12 @@ const handleSkipVersion = () => {
   updateStore.skipAppVersion()
 }
 
-const handlePluginUpdate = (pluginId: string) => {
-  updateStore.updateSinglePlugin(pluginId)
+const handlePluginUpdate = async (pluginId: string) => {
+  await updateStore.updateSinglePlugin(pluginId)
 }
 
-const handleBatchPluginUpdate = () => {
-  updateStore.batchUpdateAllPlugins()
+const handleBatchPluginUpdate = async () => {
+  await updateStore.batchUpdateAllPlugins()
 }
 
 const handleHotUpdate = () => {

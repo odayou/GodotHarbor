@@ -150,6 +150,7 @@ export default {
     dragDropResult: '已添加 {added} 个项目，跳过 {skipped} 个',
     dragDropAdded: '已添加 {count} 个项目',
     confirmDelete: '确认删除',
+    viewDetails: '查看详情',
     projectAlreadyExists: '项目已存在: {name}',
     clearGroup: '清除分组',
     invalidRelocatePath: '所选路径不是有效的 Godot 项目（缺少 project.godot）',
@@ -277,6 +278,10 @@ export default {
     },
     importSuccess: '以{mode}模式导入了 {count} 个插件',
     updateSuccess: '插件 {name} 已更新',
+    updateFailed: '插件更新失败: {error}',
+    batchUpdateSuccess: '所有插件更新完成',
+    batchUpdatePartial: '部分插件更新失败，{failed} 个未成功',
+    batchUpdateFailed: '批量更新失败: {error}',
     cleanupOrphaned: {
       success: '已清理 {count} 个孤立目录',
       noOrphaned: '没有需要清理的孤立目录'

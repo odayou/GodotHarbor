@@ -147,6 +147,7 @@ export default {
     dragDropResult: 'Added {added} projects, skipped {skipped}',
     dragDropAdded: 'Added {count} projects',
     confirmDelete: 'Confirm Delete',
+    viewDetails: 'View Details',
     projectAlreadyExists: 'Project already exists: {name}',
     clearGroup: 'Clear Group',
     invalidRelocatePath: 'Selected path is not a valid Godot project (missing project.godot)',
@@ -274,6 +275,10 @@ export default {
     },
     importSuccess: 'Imported {count} plugins in {mode} mode',
     updateSuccess: 'Plugin {name} updated',
+    updateFailed: 'Plugin update failed: {error}',
+    batchUpdateSuccess: 'All plugins updated successfully',
+    batchUpdatePartial: 'Some plugins failed to update, {failed} unsuccessful',
+    batchUpdateFailed: 'Batch update failed: {error}',
     cleanupOrphaned: {
       success: 'Cleaned up {count} orphaned directories',
       noOrphaned: 'No orphaned directories to clean up'
