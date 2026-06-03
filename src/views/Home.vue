@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onActivated, onUnmounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { api } from '@/api'
@@ -59,7 +59,8 @@ const loadStats = async () => {
   hasError.value = false
   try {
     stats.value = await api.getDashboardStats()
-    preloadIcons(stats.value.recent_projects.map(p => p.icon_path).filter(Boolean))
+    // 非关键操作：不阻塞渲染
+    preloadIcons(stats.value.recent_projects.map(p => p.icon_path).filter(Boolean)).catch(() => {})
   } catch (error) {
     console.error('Failed to load stats:', error)
     hasError.value = true
@@ -85,6 +86,10 @@ onMounted(async () => {
 })
 
 let unlistenProjectOpened: UnlistenFn | null = null
+
+onActivated(() => {
+  loadStats()
+})
 
 onUnmounted(() => {
   document.removeEventListener('keydown', toggleDebug)

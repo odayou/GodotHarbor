@@ -397,13 +397,15 @@ pub fn check_project_drift(app: AppHandle, project_id: String) -> Result<crate::
 }
 
 #[tauri::command]
-pub fn check_all_drifts(app: AppHandle) -> Result<Vec<crate::models::DriftReport>, String> {
+pub async fn check_all_drifts(app: AppHandle) -> Result<Vec<crate::models::DriftReport>, String> {
     let storage = get_storage(&app);
     let projects: Vec<crate::models::Project> = storage.load_or_default("projects.json");
     let mut reports = Vec::new();
     for project in &projects {
         let report = check_project_drift(app.clone(), project.project_id.clone())?;
         reports.push(report);
+        // 让出线程，避免长时间阻塞
+        tokio::task::yield_now().await;
     }
     Ok(reports)
 }

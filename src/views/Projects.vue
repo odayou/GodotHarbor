@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onActivated, onUnmounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '@/api'
@@ -229,6 +229,11 @@ onMounted(async () => {
   }
 })
 
+onActivated(() => {
+  loadProjects()
+  loadEngines()
+})
+
 onUnmounted(() => {
   document.removeEventListener('click', handleGlobalClick)
   document.removeEventListener('keydown', toggleDebug)
@@ -390,14 +395,19 @@ const loadProjects = async () => {
   try {
     const result = await api.getProjects()
     projects.value = result
-    preloadIcons(result.map(p => p.icon_path).filter(Boolean))
+    // 非关键操作：不阻塞主数据渲染
+    preloadIcons(result.map(p => p.icon_path).filter(Boolean)).catch(() => {})
+    // 关键数据优先加载
     await Promise.all([
       loadGroups(),
       checkMovedProjects(),
+    ])
+    // 非关键数据延迟加载
+    Promise.all([
       loadAllProjectBindings(),
       api.getPlugins().then(p => { allPlugins.value = p }).catch(() => { allPlugins.value = [] }),
       loadAllDrifts(),
-    ])
+    ]).catch(() => {})
   } catch (error) {
     loadError.value = String(error)
     toast.error(t('common.loadFailed', { error }))

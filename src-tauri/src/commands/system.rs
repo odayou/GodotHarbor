@@ -177,14 +177,7 @@ pub fn get_dashboard_stats(app: AppHandle) -> Result<DashboardStats, String> {
     let engines: Vec<Engine> = storage.load_or_default("engines.json");
     let bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
 
-    let mut total_bindings = 0;
-    for project in &projects {
-        let project_bindings: Vec<ProjectBinding> = bindings.iter()
-            .filter(|b| b.project_id == project.project_id)
-            .cloned()
-            .collect();
-        total_bindings += project_bindings.len();
-    }
+    let total_bindings = bindings.len();
 
     let mut recent_projects = projects.clone();
     recent_projects.sort_by(|a, b| {
@@ -197,56 +190,14 @@ pub fn get_dashboard_stats(app: AppHandle) -> Result<DashboardStats, String> {
     });
     recent_projects.truncate(8);
 
-    let drift_count = projects.iter().filter(|p| {
-        let config_path = crate::harbor_config::get_harbor_config_path(&p.path);
-        if !config_path.exists() {
-            return false;
-        }
-        if let Ok(Some(config)) = crate::harbor_config::read_harbor_config_from_project(&p.path) {
-            let config_upgraded = if config.version < 2 { config.upgrade_to_v2() } else { config };
-            let project_bindings: Vec<&ProjectBinding> = bindings.iter()
-                .filter(|b| b.project_id == p.project_id)
-                .collect();
-            let mut has_drift = false;
-            if let Some(ref godot_cfg) = config_upgraded.godot {
-                let engine_match = engines.iter().find(|e| {
-                    let ev: Vec<&str> = e.version.split('.').collect();
-                    let tv: Vec<&str> = godot_cfg.version.split('.').collect();
-                    if ev.len() >= 2 && tv.len() >= 2 {
-                        ev[0] == tv[0] && ev[1] == tv[1] && e.is_mono == godot_cfg.mono
-                    } else {
-                        e.version == godot_cfg.version && e.is_mono == godot_cfg.mono
-                    }
-                });
-                if engine_match.is_none() {
-                    has_drift = true;
-                }
-            }
-            if !has_drift {
-                for pc in &config_upgraded.plugins {
-                    let binding_exists = project_bindings.iter().any(|b| {
-                        plugins.iter().find(|p| p.plugin_id == b.plugin_id)
-                            .map_or(false, |p| p.name.to_lowercase() == pc.name.to_lowercase())
-                    });
-                    if !binding_exists {
-                        has_drift = true;
-                        break;
-                    }
-                }
-            }
-            has_drift
-        } else {
-            false
-        }
-    }).count();
-
+    // drift_count 不在此处计算，避免阻塞；前端按需调用 check_all_drifts
     Ok(DashboardStats {
         project_count: projects.len(),
         plugin_count: plugins.len(),
         binding_count: total_bindings,
         engine_count: engines.len(),
         recent_projects,
-        drift_count,
+        drift_count: None,
     })
 }
 

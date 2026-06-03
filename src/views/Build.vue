@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onActivated, onUnmounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
@@ -388,6 +388,10 @@ onMounted(async () => {
   }
   await syncMcpState()
   mcpPollTimer = setInterval(syncMcpState, 5000)
+})
+
+onActivated(() => {
+  loadData()
 })
 
 onUnmounted(() => {

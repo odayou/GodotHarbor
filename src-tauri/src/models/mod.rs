@@ -533,7 +533,7 @@ pub struct DashboardStats {
     pub engine_count: usize,
     pub recent_projects: Vec<Project>,
     #[serde(default)]
-    pub drift_count: usize,
+    pub drift_count: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

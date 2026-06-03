@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onActivated, watch } from 'vue'
 import { useSubscription } from '@/composables/useSubscription'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
@@ -96,6 +96,10 @@ const settingsSections = computed(() => {
 
 onMounted(() => {
   initTheme(); loadSettings(); loadProjects(); loadStoragePaths()
+})
+
+onActivated(() => {
+  loadSettings(); loadProjects(); loadStoragePaths()
 })
 
 onBeforeRouteLeave((_to, _from, next) => {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onActivated, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/api'
@@ -264,7 +264,8 @@ const loadPlugins = async (force = false) => {
   isLoading.value = true
   try {
     await pluginStore.loadPlugins()
-    loadPluginBindingCounts()
+    // 非关键数据：不阻塞渲染
+    loadPluginBindingCounts().catch(() => {})
   } catch (error) {
     toast.error(t('common.loadFailed', { error }))
   } finally {
@@ -513,6 +514,11 @@ onMounted(async () => {
     showImportModeDialog.value = true
     router.replace({ path: '/plugins' })
   }
+})
+
+onActivated(() => {
+  loadPlugins()
+  loadTotalStorageStats()
 })
 
 onUnmounted(() => {
