@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="32" viewBox="0 0 20 32">
+  <!-- RPG Player character - top-down style -->
+  <!-- Head -->
+  <rect x="4" y="0" width="12" height="10" rx="2" fill="#F5CBA7"/>
+  <!-- Hair -->
+  <rect x="3" y="0" width="14" height="4" rx="2" fill="#8B4513"/>
+  <!-- Eyes -->
+  <rect x="6" y="4" width="2" height="2" fill="#2C3E50"/>
+  <rect x="12" y="4" width="2" height="2" fill="#2C3E50"/>
+  <!-- Body (tunic) -->
+  <rect x="3" y="10" width="14" height="12" rx="1" fill="#27AE60"/>
+  <!-- Belt -->
+  <rect x="3" y="18" width="14" height="2" fill="#8B4513"/>
+  <!-- Belt buckle -->
+  <rect x="8" y="18" width="4" height="2" fill="#F1C40F"/>
+  <!-- Legs -->
+  <rect x="4" y="22" width="5" height="7" rx="1" fill="#2C3E50"/>
+  <rect x="11" y="22" width="5" height="7" rx="1" fill="#2C3E50"/>
+  <!-- Boots -->
+  <rect x="3" y="27" width="6" height="5" rx="1" fill="#8B4513"/>
+  <rect x="11" y="27" width="6" height="5" rx="1" fill="#8B4513"/>
+</svg>

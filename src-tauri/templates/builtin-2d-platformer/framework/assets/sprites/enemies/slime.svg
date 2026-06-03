@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <!-- Enemy - slime type -->
+  <!-- Body -->
+  <ellipse cx="12" cy="16" rx="10" ry="8" fill="#E74C3C"/>
+  <!-- Eyes -->
+  <ellipse cx="8" cy="13" rx="3" ry="3.5" fill="#FFFFFF"/>
+  <ellipse cx="16" cy="13" rx="3" ry="3.5" fill="#FFFFFF"/>
+  <ellipse cx="9" cy="14" rx="1.5" ry="2" fill="#2C3E50"/>
+  <ellipse cx="17" cy="14" rx="1.5" ry="2" fill="#2C3E50"/>
+  <!-- Mouth -->
+  <path d="M 8 19 Q 12 22 16 19" stroke="#2C3E50" stroke-width="1.5" fill="none"/>
+  <!-- Highlight -->
+  <ellipse cx="8" cy="10" rx="2" ry="1.5" fill="#FF6B6B" opacity="0.6"/>
+</svg>

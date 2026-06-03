@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="36" viewBox="0 0 24 36">
+  <!-- Player jump - arms up, legs tucked -->
+  <!-- Head -->
+  <rect x="6" y="0" width="12" height="10" rx="2" fill="#5B9BD5"/>
+  <!-- Eyes -->
+  <rect x="8" y="3" width="3" height="3" fill="#FFFFFF"/>
+  <rect x="13" y="3" width="3" height="3" fill="#FFFFFF"/>
+  <rect x="9" y="4" width="2" height="2" fill="#2C3E50"/>
+  <rect x="14" y="4" width="2" height="2" fill="#2C3E50"/>
+  <!-- Arms up -->
+  <rect x="0" y="6" width="5" height="4" rx="1" fill="#5B9BD5"/>
+  <rect x="19" y="6" width="5" height="4" rx="1" fill="#5B9BD5"/>
+  <!-- Body -->
+  <rect x="4" y="10" width="16" height="12" rx="1" fill="#3498DB"/>
+  <!-- Belt -->
+  <rect x="4" y="18" width="16" height="2" fill="#2C3E50"/>
+  <!-- Legs (tucked) -->
+  <rect x="5" y="22" width="6" height="6" rx="1" fill="#2C3E50"/>
+  <rect x="13" y="22" width="6" height="6" rx="1" fill="#2C3E50"/>
+  <!-- Feet -->
+  <rect x="3" y="28" width="8" height="4" rx="1" fill="#8B4513"/>
+  <rect x="13" y="28" width="8" height="4" rx="1" fill="#8B4513"/>
+</svg>

@@ -1,7 +1,10 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/autoload/game_manager.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/characters/player.gd" id="2"]
+[ext_resource type="Texture2D" path="res://assets/sprites/characters/player.svg" id="3"]
+[ext_resource type="Texture2D" path="res://assets/sprites/characters/enemy.svg" id="4"]
+[ext_resource type="Texture2D" path="res://assets/sprites/items/health_potion.svg" id="5"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_player"]
 size = Vector2(20, 32)
@@ -22,6 +25,7 @@ script = ExtResource("2")
 shape = SubResource("RectangleShape2D_player")
 
 [node name="Sprite2D" type="Sprite2D" parent="Player"]
+texture = ExtResource("3")
 
 [node name="Camera2D" type="Camera2D" parent="Player"]
 position_smoothing_enabled = true
@@ -31,6 +35,19 @@ position_smoothing_speed = 6.0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Player/InteractDetector"]
 shape = SubResource("CircleShape2D_interact")
+
+[node name="Enemy" type="CharacterBody2D" parent="."]
+position = Vector2(500, 300)
+
+[node name="Sprite2D" type="Sprite2D" parent="Enemy"]
+texture = ExtResource("4")
+
+[node name="HealthPotion" type="Area2D" parent="."]
+position = Vector2(350, 460)
+
+[node name="Sprite2D" type="Sprite2D" parent="HealthPotion"]
+texture = ExtResource("5")
+scale = Vector2(1.5, 1.5)
 
 [node name="Ground" type="StaticBody2D" parent="."]
 position = Vector2(576, 500)

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <!-- Collectible - coin -->
+  <circle cx="12" cy="12" r="9" fill="#F1C40F"/>
+  <circle cx="12" cy="12" r="7" fill="#F39C12"/>
+  <circle cx="12" cy="12" r="5" fill="#F1C40F"/>
+  <!-- Dollar sign -->
+  <text x="12" y="16" text-anchor="middle" font-size="8" font-weight="bold" fill="#E67E22">$</text>
+  <!-- Shine -->
+  <ellipse cx="9" cy="8" rx="2" ry="1.5" fill="#FFFFFF" opacity="0.5"/>
+</svg>

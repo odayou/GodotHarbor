@@ -1,7 +1,12 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="1"]
 [ext_resource type="Script" path="res://scripts/player/player.gd" id="2"]
+[ext_resource type="Texture2D" path="res://assets/sprites/player/idle.svg" id="3"]
+[ext_resource type="Texture2D" path="res://assets/sprites/player/run.svg" id="4"]
+[ext_resource type="Texture2D" path="res://assets/sprites/player/jump.svg" id="5"]
+[ext_resource type="Texture2D" path="res://assets/sprites/collectibles/coin.svg" id="6"]
+[ext_resource type="Texture2D" path="res://assets/sprites/enemies/slime.svg" id="7"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_player"]
 size = Vector2(24, 32)
@@ -9,11 +14,17 @@ size = Vector2(24, 32)
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ground"]
 size = Vector2(1152, 40)
 
+[sub_resource type="CircleShape2D" id="CircleShape2D_coin"]
+radius = 8.0
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_slime"]
+size = Vector2(18, 18)
+
 [sub_resource type="SpriteFrames" id="SpriteFrames_player"]
 animations = [{
 "frames": [{
 "duration": 1.0,
-"texture": null
+"texture": ExtResource("3")
 }],
 "loop": true,
 "name": &"idle",
@@ -21,7 +32,7 @@ animations = [{
 }, {
 "frames": [{
 "duration": 1.0,
-"texture": null
+"texture": ExtResource("4")
 }],
 "loop": true,
 "name": &"run",
@@ -29,7 +40,7 @@ animations = [{
 }, {
 "frames": [{
 "duration": 1.0,
-"texture": null
+"texture": ExtResource("5")
 }],
 "loop": false,
 "name": &"jump",
@@ -71,5 +82,25 @@ offset_top = -20.0
 offset_right = 576.0
 offset_bottom = 20.0
 color = Color(0.3, 0.3, 0.3, 1)
+
+[node name="Coin" type="Area2D" parent="."]
+position = Vector2(400, 460)
+
+[node name="Sprite2D" type="Sprite2D" parent="Coin"]
+texture = ExtResource("6")
+scale = Vector2(0.75, 0.75)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Coin"]
+shape = SubResource("CircleShape2D_coin")
+
+[node name="Slime" type="CharacterBody2D" parent="."]
+position = Vector2(600, 476)
+
+[node name="Sprite2D" type="Sprite2D" parent="Slime"]
+texture = ExtResource("7")
+scale = Vector2(0.75, 0.75)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Slime"]
+shape = SubResource("RectangleShape2D_slime")
 
 [node name="HUD" parent="." instance=ExtResource("1")]

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- RPG Tileset - grass ground -->
+  <rect x="0" y="0" width="32" height="32" fill="#4CAF50"/>
+  <rect x="0" y="0" width="32" height="6" fill="#66BB6A"/>
+  <!-- Grass blades -->
+  <rect x="2" y="0" width="1" height="4" fill="#388E3C"/>
+  <rect x="6" y="0" width="1" height="3" fill="#388E3C"/>
+  <rect x="10" y="0" width="1" height="5" fill="#388E3C"/>
+  <rect x="15" y="0" width="1" height="3" fill="#388E3C"/>
+  <rect x="20" y="0" width="1" height="4" fill="#388E3C"/>
+  <rect x="25" y="0" width="1" height="3" fill="#388E3C"/>
+  <rect x="29" y="0" width="1" height="5" fill="#388E3C"/>
+  <!-- Dirt spots -->
+  <circle cx="8" cy="18" r="2" fill="#43A047" opacity="0.5"/>
+  <circle cx="22" cy="24" r="3" fill="#43A047" opacity="0.5"/>
+  <circle cx="16" cy="14" r="1.5" fill="#43A047" opacity="0.5"/>
+</svg>

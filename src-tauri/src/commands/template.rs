@@ -313,6 +313,55 @@ fn generate_project_godot(template: &Template, enable_mobile: bool) -> String {
     content
 }
 
+fn update_editor_plugins_section(content: &str, template: &Template, installed_plugins: &[String]) -> String {
+    let plugin_paths: Vec<String> = template.plugins.iter()
+        .filter(|p| installed_plugins.contains(&p.name))
+        .map(|p| {
+            let dir = if p.subdirectory.is_empty() {
+                p.name.to_lowercase().replace(' ', "_")
+            } else {
+                p.subdirectory.trim_start_matches("addons/").to_string()
+            };
+            format!("res://addons/{}/plugin.cfg", dir)
+        })
+        .collect();
+
+    let mut result = String::new();
+    let mut in_editor_plugins = false;
+    let mut editor_plugins_written = false;
+
+    for line in content.lines() {
+        if line.starts_with("[editor_plugins]") {
+            in_editor_plugins = true;
+            if !plugin_paths.is_empty() {
+                result.push_str("[editor_plugins]\n\n");
+                result.push_str(&format!("enabled=PackedStringArray({})\n",
+                    plugin_paths.iter().map(|p| format!("\"{}\"", p)).collect::<Vec<_>>().join(", ")));
+            }
+            editor_plugins_written = true;
+            continue;
+        }
+        if in_editor_plugins {
+            if line.starts_with('[') {
+                in_editor_plugins = false;
+            } else {
+                continue;
+            }
+        }
+        result.push_str(line);
+        result.push('\n');
+    }
+
+    if !editor_plugins_written && !plugin_paths.is_empty() {
+        result.push('\n');
+        result.push_str("[editor_plugins]\n\n");
+        result.push_str(&format!("enabled=PackedStringArray({})\n",
+            plugin_paths.iter().map(|p| format!("\"{}\"", p)).collect::<Vec<_>>().join(", ")));
+    }
+
+    result
+}
+
 fn collect_autoloads_from_config(config: &TemplateProjectConfig) -> Vec<(String, String)> {
     let mut result = Vec::new();
     if let serde_json::Value::Object(map) = &config.autoloads {
@@ -649,6 +698,14 @@ pub async fn instantiate_template(
                     failed_plugins.push(format!("{}: {}", plugin_spec.name, e));
                 }
             }
+        }
+    }
+
+    if !installed_plugins.is_empty() || !template.plugins.is_empty() {
+        let project_godot_path = project_dir.join("project.godot");
+        if let Ok(existing) = fs::read_to_string(&project_godot_path) {
+            let updated = update_editor_plugins_section(&existing, &template, &installed_plugins);
+            let _ = fs::write(project_godot_path, updated);
         }
     }
 

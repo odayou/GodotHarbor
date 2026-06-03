@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- RPG Item - health potion -->
+  <!-- Bottle -->
+  <path d="M5,4 L5,2 L6,1 L10,1 L11,2 L11,4 L12,5 L12,13 Q12,15 8,15 Q4,15 4,13 L4,5 Z" fill="#E74C3C"/>
+  <!-- Bottle neck -->
+  <rect x="6" y="0" width="4" height="2" rx="0.5" fill="#BDC3C7"/>
+  <!-- Cork -->
+  <rect x="6" y="0" width="4" height="1" rx="0.5" fill="#8B4513"/>
+  <!-- Shine -->
+  <rect x="5" y="6" width="2" height="4" rx="1" fill="#FF6B6B" opacity="0.5"/>
+  <!-- Liquid line -->
+  <path d="M5,8 Q8,7 11,8" stroke="#C0392B" stroke-width="1" fill="none"/>
+</svg>

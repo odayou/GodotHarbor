@@ -4,7 +4,7 @@ import { api } from '@/api'
 import type { Project, MatchedEngine, Engine } from '@/types'
 import { useToast } from '@/composables/useToast'
 
-export function useEngineLauncher(onLaunched?: () => void) {
+export function useEngineLauncher(onLaunched?: () => void | Promise<void>) {
   const { t } = useI18n()
   const toast = useToast()
 
@@ -25,7 +25,7 @@ export function useEngineLauncher(onLaunched?: () => void) {
         if (engineExists) {
           await api.launchEngine(project.last_used_engine_id!, project.path, project.project_id)
           toast.success(t('engines.launchSuccess'))
-          onLaunched?.()
+          await onLaunched?.()
           return
         }
       } catch (error) {
@@ -72,10 +72,11 @@ export function useEngineLauncher(onLaunched?: () => void) {
     if (engineSelectMode.value === 'select') {
       try {
         await api.setProjectDefaultEngine(engineSelectProject.value.project_id, engineId)
+        engineSelectProject.value.last_used_engine_id = engineId
         toast.success(t('projects.defaultEngineSet'))
         showEngineSelectDialog.value = false
         engineSelectProject.value = null
-        onLaunched?.()
+        await onLaunched?.()
       } catch (error) {
         toast.error(t('projects.launchFailed', { error: String(error) }))
       }
@@ -87,7 +88,7 @@ export function useEngineLauncher(onLaunched?: () => void) {
       toast.success(t('engines.launchSuccess'))
       showEngineSelectDialog.value = false
       engineSelectProject.value = null
-      onLaunched?.()
+      await onLaunched?.()
     } catch (error) {
       toast.error(t('projects.launchFailed', { error: String(error) }))
     } finally {

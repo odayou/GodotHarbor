@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Tileset ground block -->
+  <rect x="0" y="0" width="32" height="32" fill="#8B7355"/>
+  <rect x="0" y="0" width="32" height="4" fill="#6B8E23"/>
+  <rect x="0" y="4" width="32" height="2" fill="#556B2F"/>
+  <!-- Dirt texture -->
+  <rect x="4" y="10" width="3" height="3" fill="#7A6548" opacity="0.5"/>
+  <rect x="14" y="16" width="4" height="2" fill="#7A6548" opacity="0.5"/>
+  <rect x="24" y="12" width="3" height="3" fill="#7A6548" opacity="0.5"/>
+  <rect x="8" y="22" width="3" height="2" fill="#7A6548" opacity="0.5"/>
+  <rect x="20" y="24" width="4" height="2" fill="#7A6548" opacity="0.5"/>
+</svg>
