@@ -898,7 +898,8 @@ mod tests {
         let (units, asset_type) = manager.analyze_asset_type(dir.path(), "test_project");
 
         assert_eq!(asset_type, AssetType::Project);
-        assert!(units.is_empty());
+        assert!(!units.is_empty());
+        assert!(units[0].is_virtual);
     }
 
     #[test]
