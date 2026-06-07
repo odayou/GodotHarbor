@@ -93,7 +93,18 @@ fn prompt_diagnose_environment(ctx: &McpContext, arguments: &Value) -> Value {
         .collect();
 
     let bound_plugins: Vec<String> = project_bindings.iter().filter_map(|b| {
-        plugins.iter().find(|p| p.plugin_id == b.plugin_id).map(|p| p.name.clone())
+        plugins.iter().find(|p| p.plugin_id == b.plugin_id).map(|p| {
+            let version = p.versions.iter()
+                .find(|v| v.version_id == b.version_id)
+                .map(|v| v.version.clone())
+                .unwrap_or_default();
+            let health = match b.is_healthy {
+                Some(true) => "✅",
+                Some(false) => "❌ broken",
+                None => "❓ unknown",
+            };
+            format!("{} v{} {}", p.name, version, health)
+        })
     }).collect();
 
     let engine_info = project.last_used_engine_id.as_ref().and_then(|eid| {
@@ -105,6 +116,7 @@ fn prompt_diagnose_environment(ctx: &McpContext, arguments: &Value) -> Value {
 
     let mut diagnosis = vec![
         format!("Project: {} ({})", project.name, project.path),
+        format!("Godot version: {}", project.godot_version),
         format!("Engine: {}", engine_info),
         format!("Plugins: {}", if bound_plugins.is_empty() { "None".to_string() } else { bound_plugins.join(", ") }),
         format!(".harbor.yml: {}", if has_harbor_yml { "Present" } else { "Missing ⚠️" }),
@@ -176,18 +188,25 @@ fn prompt_suggest_plugins(ctx: &McpContext, arguments: &Value) -> Value {
         .collect();
 
     let bound_plugins: Vec<String> = project_bindings.iter().filter_map(|b| {
-        plugins.iter().find(|p| p.plugin_id == b.plugin_id).map(|p| p.name.clone())
+        plugins.iter().find(|p| p.plugin_id == b.plugin_id).map(|p| {
+            let version = p.versions.first().map(|v| v.version.clone()).unwrap_or_default();
+            format!("{} v{} ({:?})", p.name, version, p.source.source_type)
+        })
     }).collect();
 
     let available_plugins: Vec<String> = plugins.iter()
         .filter(|p| !project_bindings.iter().any(|b| b.plugin_id == p.plugin_id))
-        .map(|p| p.name.clone())
+        .map(|p| {
+            let version = p.versions.first().map(|v| v.version.clone()).unwrap_or_default();
+            format!("{} v{} ({:?})", p.name, version, p.source.source_type)
+        })
         .collect();
 
     let prompt_text = format!(
-        "Please suggest plugins for this Godot project:\n\nProject: {} ({})\nCurrently using: {}\nAvailable plugins not yet installed: {}\n\nBased on the project type and existing plugins, recommend plugins that would be useful. Consider common Godot development patterns (2D, 3D, UI, networking, etc.).",
+        "Please suggest plugins for this Godot project:\n\nProject: {} ({})\nGodot version: {}\nCurrently using: {}\nAvailable plugins not yet installed: {}\n\nBased on the project type and existing plugins, recommend plugins that would be useful. Consider common Godot development patterns (2D, 3D, UI, networking, etc.). You can also use the search_asset_library tool to find more plugins from the Godot Asset Library.",
         project.name,
         project.path,
+        project.godot_version,
         if bound_plugins.is_empty() { "None".to_string() } else { bound_plugins.join(", ") },
         if available_plugins.is_empty() { "None".to_string() } else { available_plugins.join(", ") },
     );

@@ -661,6 +661,10 @@ export const api = {
   async getMcpServerPath(): Promise<string> {
     return await invoke('get_mcp_server_path')
   },
+
+  async getMcpCapabilities(): Promise<any> {
+    return await invoke('get_mcp_capabilities')
+  },
 }
 
 export async function withErrorLogging<T>(

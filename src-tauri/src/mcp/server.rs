@@ -124,9 +124,9 @@ fn handle_request(ctx: &McpContext, req: &JsonRpcRequest) -> Option<JsonRpcRespo
             result: Some(json!({
                 "protocolVersion": PROTOCOL_VERSION,
                 "capabilities": {
-                    "resources": { "subscribe": false, "listChanged": false },
-                    "tools": { "listChanged": false },
-                    "prompts": { "listChanged": false },
+                    "resources": { "subscribe": true, "listChanged": true },
+                    "tools": { "listChanged": true },
+                    "prompts": { "listChanged": true },
                 },
                 "serverInfo": {
                     "name": SERVER_NAME,

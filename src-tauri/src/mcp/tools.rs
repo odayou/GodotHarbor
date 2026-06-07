@@ -90,6 +90,32 @@ pub fn list_tools() -> Value {
                         "project_id": { "type": "string", "description": "Optional project ID to scope check" }
                     }
                 }
+            },
+            {
+                "name": "get_project_context",
+                "description": "Get the complete environment context for a Godot project managed by Harbor. Returns engine info, plugin bindings, drift status, and .harbor.yml declarations in one call. This is Harbor-specific context that filesystem MCP cannot provide — it includes binding relationships, health status, and drift detection.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project_id": { "type": "string", "description": "The project ID" },
+                        "include_drift": { "type": "boolean", "description": "Include drift report (default true)", "default": true }
+                    },
+                    "required": ["project_id"]
+                }
+            },
+            {
+                "name": "search_asset_library",
+                "description": "Search the Godot Asset Library for plugins and assets. Returns structured search results with download info. Harbor has existing API integration with caching and mirror support.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "query": { "type": "string", "description": "Search query" },
+                        "category": { "type": "string", "description": "Filter by category (e.g. 2d, 3d, tools, scripts, gui, animation, audio, networking, physics, shaders, templates, vfx, misc)" },
+                        "godot_version": { "type": "string", "description": "Filter by Godot version compatibility" },
+                        "max_results": { "type": "integer", "description": "Maximum results to return (default 10)", "default": 10 }
+                    },
+                    "required": ["query"]
+                }
             }
         ]
     })
@@ -107,6 +133,8 @@ pub fn call_tool(ctx: &McpContext, params: &Value) -> Value {
         "create_from_template" => tool_create_from_template(ctx, arguments),
         "build_project" => tool_build_project(ctx, arguments),
         "check_updates" => tool_check_updates(ctx, arguments),
+        "get_project_context" => tool_get_project_context(ctx, arguments),
+        "search_asset_library" => tool_search_asset_library(ctx, arguments),
         _ => Err(format!("Unknown tool: {}", tool_name)),
     };
 
@@ -737,9 +765,9 @@ fn tool_build_project(ctx: &McpContext, args: &Value) -> Result<String, String> 
         .map_err(|e| format!("Failed to execute build: {}", e))?;
 
     let build_id = uuid::Uuid::new_v4().to_string();
-    let now = chrono::Utc::now();
+    let started = chrono::Utc::now();
     let success = output.status.success();
-    let duration = 0u64;
+    let duration = (chrono::Utc::now() - started).num_seconds() as u64;
 
     let record = BuildRecord {
         build_id,
@@ -748,7 +776,7 @@ fn tool_build_project(ctx: &McpContext, args: &Value) -> Result<String, String> 
         platform,
         engine_version: engine.version.clone(),
         status: if success { BuildStatus::Success } else { BuildStatus::Failed },
-        started_at: now,
+        started_at: started,
         completed_at: Some(chrono::Utc::now()),
         output_path: output_dir.to_string_lossy().to_string(),
         error_message: if success { String::new() } else { String::from_utf8_lossy(&output.stderr).to_string() },
@@ -768,17 +796,76 @@ fn tool_build_project(ctx: &McpContext, args: &Value) -> Result<String, String> 
     }
 }
 
-fn tool_check_updates(ctx: &McpContext, _args: &Value) -> Result<String, String> {
+fn tool_check_updates(ctx: &McpContext, args: &Value) -> Result<String, String> {
+    let project_id = args["project_id"].as_str().unwrap_or("");
     let plugins: Vec<Plugin> = ctx.storage.load_or_default("plugins.json");
     let engines: Vec<Engine> = ctx.storage.load_or_default("engines.json");
 
-    let mut results = Vec::new();
-    results.push(format!("📋 {} plugins in library", plugins.len()));
-    results.push(format!("📋 {} engines installed", engines.len()));
-    results.push(String::new());
-    results.push("💡 Use Harbor GUI to check for detailed update information.".to_string());
+    let mut plugin_list: Vec<Value> = Vec::new();
 
-    Ok(results.join("\n"))
+    if !project_id.is_empty() {
+        let bindings: Vec<ProjectBinding> = ctx.storage.load_or_default("bindings.json");
+        let project_bindings: Vec<&ProjectBinding> = bindings.iter()
+            .filter(|b| b.project_id == project_id)
+            .collect();
+
+        for b in &project_bindings {
+            if let Some(plugin) = plugins.iter().find(|p| p.plugin_id == b.plugin_id) {
+                let bound_version = plugin.versions.iter()
+                    .find(|v| v.version_id == b.version_id)
+                    .map(|v| v.version.clone())
+                    .unwrap_or_default();
+                let latest_version = plugin.versions.first()
+                    .map(|v| v.version.clone())
+                    .unwrap_or_default();
+                plugin_list.push(json!({
+                    "name": plugin.name,
+                    "bound_version": bound_version,
+                    "latest_version": latest_version,
+                    "source": match plugin.source.source_type {
+                        SourceType::Git => "git",
+                        SourceType::AssetLibrary => "asset-store",
+                        SourceType::Url => "url",
+                        SourceType::Local => "local",
+                    },
+                    "has_update": bound_version != latest_version && !latest_version.is_empty()
+                }));
+            }
+        }
+    } else {
+        for plugin in &plugins {
+            let latest_version = plugin.versions.first()
+                .map(|v| v.version.clone())
+                .unwrap_or_default();
+            plugin_list.push(json!({
+                "name": plugin.name,
+                "latest_version": latest_version,
+                "version_count": plugin.versions.len(),
+                "source": match plugin.source.source_type {
+                    SourceType::Git => "git",
+                    SourceType::AssetLibrary => "asset-store",
+                    SourceType::Url => "url",
+                    SourceType::Local => "local",
+                }
+            }));
+        }
+    }
+
+    let engine_list: Vec<Value> = engines.iter().map(|e| {
+        json!({
+            "version": e.version,
+            "is_mono": e.is_mono
+        })
+    }).collect();
+
+    let result = json!({
+        "plugins": plugin_list,
+        "plugin_count": plugins.len(),
+        "engines": engine_list,
+        "engine_count": engines.len()
+    });
+
+    Ok(serde_json::to_string_pretty(&result).unwrap_or_else(|_| "Failed to serialize".to_string()))
 }
 
 fn find_export_preset_name(project_path: &str, platform: &ExportPlatform) -> Option<String> {
@@ -810,4 +897,257 @@ fn find_export_preset_name(project_path: &str, platform: &ExportPlatform) -> Opt
         }
     }
     None
+}
+
+fn tool_get_project_context(ctx: &McpContext, args: &Value) -> Result<String, String> {
+    let project_id = args["project_id"].as_str().ok_or("project_id is required")?;
+    let include_drift = args["include_drift"].as_bool().unwrap_or(true);
+
+    let projects: Vec<Project> = ctx.storage.load_or_default("projects.json");
+    let project = projects.iter().find(|p| p.project_id == project_id)
+        .ok_or("Project not found".to_string())?;
+
+    let engines: Vec<Engine> = ctx.storage.load_or_default("engines.json");
+    let bindings: Vec<ProjectBinding> = ctx.storage.load_or_default("bindings.json");
+    let plugins: Vec<Plugin> = ctx.storage.load_or_default("plugins.json");
+
+    let project_bindings: Vec<&ProjectBinding> = bindings.iter()
+        .filter(|b| b.project_id == project_id)
+        .collect();
+
+    let engine_info = project.last_used_engine_id.as_ref().and_then(|eid| {
+        engines.iter().find(|e| &e.engine_id == eid).map(|e| {
+            json!({
+                "version": e.version,
+                "is_mono": e.is_mono,
+                "installed": true,
+                "path": e.path
+            })
+        })
+    }).unwrap_or(json!({
+        "version": project.godot_version,
+        "installed": false
+    }));
+
+    let bound_plugins: Vec<Value> = project_bindings.iter().filter_map(|b| {
+        plugins.iter().find(|p| p.plugin_id == b.plugin_id).map(|p| {
+            let version_str = p.versions.iter()
+                .find(|v| v.version_id == b.version_id)
+                .map(|v| v.version.clone())
+                .unwrap_or_else(|| "unknown".to_string());
+            json!({
+                "name": p.name,
+                "version": version_str,
+                "source": match p.source.source_type {
+                    SourceType::Git => "git",
+                    SourceType::AssetLibrary => "asset-store",
+                    SourceType::Url => "url",
+                    SourceType::Local => "local",
+                },
+                "mount_path": b.mount_path,
+                "is_healthy": b.is_healthy
+            })
+        })
+    }).collect();
+
+    let bound_plugin_ids: Vec<String> = project_bindings.iter().map(|b| b.plugin_id.clone()).collect();
+    let available_not_bound: Vec<Value> = plugins.iter()
+        .filter(|p| !bound_plugin_ids.contains(&p.plugin_id))
+        .map(|p| {
+            let latest_version = p.versions.first()
+                .map(|v| v.version.clone())
+                .unwrap_or_else(|| "unknown".to_string());
+            json!({
+                "name": p.name,
+                "version": latest_version,
+                "source": match p.source.source_type {
+                    SourceType::Git => "git",
+                    SourceType::AssetLibrary => "asset-store",
+                    SourceType::Url => "url",
+                    SourceType::Local => "local",
+                }
+            })
+        })
+        .collect();
+
+    let harbor_yml_result = harbor_config::read_harbor_config_from_project(&project.path);
+    let harbor_yml_info = match &harbor_yml_result {
+        Ok(Some(c)) => {
+            let upgraded = if c.version < 2 { c.upgrade_to_v2() } else { c.clone() };
+            json!({
+                "exists": true,
+                "declared_engine": upgraded.godot.as_ref().map(|g| json!({
+                    "version": g.version,
+                    "mono": g.mono
+                })),
+                "declared_plugins": upgraded.plugins.iter().map(|pc| {
+                    json!({
+                        "name": pc.name,
+                        "version": pc.version
+                    })
+                }).collect::<Vec<_>>()
+            })
+        }
+        _ => json!({"exists": false})
+    };
+
+    let drift_info = if include_drift {
+        match &harbor_yml_result {
+            Ok(Some(c)) => {
+                let upgraded = if c.version < 2 { c.upgrade_to_v2() } else { c.clone() };
+                let mut items = Vec::new();
+
+                if let Some(ref godot_cfg) = upgraded.godot {
+                    let engine_match = engines.iter().find(|e| {
+                        let ev: Vec<&str> = e.version.split('.').collect();
+                        let tv: Vec<&str> = godot_cfg.version.split('.').collect();
+                        if ev.len() >= 2 && tv.len() >= 2 {
+                            ev[0] == tv[0] && ev[1] == tv[1] && e.is_mono == godot_cfg.mono
+                        } else {
+                            e.version == godot_cfg.version && e.is_mono == godot_cfg.mono
+                        }
+                    });
+                    if engine_match.is_none() {
+                        items.push(json!({
+                            "type": "engine",
+                            "name": "godot",
+                            "status": "missing",
+                            "message": format!("Declared engine {} (mono={}) not installed", godot_cfg.version, godot_cfg.mono)
+                        }));
+                    }
+                }
+
+                for pc in &upgraded.plugins {
+                    let binding_exists = project_bindings.iter().any(|b| {
+                        plugins.iter().find(|p| p.plugin_id == b.plugin_id)
+                            .map_or(false, |p| p.name.to_lowercase() == pc.name.to_lowercase())
+                    });
+                    if !binding_exists {
+                        items.push(json!({
+                            "type": "plugin",
+                            "name": pc.name,
+                            "status": "missing",
+                            "message": format!("Declared plugin {} v{} not installed", pc.name, pc.version)
+                        }));
+                    }
+                }
+
+                let unhealthy: Vec<Value> = project_bindings.iter()
+                    .filter(|b| b.is_healthy == Some(false))
+                    .filter_map(|b| {
+                        plugins.iter().find(|p| p.plugin_id == b.plugin_id).map(|p| {
+                            json!({
+                                "type": "plugin",
+                                "name": p.name,
+                                "status": "unhealthy",
+                                "message": format!("Binding for {} is broken", p.name)
+                            })
+                        })
+                    })
+                    .collect();
+                items.extend(unhealthy);
+
+                json!({
+                    "has_drift": !items.is_empty(),
+                    "items": items
+                })
+            }
+            _ => json!({"has_drift": true, "items": [json!({"type": "config", "name": ".harbor.yml", "status": "missing", "message": "No .harbor.yml found"})]})
+        }
+    } else {
+        json!(null)
+    };
+
+    let mut result = json!({
+        "project": {
+            "name": project.name,
+            "path": project.path,
+            "godot_version": project.godot_version
+        },
+        "engine": engine_info,
+        "bound_plugins": bound_plugins,
+        "available_plugins_not_bound": available_not_bound,
+        "harbor_yml": harbor_yml_info
+    });
+
+    if include_drift {
+        result.as_object_mut().unwrap().insert("drift".to_string(), drift_info);
+    }
+
+    Ok(serde_json::to_string_pretty(&result).unwrap_or_else(|_| "Failed to serialize context".to_string()))
+}
+
+fn tool_search_asset_library(ctx: &McpContext, args: &Value) -> Result<String, String> {
+    let query = args["query"].as_str().ok_or("query is required")?;
+    let category = args["category"].as_str().unwrap_or("");
+    let godot_version = args["godot_version"].as_str().unwrap_or("");
+    let max_results = args["max_results"].as_u64().unwrap_or(10) as u32;
+
+    let settings: Settings = ctx.storage.load_or_default("settings.json");
+    let base_url = if !settings.asset_library_mirror.is_empty() {
+        settings.asset_library_mirror.trim_end_matches('/').to_string()
+    } else {
+        "https://godotengine.org/asset-library/api".to_string()
+    };
+
+    let mut url = format!("{}/asset?filter={}", base_url, urlencoding::encode(query));
+    url.push_str(&format!("&max_results={}", max_results));
+    if !category.is_empty() {
+        url.push_str(&format!("&category={}", urlencoding::encode(category)));
+    }
+    if !godot_version.is_empty() {
+        url.push_str(&format!("&godot_version={}", urlencoding::encode(godot_version)));
+    }
+    url.push_str("&type=any");
+
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+
+    let response = client.get(&url)
+        .header("User-Agent", "GodotHarbor-MCP/1.0")
+        .send()
+        .map_err(|e| format!("Asset Library request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Asset Library returned status {}", response.status()));
+    }
+
+    let body: Value = response.json()
+        .map_err(|e| format!("Failed to parse Asset Library response: {}", e))?;
+
+    let result_items: Vec<Value> = body["result"].as_array()
+        .map(|arr| {
+            arr.iter().take(max_results as usize).map(|item| {
+                json!({
+                    "asset_id": item["asset_id"],
+                    "name": item["title"],
+                    "description": item["description"],
+                    "category": item["category"],
+                    "godot_version": item["godot_version"],
+                    "author": item["author"],
+                    "cost": item["cost"],
+                    "support_level": item["support_level"],
+                    "download_url": item["download_url"],
+                    "download_commit": item["download_commit"],
+                    "stars": item["stars"],
+                    "modify_date": item["modify_date"]
+                })
+            }).collect()
+        })
+        .unwrap_or_default();
+
+    let total = body["total_items"].as_u64().unwrap_or(result_items.len() as u64);
+    let page = body["page"].as_str().unwrap_or("1");
+
+    let result = json!({
+        "query": query,
+        "total": total,
+        "page": page,
+        "returned": result_items.len(),
+        "results": result_items
+    });
+
+    Ok(serde_json::to_string_pretty(&result).unwrap_or_else(|_| "Failed to serialize results".to_string()))
 }

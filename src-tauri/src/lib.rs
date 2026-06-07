@@ -506,6 +506,7 @@ pub fn run() {
             commands::stop_mcp_server,
             commands::is_mcp_server_running,
             commands::get_mcp_server_path,
+            commands::get_mcp_capabilities,
         ))
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

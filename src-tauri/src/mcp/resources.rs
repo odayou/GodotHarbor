@@ -47,6 +47,24 @@ pub fn list_resources() -> Value {
                 "name": "Templates",
                 "description": "List all available project templates",
                 "mimeType": "application/json"
+            },
+            {
+                "uri": "harbor://project/{id}/structure",
+                "name": "Project Structure",
+                "description": "Directory structure overview of a Godot project (directories and file type counts)",
+                "mimeType": "application/json"
+            },
+            {
+                "uri": "harbor://project/{id}/scripts",
+                "name": "Project Scripts",
+                "description": "List of GDScript and C# script files in a Godot project",
+                "mimeType": "application/json"
+            },
+            {
+                "uri": "harbor://project/{id}/scenes",
+                "name": "Project Scenes",
+                "description": "List of .tscn scene files in a Godot project",
+                "mimeType": "application/json"
             }
         ]
     })
@@ -72,6 +90,24 @@ pub fn list_resource_templates() -> Value {
                 "name": "Project Drift Report",
                 "description": "Get drift report for a project",
                 "mimeType": "application/json"
+            },
+            {
+                "uriTemplate": "harbor://project/{id}/structure",
+                "name": "Project Structure",
+                "description": "Get directory structure overview for a project",
+                "mimeType": "application/json"
+            },
+            {
+                "uriTemplate": "harbor://project/{id}/scripts",
+                "name": "Project Scripts",
+                "description": "List script files in a project",
+                "mimeType": "application/json"
+            },
+            {
+                "uriTemplate": "harbor://project/{id}/scenes",
+                "name": "Project Scenes",
+                "description": "List scene files in a project",
+                "mimeType": "application/json"
             }
         ]
     })
@@ -96,6 +132,18 @@ pub fn read_resource(ctx: &McpContext, params: &Value) -> Value {
         u if u.starts_with("harbor://project/") && u.ends_with("/drift") => {
             let id = extract_project_id(u, "/drift");
             read_project_drift(ctx, &id)
+        }
+        u if u.starts_with("harbor://project/") && u.ends_with("/structure") => {
+            let id = extract_project_id(u, "/structure");
+            read_project_structure(ctx, &id)
+        }
+        u if u.starts_with("harbor://project/") && u.ends_with("/scripts") => {
+            let id = extract_project_id(u, "/scripts");
+            read_project_scripts(ctx, &id)
+        }
+        u if u.starts_with("harbor://project/") && u.ends_with("/scenes") => {
+            let id = extract_project_id(u, "/scenes");
+            read_project_scenes(ctx, &id)
         }
         _ => json!({
             "contents": [{
@@ -397,5 +445,180 @@ fn compute_drift_report(ctx: &McpContext, project_id: &str, _project_path: &str,
     json!({
         "has_drift": !items.is_empty(),
         "items": items,
+    })
+}
+
+fn get_project_path(ctx: &McpContext, project_id: &str) -> Option<String> {
+    let projects: Vec<Project> = ctx.storage.load_or_default("projects.json");
+    projects.iter().find(|p| p.project_id == project_id).map(|p| p.path.clone())
+}
+
+fn scan_project_files(project_path: &str) -> Vec<(String, u64)> {
+    let root = std::path::Path::new(project_path);
+    let mut files = Vec::new();
+    if !root.exists() {
+        return files;
+    }
+    let skip_dirs = [".git", "node_modules", ".godot", "builds", ".import"];
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        if let Ok(entries) = std::fs::read_dir(&dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                let name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                if skip_dirs.contains(&name.as_str()) {
+                    continue;
+                }
+                if path.is_dir() {
+                    stack.push(path);
+                } else if path.is_file() {
+                    let rel = path.strip_prefix(root).unwrap_or(&path).to_string_lossy().to_string();
+                    let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
+                    files.push((rel.replace('\\', "/"), size));
+                }
+            }
+        }
+    }
+    files
+}
+
+fn read_project_structure(ctx: &McpContext, project_id: &str) -> Value {
+    let project_path = match get_project_path(ctx, project_id) {
+        Some(p) => p,
+        None => {
+            return json!({
+                "contents": [{
+                    "uri": format!("harbor://project/{}/structure", project_id),
+                    "mimeType": "application/json",
+                    "text": serde_json::to_string_pretty(&json!({"error": "Project not found"})).unwrap()
+                }]
+            });
+        }
+    };
+
+    let files = scan_project_files(&project_path);
+    let mut dirs = std::collections::BTreeSet::new();
+    let mut type_counts = std::collections::BTreeMap::new();
+
+    for (rel, _size) in &files {
+        if let Some(parent) = std::path::Path::new(rel).parent() {
+            let mut current = std::path::PathBuf::new();
+            for part in parent {
+                current.push(part);
+                dirs.insert(current.to_string_lossy().to_string().replace('\\', "/"));
+            }
+        }
+        let ext = std::path::Path::new(rel)
+            .extension()
+            .map(|e| e.to_string_lossy().to_lowercase())
+            .unwrap_or_default();
+        *type_counts.entry(ext).or_insert(0u64) += 1;
+    }
+
+    let result = json!({
+        "project_id": project_id,
+        "directories": dirs.into_iter().collect::<Vec<_>>(),
+        "file_type_counts": type_counts,
+        "total_files": files.len()
+    });
+
+    json!({
+        "contents": [{
+            "uri": format!("harbor://project/{}/structure", project_id),
+            "mimeType": "application/json",
+            "text": serde_json::to_string_pretty(&result).unwrap()
+        }]
+    })
+}
+
+fn read_project_scripts(ctx: &McpContext, project_id: &str) -> Value {
+    let project_path = match get_project_path(ctx, project_id) {
+        Some(p) => p,
+        None => {
+            return json!({
+                "contents": [{
+                    "uri": format!("harbor://project/{}/scripts", project_id),
+                    "mimeType": "application/json",
+                    "text": serde_json::to_string_pretty(&json!({"error": "Project not found"})).unwrap()
+                }]
+            });
+        }
+    };
+
+    let files = scan_project_files(&project_path);
+    let script_exts = ["gd", "cs", "gdscript"];
+    let scripts: Vec<Value> = files.iter()
+        .filter(|(rel, _)| {
+            let ext = std::path::Path::new(rel)
+                .extension()
+                .map(|e| e.to_string_lossy().to_lowercase())
+                .unwrap_or_default();
+            script_exts.contains(&ext.as_str())
+        })
+        .map(|(rel, size)| {
+            let ext = std::path::Path::new(rel)
+                .extension()
+                .map(|e| e.to_string_lossy().to_lowercase())
+                .unwrap_or_default();
+            json!({
+                "path": rel,
+                "type": if ext == "cs" { "csharp" } else { "gdscript" },
+                "size_bytes": size
+            })
+        })
+        .collect();
+
+    let result = json!({
+        "project_id": project_id,
+        "scripts": scripts
+    });
+
+    json!({
+        "contents": [{
+            "uri": format!("harbor://project/{}/scripts", project_id),
+            "mimeType": "application/json",
+            "text": serde_json::to_string_pretty(&result).unwrap()
+        }]
+    })
+}
+
+fn read_project_scenes(ctx: &McpContext, project_id: &str) -> Value {
+    let project_path = match get_project_path(ctx, project_id) {
+        Some(p) => p,
+        None => {
+            return json!({
+                "contents": [{
+                    "uri": format!("harbor://project/{}/scenes", project_id),
+                    "mimeType": "application/json",
+                    "text": serde_json::to_string_pretty(&json!({"error": "Project not found"})).unwrap()
+                }]
+            });
+        }
+    };
+
+    let files = scan_project_files(&project_path);
+    let scenes: Vec<Value> = files.iter()
+        .filter(|(rel, _)| {
+            rel.ends_with(".tscn") || rel.ends_with(".scn")
+        })
+        .map(|(rel, size)| {
+            json!({
+                "path": rel,
+                "size_bytes": size
+            })
+        })
+        .collect();
+
+    let result = json!({
+        "project_id": project_id,
+        "scenes": scenes
+    });
+
+    json!({
+        "contents": [{
+            "uri": format!("harbor://project/{}/scenes", project_id),
+            "mimeType": "application/json",
+            "text": serde_json::to_string_pretty(&result).unwrap()
+        }]
     })
 }

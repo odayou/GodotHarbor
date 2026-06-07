@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onActivated, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onActivated, onUnmounted, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
@@ -13,11 +13,21 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import ProjectSelector from '@/components/ProjectSelector.vue'
 
 const mcpExePath = ref('harbor-mcp-server')
+const mcpServerRunning = ref(false)
+const mcpCapabilities = ref<{ tools: any[]; tools_count: number; resources: any[]; resources_count: number; prompts: any[]; prompts_count: number } | null>(null)
+const mcpExpandedSection = ref<'tools' | 'resources' | 'prompts' | null>(null)
+const mcpSelectedClient = ref('claude')
 
 async function resolveMcpExePath() {
   try {
     mcpExePath.value = await api.getMcpServerPath()
   } catch { /* fallback to default */ }
+}
+
+async function loadMcpCapabilities() {
+  try {
+    mcpCapabilities.value = await api.getMcpCapabilities()
+  } catch { /* fallback */ }
 }
 
 const toast = useToast()
@@ -43,6 +53,28 @@ const ciProjectId = ref('')
 const generatedConfig = ref('')
 const presetProjectId = ref('')
 
+watch(ciProjectId, async (newId) => {
+  if (!newId) return
+  try {
+    const config = await api.readHarborConfig(newId)
+    if (config) {
+      if (config.ci) {
+        if (config.ci.provider) ciProvider.value = config.ci.provider
+        if (config.ci.platforms?.length) ciPlatforms.value = config.ci.platforms
+      }
+      if (config.godot?.version) {
+        ciGodotVersion.value = config.godot.version
+      } else {
+        const proj = projects.value.find(p => p.project_id === newId)
+        if (proj?.godot_version) ciGodotVersion.value = proj.godot_version
+      }
+    } else {
+      const proj = projects.value.find(p => p.project_id === newId)
+      if (proj?.godot_version) ciGodotVersion.value = proj.godot_version
+    }
+  } catch { /* ignore */ }
+})
+
 const platformOptions: { value: ExportPlatform; label: string }[] = [
   { value: 'Windows', label: 'Windows' },
   { value: 'Web', label: 'Web' },
@@ -62,7 +94,6 @@ const ciPlatformOptions = [
 interface BuildProgressPayload { stage: string; progress: number; message: string }
 interface DownloadProgressPayload { version: string; stage: string; progress: number; message: string }
 
-const mcpServerRunning = ref(false)
 const buildProgress = ref<BuildProgressPayload | null>(null)
 const downloadProgress = ref<DownloadProgressPayload | null>(null)
 const importPresetJson = ref('')
@@ -72,16 +103,17 @@ const mcpConfig = computed(() => {
     mcpServers: {
       'godot-harbor': {
         command: mcpExePath.value,
-        args: [],
-        transport: 'stdio'
+        args: []
       }
     }
   }, null, 2)
 })
 
 const mcpClients = computed(() => [
-  { key: 'claude', title: t('mcp.claudeDesktop'), desc: t('mcp.claudeDesktopDesc') },
-  { key: 'cursor', title: t('mcp.cursor'), desc: t('mcp.cursorDesc') }
+  { key: 'claude', title: t('mcp.claudeDesktop'), desc: t('mcp.claudeDesktopDesc'), configPath: '~/Library/Application Support/Claude/claude_desktop_config.json (macOS)\n%APPDATA%\\Claude\\claude_desktop_config.json (Windows)' },
+  { key: 'cursor', title: t('mcp.cursor'), desc: t('mcp.cursorDesc'), configPath: '.cursor/mcp.json' },
+  { key: 'vscode', title: 'VS Code (Copilot)', desc: t('mcp.vscodeDesc') || 'Add to VS Code settings.json (mcp.servers section)', configPath: '.vscode/mcp.json or settings.json' },
+  { key: 'trae', title: 'Trae', desc: t('mcp.traeDesc') || 'Add to Trae MCP configuration', configPath: '.trae/mcp.json' }
 ])
 
 let unlistenProgress: UnlistenFn | null = null
@@ -363,10 +395,17 @@ async function stopMcpServer() {
   }
 }
 
+async function copyMcpStartCommand() {
+  const cmd = mcpExePath.value.includes(' ') ? `& "${mcpExePath.value}"` : mcpExePath.value
+  const ok = await copyToClipboard(cmd)
+  if (ok) toast.success(t('mcp.startCmdCopied') || '启动命令已复制')
+  else toast.error('Failed')
+}
+
 useDialogEscape(computed(() => !!deleteTarget.value))
 
 onMounted(async () => {
-  await Promise.all([loadData(), resolveMcpExePath()])
+  await Promise.all([loadData(), resolveMcpExePath(), loadMcpCapabilities()])
   unlistenProgress = await listen<BuildProgressPayload>('build-progress', (event) => {
     buildProgress.value = event.payload
     if (event.payload.stage === 'complete' || event.payload.stage === 'failed') {
@@ -796,36 +835,114 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <div class="grid gap-4 sm:grid-cols-3">
-            <div class="p-3 bg-gray-50 dark:bg-surface-layer rounded-lg">
-              <h4 class="text-xs font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('mcp.resources') }} (7)</h4>
-              <p class="text-xs text-gray-500 dark:text-content-muted">{{ t('mcp.resourcesList') }}</p>
+          <div class="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg mb-4">
+            <p class="text-xs text-amber-700 dark:text-amber-300">{{ t('mcp.standaloneHint') || 'MCP Server 通过 stdio 协议通信，需要由 AI 编程工具（如 Claude Desktop、Cursor）独立启动。上方的启动/停止按钮仅供内部测试使用。' }}</p>
+          </div>
+
+          <div class="flex items-center gap-2 mb-3">
+            <span class="text-xs text-gray-500 dark:text-content-muted">{{ t('mcp.exePath') || '可执行文件路径' }}:</span>
+            <code class="text-xs bg-gray-100 dark:bg-surface-layer px-2 py-0.5 rounded break-all">{{ mcpExePath }}</code>
+            <button
+              class="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400"
+              @click="copyToClipboard(mcpExePath).then(ok => ok ? toast.success(t('mcp.pathCopied') || '路径已复制') : toast.error('Failed'))"
+            >
+              {{ t('mcp.copyPath') || '复制' }}
+            </button>
+          </div>
+
+          <button
+            class="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-content-secondary bg-gray-100 dark:bg-surface-layer hover:bg-gray-200 dark:hover:bg-surface-hover rounded-lg transition-colors"
+            @click="copyMcpStartCommand"
+          >
+            {{ t('mcp.copyStartCommand') || '复制终端启动命令' }}
+          </button>
+        </div>
+
+        <div class="bg-white dark:bg-surface-card rounded-xl border border-gray-200 dark:border-surface-border p-6 mb-6">
+          <h3 class="text-sm font-medium text-gray-900 dark:text-content-primary mb-3">{{ t('mcp.capabilities') || '可用能力' }}</h3>
+          <div class="flex gap-4 mb-4">
+            <button
+              v-for="section in [
+                { key: 'tools', label: t('mcp.tools') || 'Tools', count: mcpCapabilities?.tools_count ?? 0 },
+                { key: 'resources', label: t('mcp.resources') || 'Resources', count: mcpCapabilities?.resources_count ?? 0 },
+                { key: 'prompts', label: t('mcp.prompts') || 'Prompts', count: mcpCapabilities?.prompts_count ?? 0 }
+              ]"
+              :key="section.key"
+              class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors cursor-pointer"
+              :class="mcpExpandedSection === section.key
+                ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400 border border-primary-200 dark:border-primary-800'
+                : 'bg-gray-50 dark:bg-surface-layer text-gray-700 dark:text-content-secondary border border-transparent hover:bg-gray-100 dark:hover:bg-surface-hover'"
+              @click="mcpExpandedSection = mcpExpandedSection === section.key ? null : section.key as any"
+            >
+              <span class="font-medium">{{ section.label }}</span>
+              <span class="text-xs px-1.5 py-0.5 rounded-full"
+                :class="mcpExpandedSection === section.key ? 'bg-primary-200 dark:bg-primary-800 text-primary-800 dark:text-primary-200' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'">
+                {{ section.count }}
+              </span>
+            </button>
+          </div>
+
+          <div v-if="mcpExpandedSection === 'tools' && mcpCapabilities" class="space-y-1">
+            <div v-for="tool in mcpCapabilities.tools" :key="tool.name" class="flex items-start gap-3 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-surface-hover">
+              <code class="text-xs font-mono text-primary-600 dark:text-primary-400 whitespace-nowrap mt-0.5">{{ tool.name }}</code>
+              <span class="text-xs text-gray-500 dark:text-content-muted">{{ tool.description }}</span>
             </div>
-            <div class="p-3 bg-gray-50 dark:bg-surface-layer rounded-lg">
-              <h4 class="text-xs font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('mcp.tools') }} (7)</h4>
-              <p class="text-xs text-gray-500 dark:text-content-muted">{{ t('mcp.toolsList') }}</p>
+          </div>
+          <div v-if="mcpExpandedSection === 'resources' && mcpCapabilities" class="space-y-1">
+            <div v-for="res in mcpCapabilities.resources" :key="res.uri" class="flex items-start gap-3 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-surface-hover">
+              <code class="text-xs font-mono text-green-600 dark:text-green-400 whitespace-nowrap mt-0.5">{{ res.uri }}</code>
+              <span class="text-xs text-gray-500 dark:text-content-muted">{{ res.description }}</span>
             </div>
-            <div class="p-3 bg-gray-50 dark:bg-surface-layer rounded-lg">
-              <h4 class="text-xs font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('mcp.prompts') }} (3)</h4>
-              <p class="text-xs text-gray-500 dark:text-content-muted">{{ t('mcp.promptsList') }}</p>
+          </div>
+          <div v-if="mcpExpandedSection === 'prompts' && mcpCapabilities" class="space-y-1">
+            <div v-for="prompt in mcpCapabilities.prompts" :key="prompt.name" class="flex items-start gap-3 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-surface-hover">
+              <code class="text-xs font-mono text-amber-600 dark:text-amber-400 whitespace-nowrap mt-0.5">{{ prompt.name }}</code>
+              <span class="text-xs text-gray-500 dark:text-content-muted">{{ prompt.description }}</span>
             </div>
           </div>
         </div>
 
-        <div class="grid gap-6 sm:grid-cols-2">
-          <div v-for="client in mcpClients" :key="client.key" class="bg-white dark:bg-surface-card rounded-xl border border-gray-200 dark:border-surface-border p-6">
-            <div class="flex items-center justify-between mb-3">
-              <h3 class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ client.title }}</h3>
-              <button
-                class="px-3 py-1.5 text-xs font-medium text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/20 dark:text-primary-400 dark:hover:bg-primary-900/30 rounded-lg transition-colors"
-                @click="copyToClipboard(mcpConfig).then(ok => ok ? toast.success(t('mcp.configCopied')) : toast.error('Failed to copy'))"
-              >
-                {{ t('mcp.copyConfig') }}
-              </button>
-            </div>
-            <p class="text-xs text-gray-500 dark:text-content-muted mb-3">{{ client.desc }}</p>
-            <pre class="bg-gray-50 dark:bg-surface-layer rounded-lg p-3 text-xs text-gray-800 dark:text-content-secondary overflow-x-auto max-h-48 overflow-y-auto">{{ mcpConfig }}</pre>
+        <div class="bg-white dark:bg-surface-card rounded-xl border border-gray-200 dark:border-surface-border p-6 mb-6">
+          <h3 class="text-sm font-medium text-gray-900 dark:text-content-primary mb-3">{{ t('mcp.clientConfig') || '客户端配置' }}</h3>
+          <div class="flex flex-wrap gap-2 mb-4">
+            <button
+              v-for="client in mcpClients"
+              :key="client.key"
+              class="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors"
+              :class="mcpSelectedClient === client.key
+                ? 'bg-primary-600 text-white'
+                : 'bg-gray-100 dark:bg-surface-layer text-gray-700 dark:text-content-secondary hover:bg-gray-200 dark:hover:bg-surface-hover'"
+              @click="mcpSelectedClient = client.key"
+            >
+              {{ client.title }}
+            </button>
           </div>
+          <div v-for="client in mcpClients" :key="client.key">
+            <div v-if="mcpSelectedClient === client.key">
+              <p class="text-xs text-gray-500 dark:text-content-muted mb-2">{{ client.desc }}</p>
+              <p class="text-xs text-gray-400 dark:text-content-muted mb-2">{{ t('mcp.configFilePath') || '配置文件路径' }}: <code class="text-xs">{{ client.configPath }}</code></p>
+              <div class="relative">
+                <pre class="bg-gray-50 dark:bg-surface-layer rounded-lg p-3 text-xs text-gray-800 dark:text-content-secondary overflow-x-auto max-h-48 overflow-y-auto">{{ mcpConfig }}</pre>
+                <button
+                  class="absolute top-2 right-2 px-2 py-1 text-xs font-medium text-primary-600 hover:text-primary-700 bg-white dark:bg-surface-card hover:bg-gray-50 dark:hover:bg-surface-hover rounded border border-gray-200 dark:border-surface-border transition-colors"
+                  @click="copyToClipboard(mcpConfig).then(ok => ok ? toast.success(t('mcp.configCopied')) : toast.error('Failed to copy'))"
+                >
+                  {{ t('mcp.copyConfig') }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white dark:bg-surface-card rounded-xl border border-gray-200 dark:border-surface-border p-6">
+          <h3 class="text-sm font-medium text-gray-900 dark:text-content-primary mb-3">{{ t('mcp.usageGuide') || '使用指南' }}</h3>
+          <ol class="space-y-2 text-xs text-gray-600 dark:text-content-secondary">
+            <li class="flex gap-2"><span class="font-medium text-primary-600 dark:text-primary-400">1.</span> {{ t('mcp.step1') || '点击上方"复制配置"按钮，复制 JSON 配置' }}</li>
+            <li class="flex gap-2"><span class="font-medium text-primary-600 dark:text-primary-400">2.</span> {{ t('mcp.step2') || '打开 AI 编程工具的 MCP 配置文件（见上方路径）' }}</li>
+            <li class="flex gap-2"><span class="font-medium text-primary-600 dark:text-primary-400">3.</span> {{ t('mcp.step3') || '将 JSON 配置粘贴到配置文件中并保存' }}</li>
+            <li class="flex gap-2"><span class="font-medium text-primary-600 dark:text-primary-400">4.</span> {{ t('mcp.step4') || '重启 AI 编程工具' }}</li>
+            <li class="flex gap-2"><span class="font-medium text-primary-600 dark:text-primary-400">5.</span> {{ t('mcp.step5') || '在对话中输入"帮我检查项目环境"测试 MCP 是否工作' }}</li>
+          </ol>
         </div>
       </div>
     </div>

@@ -396,6 +396,10 @@ Windows 创建符号链接需要管理员权限。应用会自动回退到 junct
 
 GNU General Public License v3.0
 
+## 免责声明
+
+Godot Harbor 是一个独立的社区项目，与 Godot Engine 项目或 Godot Foundation 没有关联、认可或连接。"Godot" 是 Godot Foundation 的商标。
+
 ## 联系方式
 
 - 项目主页：[GitHub](https://github.com/odayou/GodotHarbor) | [Gitee（国内镜像）](https://gitee.com/odayou/godot-harbor)

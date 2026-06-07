@@ -396,6 +396,10 @@ For older projects, re-scan or remove and re-add to get the full Godot version n
 
 GNU General Public License v3.0
 
+## Disclaimer
+
+Godot Harbor is an independent community project and is not affiliated with, endorsed by, or connected to the Godot Engine project or the Godot Foundation. "Godot" is a trademark of the Godot Foundation.
+
 ## Contact
 
 - Project: [GitHub](https://github.com/odayou/GodotHarbor) | [Gitee (China Mirror)](https://gitee.com/odayou/godot-harbor)
