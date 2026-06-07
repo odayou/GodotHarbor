@@ -210,6 +210,18 @@ jobs:
         if: matrix.platform.target != 'aarch64-pc-windows-msvc' && matrix.platform.target != 'aarch64-unknown-linux-gnu'
         run: cd src-tauri && cargo test
 
+      - name: Build MCP server universal binary (macOS)
+        if: matrix.platform.target == 'universal-apple-darwin'
+        run: |
+          cd src-tauri
+          cargo build --release --bin harbor-mcp-server --target aarch64-apple-darwin
+          cargo build --release --bin harbor-mcp-server --target x86_64-apple-darwin
+          mkdir -p target/universal-apple-darwin/release
+          lipo -create \
+            target/aarch64-apple-darwin/release/harbor-mcp-server \
+            target/x86_64-apple-darwin/release/harbor-mcp-server \
+            -output target/universal-apple-darwin/release/harbor-mcp-server
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
