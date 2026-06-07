@@ -49,8 +49,7 @@
     "resources": [
       "templates/**/*",
       "modules/**/*"
-    ],
-    "externalBin": ["binaries/harbor-mcp-server"]
+    ]
   },
 
   "plugins": {}

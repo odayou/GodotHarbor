@@ -295,6 +295,42 @@ jobs:
             src-tauri/target/${{ matrix.platform.target }}/release/bundle/**/*
           if-no-files-found: warn
 
+      - name: Upload MCP server to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TARGET="${{ matrix.platform.target }}"
+          VERSION="${{ needs.resolve-version.outputs.version }}"
+          RELEASE_ID="${{ needs.create-release.outputs.release_id }}"
+
+          if [ "$TARGET" = "universal-apple-darwin" ]; then
+            MCP_BIN="src-tauri/target/aarch64-apple-darwin/release/harbor-mcp-server"
+            ASSET_NAME="harbor-mcp-server-${VERSION}-macos-universal"
+          elif [ "$TARGET" = "x86_64-pc-windows-msvc" ]; then
+            MCP_BIN="src-tauri/target/${TARGET}/release/harbor-mcp-server.exe"
+            ASSET_NAME="harbor-mcp-server-${VERSION}-windows-x86_64.exe"
+          elif [ "$TARGET" = "aarch64-pc-windows-msvc" ]; then
+            MCP_BIN="src-tauri/target/${TARGET}/release/harbor-mcp-server.exe"
+            ASSET_NAME="harbor-mcp-server-${VERSION}-windows-aarch64.exe"
+          elif [ "$TARGET" = "x86_64-unknown-linux-gnu" ]; then
+            MCP_BIN="src-tauri/target/${TARGET}/release/harbor-mcp-server"
+            ASSET_NAME="harbor-mcp-server-${VERSION}-linux-x86_64"
+          elif [ "$TARGET" = "aarch64-unknown-linux-gnu" ]; then
+            MCP_BIN="src-tauri/target/${TARGET}/release/harbor-mcp-server"
+            ASSET_NAME="harbor-mcp-server-${VERSION}-linux-aarch64"
+          else
+            echo "Unknown target: $TARGET"
+            exit 0
+          fi
+
+          if [ ! -f "$MCP_BIN" ]; then
+            echo "MCP server binary not found at $MCP_BIN, skipping upload"
+            exit 0
+          fi
+
+          gh release upload ${{ needs.resolve-version.outputs.tag }} "$MCP_BIN" --clobber || true
+        shell: bash
+
   hotupdate-manifest:
     name: Generate Hot Update Baseline
     needs: [resolve-version, create-release]

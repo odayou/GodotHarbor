@@ -52,6 +52,7 @@ pub fn get_mcp_server_path(app: tauri::AppHandle) -> Result<String, String> {
 
         if let Ok(resolved) = app.path().resource_dir() {
             paths.push(resolved.join(exe_name));
+            paths.push(resolved.join("binaries").join(exe_name));
         }
 
         paths
