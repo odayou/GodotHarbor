@@ -442,7 +442,7 @@ onUnmounted(() => {
 
 <template>
   <div class="h-full flex flex-col">
-    <div class="px-6 pt-6 pb-4">
+    <div class="px-6 pb-4">
       <h1 class="text-2xl font-bold text-gray-900 dark:text-content-primary">{{ t('build.title') }}</h1>
       <p class="text-sm text-gray-500 dark:text-content-muted mt-1">{{ t('build.subtitle') }}</p>
     </div>

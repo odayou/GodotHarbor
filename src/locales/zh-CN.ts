@@ -1141,6 +1141,7 @@ export default {
     updateAll: '全部更新'
   },
   commandPalette: {
+    title: '命令面板',
     placeholder: '搜索项目、插件、引擎或输入命令...',
     noResults: '未找到匹配结果',
     navigate: '导航',

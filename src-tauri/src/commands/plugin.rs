@@ -1184,41 +1184,44 @@ pub struct TotalStorageStats {
 
 
 #[tauri::command]
-pub fn update_git_plugin(app: AppHandle, plugin_id: String) -> Result<Plugin, String> {
-    let storage = get_storage(&app);
-    let mut plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+pub async fn update_git_plugin(app: AppHandle, plugin_id: String) -> Result<Plugin, String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let storage = get_storage(&app_clone);
+        let mut plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
 
-    let plugin = plugins.iter()
-        .find(|p| p.plugin_id == plugin_id)
-        .ok_or("未找到指定插件".to_string())?;
+        let plugin = plugins.iter()
+            .find(|p| p.plugin_id == plugin_id)
+            .ok_or("未找到指定插件".to_string())?;
 
-    if plugin.source.source_type != SourceType::Git {
-        return Err("仅支持更新Git来源的插件".to_string());
-    }
+        if plugin.source.source_type != SourceType::Git {
+            return Err("仅支持更新Git来源的插件".to_string());
+        }
 
-    let git_url = plugin.source.url.clone();
-    let old_version = plugin.versions.first().map(|v| v.version.clone()).unwrap_or_default();
-    let plugin_name = plugin.name.clone();
-    let manager = get_plugin_manager(&app);
-    let updated_plugin = manager.import_from_git(&git_url, None, &app)
-        .map_err(|e| format!("更新Git插件失败: {}", e))?;
+        let git_url = plugin.source.url.clone();
+        let old_version = plugin.versions.first().map(|v| v.version.clone()).unwrap_or_default();
+        let plugin_name = plugin.name.clone();
+        let manager = get_plugin_manager(&app_clone);
+        let updated_plugin = manager.import_from_git(&git_url, None, &app_clone)
+            .map_err(|e| format!("更新Git插件失败: {}", e))?;
 
-    let idx = plugins.iter().position(|p| p.plugin_id == plugin_id)
-        .ok_or("未找到指定插件".to_string())?;
+        let idx = plugins.iter().position(|p| p.plugin_id == plugin_id)
+            .ok_or("未找到指定插件".to_string())?;
 
-    plugins[idx].versions.extend(updated_plugin.versions);
-    if !updated_plugin.content_hash.is_empty() {
-        plugins[idx].content_hash = updated_plugin.content_hash;
-    }
-    plugins[idx].updated_at = chrono::Utc::now();
+        plugins[idx].versions.extend(updated_plugin.versions);
+        if !updated_plugin.content_hash.is_empty() {
+            plugins[idx].content_hash = updated_plugin.content_hash;
+        }
+        plugins[idx].updated_at = chrono::Utc::now();
 
-    let result = plugins[idx].clone();
-    storage.save("plugins.json", &plugins)
-        .map_err(|e| format!("保存插件列表失败: {}", e))?;
+        let result = plugins[idx].clone();
+        storage.save("plugins.json", &plugins)
+            .map_err(|e| format!("保存插件列表失败: {}", e))?;
 
-    log_operation(&app, "update_git_plugin", &plugin_id, &format!("已更新Git插件: {}", result.name));
-    record_update_history(&app, "plugin", &plugin_name, &old_version, &result.versions.last().map(|v| v.version.clone()).unwrap_or_default(), "success", "");
-    Ok(result)
+        log_operation(&app_clone, "update_git_plugin", &plugin_id, &format!("已更新Git插件: {}", result.name));
+        record_update_history(&app_clone, "plugin", &plugin_name, &old_version, &result.versions.last().map(|v| v.version.clone()).unwrap_or_default(), "success", "");
+        Ok(result)
+    }).await.map_err(|e| format!("任务执行失败: {}", e))?
 }
 
 pub const APP_GITHUB_OWNER: &str = "odayou";
@@ -1226,77 +1229,80 @@ pub const APP_GITHUB_REPO: &str = "GodotHarbor";
 
 
 #[tauri::command]
-pub fn batch_update_plugins(app: AppHandle, plugin_ids: Vec<String>) -> Result<BatchResult, String> {
-    let storage = get_storage(&app);
-    let mut plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
-    let manager = get_plugin_manager(&app);
+pub async fn batch_update_plugins(app: AppHandle, plugin_ids: Vec<String>) -> Result<BatchResult, String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let storage = get_storage(&app_clone);
+        let mut plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+        let manager = get_plugin_manager(&app_clone);
 
-    let mut success_count = 0usize;
-    let mut failed_count = 0usize;
-    let mut errors = Vec::new();
-    let mut dirty = false;
+        let mut success_count = 0usize;
+        let mut failed_count = 0usize;
+        let mut errors = Vec::new();
+        let mut dirty = false;
 
-    for plugin_id in &plugin_ids {
-        let plugin = match plugins.iter().find(|p| p.plugin_id == *plugin_id) {
-            Some(p) => p.clone(),
-            None => {
+        for plugin_id in &plugin_ids {
+            let plugin = match plugins.iter().find(|p| p.plugin_id == *plugin_id) {
+                Some(p) => p.clone(),
+                None => {
+                    failed_count += 1;
+                    errors.push(format!("未找到插件: {}", plugin_id));
+                    continue;
+                }
+            };
+
+            if plugin.source.source_type != SourceType::Git {
                 failed_count += 1;
-                errors.push(format!("未找到插件: {}", plugin_id));
+                errors.push(format!("插件 {} 非Git来源，不支持自动更新", plugin.name));
                 continue;
             }
-        };
 
-        if plugin.source.source_type != SourceType::Git {
-            failed_count += 1;
-            errors.push(format!("插件 {} 非Git来源，不支持自动更新", plugin.name));
-            continue;
-        }
-
-        let git_url = plugin.source.url.clone();
-        let old_version = plugin.versions.first().map(|v| v.version.clone()).unwrap_or_default();
-        match manager.import_from_git(&git_url, None, &app) {
-            Ok(updated) => {
-                let new_version = updated.versions.last().map(|v| v.version.clone()).unwrap_or_default();
-                if let Some(idx) = plugins.iter().position(|p| p.plugin_id == *plugin_id) {
-                    plugins[idx].versions.extend(updated.versions);
-                    if !updated.content_hash.is_empty() {
-                        plugins[idx].content_hash = updated.content_hash;
+            let git_url = plugin.source.url.clone();
+            let old_version = plugin.versions.first().map(|v| v.version.clone()).unwrap_or_default();
+            match manager.import_from_git(&git_url, None, &app_clone) {
+                Ok(updated) => {
+                    let new_version = updated.versions.last().map(|v| v.version.clone()).unwrap_or_default();
+                    if let Some(idx) = plugins.iter().position(|p| p.plugin_id == *plugin_id) {
+                        plugins[idx].versions.extend(updated.versions);
+                        if !updated.content_hash.is_empty() {
+                            plugins[idx].content_hash = updated.content_hash;
+                        }
+                        plugins[idx].updated_at = chrono::Utc::now();
+                        dirty = true;
                     }
-                    plugins[idx].updated_at = chrono::Utc::now();
-                    dirty = true;
+                    success_count += 1;
+                    record_update_history(&app_clone, "plugin", &plugin.name, &old_version, &new_version, "success", "");
+                    let _ = app_clone.emit("plugin-update-progress", serde_json::json!({
+                        "plugin_id": plugin_id,
+                        "stage": "complete",
+                        "progress": 100,
+                        "message": format!("插件 {} 更新完成", plugin.name)
+                    }));
                 }
-                success_count += 1;
-                record_update_history(&app, "plugin", &plugin.name, &old_version, &new_version, "success", "");
-                let _ = app.emit("plugin-update-progress", serde_json::json!({
-                    "plugin_id": plugin_id,
-                    "stage": "complete",
-                    "progress": 100,
-                    "message": format!("插件 {} 更新完成", plugin.name)
-                }));
-            }
-            Err(e) => {
-                failed_count += 1;
-                record_update_history(&app, "plugin", &plugin.name, &old_version, "", "failed", &format!("更新失败: {}", e));
-                errors.push(format!("更新插件 {} 失败: {}", plugin.name, e));
-                let _ = app.emit("plugin-update-progress", serde_json::json!({
-                    "plugin_id": plugin_id,
-                    "stage": "error",
-                    "progress": 0,
-                    "message": format!("更新失败: {}", e)
-                }));
+                Err(e) => {
+                    failed_count += 1;
+                    record_update_history(&app_clone, "plugin", &plugin.name, &old_version, "", "failed", &format!("更新失败: {}", e));
+                    errors.push(format!("更新插件 {} 失败: {}", plugin.name, e));
+                    let _ = app_clone.emit("plugin-update-progress", serde_json::json!({
+                        "plugin_id": plugin_id,
+                        "stage": "error",
+                        "progress": 0,
+                        "message": format!("更新失败: {}", e)
+                    }));
+                }
             }
         }
-    }
 
-    if dirty {
-        storage.save("plugins.json", &plugins)
-            .map_err(|e| format!("保存插件列表失败: {}", e))?;
-    }
+        if dirty {
+            storage.save("plugins.json", &plugins)
+                .map_err(|e| format!("保存插件列表失败: {}", e))?;
+        }
 
-    log_operation(&app, "batch_update_plugins", "", 
-        &format!("批量更新插件: 成功 {}, 失败 {}", success_count, failed_count));
+        log_operation(&app_clone, "batch_update_plugins", "",
+            &format!("批量更新插件: 成功 {}, 失败 {}", success_count, failed_count));
 
-    Ok(BatchResult { success_count, failed_count, errors })
+        Ok(BatchResult { success_count, failed_count, errors })
+    }).await.map_err(|e| format!("任务执行失败: {}", e))?
 }
 
 
@@ -1408,14 +1414,13 @@ pub async fn check_plugin_updates(app: AppHandle, force_refresh: Option<bool>) -
 
     let update_infos: Vec<PluginUpdateInfo> = futures::future::join_all(futures).await;
 
-    let mut seen_urls = std::collections::HashSet::new();
+    let mut seen_keys = std::collections::HashSet::new();
     let update_infos: Vec<PluginUpdateInfo> = update_infos.into_iter().filter(|info| {
-        if info.source_url.is_empty() {
-            true
-        } else if seen_urls.contains(&info.source_url) {
+        let key = format!("{}|{}", info.plugin_name.to_lowercase(), info.current_version);
+        if seen_keys.contains(&key) {
             false
         } else {
-            seen_urls.insert(info.source_url.clone());
+            seen_keys.insert(key);
             true
         }
     }).collect();

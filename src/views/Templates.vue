@@ -328,7 +328,7 @@ const progressPercent = computed(() => {
 
 <template>
   <div class="h-full flex flex-col overflow-hidden">
-    <div class="shrink-0 px-6 pt-6 pb-4">
+    <div class="shrink-0 px-6 pb-4">
       <div class="flex items-center justify-between mb-4">
         <div>
           <h1 class="text-2xl font-bold text-gray-900 dark:text-content-primary">{{ t('templates.title') }}</h1>

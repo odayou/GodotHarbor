@@ -25,6 +25,7 @@ export const useUpdateStore = defineStore('updates', () => {
 
   const isInstallingApp = ref(false)
   const isUpdatingPlugins = ref(false)
+  const updatingPluginId = ref<string | null>(null)
   const isInstallingHotUpdate = ref(false)
   const installProgress = ref(0)
   const installMessage = ref('')
@@ -201,6 +202,7 @@ export const useUpdateStore = defineStore('updates', () => {
   }
 
   async function updateSinglePlugin(pluginId: string) {
+    updatingPluginId.value = pluginId
     try {
       const updated = await api.updateGitPlugin(pluginId)
       pluginUpdates.value = pluginUpdates.value.filter(u => u.plugin_id !== pluginId)
@@ -208,6 +210,8 @@ export const useUpdateStore = defineStore('updates', () => {
       toast.success(t('plugins.updateSuccess', { name: updated.name }))
     } catch (error) {
       toast.error(t('plugins.updateFailed', { error: String(error) }))
+    } finally {
+      updatingPluginId.value = null
     }
   }
 
@@ -294,6 +298,7 @@ export const useUpdateStore = defineStore('updates', () => {
     updateHistory,
     isInstallingApp,
     isUpdatingPlugins,
+    updatingPluginId,
     isInstallingHotUpdate,
     installProgress,
     installMessage,

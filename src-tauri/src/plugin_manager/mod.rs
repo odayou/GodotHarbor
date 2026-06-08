@@ -414,7 +414,7 @@ fn detect_plugin_source(plugin_dir: &Path) -> (crate::models::SourceType, String
                 "文件路径过长（Windows 路径限制），请将数据目录移至更短路径".to_string()
             } else if err_msg.contains("404") || err_msg.contains("status code: 404") {
                 "仓库不存在或地址错误".to_string()
-            } else if err_msg.contains("timed out") || err_msg.contains("connection") {
+            } else if err_msg.contains("timed out") || err_msg.contains("connection") || err_msg.contains("超时") || err_msg.contains("timeout") {
                 "网络连接失败，请检查网络".to_string()
             } else {
                 format!("克隆仓库失败: {}", e)

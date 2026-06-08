@@ -1221,7 +1221,6 @@ const toggleAddPluginPanel = () => {
       :actionLabel="t('projects.scan')"
       @action="showScanDialog = true"
       :shortcuts="[
-        { key: 'Ctrl+N', description: t('projects.addLocal') },
         { key: 'Ctrl+K', description: t('commandPalette.title') },
       ]"
     >

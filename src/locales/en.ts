@@ -1138,6 +1138,7 @@ export default {
     updateAll: 'Update All'
   },
   commandPalette: {
+    title: 'Command Palette',
     placeholder: 'Search projects, plugins, engines or enter commands...',
     noResults: 'No matching results found',
     navigate: 'Navigate',
