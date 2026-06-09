@@ -1,19 +1,26 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/autoload/game_manager.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/characters/player.gd" id="2"]
 [ext_resource type="Texture2D" path="res://assets/sprites/characters/player.svg" id="3"]
 [ext_resource type="Texture2D" path="res://assets/sprites/characters/enemy.svg" id="4"]
 [ext_resource type="Texture2D" path="res://assets/sprites/items/health_potion.svg" id="5"]
+[ext_resource type="Script" path="res://scripts/characters/enemy.gd" id="6"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_player"]
 size = Vector2(20, 32)
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_ground"]
-size = Vector2(1152, 40)
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_enemy"]
+size = Vector2(20, 28)
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_interact"]
 radius = 30.0
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_item"]
+radius = 12.0
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_ground"]
+size = Vector2(1152, 40)
 
 [node name="Main" type="Node2D"]
 
@@ -38,6 +45,10 @@ shape = SubResource("CircleShape2D_interact")
 
 [node name="Enemy" type="CharacterBody2D" parent="."]
 position = Vector2(500, 300)
+script = ExtResource("6")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Enemy"]
+shape = SubResource("RectangleShape2D_enemy")
 
 [node name="Sprite2D" type="Sprite2D" parent="Enemy"]
 texture = ExtResource("4")
@@ -45,9 +56,14 @@ texture = ExtResource("4")
 [node name="HealthPotion" type="Area2D" parent="."]
 position = Vector2(350, 460)
 
+[node name="CollisionShape2D" type="CollisionShape2D" parent="HealthPotion"]
+shape = SubResource("CircleShape2D_item")
+
 [node name="Sprite2D" type="Sprite2D" parent="HealthPotion"]
 texture = ExtResource("5")
 scale = Vector2(1.5, 1.5)
+
+[connection signal="body_entered" from="HealthPotion" to="HealthPotion" method="_on_body_entered"]
 
 [node name="Ground" type="StaticBody2D" parent="."]
 position = Vector2(576, 500)

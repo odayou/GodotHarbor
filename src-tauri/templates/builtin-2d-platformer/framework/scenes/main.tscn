@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="1"]
 [ext_resource type="Script" path="res://scripts/player/player.gd" id="2"]
@@ -7,6 +7,7 @@
 [ext_resource type="Texture2D" path="res://assets/sprites/player/jump.svg" id="5"]
 [ext_resource type="Texture2D" path="res://assets/sprites/collectibles/coin.svg" id="6"]
 [ext_resource type="Texture2D" path="res://assets/sprites/enemies/slime.svg" id="7"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_base.gd" id="8"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_player"]
 size = Vector2(24, 32)
@@ -19,6 +20,9 @@ radius = 8.0
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_slime"]
 size = Vector2(18, 18)
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_detect"]
+radius = 200.0
 
 [sub_resource type="SpriteFrames" id="SpriteFrames_player"]
 animations = [{
@@ -93,14 +97,31 @@ scale = Vector2(0.75, 0.75)
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Coin"]
 shape = SubResource("CircleShape2D_coin")
 
+[connection signal="body_entered" from="Coin" to="Coin" method="_on_body_entered"]
+
 [node name="Slime" type="CharacterBody2D" parent="."]
 position = Vector2(600, 476)
+script = ExtResource("8")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Slime"]
+shape = SubResource("RectangleShape2D_slime")
 
 [node name="Sprite2D" type="Sprite2D" parent="Slime"]
 texture = ExtResource("7")
 scale = Vector2(0.75, 0.75)
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Slime"]
-shape = SubResource("RectangleShape2D_slime")
+[node name="DetectArea" type="Area2D" parent="Slime"]
+collision_mask = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Slime/DetectArea"]
+shape = SubResource("CircleShape2D_detect")
+
+[node name="RayCastRight" type="RayCast2D" parent="Slime"]
+target_position = Vector2(20, 0)
+collision_mask = 1
+
+[node name="RayCastLeft" type="RayCast2D" parent="Slime"]
+target_position = Vector2(-20, 0)
+collision_mask = 1
 
 [node name="HUD" parent="." instance=ExtResource("1")]
