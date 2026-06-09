@@ -10,9 +10,8 @@ fn get_templates_dir(app: &AppHandle) -> std::path::PathBuf {
     get_data_dir(app).join("templates")
 }
 
-#[tauri::command]
-pub fn list_hub_templates(app: AppHandle) -> Result<Vec<Template>, String> {
-    let templates_dir = get_templates_dir(&app);
+fn list_hub_templates_sync(app: &AppHandle) -> Result<Vec<Template>, String> {
+    let templates_dir = get_templates_dir(app);
     if !templates_dir.exists() {
         return Ok(Vec::new());
     }
@@ -43,23 +42,60 @@ pub fn list_hub_templates(app: AppHandle) -> Result<Vec<Template>, String> {
 }
 
 #[tauri::command]
-pub fn get_hub_template(app: AppHandle, template_id: String) -> Result<Template, String> {
-    let templates_dir = get_templates_dir(&app);
-    let template_dir = templates_dir.join(&template_id);
-    let template_file = template_dir.join("template.yml");
+pub async fn list_hub_templates(app: AppHandle) -> Result<Vec<Template>, String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let templates_dir = get_templates_dir(&app_clone);
+        if !templates_dir.exists() {
+            return Ok(Vec::new());
+        }
 
-    if !template_file.exists() {
-        return Err(format!("模板不存在: {}", template_id));
-    }
+        let mut templates = Vec::new();
+        let entries = fs::read_dir(&templates_dir)
+            .map_err(|e| format!("读取模板目录失败: {}", e))?;
 
-    let content = fs::read_to_string(&template_file)
-        .map_err(|e| format!("读取模板文件失败: {}", e))?;
-    Template::from_yaml(&content)
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                let template_file = path.join("template.yml");
+                if template_file.exists() {
+                    let content = fs::read_to_string(&template_file)
+                        .map_err(|e| format!("读取模板文件失败: {}", e))?;
+                    match Template::from_yaml(&content) {
+                        Ok(t) => templates.push(t),
+                        Err(e) => {
+                            eprintln!("跳过无效模板 {:?}: {}", path, e);
+                        }
+                    }
+                }
+            }
+        }
+
+        templates.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        Ok(templates)
+    }).await.map_err(|e| format!("任务执行失败: {}", e))?
 }
 
 #[tauri::command]
-pub fn save_hub_template(app: AppHandle, template: Template) -> Result<Template, String> {
-    let templates_dir = get_templates_dir(&app);
+pub async fn get_hub_template(app: AppHandle, template_id: String) -> Result<Template, String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let templates_dir = get_templates_dir(&app_clone);
+        let template_dir = templates_dir.join(&template_id);
+        let template_file = template_dir.join("template.yml");
+
+        if !template_file.exists() {
+            return Err(format!("模板不存在: {}", template_id));
+        }
+
+        let content = fs::read_to_string(&template_file)
+            .map_err(|e| format!("读取模板文件失败: {}", e))?;
+        Template::from_yaml(&content)
+    }).await.map_err(|e| format!("任务执行失败: {}", e))?
+}
+
+fn save_hub_template_sync(app: &AppHandle, template: Template) -> Result<Template, String> {
+    let templates_dir = get_templates_dir(app);
     let template_dir = templates_dir.join(&template.template_id);
     fs::create_dir_all(&template_dir)
         .map_err(|e| format!("创建模板目录失败: {}", e))?;
@@ -69,24 +105,46 @@ pub fn save_hub_template(app: AppHandle, template: Template) -> Result<Template,
     fs::write(&template_file, yaml)
         .map_err(|e| format!("写入模板文件失败: {}", e))?;
 
-    log_operation(&app, "save_hub_template", &template.template_id, &format!("保存模板: {}", template.name));
+    log_operation(app, "save_hub_template", &template.template_id, &format!("保存模板: {}", template.name));
     Ok(template)
 }
 
 #[tauri::command]
-pub fn delete_hub_template(app: AppHandle, template_id: String) -> Result<(), String> {
-    let templates_dir = get_templates_dir(&app);
-    let template_dir = templates_dir.join(&template_id);
+pub async fn save_hub_template(app: AppHandle, template: Template) -> Result<Template, String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let templates_dir = get_templates_dir(&app_clone);
+        let template_dir = templates_dir.join(&template.template_id);
+        fs::create_dir_all(&template_dir)
+            .map_err(|e| format!("创建模板目录失败: {}", e))?;
 
-    if !template_dir.exists() {
-        return Err(format!("模板不存在: {}", template_id));
-    }
+        let template_file = template_dir.join("template.yml");
+        let yaml = template.to_yaml()?;
+        fs::write(&template_file, yaml)
+            .map_err(|e| format!("写入模板文件失败: {}", e))?;
 
-    fs::remove_dir_all(&template_dir)
-        .map_err(|e| format!("删除模板失败: {}", e))?;
+        log_operation(&app_clone, "save_hub_template", &template.template_id, &format!("保存模板: {}", template.name));
+        Ok(template)
+    }).await.map_err(|e| format!("任务执行失败: {}", e))?
+}
 
-    log_operation(&app, "delete_hub_template", &template_id, &format!("删除模板: {}", template_id));
-    Ok(())
+#[tauri::command]
+pub async fn delete_hub_template(app: AppHandle, template_id: String) -> Result<(), String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let templates_dir = get_templates_dir(&app_clone);
+        let template_dir = templates_dir.join(&template_id);
+
+        if !template_dir.exists() {
+            return Err(format!("模板不存在: {}", template_id));
+        }
+
+        fs::remove_dir_all(&template_dir)
+            .map_err(|e| format!("删除模板失败: {}", e))?;
+
+        log_operation(&app_clone, "delete_hub_template", &template_id, &format!("删除模板: {}", template_id));
+        Ok(())
+    }).await.map_err(|e| format!("任务执行失败: {}", e))?
 }
 
 #[tauri::command]
@@ -107,7 +165,7 @@ pub async fn import_template_from_url(app: AppHandle, url: String) -> Result<Tem
     template.source_url = url;
     template.is_builtin = false;
 
-    save_hub_template(app, template)
+    save_hub_template_sync(&app, template)
 }
 
 fn get_builtin_framework_dir(app: &AppHandle) -> std::path::PathBuf {
@@ -201,16 +259,12 @@ fn scaffold_template_framework(app: &AppHandle, project_dir: &Path, template: &T
     if framework_dir.exists() {
         copy_dir_recursive_skip(&framework_dir, project_dir, &["project.godot"])?;
     } else {
-        let cached_dir = get_templates_dir_from_template(template).join("framework");
+        let cached_dir = get_templates_dir(app).join(&template.template_id).join("framework");
         if cached_dir.exists() {
             copy_dir_recursive_skip(&cached_dir, project_dir, &["project.godot"])?;
         }
     }
     Ok(())
-}
-
-fn get_templates_dir_from_template(_template: &Template) -> std::path::PathBuf {
-    std::path::PathBuf::new()
 }
 
 fn apply_mobile_support(app: &AppHandle, project_dir: &Path) -> Result<(), String> {
@@ -614,7 +668,20 @@ pub async fn instantiate_template(
 ) -> Result<TemplateInstantiationResult, String> {
     let start = std::time::Instant::now();
 
-    let template = get_hub_template(app.clone(), template_id.clone())?;
+    let template = {
+        let app_clone = app.clone();
+        tokio::task::spawn_blocking(move || {
+            let templates_dir = get_templates_dir(&app_clone);
+            let template_dir = templates_dir.join(&template_id);
+            let template_file = template_dir.join("template.yml");
+            if !template_file.exists() {
+                return Err(format!("模板不存在: {}", template_id));
+            }
+            let content = fs::read_to_string(&template_file)
+                .map_err(|e| format!("读取模板文件失败: {}", e))?;
+            Template::from_yaml(&content)
+        }).await.map_err(|e| format!("任务执行失败: {}", e))??
+    };
 
     let project_dir = Path::new(&target_dir).join(&project_name);
     if project_dir.exists() {
@@ -634,6 +701,10 @@ pub async fn instantiate_template(
     fs::create_dir_all(&project_dir)
         .map_err(|e| format!("创建项目目录失败: {}", e))?;
 
+    let cleanup_on_error = |dir: &Path| {
+        let _ = fs::remove_dir_all(dir);
+    };
+
     let _ = app.emit("template-instantiation-progress", TemplateInstantiationProgress {
         template_id: template.template_id.clone(),
         stage: "generating".to_string(),
@@ -645,12 +716,23 @@ pub async fn instantiate_template(
     let enable_mobile = enable_mobile_support.unwrap_or(false);
 
     let project_godot_content = generate_project_godot(&template, enable_mobile);
-    fs::write(project_dir.join("project.godot"), project_godot_content)
-        .map_err(|e| format!("写入 project.godot 失败: {}", e))?;
+    if let Err(e) = fs::write(project_dir.join("project.godot"), &project_godot_content) {
+        cleanup_on_error(&project_dir);
+        return Err(format!("写入 project.godot 失败: {}", e));
+    }
 
-    let created_dirs = create_directory_structure(&project_dir, &template)?;
+    let created_dirs = match create_directory_structure(&project_dir, &template) {
+        Ok(d) => d,
+        Err(e) => {
+            cleanup_on_error(&project_dir);
+            return Err(e);
+        }
+    };
 
-    scaffold_template_framework(&app, &project_dir, &template)?;
+    if let Err(e) = scaffold_template_framework(&app, &project_dir, &template) {
+        cleanup_on_error(&project_dir);
+        return Err(e);
+    }
 
     if enable_mobile {
         let _ = app.emit("template-instantiation-progress", TemplateInstantiationProgress {
@@ -705,7 +787,8 @@ pub async fn instantiate_template(
         let project_godot_path = project_dir.join("project.godot");
         if let Ok(existing) = fs::read_to_string(&project_godot_path) {
             let updated = update_editor_plugins_section(&existing, &template, &installed_plugins);
-            let _ = fs::write(project_godot_path, updated);
+            fs::write(&project_godot_path, updated)
+                .map_err(|e| format!("更新 project.godot 插件配置失败: {}", e))?;
         }
     }
 
@@ -831,10 +914,12 @@ pub async fn instantiate_template(
         .map_err(|e| format!("保存项目列表失败: {}", e))?;
 
     let mut bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
-    for binding in bindings.iter_mut() {
-        if binding.project_id.is_empty() {
-            binding.project_id = project_id.clone();
-        }
+    let new_binding_indices: Vec<usize> = bindings.iter().enumerate()
+        .filter(|(_, b)| b.project_id.is_empty())
+        .map(|(i, _)| i)
+        .collect();
+    for idx in new_binding_indices {
+        bindings[idx].project_id = project_id.clone();
     }
     storage.save("bindings.json", &bindings)
         .map_err(|e| format!("保存绑定关系失败: {}", e))?;
@@ -964,7 +1049,7 @@ fn install_template_plugin(
     } else {
         plugin_spec.subdirectory.clone()
     };
-    let already_bound = bindings.iter().any(|b| b.project_id.is_empty() && b.plugin_id == plugin_id && b.mount_path == mount_path);
+    let already_bound = bindings.iter().any(|b| b.plugin_id == plugin_id && b.mount_path == mount_path);
 
     if !already_bound {
         let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
@@ -992,95 +1077,101 @@ fn install_template_plugin(
 }
 
 #[tauri::command]
-pub fn generate_template_from_project(
+pub async fn generate_template_from_project(
     app: AppHandle,
     project_id: String,
     template_name: String,
     category: String,
 ) -> Result<Template, String> {
-    let storage = get_storage(&app);
-    let projects: Vec<Project> = storage.load_or_default("projects.json");
-    let project = projects.iter().find(|p| p.project_id == project_id)
-        .ok_or("项目不存在".to_string())?;
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let storage = get_storage(&app_clone);
+        let projects: Vec<Project> = storage.load_or_default("projects.json");
+        let project = projects.iter().find(|p| p.project_id == project_id)
+            .ok_or("项目不存在".to_string())?;
 
-    let project_path = Path::new(&project.path);
-    if !project_path.exists() {
-        return Err("项目路径不存在".to_string());
-    }
-
-    let cat = match category.as_str() {
-        "starter_2d" => TemplateCategory::Starter2D,
-        "starter_3d" => TemplateCategory::Starter3D,
-        "rpg" => TemplateCategory::RPG,
-        "platformer" => TemplateCategory::Platformer,
-        "multiplayer" => TemplateCategory::Multiplayer,
-        "mobile" => TemplateCategory::Mobile,
-        "blank" => TemplateCategory::Blank,
-        _ => TemplateCategory::Custom,
-    };
-
-    let mut template = Template::new(template_name, cat, project.godot_version.clone());
-
-    let bindings: Vec<ProjectBinding> = storage.load_or_default(
-        &format!("bindings_{}.json", project_id)
-    );
-
-    for binding in &bindings {
-        let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
-        if let Some(plugin) = plugins.iter().find(|p| p.plugin_id == binding.plugin_id) {
-            let source = match plugin.source.source_type {
-                SourceType::AssetLibrary => TemplatePluginSource::AssetStore,
-                SourceType::Git => TemplatePluginSource::Git,
-                _ => TemplatePluginSource::Local,
-            };
-            template.plugins.push(TemplatePlugin {
-                name: plugin.name.clone(),
-                version: plugin.versions.first().map(|v| v.version.clone()).unwrap_or_default(),
-                source,
-                url: if plugin.source.source_type == SourceType::Git { plugin.source.url.clone() } else { String::new() },
-                git_ref: plugin.source.git_ref.clone(),
-                mount: String::new(),
-                subdirectory: binding.subdirectory.clone(),
-            });
+        let project_path = Path::new(&project.path);
+        if !project_path.exists() {
+            return Err("项目路径不存在".to_string());
         }
-    }
 
-    let addons_dir = project_path.join("addons");
-    if addons_dir.exists() {
-        if let Ok(entries) = fs::read_dir(&addons_dir) {
-            for entry in entries.flatten() {
-                if entry.path().is_dir() {
-                    let dir_name = entry.file_name().to_string_lossy().to_string();
-                    let already_listed = template.plugins.iter().any(|p| p.name == dir_name);
-                    if !already_listed {
-                        template.plugins.push(TemplatePlugin {
-                            name: dir_name,
-                            version: "1.0.0".to_string(),
-                            source: TemplatePluginSource::Local,
-                            url: String::new(),
-                            git_ref: String::new(),
-                            mount: String::new(),
-                            subdirectory: String::new(),
-                        });
+        let cat = match category.as_str() {
+            "starter_2d" => TemplateCategory::Starter2D,
+            "starter_3d" => TemplateCategory::Starter3D,
+            "rpg" => TemplateCategory::RPG,
+            "platformer" => TemplateCategory::Platformer,
+            "multiplayer" => TemplateCategory::Multiplayer,
+            "mobile" => TemplateCategory::Mobile,
+            "blank" => TemplateCategory::Blank,
+            _ => TemplateCategory::Custom,
+        };
+
+        let mut template = Template::new(template_name, cat, project.godot_version.clone());
+
+        let all_bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
+        let bindings: Vec<ProjectBinding> = all_bindings.into_iter()
+            .filter(|b| b.project_id == project_id)
+            .collect();
+
+        for binding in &bindings {
+            let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+            if let Some(plugin) = plugins.iter().find(|p| p.plugin_id == binding.plugin_id) {
+                let source = match plugin.source.source_type {
+                    SourceType::AssetLibrary => TemplatePluginSource::AssetStore,
+                    SourceType::Git => TemplatePluginSource::Git,
+                    _ => TemplatePluginSource::Local,
+                };
+                template.plugins.push(TemplatePlugin {
+                    name: plugin.name.clone(),
+                    version: plugin.versions.first().map(|v| v.version.clone()).unwrap_or_default(),
+                    source,
+                    url: if plugin.source.source_type == SourceType::Git { plugin.source.url.clone() } else { String::new() },
+                    git_ref: plugin.source.git_ref.clone(),
+                    mount: String::new(),
+                    subdirectory: binding.subdirectory.clone(),
+                });
+            }
+        }
+
+        let addons_dir = project_path.join("addons");
+        if addons_dir.exists() {
+            if let Ok(entries) = fs::read_dir(&addons_dir) {
+                for entry in entries.flatten() {
+                    if entry.path().is_dir() {
+                        let dir_name = entry.file_name().to_string_lossy().to_string();
+                        let already_listed = template.plugins.iter().any(|p| p.name == dir_name);
+                        if !already_listed {
+                            template.plugins.push(TemplatePlugin {
+                                name: dir_name,
+                                version: "1.0.0".to_string(),
+                                source: TemplatePluginSource::Local,
+                                url: String::new(),
+                                git_ref: String::new(),
+                                mount: String::new(),
+                                subdirectory: String::new(),
+                            });
+                        }
                     }
                 }
             }
         }
-    }
 
-    template.is_builtin = false;
-    template.description = format!("从项目 {} 生成的模板", project.name);
+        template.is_builtin = false;
+        template.description = format!("从项目 {} 生成的模板", project.name);
 
-    save_hub_template(app, template)
+        save_hub_template_sync(&app_clone, template)
+    }).await.map_err(|e| format!("任务执行失败: {}", e))?
 }
 
 #[tauri::command]
-pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String> {
-    let templates_dir = get_templates_dir(&app);
-    fs::create_dir_all(&templates_dir)
-        .map_err(|e| format!("创建模板目录失败: {}", e))?;
+pub async fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let templates_dir = get_templates_dir(&app_clone);
+        fs::create_dir_all(&templates_dir)
+            .map_err(|e| format!("创建模板目录失败: {}", e))?;
 
-    let existing = list_hub_templates(app.clone())?;
+    let existing = list_hub_templates_sync(&app_clone)?;
     let builtin_ids: Vec<&str> = existing.iter()
         .filter(|t| t.is_builtin)
         .map(|t| t.template_id.as_str())
@@ -1442,15 +1533,12 @@ pub fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, String>
 
     for template in [blank_template.clone(), platformer_template.clone(), rpg_template.clone(), starter_3d_template.clone(), multiplayer_template.clone()] {
         if builtin_ids.contains(&template.template_id.as_str()) {
-            let template_dir = templates_dir.join(&template.template_id);
-            let template_file = template_dir.join("template.yml");
-            if template_file.exists() {
-                let _ = fs::remove_file(&template_file);
-            }
+            continue;
         }
-        let saved = save_hub_template(app.clone(), template)?;
+        let saved = save_hub_template_sync(&app_clone, template)?;
         created.push(saved);
     }
 
     Ok(created)
+    }).await.map_err(|e| format!("任务执行失败: {}", e))?
 }

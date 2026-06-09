@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onActivated, onUnmounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '@/api'
@@ -35,6 +35,7 @@ const projects = ref<Project[]>([])
 const engines = ref<Engine[]>([])
 const projectBindingMap = ref<Map<string, ProjectBinding[]>>(new Map())
 const isLoading = ref(false)
+const isRefreshing = ref(false)
 const loadError = ref<string | null>(null)
 const showScanDialog = ref(false)
 const scanDirInput = ref('')
@@ -207,7 +208,7 @@ onMounted(async () => {
     hasScanDirs.value = settings.scan_directories.length > 0
   } catch { /* ignore */ }
   unlisten = await listen('scan-complete', () => {
-    loadProjects()
+    loadProjects(true)
   })
   unlistenFs = await listen('project-fs-changed', async () => {
     try {
@@ -219,7 +220,7 @@ onMounted(async () => {
     }
   })
   unlistenAutoSetup = await listen('auto-setup-complete', () => {
-    loadProjects()
+    loadProjects(true)
     loadEngines()
   })
   if (route.query.action === 'scan') {
@@ -227,11 +228,6 @@ onMounted(async () => {
     showScanDialog.value = true
     router.replace({ path: '/projects' })
   }
-})
-
-onActivated(() => {
-  loadProjects()
-  loadEngines()
 })
 
 onUnmounted(() => {
@@ -389,20 +385,30 @@ const executeSync = async () => {
   }
 }
 
-const loadProjects = async () => {
+const loadProjects = async (force = false) => {
+  const hasData = projects.value.length > 0
+  if (hasData && !force) {
+    isRefreshing.value = true
+    try {
+      const result = await api.getProjects()
+      projects.value = result
+      loadError.value = null
+      preloadIcons(result.map(p => p.icon_path).filter(Boolean)).catch(() => {})
+      Promise.all([loadAllProjectBindings(), loadAllDrifts()]).catch(() => {})
+    } catch (error) {
+      loadError.value = String(error)
+    } finally {
+      isRefreshing.value = false
+    }
+    return
+  }
   isLoading.value = true
   loadError.value = null
   try {
     const result = await api.getProjects()
     projects.value = result
-    // 非关键操作：不阻塞主数据渲染
     preloadIcons(result.map(p => p.icon_path).filter(Boolean)).catch(() => {})
-    // 关键数据优先加载
-    await Promise.all([
-      loadGroups(),
-      checkMovedProjects(),
-    ])
-    // 非关键数据延迟加载
+    await Promise.all([loadGroups(), checkMovedProjects()])
     Promise.all([
       loadAllProjectBindings(),
       api.getPlugins().then(p => { allPlugins.value = p }).catch(() => { allPlugins.value = [] }),
@@ -410,7 +416,6 @@ const loadProjects = async () => {
     ]).catch(() => {})
   } catch (error) {
     loadError.value = String(error)
-    toast.error(t('common.loadFailed', { error }))
   } finally {
     isLoading.value = false
   }

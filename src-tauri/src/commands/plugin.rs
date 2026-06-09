@@ -32,15 +32,18 @@ fn auto_update_harbor_yml(app: &AppHandle, project_id: &str) -> Result<(), Strin
 }
 
 #[tauri::command]
-pub fn import_plugin_from_local(app: AppHandle, path: String) -> Result<Plugin, String> {
-    if !std::path::Path::new(&path).exists() {
-        return Err("指定的插件路径不存在".to_string());
-    }
+pub async fn import_plugin_from_local(app: AppHandle, path: String) -> Result<Plugin, String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        if !std::path::Path::new(&path).exists() {
+            return Err("指定的插件路径不存在".to_string());
+        }
 
-    let manager = get_plugin_manager(&app);
-    let new_plugin = manager.import_from_local(&path)
-        .map_err(|e| format!("导入本地插件失败: {}", e))?;
-    upsert_plugin(&app, &new_plugin, "import_plugin", &path)
+        let manager = get_plugin_manager(&app_clone);
+        let new_plugin = manager.import_from_local(&path)
+            .map_err(|e| format!("导入本地插件失败: {}", e))?;
+        upsert_plugin(&app_clone, &new_plugin, "import_plugin", &path)
+    }).await.map_err(|e| format!("任务执行失败: {}", e))?
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -50,72 +53,80 @@ pub struct GitRefInfo {
 }
 
 #[tauri::command]
-pub fn list_git_refs(url: String) -> Result<Vec<GitRefInfo>, String> {
-    if url.is_empty() {
-        return Err("请输入 Git 仓库地址".to_string());
-    }
+pub async fn list_git_refs(url: String) -> Result<Vec<GitRefInfo>, String> {
+    tokio::task::spawn_blocking(move || {
+        if url.is_empty() {
+            return Err("请输入 Git 仓库地址".to_string());
+        }
 
-    let mut refs = Vec::new();
+        let mut refs = Vec::new();
 
-    let mut remote = git2::Remote::create_detached(&*url)
-        .map_err(|e| format!("无法连接到远程仓库: {}", e))?;
-    remote.connect(git2::Direction::Fetch)
-        .map_err(|e| format!("无法连接到远程仓库: {}", e))?;
+        let mut remote = git2::Remote::create_detached(&*url)
+            .map_err(|e| format!("无法连接到远程仓库: {}", e))?;
+        remote.connect(git2::Direction::Fetch)
+            .map_err(|e| format!("无法连接到远程仓库: {}", e))?;
 
-    let remote_refs = remote.list()
-        .map_err(|e| format!("无法获取远程引用列表: {}", e))?;
+        let remote_refs = remote.list()
+            .map_err(|e| format!("无法获取远程引用列表: {}", e))?;
 
-    for remote_ref in remote_refs {
-        let name = remote_ref.name().to_string();
-        if let Some(short_name) = name.strip_prefix("refs/heads/") {
-            refs.push(GitRefInfo {
-                name: short_name.to_string(),
-                ref_type: "branch".to_string(),
-            });
-        } else if let Some(short_name) = name.strip_prefix("refs/tags/") {
-            if !short_name.ends_with("^{}") {
+        for remote_ref in remote_refs {
+            let name = remote_ref.name().to_string();
+            if let Some(short_name) = name.strip_prefix("refs/heads/") {
                 refs.push(GitRefInfo {
                     name: short_name.to_string(),
-                    ref_type: "tag".to_string(),
+                    ref_type: "branch".to_string(),
                 });
+            } else if let Some(short_name) = name.strip_prefix("refs/tags/") {
+                if !short_name.ends_with("^{}") {
+                    refs.push(GitRefInfo {
+                        name: short_name.to_string(),
+                        ref_type: "tag".to_string(),
+                    });
+                }
             }
         }
-    }
 
-    refs.sort_by(|a, b| {
-        b.ref_type.cmp(&a.ref_type)
-            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
-    });
+        refs.sort_by(|a, b| {
+            b.ref_type.cmp(&a.ref_type)
+                .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+        });
 
-    Ok(refs)
+        Ok(refs)
+    }).await.map_err(|e| format!("任务执行失败: {}", e))?
 }
 
 #[tauri::command]
-pub fn import_plugin_from_git(app: AppHandle, url: String, git_ref: Option<String>) -> Result<Plugin, String> {
-    if url.is_empty() {
-        return Err("请输入 Git 仓库地址".to_string());
-    }
+pub async fn import_plugin_from_git(app: AppHandle, url: String, git_ref: Option<String>) -> Result<Plugin, String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        if url.is_empty() {
+            return Err("请输入 Git 仓库地址".to_string());
+        }
 
-    let manager = get_plugin_manager(&app);
-    let git_ref_arg = git_ref.as_deref();
-    let new_plugin = manager.import_from_git(&url, git_ref_arg, &app)
-        .map_err(|e| format!("从 Git 导入插件失败: {}，请检查仓库地址是否正确", e))?;
-    upsert_plugin(&app, &new_plugin, "import_plugin_git", &url)
+        let manager = get_plugin_manager(&app_clone);
+        let git_ref_arg = git_ref.as_deref();
+        let new_plugin = manager.import_from_git(&url, git_ref_arg, &app_clone)
+            .map_err(|e| format!("从 Git 导入插件失败: {}，请检查仓库地址是否正确", e))?;
+        upsert_plugin(&app_clone, &new_plugin, "import_plugin_git", &url)
+    }).await.map_err(|e| format!("任务执行失败: {}", e))?
 }
 
 #[tauri::command]
-pub fn import_plugin_from_url(app: AppHandle, url: String) -> Result<Plugin, String> {
-    if url.is_empty() {
-        return Err("请输入下载地址".to_string());
-    }
-    if !url.starts_with("http://") && !url.starts_with("https://") {
-        return Err("请输入有效的 HTTP/HTTPS 地址".to_string());
-    }
+pub async fn import_plugin_from_url(app: AppHandle, url: String) -> Result<Plugin, String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        if url.is_empty() {
+            return Err("请输入下载地址".to_string());
+        }
+        if !url.starts_with("http://") && !url.starts_with("https://") {
+            return Err("请输入有效的 HTTP/HTTPS 地址".to_string());
+        }
 
-    let manager = get_plugin_manager(&app);
-    let new_plugin = manager.import_from_url(&url, &app)
-        .map_err(|e| format!("从 URL 导入插件失败: {}", e))?;
-    upsert_plugin(&app, &new_plugin, "import_plugin_url", &url)
+        let manager = get_plugin_manager(&app_clone);
+        let new_plugin = manager.import_from_url(&url, &app_clone)
+            .map_err(|e| format!("从 URL 导入插件失败: {}", e))?;
+        upsert_plugin(&app_clone, &new_plugin, "import_plugin_url", &url)
+    }).await.map_err(|e| format!("任务执行失败: {}", e))?
 }
 
 #[tauri::command]
@@ -126,65 +137,68 @@ pub fn get_plugins(app: AppHandle) -> Result<Vec<Plugin>, String> {
 }
 
 #[tauri::command]
-pub fn remove_plugin(app: AppHandle, plugin_id: String) -> Result<(), String> {
-    let storage = get_storage(&app);
-    let mut plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+pub async fn remove_plugin(app: AppHandle, plugin_id: String) -> Result<(), String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let storage = get_storage(&app_clone);
+        let mut plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
 
-    let plugin = plugins.iter().find(|p| p.plugin_id == plugin_id)
-        .ok_or("未找到指定插件".to_string())?;
-    let plugin_name = plugin.name.clone();
+        let plugin = plugins.iter().find(|p| p.plugin_id == plugin_id)
+            .ok_or("未找到指定插件".to_string())?;
+        let plugin_name = plugin.name.clone();
 
-    let bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
-    let plugin_bindings: Vec<&ProjectBinding> = bindings.iter()
-        .filter(|b| b.plugin_id == plugin_id)
-        .collect();
+        let bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
+        let plugin_bindings: Vec<&ProjectBinding> = bindings.iter()
+            .filter(|b| b.plugin_id == plugin_id)
+            .collect();
 
-    let projects: Vec<Project> = storage.load_or_default("projects.json");
-    for binding in &plugin_bindings {
-        if let Some(project) = projects.iter().find(|p| p.project_id == binding.project_id) {
-            let plugin_path = Path::new(&project.path).join(&binding.mount_path);
-            if plugin_path.exists() {
-                let metadata = std::fs::symlink_metadata(&plugin_path);
-                let is_link = metadata.as_ref().map(|m| m.file_type().is_symlink()).unwrap_or(false);
-                let is_junction = {
-                    #[cfg(windows)]
-                    {
-                        use std::os::windows::fs::MetadataExt;
-                        metadata.as_ref().map(|m| m.file_attributes() & 0x400 != 0).unwrap_or(false)
+        let projects: Vec<Project> = storage.load_or_default("projects.json");
+        for binding in &plugin_bindings {
+            if let Some(project) = projects.iter().find(|p| p.project_id == binding.project_id) {
+                let plugin_path = Path::new(&project.path).join(&binding.mount_path);
+                if plugin_path.exists() {
+                    let metadata = std::fs::symlink_metadata(&plugin_path);
+                    let is_link = metadata.as_ref().map(|m| m.file_type().is_symlink()).unwrap_or(false);
+                    let is_junction = {
+                        #[cfg(windows)]
+                        {
+                            use std::os::windows::fs::MetadataExt;
+                            metadata.as_ref().map(|m| m.file_attributes() & 0x400 != 0).unwrap_or(false)
+                        }
+                        #[cfg(not(windows))]
+                        {
+                            false
+                        }
+                    };
+
+                    if is_link || is_junction {
+                        let _ = std::fs::remove_dir(&plugin_path);
+                    } else if plugin_path.is_dir() && plugin_path.join(".harbor-managed").exists() {
+                        let _ = std::fs::remove_dir_all(&plugin_path);
                     }
-                    #[cfg(not(windows))]
-                    {
-                        false
-                    }
-                };
-
-                if is_link || is_junction {
-                    let _ = std::fs::remove_dir(&plugin_path);
-                } else if plugin_path.is_dir() && plugin_path.join(".harbor-managed").exists() {
-                    let _ = std::fs::remove_dir_all(&plugin_path);
                 }
             }
         }
-    }
 
-    let plugin_dir = get_data_dir(&app).join("plugins").join(&plugin_id);
-    if plugin_dir.exists() {
-        fs::remove_dir_all(&plugin_dir)
-            .map_err(|e| format!("删除插件文件失败: {}", e))?;
-    }
+        let plugin_dir = get_data_dir(&app_clone).join("plugins").join(&plugin_id);
+        if plugin_dir.exists() {
+            fs::remove_dir_all(&plugin_dir)
+                .map_err(|e| format!("删除插件文件失败: {}", e))?;
+        }
 
-    let mut bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
-    bindings.retain(|b| b.plugin_id != plugin_id);
-    storage.save("bindings.json", &bindings)
-        .map_err(|e| format!("保存绑定关系失败: {}", e))?;
+        let mut bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
+        bindings.retain(|b| b.plugin_id != plugin_id);
+        storage.save("bindings.json", &bindings)
+            .map_err(|e| format!("保存绑定关系失败: {}", e))?;
 
-    plugins.retain(|p| p.plugin_id != plugin_id);
+        plugins.retain(|p| p.plugin_id != plugin_id);
 
-    storage.save("plugins.json", &plugins)
-        .map_err(|e| format!("保存插件列表失败: {}", e))?;
+        storage.save("plugins.json", &plugins)
+            .map_err(|e| format!("保存插件列表失败: {}", e))?;
 
-    log_operation(&app, "remove_plugin", &plugin_id, &format!("已删除插件: {}", plugin_name));
-    Ok(())
+        log_operation(&app_clone, "remove_plugin", &plugin_id, &format!("已删除插件: {}", plugin_name));
+        Ok(())
+    }).await.map_err(|e| format!("任务执行失败: {}", e))?
 }
 
 #[tauri::command]
@@ -298,87 +312,90 @@ pub fn unbind_plugin(app: AppHandle, project_id: String, plugin_id: String) -> R
 }
 
 #[tauri::command]
-pub fn apply_changes(app: AppHandle, project_id: String) -> Result<ApplyResult, String> {
-    let storage = get_storage(&app);
+pub async fn apply_changes(app: AppHandle, project_id: String) -> Result<ApplyResult, String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let storage = get_storage(&app_clone);
 
-    let projects: Vec<Project> = storage.load_or_default("projects.json");
-    let project = projects.iter()
-        .find(|p| p.project_id == project_id)
-        .ok_or_else(|| {
-            log_error(&app, "apply_changes", &project_id, "未找到指定项目");
-            "未找到指定项目".to_string()
-        })?;
+        let projects: Vec<Project> = storage.load_or_default("projects.json");
+        let project = projects.iter()
+            .find(|p| p.project_id == project_id)
+            .ok_or_else(|| {
+                log_error(&app_clone, "apply_changes", &project_id, "未找到指定项目");
+                "未找到指定项目".to_string()
+            })?;
 
-    let bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
-    let desired_bindings: Vec<ProjectBinding> = bindings.iter()
-        .filter(|b| b.project_id == project_id)
-        .cloned()
-        .collect();
+        let bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
+        let desired_bindings: Vec<ProjectBinding> = bindings.iter()
+            .filter(|b| b.project_id == project_id)
+            .cloned()
+            .collect();
 
-    if desired_bindings.is_empty() {
-        let result = ApplyResult {
-            success: true,
-            created: vec![],
-            removed: vec![],
-            errors: vec![],
-        };
-        log_operation(&app, "apply_changes", &project_id, "无绑定，跳过应用");
-        return Ok(result);
-    }
+        if desired_bindings.is_empty() {
+            let result = ApplyResult {
+                success: true,
+                created: vec![],
+                removed: vec![],
+                errors: vec![],
+            };
+            log_operation(&app_clone, "apply_changes", &project_id, "无绑定，跳过应用");
+            return Ok(result);
+        }
 
-    let settings = load_settings(&app);
-    let linker = Linker::new(settings.mount_strategy);
+        let settings = load_settings(&app_clone);
+        let linker = Linker::new(settings.mount_strategy);
 
-    let data_dir = get_data_dir(&app);
-    let plugin_base_path = data_dir.join("plugins");
+        let data_dir = get_data_dir(&app_clone);
+        let plugin_base_path = data_dir.join("plugins");
 
-    let addons_dir = std::path::Path::new(&project.path).join("addons");
-    if addons_dir.exists() {
-        let backup_dir = data_dir.join("backups").join(&project.name);
-        if let Err(e) = std::fs::create_dir_all(&backup_dir) {
-            eprintln!("Failed to create backup dir: {}", e);
-        } else {
-            let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
-            let backup_file = backup_dir.join(format!("addons_backup_{}.zip", timestamp));
-            if let Err(e) = backup_addons_dir(&addons_dir, &backup_file) {
-                eprintln!("Failed to backup addons: {}", e);
+        let addons_dir = std::path::Path::new(&project.path).join("addons");
+        if addons_dir.exists() {
+            let backup_dir = data_dir.join("backups").join(&project.name);
+            if let Err(e) = std::fs::create_dir_all(&backup_dir) {
+                eprintln!("Failed to create backup dir: {}", e);
             } else {
-                cleanup_old_backups(&backup_dir, 5);
+                let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+                let backup_file = backup_dir.join(format!("addons_backup_{}.zip", timestamp));
+                if let Err(e) = backup_addons_dir(&addons_dir, &backup_file) {
+                    eprintln!("Failed to backup addons: {}", e);
+                } else {
+                    cleanup_old_backups(&backup_dir, 5);
+                }
             }
         }
-    }
 
-    let applied_dir = data_dir.join("applied_bindings");
-    let applied_file = applied_dir.join(format!("{}.json", project_id));
-    let current_bindings: Vec<ProjectBinding> = if applied_file.exists() {
-        let applied_storage = Storage::new(applied_dir.clone());
-        applied_storage.load_or_default::<Vec<ProjectBinding>>(&format!("{}.json", project_id))
-    } else {
-        Vec::new()
-    };
+        let applied_dir = data_dir.join("applied_bindings");
+        let applied_file = applied_dir.join(format!("{}.json", project_id));
+        let current_bindings: Vec<ProjectBinding> = if applied_file.exists() {
+            let applied_storage = Storage::new(applied_dir.clone());
+            applied_storage.load_or_default::<Vec<ProjectBinding>>(&format!("{}.json", project_id))
+        } else {
+            Vec::new()
+        };
 
-    let result = linker.apply_bindings(
-        &project.path,
-        &current_bindings,
-        &desired_bindings,
-        &plugin_base_path.to_string_lossy()
-    ).map_err(|e| format!("应用变更失败: {}", e))?;
+        let result = linker.apply_bindings(
+            &project.path,
+            &current_bindings,
+            &desired_bindings,
+            &plugin_base_path.to_string_lossy()
+        ).map_err(|e| format!("应用变更失败: {}", e))?;
 
-    if result.success {
-        if let Err(e) = std::fs::create_dir_all(&applied_dir) {
-            eprintln!("Failed to create applied_bindings dir: {}", e);
+        if result.success {
+            if let Err(e) = std::fs::create_dir_all(&applied_dir) {
+                eprintln!("Failed to create applied_bindings dir: {}", e);
+            }
+            let applied_storage = Storage::new(applied_dir);
+            if let Err(e) = applied_storage.save(&format!("{}.json", project_id), &desired_bindings) {
+                eprintln!("Failed to save applied bindings: {}", e);
+            }
         }
-        let applied_storage = Storage::new(applied_dir);
-        if let Err(e) = applied_storage.save(&format!("{}.json", project_id), &desired_bindings) {
-            eprintln!("Failed to save applied bindings: {}", e);
-        }
-    }
 
-    log_operation(&app, "apply_changes", &project_id,
-        &format!("应用变更完成: 创建 {} 项, 移除 {} 项, 错误 {} 项",
-            result.created.len(), result.removed.len(), result.errors.len()));
+        log_operation(&app_clone, "apply_changes", &project_id,
+            &format!("应用变更完成: 创建 {} 项, 移除 {} 项, 错误 {} 项",
+                result.created.len(), result.removed.len(), result.errors.len()));
 
-    Ok(result)
+        Ok(result)
+    }).await.map_err(|e| format!("任务执行失败: {}", e))?
 }
 
 

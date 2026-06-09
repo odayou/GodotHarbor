@@ -392,56 +392,59 @@ pub struct MovedProjectCandidate {
 }
 
 #[tauri::command]
-pub fn detect_moved_projects(app: AppHandle) -> Result<Vec<MovedProjectCandidate>, String> {
-    let storage = get_storage(&app);
-    let projects: Vec<Project> = storage.load_or_default("projects.json");
+pub async fn detect_moved_projects(app: AppHandle) -> Result<Vec<MovedProjectCandidate>, String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let storage = get_storage(&app_clone);
+        let projects: Vec<Project> = storage.load_or_default("projects.json");
 
-    let missing_projects: Vec<&Project> = projects.iter()
-        .filter(|p| !std::path::Path::new(&p.path).exists())
-        .collect();
+        let missing_projects: Vec<&Project> = projects.iter()
+            .filter(|p| !std::path::Path::new(&p.path).exists())
+            .collect();
 
-    if missing_projects.is_empty() {
-        return Ok(Vec::new());
-    }
+        if missing_projects.is_empty() {
+            return Ok(Vec::new());
+        }
 
-    let settings = load_settings(&app);
-    let scan_dirs = if settings.scan_directories.is_empty() {
-        get_default_scan_dirs()
-    } else {
-        settings.scan_directories
-    };
+        let settings = load_settings(&app_clone);
+        let scan_dirs = if settings.scan_directories.is_empty() {
+            get_default_scan_dirs()
+        } else {
+            settings.scan_directories
+        };
 
-    let mut all_scanned = Vec::new();
-    for dir in &scan_dirs {
-        if std::path::Path::new(dir).exists() {
-            if let Ok(scanned) = ProjectScanner::scan_directory(dir) {
-                all_scanned.extend(scanned);
+        let mut all_scanned = Vec::new();
+        for dir in &scan_dirs {
+            if std::path::Path::new(dir).exists() {
+                if let Ok(scanned) = ProjectScanner::scan_directory(dir) {
+                    all_scanned.extend(scanned);
+                }
             }
         }
-    }
 
-    let existing_paths: Vec<String> = projects.iter().map(|p| p.path.clone()).collect();
-    let new_projects: Vec<&Project> = all_scanned.iter()
-        .filter(|p| !existing_paths.contains(&p.path))
-        .collect();
+        let existing_paths: Vec<String> = projects.iter().map(|p| p.path.clone()).collect();
+        let new_projects: Vec<&Project> = all_scanned.iter()
+            .filter(|p| !existing_paths.contains(&p.path))
+            .collect();
 
-    let mut candidates = Vec::new();
+        let mut candidates = Vec::new();
 
-    for missing in &missing_projects {
-        for new_proj in &new_projects {
-            if missing.name == new_proj.name {
-                candidates.push(MovedProjectCandidate {
-                    project_id: missing.project_id.clone(),
-                    old_path: missing.path.clone(),
-                    old_name: missing.name.clone(),
-                    new_path: new_proj.path.clone(),
-                    new_name: new_proj.name.clone(),
-                });
+        for missing in &missing_projects {
+            for new_proj in &new_projects {
+                if missing.name == new_proj.name {
+                    candidates.push(MovedProjectCandidate {
+                        project_id: missing.project_id.clone(),
+                        old_path: missing.path.clone(),
+                        old_name: missing.name.clone(),
+                        new_path: new_proj.path.clone(),
+                        new_name: new_proj.name.clone(),
+                    });
+                }
             }
         }
-    }
 
-    Ok(candidates)
+        Ok(candidates)
+    }).await.map_err(|e| format!("任务执行失败: {}", e))?
 }
 
 #[tauri::command]
@@ -450,48 +453,51 @@ pub fn confirm_project_relocation(app: AppHandle, project_id: String, new_path: 
 }
 
 #[tauri::command]
-pub fn sync_projects(app: AppHandle) -> Result<Vec<Project>, String> {
-    let storage = get_storage(&app);
-    let mut projects: Vec<Project> = storage.load_or_default("projects.json");
-    let now = chrono::Utc::now();
-    let mut synced_count = 0;
+pub async fn sync_projects(app: AppHandle) -> Result<Vec<Project>, String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let storage = get_storage(&app_clone);
+        let mut projects: Vec<Project> = storage.load_or_default("projects.json");
+        let now = chrono::Utc::now();
+        let mut synced_count = 0;
 
-    for project in projects.iter_mut() {
-        let project_path = std::path::Path::new(&project.path);
-        let project_godot = project_path.join("project.godot");
+        for project in projects.iter_mut() {
+            let project_path = std::path::Path::new(&project.path);
+            let project_godot = project_path.join("project.godot");
 
-        if !project_path.exists() || !project_godot.exists() {
-            project.status = ProjectStatus::MissingSource;
-            project.last_synced_at = Some(now);
-            synced_count += 1;
-            continue;
-        }
-
-        match ProjectScanner::parse_project(&project_godot) {
-            Ok(scanned) => {
-                project.name = scanned.name;
-                project.godot_version = scanned.godot_version;
-                project.icon_path = scanned.icon_path;
-                project.status = scanned.status;
-                project.updated_at = now;
+            if !project_path.exists() || !project_godot.exists() {
+                project.status = ProjectStatus::MissingSource;
                 project.last_synced_at = Some(now);
                 synced_count += 1;
+                continue;
             }
-            Err(_) => {
-                project.status = ProjectStatus::Warning;
-                project.last_synced_at = Some(now);
-                synced_count += 1;
+
+            match ProjectScanner::parse_project(&project_godot) {
+                Ok(scanned) => {
+                    project.name = scanned.name;
+                    project.godot_version = scanned.godot_version;
+                    project.icon_path = scanned.icon_path;
+                    project.status = scanned.status;
+                    project.updated_at = now;
+                    project.last_synced_at = Some(now);
+                    synced_count += 1;
+                }
+                Err(_) => {
+                    project.status = ProjectStatus::Warning;
+                    project.last_synced_at = Some(now);
+                    synced_count += 1;
+                }
             }
         }
-    }
 
-    storage.save("projects.json", &projects)
-        .map_err(|e| format!("保存项目列表失败: {}", e))?;
+        storage.save("projects.json", &projects)
+            .map_err(|e| format!("保存项目列表失败: {}", e))?;
 
-    log_operation(&app, "sync_projects", "",
-        &format!("增量同步完成，共同步 {} 个项目", synced_count));
+        log_operation(&app_clone, "sync_projects", "",
+            &format!("增量同步完成，共同步 {} 个项目", synced_count));
 
-    Ok(projects)
+        Ok(projects)
+    }).await.map_err(|e| format!("任务执行失败: {}", e))?
 }
 
 

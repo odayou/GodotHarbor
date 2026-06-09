@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onActivated, onUnmounted, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
@@ -13,6 +13,7 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import ProjectSelector from '@/components/ProjectSelector.vue'
 
 const mcpExePath = ref('harbor-mcp-server')
+const mcpExeNotFound = ref(false)
 const mcpServerRunning = ref(false)
 const mcpCapabilities = ref<{ tools: any[]; tools_count: number; resources: any[]; resources_count: number; prompts: any[]; prompts_count: number } | null>(null)
 const mcpExpandedSection = ref<'tools' | 'resources' | 'prompts' | null>(null)
@@ -21,7 +22,10 @@ const mcpSelectedClient = ref('claude')
 async function resolveMcpExePath() {
   try {
     mcpExePath.value = await api.getMcpServerPath()
-  } catch { /* fallback to default */ }
+    mcpExeNotFound.value = false
+  } catch {
+    mcpExeNotFound.value = true
+  }
 }
 
 async function loadMcpCapabilities() {
@@ -40,6 +44,7 @@ const builtinPresets = ref<BuiltinExportPreset[]>([])
 const buildRecords = ref<BuildRecord[]>([])
 const projects = ref<Project[]>([])
 const isLoading = ref(false)
+const isRefreshing = ref(false)
 const downloadingVersion = ref<string | null>(null)
 const building = ref(false)
 const selectedProjectId = ref('')
@@ -47,13 +52,19 @@ const selectedPlatform = ref<ExportPlatform>('Windows')
 const deleteTarget = ref<{ version: string; mono: boolean } | null>(null)
 
 const ciProvider = ref<'github-actions' | 'gitlab-ci'>('github-actions')
+watch(ciProvider, () => { generatedConfig.value = '' })
 const ciPlatforms = ref<string[]>(['windows', 'web'])
 const ciGodotVersion = ref('')
+const isValidGodotVersion = computed(() => {
+  const v = ciGodotVersion.value.trim()
+  return /^\d+\.\d+(\.\d+)?/.test(v)
+})
 const ciProjectId = ref('')
 const generatedConfig = ref('')
 const presetProjectId = ref('')
 
 watch(ciProjectId, async (newId) => {
+  generatedConfig.value = ''
   if (!newId) return
   try {
     const config = await api.readHarborConfig(newId)
@@ -120,7 +131,26 @@ let unlistenProgress: UnlistenFn | null = null
 let unlistenDownloadProgress: UnlistenFn | null = null
 let mcpPollTimer: ReturnType<typeof setInterval> | null = null
 
-async function loadData() {
+async function loadData(force = false) {
+  const hasData = exportTemplates.value.length > 0 || buildRecords.value.length > 0
+  if (hasData && !force) {
+    isRefreshing.value = true
+    try {
+      const [templates, records, projs] = await Promise.all([
+        api.listExportTemplates(),
+        api.getBuildRecords(),
+        api.getProjects(),
+      ])
+      exportTemplates.value = templates
+      buildRecords.value = records
+      projects.value = projs
+    } catch (e) {
+      toast.error(e)
+    } finally {
+      isRefreshing.value = false
+    }
+    return
+  }
   isLoading.value = true
   try {
     const [templates, presets, records, projs] = await Promise.all([
@@ -235,6 +265,16 @@ async function startBuild() {
     toast.error(t('build.selectProject'))
     return
   }
+  const proj = projects.value.find(p => p.project_id === selectedProjectId.value)
+  if (proj?.godot_version) {
+    const templateInstalled = exportTemplates.value.some(
+      t => t.version === proj.godot_version && t.installed
+    )
+    if (!templateInstalled) {
+      toast.error(t('build.templateNotInstalled') || `导出模板未安装: Godot ${proj.godot_version}，请先在"导出模板"页下载`)
+      return
+    }
+  }
   building.value = true
   try {
     const record = await api.buildProject(selectedProjectId.value, selectedPlatform.value)
@@ -263,6 +303,7 @@ async function generateCi() {
     toast.error(t('build.selectProject'))
     return
   }
+  generatingCi.value = true
   try {
     let config: string
     if (ciProvider.value === 'github-actions') {
@@ -274,25 +315,42 @@ async function generateCi() {
     toast.success(t('build.configGenerated'))
   } catch (e) {
     toast.error(e)
+  } finally {
+    generatingCi.value = false
   }
 }
 
 async function writeCiConfig() {
   if (!ciProjectId.value || !generatedConfig.value) return
+  showWriteCiConfirm.value = true
+}
+
+async function confirmWriteCiConfig() {
+  writingCi.value = true
   try {
-    await api.writeCiConfig(ciProjectId.value, ciProvider.value, generatedConfig.value)
+    await api.writeCiConfig(ciProjectId.value!, ciProvider.value, generatedConfig.value!)
     toast.success(t('build.configWritten'))
   } catch (e) {
     toast.error(e)
+  } finally {
+    writingCi.value = false
   }
 }
 
 async function removeBuildRecord(buildId: string) {
+  pendingDeleteRecordId.value = buildId
+  showDeleteRecordConfirm.value = true
+}
+
+async function confirmDeleteRecord() {
+  if (!pendingDeleteRecordId.value) return
   try {
-    await api.deleteBuildRecord(buildId)
-    buildRecords.value = buildRecords.value.filter(r => r.build_id !== buildId)
+    await api.deleteBuildRecord(pendingDeleteRecordId.value)
+    buildRecords.value = buildRecords.value.filter(r => r.build_id !== pendingDeleteRecordId.value)
   } catch (e) {
     toast.error(e)
+  } finally {
+    pendingDeleteRecordId.value = null
   }
 }
 
@@ -321,16 +379,21 @@ const uniqueBuildProjects = computed(() => {
 
 const showClearRecordsConfirm = ref(false)
 const showDeleteTemplatesConfirm = ref(false)
+const showWriteCiConfirm = ref(false)
+const showDeleteRecordConfirm = ref(false)
+const pendingDeleteRecordId = ref<string | null>(null)
+const generatingCi = ref(false)
+const writingCi = ref(false)
 
 async function clearAllBuildRecords() {
   if (buildRecords.value.length === 0) return
-  for (const r of buildRecords.value) {
-    try {
-      await api.deleteBuildRecord(r.build_id)
-    } catch { /* continue */ }
+  try {
+    await api.clearAllBuildRecords()
+    buildRecords.value = []
+    toast.success(t('build.allRecordsCleared') || '构建记录已全部清除')
+  } catch (e) {
+    toast.error(e)
   }
-  buildRecords.value = []
-  toast.success(t('build.allRecordsCleared') || '构建记录已全部清除')
 }
 
 async function downloadAllMissing() {
@@ -417,6 +480,8 @@ onMounted(async () => {
     downloadProgress.value = event.payload
     if (event.payload.stage === 'complete') {
       setTimeout(() => { downloadProgress.value = null; loadData() }, 1500)
+    } else if (event.payload.stage === 'failed') {
+      setTimeout(() => { downloadProgress.value = null; loadData() }, 3000)
     }
   })
   // 轮询 MCP 服务器状态
@@ -427,10 +492,6 @@ onMounted(async () => {
   }
   await syncMcpState()
   mcpPollTimer = setInterval(syncMcpState, 5000)
-})
-
-onActivated(() => {
-  loadData()
 })
 
 onUnmounted(() => {
@@ -656,10 +717,9 @@ onUnmounted(() => {
             <div class="flex-1 min-w-0">
               <div class="flex items-center justify-between">
                 <p class="text-sm font-medium text-primary-800 dark:text-primary-300">{{ buildProgress.message }}</p>
-                <span v-if="buildProgress.stage !== 'complete' && buildProgress.stage !== 'failed'" class="text-xs font-medium text-primary-600 dark:text-primary-400 ml-2">{{ Math.round(buildProgress.progress * 100) }}%</span>
               </div>
-              <div v-if="buildProgress.stage !== 'complete' && buildProgress.stage !== 'failed'" class="mt-2 w-full bg-primary-200 dark:bg-primary-800 rounded-full h-1.5">
-                <div class="bg-primary-600 h-1.5 rounded-full transition-all" :style="{ width: (buildProgress.progress * 100) + '%' }"></div>
+              <div v-if="buildProgress.stage !== 'complete' && buildProgress.stage !== 'failed'" class="mt-2 w-full bg-primary-200 dark:bg-primary-800 rounded-full h-1.5 overflow-hidden">
+                <div class="bg-primary-600 h-1.5 rounded-full animate-indeterminate-progress"></div>
               </div>
             </div>
           </div>
@@ -759,8 +819,10 @@ onUnmounted(() => {
               v-model="ciGodotVersion"
               type="text"
               class="w-full max-w-xs px-3 py-2 bg-white dark:bg-surface-layer border border-gray-300 dark:border-surface-border rounded-lg text-sm text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none"
+              :class="{ 'border-red-400 dark:border-red-500': ciGodotVersion && !isValidGodotVersion }"
               placeholder="4.4.1"
             />
+            <p v-if="ciGodotVersion && !isValidGodotVersion" class="mt-1 text-xs text-red-500">{{ t('build.invalidVersion') || '版本号格式不正确，如 4.4.1' }}</p>
           </div>
           <div class="mb-4">
             <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-2">{{ t('build.selectPlatforms') }}</label>
@@ -781,10 +843,10 @@ onUnmounted(() => {
           <div class="flex gap-2">
             <button
               class="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors disabled:opacity-50"
-              :disabled="!ciProjectId || ciPlatforms.length === 0"
+              :disabled="!ciProjectId || ciPlatforms.length === 0 || !isValidGodotVersion || generatingCi"
               @click="generateCi"
             >
-              {{ t('build.generate') }}
+              {{ generatingCi ? t('build.generating') || '生成中...' : t('build.generate') }}
             </button>
           </div>
         </div>
@@ -794,14 +856,27 @@ onUnmounted(() => {
             <h3 class="text-sm font-medium text-gray-700 dark:text-content-secondary">
               {{ ciProvider === 'github-actions' ? '.github/workflows/build.yml' : '.gitlab-ci.yml' }}
             </h3>
-            <button
-              class="px-3 py-1.5 text-sm font-medium text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/30 rounded-lg transition-colors"
-              @click="writeCiConfig"
-            >
-              {{ t('build.writeConfig') }}
-            </button>
+            <div class="flex items-center gap-2">
+              <button
+                class="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 dark:bg-surface-layer dark:text-content-secondary dark:hover:bg-surface-hover rounded-lg transition-colors"
+                @click="copyToClipboard(generatedConfig).then(ok => ok ? toast.success(t('mcp.configCopied')) : toast.error('Failed'))"
+              >
+                {{ t('build.copyConfig') || '复制' }}
+              </button>
+              <button
+                class="px-3 py-1.5 text-sm font-medium text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/30 rounded-lg transition-colors disabled:opacity-50"
+                :disabled="writingCi"
+                @click="writeCiConfig"
+              >
+                {{ writingCi ? t('build.writing') || '写入中...' : t('build.writeConfig') }}
+              </button>
+            </div>
           </div>
-          <pre class="bg-gray-50 dark:bg-surface-layer rounded-lg p-4 text-xs text-gray-800 dark:text-content-secondary overflow-x-auto max-h-96 overflow-y-auto">{{ generatedConfig }}</pre>
+          <textarea
+            v-model="generatedConfig"
+            class="w-full bg-gray-50 dark:bg-surface-layer rounded-lg p-4 text-xs text-gray-800 dark:text-content-secondary font-mono resize-y min-h-[200px] max-h-96 focus:ring-2 focus:ring-primary-500 outline-none"
+            spellcheck="false"
+          ></textarea>
         </div>
       </div>
 
@@ -837,6 +912,10 @@ onUnmounted(() => {
 
           <div class="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg mb-4">
             <p class="text-xs text-amber-700 dark:text-amber-300">{{ t('mcp.standaloneHint') || 'MCP Server 通过 stdio 协议通信，需要由 AI 编程工具（如 Claude Desktop、Cursor）独立启动。上方的启动/停止按钮仅供内部测试使用。' }}</p>
+          </div>
+
+          <div v-if="mcpExeNotFound" class="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg mb-4">
+            <p class="text-xs text-red-700 dark:text-red-300">{{ t('mcp.exeNotFound') || 'MCP Server 可执行文件未找到，请先构建项目或检查安装路径。' }}</p>
           </div>
 
           <div class="flex items-center gap-2 mb-3">
@@ -1009,4 +1088,33 @@ onUnmounted(() => {
     confirm-color="red"
     @confirm="deleteAllInstalled"
   />
+
+  <ConfirmDialog
+    v-model="showWriteCiConfirm"
+    :title="t('build.confirmWriteCiTitle') || '写入 CI 配置'"
+    :description="t('build.confirmWriteCiDesc') || '将覆盖项目中已有的 CI 配置文件，确定要继续吗？'"
+    :confirm-text="t('common.confirm') || '确认'"
+    confirm-color="green"
+    @confirm="confirmWriteCiConfig"
+  />
+
+  <ConfirmDialog
+    v-model="showDeleteRecordConfirm"
+    :title="t('build.deleteRecord') || '删除记录'"
+    :description="t('build.deleteRecordConfirm') || '确定要删除这条构建记录吗？'"
+    :confirm-text="t('build.delete') || '删除'"
+    confirm-color="red"
+    @confirm="confirmDeleteRecord"
+  />
 </template>
+
+<style scoped>
+@keyframes indeterminate-progress {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+.animate-indeterminate-progress {
+  animation: indeterminate-progress 1.5s ease-in-out infinite;
+  width: 25%;
+}
+</style>

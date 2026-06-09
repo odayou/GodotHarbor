@@ -227,7 +227,7 @@ pub async fn apply_template_to_project(app: AppHandle, project_id: String, templ
     std::fs::write(data_dir.join("bindings.json"), json)
         .map_err(|e| format!("保存绑定文件失败: {}", e))?;
 
-    super::plugin::apply_changes(app, project_id)
+    super::plugin::apply_changes(app, project_id).await
 }
 
 

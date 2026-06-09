@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onActivated, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/api'
@@ -16,6 +16,7 @@ import { useAssetLibrary } from '@/composables/useAssetLibrary'
 import { isOnline } from '@/composables/useNetworkStatus'
 import { usePluginStore, useSettingsStore } from '@/stores'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import ErrorState from '@/components/ErrorState.vue'
 import AssetLibraryTab from '@/components/AssetLibraryTab.vue'
 
 const pluginStore = usePluginStore()
@@ -57,6 +58,8 @@ const doRestoreAddonBackup = async (backupFile: string) => {
 }
 
 const isLoading = ref(false)
+const isRefreshing = ref(false)
+const loadError = ref<string | null>(null)
 const hasLoaded = ref(false)
 let unlistenAutoSetup: UnlistenFn | null = null
 const remoteUrl = ref('')
@@ -161,6 +164,7 @@ const showRollbackDialog = ref(false)
 const isRestoringAddon = ref(false)
 
 const showHarborConfigDialog = ref(false)
+const showDeleteConfigConfirm = ref(false)
 const isExportingConfig = ref(false)
 const exportSkippedLocal = ref<string[]>([])
 const isSyncingConfig = ref(false)
@@ -259,15 +263,24 @@ const {
 
 const loadPlugins = async (force = false) => {
   if (!force && hasLoaded.value && pluginStore.plugins.length > 0) {
+    isRefreshing.value = true
+    try {
+      await pluginStore.loadPlugins()
+      loadPluginBindingCounts().catch(() => {})
+    } catch (error) {
+      loadError.value = String(error)
+    } finally {
+      isRefreshing.value = false
+    }
     return
   }
   isLoading.value = true
+  loadError.value = null
   try {
     await pluginStore.loadPlugins()
-    // 非关键数据：不阻塞渲染
     loadPluginBindingCounts().catch(() => {})
   } catch (error) {
-    toast.error(t('common.loadFailed', { error }))
+    loadError.value = String(error)
   } finally {
     isLoading.value = false
     hasLoaded.value = true
@@ -327,18 +340,29 @@ const handleDrop = async (e: DragEvent) => {
   const files = e.dataTransfer?.files
   if (!files || files.length === 0) return
 
-  const file = files[0]
-  const path = (file as any).path as string | undefined
-  if (!path) return
+  const paths: string[] = []
+  for (let i = 0; i < files.length; i++) {
+    const path = (files[i] as any).path as string | undefined
+    if (path) paths.push(path)
+  }
+  if (paths.length === 0) return
 
   isLoading.value = true
   try {
-    const result = await api.importPluginFromLocal(path)
-    toast.success(t('plugins.importPluginSuccess', { name: result.name }))
-    await loadPlugins(true)
-    showPostImportGuide(result.name, result)
-  } catch (error) {
-    toast.error(t('common.loadFailed', { error: String(error) }))
+    let imported = 0
+    for (const path of paths) {
+      try {
+        const result = await api.importPluginFromLocal(path)
+        imported++
+        if (imported === 1) showPostImportGuide(result.name, result)
+      } catch (error) {
+        toast.error(t('common.loadFailed', { error: String(error) }))
+      }
+    }
+    if (imported > 0) {
+      toast.success(t('plugins.importPluginSuccess', { name: `${imported}` }))
+      await loadPlugins(true)
+    }
   } finally {
     isLoading.value = false
   }
@@ -514,11 +538,6 @@ onMounted(async () => {
     showImportModeDialog.value = true
     router.replace({ path: '/plugins' })
   }
-})
-
-onActivated(() => {
-  loadPlugins()
-  loadTotalStorageStats()
 })
 
 onUnmounted(() => {
@@ -1086,10 +1105,14 @@ const exportHarborConfig = async () => {
 
 const deleteHarborConfig = async () => {
   if (!selectedLinkId.value) return
-  if (!confirm(t('linker.deleteConfigConfirm'))) return
+  showDeleteConfigConfirm.value = true
+}
+
+const onConfirmDeleteConfig = async () => {
+  if (!selectedLinkId.value) return
   try {
     await api.deleteHarborConfig(selectedLinkId.value)
-    harborConfigStatus.value.set(selectedLinkId.value, false)
+    harborConfigStatus.value.set(selectedLinkId.value!, false)
     harborConfigStatus.value = new Map(harborConfigStatus.value)
     showHarborConfigDialog.value = false
     harborConfigContent.value = null
@@ -1951,6 +1974,14 @@ const retryBatchFailed = async () => {
       <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
     </div>
 
+    <ErrorState
+      v-else-if="loadError"
+      :title="t('common.loadFailed', { error: '' })"
+      :description="loadError"
+      :retryLabel="t('common.retry')"
+      @retry="loadPlugins(true)"
+    />
+
     <div v-else-if="isAutoSetupRunning && filteredPlugins.length === 0 && plugins.length === 0" class="text-center py-16">
       <div class="animate-spin rounded-full h-10 w-10 border-2 border-primary-600 border-t-transparent mx-auto"></div>
       <h3 class="mt-4 text-sm font-medium text-gray-900 dark:text-content-primary">{{ autoSetupMessage }}</h3>
@@ -2073,6 +2104,7 @@ const retryBatchFailed = async () => {
       </svg>
       <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-content-primary">{{ t('plugins.searchNoResult') }}</h3>
       <p class="mt-1 text-sm text-gray-500 dark:text-content-muted">{{ t('plugins.emptyDesc') }}</p>
+      <button @click="searchQuery = ''" class="mt-3 text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400">{{ t('common.clearSearch') }}</button>
     </div>
 
     <div v-else class="space-y-4">
@@ -2890,6 +2922,15 @@ const retryBatchFailed = async () => {
       :confirm-text="t('common.confirmDelete')"
       confirm-color="red"
       @confirm="onVersionDeleteConfirm"
+    />
+
+    <ConfirmDialog
+      v-model="showDeleteConfigConfirm"
+      :title="t('linker.deleteConfig')"
+      :description="t('linker.deleteConfigConfirm')"
+      :confirm-text="t('common.confirmDelete')"
+      confirm-color="red"
+      @confirm="onConfirmDeleteConfig"
     />
 
   </Teleport>

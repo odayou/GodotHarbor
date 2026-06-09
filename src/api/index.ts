@@ -621,6 +621,10 @@ export const api = {
     return await invoke('delete_build_record', { buildId })
   },
 
+  async clearAllBuildRecords(): Promise<void> {
+    return await invoke('clear_all_build_records')
+  },
+
   async generateGithubActions(projectId: string, platforms: string[], godotVersion: string): Promise<string> {
     return await invoke('generate_github_actions', { projectId, platforms, godotVersion })
   },

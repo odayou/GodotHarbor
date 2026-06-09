@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onActivated, computed, onUnmounted } from 'vue'
+import { ref, onMounted, computed, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
 import type { Template, TemplateCategory, TemplateInstantiationProgress, Project } from '@/types'
@@ -34,6 +34,7 @@ const { openInFileManager } = useFileManager()
 
 const templates = ref<Template[]>([])
 const isLoading = ref(true)
+const isRefreshing = ref(false)
 const loadError = ref<string | null>(null)
 const categoryFilter = ref<TemplateCategory | 'all'>('all')
 const searchQuery = ref('')
@@ -72,6 +73,17 @@ const validateProjectName = () => {
     projectNameError.value = ''
   }
 }
+
+const isValidImportUrl = computed(() => {
+  const url = importUrl.value.trim()
+  if (!url) return false
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+})
 
 const showImportDialog = ref(false)
 const importUrl = ref('')
@@ -122,17 +134,27 @@ onMounted(async () => {
   })
 })
 
-onActivated(() => {
-  loadTemplates()
-})
-
 onUnmounted(() => {
   if (unlistenProgress) {
     unlistenProgress()
   }
 })
 
-const loadTemplates = async () => {
+const loadTemplates = async (force = false) => {
+  const hasData = templates.value.length > 0
+  if (hasData && !force) {
+    isRefreshing.value = true
+    loadError.value = null
+    try {
+      await api.ensureBuiltinTemplates()
+      templates.value = await api.listHubTemplates()
+    } catch (e: any) {
+      loadError.value = e?.toString() || 'Failed to load templates'
+    } finally {
+      isRefreshing.value = false
+    }
+    return
+  }
   isLoading.value = true
   loadError.value = null
   try {
@@ -292,6 +314,11 @@ const handleDelete = async () => {
 
 const handleGenerateFromProject = async () => {
   if (!generateProjectId.value || !generateTemplateName.value.trim()) return
+  const nameExists = templates.value.some(t => t.name === generateTemplateName.value.trim())
+  if (nameExists) {
+    toast.error(t('templates.nameExists') || '同名模板已存在，请使用其他名称')
+    return
+  }
   isGenerating.value = true
   try {
     // 前端使用 PascalCase 分类名，后端期望 snake_case
@@ -390,7 +417,7 @@ const progressPercent = computed(() => {
         <p class="text-red-500 text-sm mb-2">{{ loadError }}</p>
         <button
           class="px-4 py-2 text-sm font-medium text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/20 dark:text-primary-400 dark:hover:bg-primary-900/30 rounded-lg transition-colors"
-          @click="loadTemplates"
+          @click="loadTemplates(true)"
         >
           {{ t('common.retry') || '重试' }}
         </button>
@@ -544,18 +571,6 @@ const progressPercent = computed(() => {
                   </div>
                 </div>
               </div>
-              <div class="flex items-center gap-2">
-                <input
-                  id="mobile-support"
-                  v-model="enableMobileSupport"
-                  type="checkbox"
-                  :disabled="isCreating"
-                  class="w-4 h-4 rounded border-gray-300 dark:border-surface-border text-primary-600 focus:ring-primary-500"
-                />
-                <label for="mobile-support" class="text-sm text-gray-700 dark:text-content-secondary cursor-pointer">
-                  {{ t('templates.enableMobileSupport') || '添加移动端支持（触摸控件 + 虚拟摇杆）' }}
-                </label>
-              </div>
             </div>
 
             <div v-if="selectedTemplate.directories.length > 0" class="mb-5">
@@ -644,6 +659,18 @@ const progressPercent = computed(() => {
                     ...
                   </button>
                 </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <input
+                  id="create-mobile-support"
+                  v-model="enableMobileSupport"
+                  type="checkbox"
+                  :disabled="isCreating"
+                  class="w-4 h-4 rounded border-gray-300 dark:border-surface-border text-primary-600 focus:ring-primary-500"
+                />
+                <label for="create-mobile-support" class="text-sm text-gray-700 dark:text-content-secondary cursor-pointer">
+                  {{ t('templates.enableMobileSupport') || '添加移动端支持（触摸控件 + 虚拟摇杆）' }}
+                </label>
               </div>
             </div>
 
@@ -739,7 +766,7 @@ const progressPercent = computed(() => {
               </button>
               <button
                 @click="handleImport"
-                :disabled="isImporting || !importUrl.trim() || !isOnline"
+                :disabled="isImporting || !isValidImportUrl || !isOnline"
                 class="flex-1 py-2.5 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
               >
                 {{ isImporting ? '...' : !isOnline ? (t('common.offlineImportTip') || '离线无法导入') : (t('common.import') || '导入') }}

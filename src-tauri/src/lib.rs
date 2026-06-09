@@ -496,6 +496,7 @@ pub fn run() {
             commands::build_project,
             commands::get_build_records,
             commands::delete_build_record,
+            commands::clear_all_build_records,
             commands::generate_github_actions,
             commands::generate_gitlab_ci,
             commands::write_ci_config,

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onActivated, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { api } from '@/api'
@@ -86,10 +86,6 @@ onMounted(async () => {
 })
 
 let unlistenProjectOpened: UnlistenFn | null = null
-
-onActivated(() => {
-  loadStats()
-})
 
 onUnmounted(() => {
   document.removeEventListener('keydown', toggleDebug)

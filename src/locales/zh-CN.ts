@@ -1051,6 +1051,7 @@ export default {
     batchDeleteFailed: '批量删除项目失败: {error}',
     batchImportSuccess: '已成功导入 {count} 个资产',
     loadFailed: '加载失败: {error}',
+    clearSearch: '清除搜索',
     projectMigrated: '项目 {name} 已迁移到新路径',
     migrationFailed: '迁移失败: {error}',
     selectDirFailed: '选择目录失败: {error}',
@@ -1485,7 +1486,17 @@ export default {
     importPresetTitle: '导入预设',
     importPresetPlaceholder: '粘贴预设JSON',
     importPreset: '导入',
-    presetImported: '预设导入成功'
+    presetImported: '预设导入成功',
+    confirmWriteCiTitle: '写入 CI 配置',
+    confirmWriteCiDesc: '将覆盖项目中已有的 CI 配置文件，确定要继续吗？',
+    copyConfig: '复制',
+    generating: '生成中...',
+    writing: '写入中...',
+    deleteRecord: '删除记录',
+    deleteRecordConfirm: '确定要删除这条构建记录吗？',
+    templateNotInstalled: '导出模板未安装，请先在"导出模板"页下载',
+    invalidVersion: '版本号格式不正确，如 4.4.1',
+    nameExists: '同名模板已存在，请使用其他名称'
   },
   mcp: {
     title: 'AI 协作 (MCP Server)',
@@ -1519,6 +1530,7 @@ export default {
     step2: '打开 AI 编程工具的 MCP 配置文件（见上方路径）',
     step3: '将 JSON 配置粘贴到配置文件中并保存',
     step4: '重启 AI 编程工具',
-    step5: '在对话中输入"帮我检查项目环境"测试 MCP 是否工作'
+    step5: '在对话中输入"帮我检查项目环境"测试 MCP 是否工作',
+    exeNotFound: 'MCP Server 可执行文件未找到，请先构建项目或检查安装路径。'
   }
 }

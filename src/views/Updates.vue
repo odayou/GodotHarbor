@@ -279,7 +279,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onActivated, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUpdateStore } from '@/stores/update'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
@@ -315,10 +315,6 @@ onMounted(async () => {
   if (!store.lastCheckedAt) {
     store.checkAll()
   }
-})
-
-onActivated(() => {
-  store.checkAll()
 })
 
 onUnmounted(() => {

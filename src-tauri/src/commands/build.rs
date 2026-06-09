@@ -46,13 +46,32 @@ fn get_godot_template_version_dir(version: &str) -> PathBuf {
 
 fn extract_tpz_to_godot_dir(tpz_path: &Path, version: &str, _mono: bool) -> Result<(), String> {
     let target_dir = get_godot_template_version_dir(version);
+    let is_update = target_dir.exists();
+    let backup_dir = if is_update {
+        let backup = target_dir.with_extension("stable.bak");
+        if backup.exists() {
+            let _ = fs::remove_dir_all(&backup);
+        }
+        fs::rename(&target_dir, &backup)
+            .map_err(|e| format!("备份旧模板目录失败: {}", e))?;
+        Some(backup)
+    } else {
+        None
+    };
+
     fs::create_dir_all(&target_dir)
         .map_err(|e| format!("创建 Godot 模板目录 {} 失败: {}", target_dir.display(), e))?;
 
     let file = fs::File::open(tpz_path)
         .map_err(|e| format!("打开 tpz 文件失败: {}", e))?;
     let mut archive = zip::ZipArchive::new(file)
-        .map_err(|e| format!("解析 tpz 文件失败: {}", e))?;
+        .map_err(|e| {
+            if let Some(ref backup) = backup_dir {
+                let _ = fs::remove_dir_all(&target_dir);
+                let _ = fs::rename(backup, &target_dir);
+            }
+            format!("解析 tpz 文件失败: {}", e)
+        })?;
 
     for i in 0..archive.len() {
         let mut entry = archive.by_index(i)
@@ -86,6 +105,10 @@ fn extract_tpz_to_godot_dir(tpz_path: &Path, version: &str, _mono: bool) -> Resu
             std::io::copy(&mut entry, &mut outfile)
                 .map_err(|e| format!("写入文件 {} 失败: {}", out_path.display(), e))?;
         }
+    }
+
+    if let Some(ref backup) = backup_dir {
+        let _ = fs::remove_dir_all(backup);
     }
 
     Ok(())
@@ -152,72 +175,85 @@ pub struct ExportTemplateInfo {
 }
 
 #[tauri::command]
-pub fn list_export_templates(app: AppHandle) -> Result<Vec<ExportTemplateInfo>, String> {
-    let engines: Vec<Engine> = get_storage(&app).load_or_default("engines.json");
-    let godot_templates_dir = get_godot_templates_dir();
-    let mut result = Vec::new();
+pub async fn list_export_templates(app: AppHandle) -> Result<Vec<ExportTemplateInfo>, String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let engines: Vec<Engine> = get_storage(&app_clone).load_or_default("engines.json");
+        let godot_templates_dir = get_godot_templates_dir();
+        let mut result = Vec::new();
 
-    if godot_templates_dir.exists() {
-        if let Ok(entries) = fs::read_dir(&godot_templates_dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if !path.is_dir() {
-                    continue;
+        if godot_templates_dir.exists() {
+            if let Ok(entries) = fs::read_dir(&godot_templates_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if !path.is_dir() {
+                        continue;
+                    }
+                    let dir_name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                    let version = dir_name.trim_end_matches(".stable").to_string();
+                    if version.is_empty() {
+                        continue;
+                    }
+
+                    let has_templates = path.join("templates").exists()
+                        && fs::read_dir(path.join("templates"))
+                            .map(|mut e| e.any(|_| true))
+                            .unwrap_or(false);
+
+                    let mono = dir_name.contains("mono");
+                    let total_size = dir_size_recursive(&path);
+
+                    result.push(ExportTemplateInfo {
+                        version: version.clone(),
+                        mono,
+                        installed: has_templates,
+                        path: Some(path.to_string_lossy().to_string()),
+                        file_size: if total_size > 0 { Some(total_size) } else { None },
+                    });
                 }
-                let dir_name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
-                let version = dir_name.trim_end_matches(".stable").to_string();
-                if version.is_empty() {
-                    continue;
-                }
+            }
+        }
 
-                let has_templates = path.join("templates").exists()
-                    || fs::read_dir(&path).map(|mut e| e.any(|_| true)).unwrap_or(false);
-
-                let mono = dir_name.contains("mono");
-                let total_size: u64 = fs::read_dir(&path)
-                    .ok()
-                    .map(|entries| {
-                        entries.filter_map(|e| e.ok())
-                            .filter_map(|e| e.metadata().ok())
-                            .filter(|m| m.is_file())
-                            .map(|m| m.len())
-                            .sum()
-                    })
-                    .unwrap_or(0);
-
+        for engine in &engines {
+            if !result.iter().any(|t| t.version == engine.version && t.mono == engine.is_mono) {
+                let version_dir = get_godot_template_version_dir(&engine.version);
+                let installed = version_dir.exists();
                 result.push(ExportTemplateInfo {
-                    version: version.clone(),
-                    mono,
-                    installed: has_templates,
-                    path: Some(path.to_string_lossy().to_string()),
-                    file_size: if total_size > 0 { Some(total_size) } else { None },
+                    version: engine.version.clone(),
+                    mono: engine.is_mono,
+                    installed,
+                    path: if installed { Some(version_dir.to_string_lossy().to_string()) } else { None },
+                    file_size: None,
                 });
             }
         }
-    }
 
-    for engine in &engines {
-        if !result.iter().any(|t| t.version == engine.version && t.mono == engine.is_mono) {
-            let version_dir = get_godot_template_version_dir(&engine.version);
-            let installed = version_dir.exists();
-            result.push(ExportTemplateInfo {
-                version: engine.version.clone(),
-                mono: engine.is_mono,
-                installed,
-                path: if installed { Some(version_dir.to_string_lossy().to_string()) } else { None },
-                file_size: None,
-            });
+        result.sort_by(|a, b| {
+            match (a.version.parse::<semver::Version>(), b.version.parse::<semver::Version>()) {
+                (Ok(av), Ok(bv)) => bv.cmp(&av).then(a.mono.cmp(&b.mono)),
+                _ => b.version.cmp(&a.version),
+            }
+        });
+
+        Ok(result)
+    }).await.map_err(|e| format!("任务执行失败: {}", e))?
+}
+
+fn dir_size_recursive(path: &Path) -> u64 {
+    let mut total_size: u64 = 0;
+    if let Ok(entries) = fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let entry_path = entry.path();
+            if entry_path.is_dir() {
+                total_size += dir_size_recursive(&entry_path);
+            } else if let Ok(meta) = entry.metadata() {
+                if meta.is_file() {
+                    total_size += meta.len();
+                }
+            }
         }
     }
-
-    result.sort_by(|a, b| {
-        match (a.version.parse::<semver::Version>(), b.version.parse::<semver::Version>()) {
-            (Ok(av), Ok(bv)) => bv.cmp(&av).then(a.mono.cmp(&b.mono)),
-            _ => b.version.cmp(&a.version),
-        }
-    });
-
-    Ok(result)
+    total_size
 }
 
 async fn resolve_template_download_url(app: &AppHandle, version: &str, mono: bool) -> Result<String, String> {
@@ -243,7 +279,7 @@ async fn resolve_template_download_url(app: &AppHandle, version: &str, mono: boo
         }
     }
 
-    let stable_version = version.trim_end_matches("-dev").trim_end_matches("-beta").trim_end_matches("-rc");
+    let stable_version = version.split('-').next().unwrap_or(version);
     let tuxfamily_urls: Vec<String> = if mono {
         vec![
             format!("{}/{}/mono/Godot_v{}_mono_export_templates.tpz", GODOT_EXPORT_TEMPLATES_URL, stable_version, version),
@@ -342,12 +378,28 @@ pub async fn download_export_template(app: AppHandle, version: String, mono: boo
 
     use std::io::Write;
     use futures::StreamExt;
+    let total_size: u64 = resp.headers()
+        .get("content-length")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0);
     let mut stream = resp.bytes_stream();
-    let mut _downloaded: u64 = 0;
+    let mut downloaded: u64 = 0;
+    let mut last_emit: std::time::Instant = std::time::Instant::now();
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.map_err(|e| format!("下载中断: {}", e))?;
         file.write_all(&chunk).map_err(|e| format!("写入文件失败: {}", e))?;
-        _downloaded += chunk.len() as u64;
+        downloaded += chunk.len() as u64;
+        if last_emit.elapsed() >= std::time::Duration::from_millis(500) {
+            let progress = if total_size > 0 { downloaded as f64 / total_size as f64 * 0.7 } else { 0.3 };
+            let _ = app.emit("export-template-download-progress", serde_json::json!({
+                "version": &version,
+                "stage": "downloading",
+                "progress": progress,
+                "message": format!("正在下载 Godot {} 导出模板... {}%", version, if total_size > 0 { (downloaded as f64 / total_size as f64 * 100.0) as u32 } else { 0 }),
+            }));
+            last_emit = std::time::Instant::now();
+        }
     }
 
     let _ = app.emit("export-template-download-progress", serde_json::json!({
@@ -357,7 +409,16 @@ pub async fn download_export_template(app: AppHandle, version: String, mono: boo
         "message": format!("正在解压 Godot {} 导出模板到标准路径...", version),
     }));
 
-    extract_tpz_to_godot_dir(&tpz_path, &version, mono)?;
+    if let Err(e) = extract_tpz_to_godot_dir(&tpz_path, &version, mono) {
+        let _ = fs::remove_dir_all(&temp_dir);
+        let _ = app.emit("export-template-download-progress", serde_json::json!({
+            "version": &version,
+            "stage": "failed",
+            "progress": 1.0,
+            "message": format!("解压导出模板失败: {}", e),
+        }));
+        return Err(e);
+    }
 
     let _ = fs::remove_dir_all(&temp_dir);
 
@@ -372,7 +433,7 @@ pub async fn download_export_template(app: AppHandle, version: String, mono: boo
 }
 
 #[tauri::command]
-pub fn import_export_template_from_file(app: AppHandle, tpz_path: String, version: String, mono: bool) -> Result<String, String> {
+pub async fn import_export_template_from_file(app: AppHandle, tpz_path: String, version: String, mono: bool) -> Result<String, String> {
     let path = Path::new(&tpz_path);
     if !path.exists() {
         return Err(format!("文件不存在: {}", tpz_path));
@@ -388,7 +449,12 @@ pub fn import_export_template_from_file(app: AppHandle, tpz_path: String, versio
         "message": format!("正在从本地文件导入 Godot {} 导出模板...", version),
     }));
 
-    extract_tpz_to_godot_dir(path, &version, mono)?;
+    let tpz_path_owned = tpz_path.clone();
+    let version_owned = version.clone();
+    tokio::task::spawn_blocking(move || {
+        let path = Path::new(&tpz_path_owned);
+        extract_tpz_to_godot_dir(path, &version_owned, mono)
+    }).await.map_err(|e| format!("任务执行失败: {}", e))??;
 
     let _ = app.emit("export-template-download-progress", serde_json::json!({
         "version": &version,
@@ -401,86 +467,94 @@ pub fn import_export_template_from_file(app: AppHandle, tpz_path: String, versio
 }
 
 #[tauri::command]
-pub fn delete_export_template(_app: AppHandle, version: String, _mono: bool) -> Result<(), String> {
-    let version_dir = get_godot_template_version_dir(&version);
+pub async fn delete_export_template(_app: AppHandle, version: String, _mono: bool) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let version_dir = get_godot_template_version_dir(&version);
 
-    if version_dir.exists() {
-        fs::remove_dir_all(&version_dir)
-            .map_err(|e| format!("删除导出模板失败: {}", e))?;
-    }
-
-    Ok(())
-}
-
-#[tauri::command]
-pub fn list_export_presets(app: AppHandle, project_id: String) -> Result<Vec<ExportPreset>, String> {
-    let storage = get_storage(&app);
-    let projects: Vec<Project> = storage.load_or_default("projects.json");
-    let project = projects.iter().find(|p| p.project_id == project_id)
-        .ok_or("项目不存在".to_string())?;
-
-    let config = crate::harbor_config::read_harbor_config_from_project(&project.path)
-        .map_err(|e| format!("读取 .harbor.yml 失败: {}", e))?;
-
-    let mut presets = Vec::new();
-    if let Some(config) = config {
-        let config_upgraded = if config.version < 2 { config.upgrade_to_v2() } else { config };
-        for ep in &config_upgraded.export_presets {
-            let platform = match ep.platform.as_str() {
-                "windows" => ExportPlatform::Windows,
-                "macos" => ExportPlatform::MacOS,
-                "linux" => ExportPlatform::Linux,
-                "web" => ExportPlatform::Web,
-                "android" => ExportPlatform::Android,
-                "ios" => ExportPlatform::IOS,
-                _ => ExportPlatform::Windows,
-            };
-            presets.push(ExportPreset {
-                preset_id: uuid::Uuid::new_v4().to_string(),
-                platform,
-                name: ep.name.clone(),
-                config: ep.config.clone(),
-                created_at: chrono::Utc::now(),
-                updated_at: chrono::Utc::now(),
-            });
+        if version_dir.exists() {
+            fs::remove_dir_all(&version_dir)
+                .map_err(|e| format!("删除导出模板失败: {}", e))?;
         }
-    }
 
-    Ok(presets)
+        Ok(())
+    }).await.map_err(|e| format!("任务执行失败: {}", e))?
 }
 
 #[tauri::command]
-pub fn apply_export_preset(app: AppHandle, project_id: String, preset: ExportPreset) -> Result<(), String> {
-    let storage = get_storage(&app);
-    let projects: Vec<Project> = storage.load_or_default("projects.json");
-    let project = projects.iter().find(|p| p.project_id == project_id)
-        .ok_or("项目不存在".to_string())?;
+pub async fn list_export_presets(app: AppHandle, project_id: String) -> Result<Vec<ExportPreset>, String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let storage = get_storage(&app_clone);
+        let projects: Vec<Project> = storage.load_or_default("projects.json");
+        let project = projects.iter().find(|p| p.project_id == project_id)
+            .ok_or("项目不存在".to_string())?;
 
-    let export_cfg_path = Path::new(&project.path).join("export_presets.cfg");
-    let platform_str = preset.platform.to_string();
+        let config = crate::harbor_config::read_harbor_config_from_project(&project.path)
+            .map_err(|e| format!("读取 .harbor.yml 失败: {}", e))?;
 
-    let mut content = if export_cfg_path.exists() {
-        fs::read_to_string(&export_cfg_path)
-            .map_err(|e| format!("读取 export_presets.cfg 失败: {}", e))?
-    } else {
-        "[preset.0]\nname=\"\"\nplatform=\"\"\nrunnable=true\n".to_string()
-    };
+        let mut presets = Vec::new();
+        if let Some(config) = config {
+            let config_upgraded = if config.version < 2 { config.upgrade_to_v2() } else { config };
+            for ep in &config_upgraded.export_presets {
+                let platform = match ep.platform.as_str() {
+                    "windows" => ExportPlatform::Windows,
+                    "macos" => ExportPlatform::MacOS,
+                    "linux" => ExportPlatform::Linux,
+                    "web" => ExportPlatform::Web,
+                    "android" => ExportPlatform::Android,
+                    "ios" => ExportPlatform::IOS,
+                    _ => ExportPlatform::Windows,
+                };
+                presets.push(ExportPreset {
+                    preset_id: format!("{}-{}", ep.platform, ep.name.to_lowercase().replace(' ', "-")),
+                    platform,
+                    name: ep.name.clone(),
+                    config: ep.config.clone(),
+                    created_at: chrono::Utc::now(),
+                    updated_at: chrono::Utc::now(),
+                });
+            }
+        }
 
-    let preset_index = count_presets(&content);
-    let new_preset = format!(
-        "\n[preset.{}]\nname=\"{}\"\nplatform=\"{}\"\nrunnable=true\n",
-        preset_index, preset.name, platform_str
-    );
+        Ok(presets)
+    }).await.map_err(|e| format!("任务执行失败: {}", e))?
+}
 
-    if !content.ends_with('\n') {
-        content.push('\n');
-    }
-    content.push_str(&new_preset);
+#[tauri::command]
+pub async fn apply_export_preset(app: AppHandle, project_id: String, preset: ExportPreset) -> Result<(), String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let storage = get_storage(&app_clone);
+        let projects: Vec<Project> = storage.load_or_default("projects.json");
+        let project = projects.iter().find(|p| p.project_id == project_id)
+            .ok_or("项目不存在".to_string())?;
 
-    fs::write(&export_cfg_path, content)
-        .map_err(|e| format!("写入 export_presets.cfg 失败: {}", e))?;
+        let export_cfg_path = Path::new(&project.path).join("export_presets.cfg");
+        let platform_str = preset.platform.to_string();
 
-    Ok(())
+        let mut content = if export_cfg_path.exists() {
+            fs::read_to_string(&export_cfg_path)
+                .map_err(|e| format!("读取 export_presets.cfg 失败: {}", e))?
+        } else {
+            "[preset.0]\nname=\"\"\nplatform=\"\"\nrunnable=true\n".to_string()
+        };
+
+        let preset_index = count_presets(&content);
+        let new_preset = format!(
+            "\n[preset.{}]\nname=\"{}\"\nplatform=\"{}\"\nrunnable=true\ncustom_features=\"\"\nexport_filter=\"all_resources\"\ninclude_filter=\"\"\nexclude_filter=\"\"\nexport_path=\"\"\nscript_encryption_key=\"\"\n",
+            preset_index, preset.name, platform_str
+        );
+
+        if !content.ends_with('\n') {
+            content.push('\n');
+        }
+        content.push_str(&new_preset);
+
+        fs::write(&export_cfg_path, content)
+            .map_err(|e| format!("写入 export_presets.cfg 失败: {}", e))?;
+
+        Ok(())
+    }).await.map_err(|e| format!("任务执行失败: {}", e))?
 }
 
 fn count_presets(content: &str) -> usize {
@@ -493,32 +567,35 @@ fn count_presets(content: &str) -> usize {
 }
 
 #[tauri::command]
-pub fn save_export_preset_to_harbor(app: AppHandle, project_id: String, platform: String, name: String, config: serde_json::Value) -> Result<(), String> {
-    let storage = get_storage(&app);
-    let projects: Vec<Project> = storage.load_or_default("projects.json");
-    let project = projects.iter().find(|p| p.project_id == project_id)
-        .ok_or("项目不存在".to_string())?;
+pub async fn save_export_preset_to_harbor(app: AppHandle, project_id: String, platform: String, name: String, config: serde_json::Value) -> Result<(), String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let storage = get_storage(&app_clone);
+        let projects: Vec<Project> = storage.load_or_default("projects.json");
+        let project = projects.iter().find(|p| p.project_id == project_id)
+            .ok_or("项目不存在".to_string())?;
 
-    let harbor_config_path = crate::harbor_config::get_harbor_config_path(&project.path);
-    if !harbor_config_path.exists() {
-        return Err("项目缺少 .harbor.yml".to_string());
-    }
+        let harbor_config_path = crate::harbor_config::get_harbor_config_path(&project.path);
+        if !harbor_config_path.exists() {
+            return Err("项目缺少 .harbor.yml".to_string());
+        }
 
-    let config_existing = crate::harbor_config::read_harbor_config_from_project(&project.path)
-        .map_err(|e| format!("读取 .harbor.yml 失败: {}", e))?
-        .ok_or("读取 .harbor.yml 失败".to_string())?;
+        let config_existing = crate::harbor_config::read_harbor_config_from_project(&project.path)
+            .map_err(|e| format!("读取 .harbor.yml 失败: {}", e))?
+            .ok_or("读取 .harbor.yml 失败".to_string())?;
 
-    let mut config_upgraded = if config_existing.version < 2 { config_existing.upgrade_to_v2() } else { config_existing };
-    config_upgraded.export_presets.push(crate::harbor_config::HarborExportPreset {
-        platform: platform.clone(),
-        name: name.clone(),
-        config,
-    });
+        let mut config_upgraded = if config_existing.version < 2 { config_existing.upgrade_to_v2() } else { config_existing };
+        config_upgraded.export_presets.push(crate::harbor_config::HarborExportPreset {
+            platform: platform.clone(),
+            name: name.clone(),
+            config,
+        });
 
-    crate::harbor_config::write_harbor_config_to_project(&project.path, &config_upgraded)
-        .map_err(|e| format!("写入 .harbor.yml 失败: {}", e))?;
+        crate::harbor_config::write_harbor_config_to_project(&project.path, &config_upgraded)
+            .map_err(|e| format!("写入 .harbor.yml 失败: {}", e))?;
 
-    Ok(())
+        Ok(())
+    }).await.map_err(|e| format!("任务执行失败: {}", e))?
 }
 
 #[tauri::command]
@@ -670,13 +747,17 @@ pub async fn build_project(app: AppHandle, project_id: String, platform: ExportP
         status,
         started_at: now,
         completed_at: Some(chrono::Utc::now()),
-        output_path: output_dir.to_string_lossy().to_string(),
+        output_path: output_path.to_string_lossy().to_string(),
         error_message,
         duration_secs: duration,
     };
 
     let mut records: Vec<BuildRecord> = storage.load_or_default("build_records.json");
     records.push(record.clone());
+    const MAX_RECORDS: usize = 200;
+    if records.len() > MAX_RECORDS {
+        records.drain(0..records.len() - MAX_RECORDS);
+    }
     storage.save("build_records.json", &records)
         .map_err(|e| format!("保存构建记录失败: {}", e))?;
 
@@ -684,41 +765,64 @@ pub async fn build_project(app: AppHandle, project_id: String, platform: ExportP
 }
 
 #[tauri::command]
-pub fn get_build_records(app: AppHandle, project_id: Option<String>) -> Result<Vec<BuildRecord>, String> {
-    let storage = get_storage(&app);
-    let records: Vec<BuildRecord> = storage.load_or_default("build_records.json");
-    match project_id {
-        Some(pid) => Ok(records.into_iter().filter(|r| r.project_id == pid).collect()),
-        None => Ok(records),
-    }
+pub async fn get_build_records(app: AppHandle, project_id: Option<String>) -> Result<Vec<BuildRecord>, String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let storage = get_storage(&app_clone);
+        let records: Vec<BuildRecord> = storage.load_or_default("build_records.json");
+        match project_id {
+            Some(pid) => Ok(records.into_iter().filter(|r| r.project_id == pid).collect()),
+            None => Ok(records),
+        }
+    }).await.map_err(|e| format!("任务执行失败: {}", e))?
 }
 
 #[tauri::command]
-pub fn delete_build_record(app: AppHandle, build_id: String) -> Result<(), String> {
-    let storage = get_storage(&app);
-    let mut records: Vec<BuildRecord> = storage.load_or_default("build_records.json");
-    records.retain(|r| r.build_id != build_id);
-    storage.save("build_records.json", &records)
-        .map_err(|e| format!("保存构建记录失败: {}", e))?;
-    Ok(())
+pub async fn delete_build_record(app: AppHandle, build_id: String) -> Result<(), String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let storage = get_storage(&app_clone);
+        let mut records: Vec<BuildRecord> = storage.load_or_default("build_records.json");
+        records.retain(|r| r.build_id != build_id);
+        storage.save("build_records.json", &records)
+            .map_err(|e| format!("保存构建记录失败: {}", e))?;
+        Ok(())
+    }).await.map_err(|e| format!("任务执行失败: {}", e))?
 }
 
 #[tauri::command]
-pub fn generate_github_actions(app: AppHandle, project_id: String, platforms: Vec<String>, godot_version: String) -> Result<String, String> {
-    let storage = get_storage(&app);
-    let projects: Vec<Project> = storage.load_or_default("projects.json");
-    let project = projects.iter().find(|p| p.project_id == project_id)
-        .ok_or("项目不存在".to_string())?;
+pub async fn clear_all_build_records(app: AppHandle) -> Result<(), String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let storage = get_storage(&app_clone);
+        storage.save("build_records.json", &Vec::<BuildRecord>::new())
+            .map_err(|e| format!("清除构建记录失败: {}", e))?;
+        Ok(())
+    }).await.map_err(|e| format!("任务执行失败: {}", e))?
+}
 
-    let project_name = project.name.clone();
-    let safe_name = project_name.replace(' ', "-").to_lowercase();
+#[tauri::command]
+pub async fn generate_github_actions(app: AppHandle, project_id: String, platforms: Vec<String>, godot_version: String) -> Result<String, String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let storage = get_storage(&app_clone);
+        let projects: Vec<Project> = storage.load_or_default("projects.json");
+        let project = projects.iter().find(|p| p.project_id == project_id)
+            .ok_or("项目不存在".to_string())?;
 
-    let mut matrix_entries = Vec::new();
-    for p in &platforms {
-        matrix_entries.push(format!("          - platform: {}\n            artifact: {}-{}", p, safe_name, p));
-    }
+        let project_name = project.name.clone();
+        let safe_name = project_name.replace(' ', "-").replace(|c: char| !c.is_alphanumeric() && c != '-', "").to_lowercase();
 
-    let workflow = format!(r#"name: Build Godot Project
+        let mut matrix_entries = Vec::new();
+        for p in &platforms {
+            let runner = match p.as_str() {
+                "macos" | "ios" => "macos-latest",
+                _ => "ubuntu-latest",
+            };
+            matrix_entries.push(format!("          - platform: {}\n            runner: {}\n            artifact: {}-{}", p, runner, safe_name, p));
+        }
+
+        let workflow = format!(r#"name: Build Godot Project
 
 on:
   push:
@@ -732,7 +836,7 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{{{ matrix.runner }}}}
     strategy:
       matrix:
         include:
@@ -740,21 +844,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Cache Godot
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/godot-bin
+            ~/.local/share/godot/export_templates
+          key: godot-${{{{ env.GODOT_VERSION }}}}-${{{{ runner.os }}}}
+
       - name: Download Godot
         run: |
-          wget -q https://downloads.tuxfamily.org/godotengine/${{{{ env.GODOT_VERSION }}}}/Godot_v${{{{ env.GODOT_VERSION }}}}_linux.x86_64.zip
-          unzip Godot_v${{{{ env.GODOT_VERSION }}}}_linux.x86_64.zip
-          chmod +x Godot_v${{{{ env.GODOT_VERSION }}}}_linux.x86_64
+          if [ ! -f ~/godot-bin/godot ]; then
+            mkdir -p ~/godot-bin
+            if [ "${{{{ runner.os }}}}" = "macOS" ]; then
+              wget -q https://downloads.tuxfamily.org/godotengine/${{{{ env.GODOT_VERSION }}}}/Godot_v${{{{ env.GODOT_VERSION }}}}_macos.universal.zip
+              unzip Godot_v${{{{ env.GODOT_VERSION }}}}_macos.universal.zip
+              mv "Godot_v${{{{ env.GODOT_VERSION }}}}_macos.universal" ~/godot-bin/godot
+            else
+              wget -q https://downloads.tuxfamily.org/godotengine/${{{{ env.GODOT_VERSION }}}}/Godot_v${{{{ env.GODOT_VERSION }}}}_linux.x86_64.zip
+              unzip Godot_v${{{{ env.GODOT_VERSION }}}}_linux.x86_64.zip
+              mv Godot_v${{{{ env.GODOT_VERSION }}}}_linux.x86_64 ~/godot-bin/godot
+            fi
+            chmod +x ~/godot-bin/godot
+          fi
+          echo "$HOME/godot-bin" >> $GITHUB_PATH
 
       - name: Download Export Templates
         run: |
-          mkdir -p ~/.local/share/godot/export_templates/${{{{ env.GODOT_VERSION }}}}.stable
-          wget -q https://downloads.tuxfamily.org/godotengine/${{{{ env.GODOT_VERSION }}}}/Godot_v${{{{ env.GODOT_VERSION }}}}_export_templates.tpz
-          unzip Godot_v${{{{ env.GODOT_VERSION }}}}_export_templates.tpz -d ~/.local/share/godot/export_templates/${{{{ env.GODOT_VERSION }}}}.stable
+          if [ ! -d ~/.local/share/godot/export_templates/${{{{ env.GODOT_VERSION }}}}.stable/templates ]; then
+            mkdir -p ~/.local/share/godot/export_templates/${{{{ env.GODOT_VERSION }}}}.stable
+            wget -q https://downloads.tuxfamily.org/godotengine/${{{{ env.GODOT_VERSION }}}}/Godot_v${{{{ env.GODOT_VERSION }}}}_export_templates.tpz
+            unzip Godot_v${{{{ env.GODOT_VERSION }}}}_export_templates.tpz -d ~/.local/share/godot/export_templates/${{{{ env.GODOT_VERSION }}}}.stable
+          fi
 
       - name: Build Project
         run: |
-          ./Godot_v${{{{ env.GODOT_VERSION }}}}_linux.x86_64 --headless --export-release ${{{{ matrix.platform }}}} ./build/${{{{ matrix.artifact }}}}
+          godot --headless --export-release ${{{{ matrix.platform }}}} ./build/${{{{ matrix.artifact }}}}
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
@@ -763,36 +888,52 @@ jobs:
           path: ./build/${{{{ matrix.artifact }}}}
 "#, godot_version, matrix_entries.join("\n"));
 
-    Ok(workflow)
+        Ok(workflow)
+    }).await.map_err(|e| format!("任务执行失败: {}", e))?
 }
 
 #[tauri::command]
-pub fn generate_gitlab_ci(app: AppHandle, project_id: String, platforms: Vec<String>, godot_version: String) -> Result<String, String> {
-    let storage = get_storage(&app);
-    let projects: Vec<Project> = storage.load_or_default("projects.json");
-    let project = projects.iter().find(|p| p.project_id == project_id)
-        .ok_or("项目不存在".to_string())?;
+pub async fn generate_gitlab_ci(app: AppHandle, project_id: String, platforms: Vec<String>, godot_version: String) -> Result<String, String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let storage = get_storage(&app_clone);
+        let projects: Vec<Project> = storage.load_or_default("projects.json");
+        let project = projects.iter().find(|p| p.project_id == project_id)
+            .ok_or("项目不存在".to_string())?;
 
-    let project_name = project.name.clone();
-    let safe_name = project_name.replace(' ', "-").to_lowercase();
+        let project_name = project.name.clone();
+        let safe_name = project_name.replace(' ', "-").replace(|c: char| !c.is_alphanumeric() && c != '-', "").to_lowercase();
 
-    let mut build_jobs = String::new();
-    for p in &platforms {
-        let job_name = format!("build_{}", p);
-        build_jobs.push_str(&format!(r#"
+        fn platform_to_preset_name(platform: &str) -> String {
+            match platform {
+                "windows" => "Windows Desktop".to_string(),
+                "macos" => "macOS".to_string(),
+                "linux" => "Linux/X11".to_string(),
+                "web" => "Web".to_string(),
+                "android" => "Android".to_string(),
+                "ios" => "iOS".to_string(),
+                other => other.to_string(),
+            }
+        }
+
+        let mut build_jobs = String::new();
+        for p in &platforms {
+            let job_name = format!("build_{}", p);
+            let preset_name = platform_to_preset_name(p);
+            build_jobs.push_str(&format!(r#"
 {job_name}:
   stage: build
   image: barichello/godot-ci:{godot_version}
   script:
     - mkdir -v -p build/{platform}
-    - godot --headless --export-release "{platform_upper}" build/{safe_name}-{platform}
+    - godot --headless --export-release "{preset_name}" build/{safe_name}-{platform}
   artifacts:
     paths:
       - build/{safe_name}-{platform}
-"#, job_name = job_name, godot_version = godot_version, platform = p, platform_upper = p.to_uppercase(), safe_name = safe_name));
-    }
+"#, job_name = job_name, godot_version = godot_version, platform = p, preset_name = preset_name, safe_name = safe_name));
+        }
 
-    let ci = format!(r#"image: barichello/godot-ci:{godot_version}
+        let ci = format!(r#"image: barichello/godot-ci:{godot_version}
 
 stages:
   - build
@@ -800,34 +941,38 @@ stages:
 {build_jobs}
 "#, godot_version = godot_version, build_jobs = build_jobs);
 
-    Ok(ci)
+        Ok(ci)
+    }).await.map_err(|e| format!("任务执行失败: {}", e))?
 }
 
 #[tauri::command]
-pub fn write_ci_config(app: AppHandle, project_id: String, provider: String, content: String) -> Result<(), String> {
-    let storage = get_storage(&app);
-    let projects: Vec<Project> = storage.load_or_default("projects.json");
-    let project = projects.iter().find(|p| p.project_id == project_id)
-        .ok_or("项目不存在".to_string())?;
+pub async fn write_ci_config(app: AppHandle, project_id: String, provider: String, content: String) -> Result<(), String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let storage = get_storage(&app_clone);
+        let projects: Vec<Project> = storage.load_or_default("projects.json");
+        let project = projects.iter().find(|p| p.project_id == project_id)
+            .ok_or("项目不存在".to_string())?;
 
-    let project_path = Path::new(&project.path);
+        let project_path = Path::new(&project.path);
 
-    match provider.as_str() {
-        "github-actions" => {
-            let workflows_dir = project_path.join(".github").join("workflows");
-            fs::create_dir_all(&workflows_dir)
-                .map_err(|e| format!("创建 .github/workflows 目录失败: {}", e))?;
-            fs::write(workflows_dir.join("build.yml"), content)
-                .map_err(|e| format!("写入 build.yml 失败: {}", e))?;
+        match provider.as_str() {
+            "github-actions" => {
+                let workflows_dir = project_path.join(".github").join("workflows");
+                fs::create_dir_all(&workflows_dir)
+                    .map_err(|e| format!("创建 .github/workflows 目录失败: {}", e))?;
+                fs::write(workflows_dir.join("build.yml"), content)
+                    .map_err(|e| format!("写入 build.yml 失败: {}", e))?;
+            }
+            "gitlab-ci" => {
+                fs::write(project_path.join(".gitlab-ci.yml"), content)
+                    .map_err(|e| format!("写入 .gitlab-ci.yml 失败: {}", e))?;
+            }
+            _ => return Err(format!("不支持的 CI 提供商: {}", provider)),
         }
-        "gitlab-ci" => {
-            fs::write(project_path.join(".gitlab-ci.yml"), content)
-                .map_err(|e| format!("写入 .gitlab-ci.yml 失败: {}", e))?;
-        }
-        _ => return Err(format!("不支持的 CI 提供商: {}", provider)),
-    }
 
-    Ok(())
+        Ok(())
+    }).await.map_err(|e| format!("任务执行失败: {}", e))?
 }
 
 #[tauri::command]
@@ -868,6 +1013,23 @@ pub fn get_builtin_export_presets() -> Vec<BuiltinExportPreset> {
                 "texture_format": "s3tc_bptc",
             }),
         },
+        BuiltinExportPreset {
+            platform: "android".to_string(),
+            name: "Android".to_string(),
+            description: "Android 应用（.apk）".to_string(),
+            config: serde_json::json!({
+                "architectures": "arm64-v8a",
+                "keystore/debug": "",
+            }),
+        },
+        BuiltinExportPreset {
+            platform: "ios".to_string(),
+            name: "iOS".to_string(),
+            description: "iOS 应用（.ipa）".to_string(),
+            config: serde_json::json!({
+                "architectures": "arm64",
+            }),
+        },
     ]
 }
 
@@ -886,7 +1048,7 @@ pub fn export_preset_to_json(preset: BuiltinExportPreset) -> Result<String, Stri
 }
 
 #[tauri::command]
-pub fn import_preset_from_json(json: String) -> Result<ExportPreset, String> {
+pub fn import_preset_from_json(_project_id: String, json: String) -> Result<ExportPreset, String> {
     serde_json::from_str(&json)
         .map_err(|e| format!("解析预设失败: {}", e))
 }

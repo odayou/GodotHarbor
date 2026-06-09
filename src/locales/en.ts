@@ -1048,6 +1048,7 @@ export default {
     batchDeleteFailed: 'Batch delete failed: {error}',
     batchImportSuccess: 'Successfully imported {count} assets',
     loadFailed: 'Load failed: {error}',
+    clearSearch: 'Clear search',
     projectMigrated: 'Project {name} has been migrated to new path',
     migrationFailed: 'Migration failed: {error}',
     selectDirFailed: 'Select directory failed: {error}',
