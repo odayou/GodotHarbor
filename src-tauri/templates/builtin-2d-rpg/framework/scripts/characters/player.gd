@@ -9,12 +9,15 @@ signal died
 @export var max_health: int = 100
 @export var interact_range: float = 64.0
 @export var attack_duration: float = 0.3
+@export var invincible_time: float = 1.0
+@export var attack_damage: int = 20
 
 var state = State.IDLE
 var health: int = max_health
 var _attack_timer: float = 0.0
 var _interact_timer: float = 0.0
 var _facing_direction: Vector2 = Vector2.DOWN
+var _invincible_timer: float = 0.0
 
 
 func _ready() -> void:
@@ -22,6 +25,7 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	_invincible_timer -= delta
 	match state:
 		State.IDLE:
 			_handle_idle()
@@ -32,11 +36,16 @@ func _physics_process(delta: float) -> void:
 		State.INTERACTING:
 			_handle_interacting(delta)
 	move_and_slide()
+	_check_enemy_collision()
 
 
 func take_damage(amount: int) -> void:
+	if _invincible_timer > 0.0:
+		return
 	health -= amount
 	health_changed.emit(health)
+	_invincible_timer = invincible_time
+	velocity = -_facing_direction * 100.0
 	if health <= 0:
 		died.emit()
 		GameManager.player_died.emit()
@@ -92,6 +101,15 @@ func _handle_interacting(delta: float) -> void:
 func _start_attack() -> void:
 	state = State.ATTACKING
 	_attack_timer = attack_duration
+	var enemies = get_tree().get_nodes_in_group("enemy")
+	for enemy in enemies:
+		if not is_instance_valid(enemy):
+			continue
+		var dist = global_position.distance_to(enemy.global_position)
+		var dir_to_enemy = (enemy.global_position - global_position).normalized()
+		if dist < 50.0 and dir_to_enemy.dot(_facing_direction) > 0.3:
+			if enemy.has_method("take_damage"):
+				enemy.take_damage(attack_damage)
 
 
 func _start_interact() -> void:
@@ -114,3 +132,11 @@ func _find_closest_interactable(interactables: Array) -> Node:
 			closest = obj
 			closest_dist = dist
 	return closest
+
+
+func _check_enemy_collision() -> void:
+	for i in get_slide_collision_count():
+		var collision = get_slide_collision(i)
+		var collider = collision.get_collider()
+		if collider and collider.is_in_group("enemy"):
+			take_damage(collider.attack_damage if collider.get("attack_damage") else 10)

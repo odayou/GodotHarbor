@@ -18,6 +18,7 @@ var health: int = max_health
 var _is_sprinting: bool = false
 var _is_crouching: bool = false
 var _current_speed: float = walk_speed
+var _is_dead: bool = false
 
 @onready var camera_pivot: Node3D = $CameraPivot
 @onready var camera: Camera3D = $CameraPivot/Camera3D
@@ -45,6 +46,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
+    if _is_dead:
+        return
     _handle_movement_state()
     if not is_on_floor():
         velocity.y -= gravity * delta
@@ -62,10 +65,16 @@ func _physics_process(delta: float) -> void:
 
 
 func take_damage(amount: int) -> void:
+    if _is_dead:
+        return
     health -= amount
     health_changed.emit(health)
     if health <= 0:
+        health = 0
+        _is_dead = true
         died.emit()
+        Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+        ScreenManager.reload_current_scene(1.0)
 
 
 func heal(amount: int) -> void:

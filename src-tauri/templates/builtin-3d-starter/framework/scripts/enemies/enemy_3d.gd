@@ -17,7 +17,7 @@ var health: int = max_health
 var ai_state: AIState = AIState.IDLE
 var _attack_timer: float = 0.0
 var _patrol_index: int = 0
-var _idle_timer: float = 0.0
+var _idle_timer: float = 2.0
 var _player_ref: CharacterBody3D = null
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 

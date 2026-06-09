@@ -56,17 +56,21 @@ func get_player_list() -> Array:
 
 
 func _on_peer_connected(peer_id: int) -> void:
-    players[peer_id] = {"id": peer_id, "name": "Player_%d" % peer_id}
+    if multiplayer.is_server():
+        players[peer_id] = {"id": peer_id, "name": "Player_%d" % peer_id}
+        _sync_player_list.rpc(players)
     player_connected.emit(peer_id)
 
 
 func _on_peer_disconnected(peer_id: int) -> void:
-    players.erase(peer_id)
+    if multiplayer.is_server():
+        players.erase(peer_id)
+        _sync_player_list.rpc(players)
     player_disconnected.emit(peer_id)
 
 
 func _on_connected_to_server() -> void:
-    players[multiplayer.get_unique_id()] = {"id": multiplayer.get_unique_id(), "name": "Client"}
+    _request_player_list.rpc_id(1)
 
 
 func _on_connection_failed() -> void:
@@ -77,3 +81,15 @@ func _on_server_disconnected() -> void:
     players.clear()
     server_disconnected.emit()
     leave_game()
+
+
+@rpc("authority", "call_local", "reliable")
+func _sync_player_list(new_players: Dictionary) -> void:
+    players = new_players
+
+
+@rpc("any_peer", "reliable")
+func _request_player_list() -> void:
+    if multiplayer.is_server():
+        var sender_id = multiplayer.get_remote_sender_id()
+        _sync_player_list.rpc_id(sender_id, players)

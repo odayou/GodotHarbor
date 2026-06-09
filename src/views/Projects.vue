@@ -158,6 +158,7 @@ const batchRemoveProjects = async () => {
   const ids = Array.from(selectedProjectIds.value)
   if (ids.length === 0) return
   confirm(t('common.confirmDelete'), t('projects.deleteConfirm', { count: ids.length }), async () => {
+    isBatchDeleting.value = true
     try {
       const result = await api.batchRemoveProjects(ids, deleteWithFiles.value)
       if (result.failed_count > 0) {
@@ -169,6 +170,9 @@ const batchRemoveProjects = async () => {
       await loadProjects()
     } catch (error) {
       toast.error(t('common.batchDeleteFailed', { error }))
+    } finally {
+      isBatchDeleting.value = false
+      deleteWithFiles.value = false
     }
   })
 }
@@ -562,7 +566,7 @@ const addProject = async () => {
       title: t('projects.scanTitle')
     })
     if (selected && typeof selected === 'string') {
-      const existing = projects.value.find(p => p.path === selected)
+      const existing = projects.value.find(p => p.path.replace(/\\/g, '/').toLowerCase() === selected.replace(/\\/g, '/').toLowerCase())
       if (existing) {
         toast.warning(t('projects.projectAlreadyExists', { name: existing.name }))
         return
@@ -617,6 +621,8 @@ const browseGitTargetDir = async () => {
 const showConfirmDialog = ref(false)
 const confirmAction = ref<{ title: string; message: string; onConfirm: () => void } | null>(null)
 const deleteWithFiles = ref(false)
+const deletingProjectId = ref<string | null>(null)
+const isBatchDeleting = ref(false)
 
 const confirm = (title: string, message: string, onConfirm: () => void) => {
   confirmAction.value = { title, message, onConfirm }
@@ -664,7 +670,7 @@ const onDrop = async (e: DragEvent) => {
   const paths: string[] = []
   for (let i = 0; i < files.length; i++) {
     const path = (files[i] as any).path
-    if (path && !projects.value.find(p => p.path === path)) {
+    if (path && !projects.value.find(p => p.path.replace(/\\/g, '/').toLowerCase() === path.replace(/\\/g, '/').toLowerCase())) {
       paths.push(path)
     }
   }
@@ -695,6 +701,7 @@ const removeProject = async (projectId: string) => {
   const project = projects.value.find(p => p.project_id === projectId)
   const name = project?.name || projectId
   confirm(t('common.confirmDelete'), t('projects.deleteConfirm', { count: 1, name }), async () => {
+    deletingProjectId.value = projectId
     try {
       const bindings = projectBindingMap.value.get(projectId) || []
       for (const binding of bindings) {
@@ -703,10 +710,18 @@ const removeProject = async (projectId: string) => {
         } catch { /* ignore unbind errors during removal */ }
       }
       await api.removeProject(projectId, deleteWithFiles.value)
+      selectedProjectIds.value.delete(projectId)
+      selectedProjectIds.value = new Set(selectedProjectIds.value)
+      if (selectedProjectIds.value.size === 0) {
+        isBatchMode.value = false
+      }
       toast.success(deleteWithFiles.value ? t('projects.deletedWithFiles') : t('common.projectDeleted'))
       await loadProjects()
     } catch (error) {
       toast.error(t('common.deleteFailed', { error }))
+    } finally {
+      deletingProjectId.value = null
+      deleteWithFiles.value = false
     }
   })
 }
@@ -1194,9 +1209,11 @@ const toggleAddPluginPanel = () => {
         </button>
         <button
           @click="batchRemoveProjects"
-          class="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
+          :disabled="isBatchDeleting"
+          class="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-1.5"
         >
-          {{ t('common.batchDelete') }} ({{ selectedCount }})
+          <svg v-if="isBatchDeleting" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+          {{ isBatchDeleting ? (t('common.deleting') || '删除中...') : `${t('common.batchDelete')} (${selectedCount})` }}
         </button>
       </div>
     </div>
@@ -1447,10 +1464,12 @@ const toggleAddPluginPanel = () => {
                   <hr class="my-1 border-gray-200 dark:border-surface-border" />
                   <button
                     @click.stop="removeProject(project.project_id); projectMenuId = ''"
-                    class="w-full text-left px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                    :disabled="deletingProjectId === project.project_id"
+                    class="w-full text-left px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 disabled:opacity-50"
                   >
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                    {{ t('projects.delete') }}
+                    <svg v-if="deletingProjectId === project.project_id" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                    <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    {{ deletingProjectId === project.project_id ? (t('common.deleting') || '删除中...') : t('projects.delete') }}
                   </button>
                 </div>
               </div>
@@ -2276,10 +2295,12 @@ const toggleAddPluginPanel = () => {
         <hr class="my-1 border-gray-200 dark:border-surface-border" />
         <button
           @click="removeProject(contextMenuProject!.project_id); showContextMenu = false"
-          class="w-full text-left px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+          :disabled="deletingProjectId === contextMenuProject?.project_id"
+          class="w-full text-left px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 disabled:opacity-50"
         >
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-          {{ t('projects.delete') }}
+          <svg v-if="deletingProjectId === contextMenuProject?.project_id" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+          <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+          {{ deletingProjectId === contextMenuProject?.project_id ? (t('common.deleting') || '删除中...') : t('projects.delete') }}
         </button>
       </div>
     </div>

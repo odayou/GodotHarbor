@@ -30,7 +30,8 @@ export default {
       warning: 'Warning',
       error: 'Error',
       conflict: 'Conflict',
-      missingSource: 'Path Missing'
+      missingSource: 'Path Missing',
+      missingsource: 'Path Missing'
     },
     search: 'Search project name or path...',
     allGroups: 'All Groups',

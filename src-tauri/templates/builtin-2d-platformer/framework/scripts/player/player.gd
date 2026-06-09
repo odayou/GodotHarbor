@@ -122,6 +122,7 @@ func _physics_process(delta: float) -> void:
 
 	_was_on_floor = is_on_floor()
 	move_and_slide()
+	_check_enemy_collision()
 
 
 func take_damage(amount: int) -> void:
@@ -198,3 +199,15 @@ func _on_land() -> void:
 	var camera = get_viewport().get_camera_2d()
 	if camera and camera.has_method("apply_shake"):
 		camera.apply_shake(2.0)
+
+
+func _check_enemy_collision() -> void:
+	for i in get_slide_collision_count():
+		var collision = get_slide_collision(i)
+		var collider = collision.get_collider()
+		if collider and collider.is_in_group("enemy"):
+			if global_position.y < collider.global_position.y - 4:
+				collider.queue_free()
+				velocity.y = jump_force * 0.6
+			else:
+				take_damage(1)

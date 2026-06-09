@@ -6,11 +6,11 @@ enum AIState { PATROL, CHASE, RETURN }
 @export var chase_speed: float = 160.0
 @export var direction: int = 1
 @export var gravity: float = 980.0
-@export var detect_range: float = 200.0
+@export var detect_range: float = 80.0
 @export var attack_range: float = 40.0
 @export var attack_damage: int = 1
 @export var attack_cooldown: float = 1.0
-@export var lose_sight_range: float = 300.0
+@export var lose_sight_range: float = 150.0
 
 var ai_state: AIState = AIState.PATROL
 var _attack_timer: float = 0.0
@@ -19,10 +19,13 @@ var _player_ref: CharacterBody2D = null
 
 @onready var raycast_right: RayCast2D = $RayCastRight
 @onready var raycast_left: RayCast2D = $RayCastLeft
+@onready var edge_ray_right: RayCast2D = $EdgeRayRight
+@onready var edge_ray_left: RayCast2D = $EdgeRayLeft
 @onready var detect_area: Area2D = $DetectArea
 
 
 func _ready() -> void:
+    add_to_group("enemy")
     _patrol_origin = global_position
     if detect_area:
         detect_area.body_entered.connect(_on_detect_body_entered)
@@ -44,11 +47,13 @@ func _physics_process(delta: float) -> void:
 
 
 func _handle_patrol() -> void:
-    velocity.x = speed * direction
+    if _is_at_edge():
+        direction = -direction
     if raycast_right and raycast_right.is_colliding():
         direction = -1
     if raycast_left and raycast_left.is_colliding():
         direction = 1
+    velocity.x = speed * direction
 
 
 func _handle_chase() -> void:
@@ -70,6 +75,14 @@ func _handle_return() -> void:
     velocity.x = speed * dir_to_origin
     if absf(global_position.x - _patrol_origin.x) < 5.0:
         ai_state = AIState.PATROL
+
+
+func _is_at_edge() -> bool:
+    if direction > 0 and edge_ray_right and not edge_ray_right.is_colliding():
+        return true
+    if direction < 0 and edge_ray_left and not edge_ray_left.is_colliding():
+        return true
+    return false
 
 
 func _attack_player() -> void:

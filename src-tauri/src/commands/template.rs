@@ -331,17 +331,21 @@ fn generate_project_godot(template: &Template, enable_mobile: bool) -> String {
     }
 
     content.push_str("[display]\n");
-    if enable_mobile {
+    let is_portrait = matches!(template.category, TemplateCategory::Mobile);
+    if is_portrait {
         content.push_str("window/size/viewport_width=720\n");
         content.push_str("window/size/viewport_height=1280\n");
-        content.push_str("window/stretch/mode=\"canvas_items\"\n");
-        content.push_str("window/handheld/orientation=1\n");
-        content.push_str("window/stretch/aspect=\"keep\"\n\n");
     } else {
         content.push_str("window/size/viewport_width=1280\n");
         content.push_str("window/size/viewport_height=720\n");
-        content.push_str("window/stretch/mode=\"canvas_items\"\n\n");
     }
+    content.push_str("window/stretch/mode=\"canvas_items\"\n");
+    if enable_mobile && !is_portrait {
+        content.push_str("window/handheld/orientation=0\n");
+    } else if enable_mobile && is_portrait {
+        content.push_str("window/handheld/orientation=1\n");
+    }
+    content.push_str("window/stretch/aspect=\"keep\"\n\n");
 
     content.push_str("[rendering]\n");
     if !template.godot.rendering.is_empty() {
@@ -1222,10 +1226,11 @@ pub async fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, S
                 "ui_cancel": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194305}] }
             }),
             layer_names: serde_json::json!({
-                "2d_physics": ["player", "enemy", "environment", "pickup"],
-                "2d_render": ["background", "foreground", "ui"]
+                "2d_physics": ["environment", "player", "enemy", "pickup", "hazard", "trigger"],
+                "2d_render": ["background", "midground", "foreground", "ui"]
             }),
             autoloads: serde_json::json!({
+                "GameManager": "res://scripts/autoload/game_manager.gd",
                 "ScreenManager": "res://scripts/autoload/screen_manager.gd",
                 "AudioManager": "res://scripts/autoload/audio_manager.gd"
             }),
@@ -1289,7 +1294,7 @@ pub async fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, S
                 "ui_cancel": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194305}] }
             }),
             layer_names: serde_json::json!({
-                "2d_physics": ["player", "enemy", "environment", "pickup", "hazard", "platform"],
+                "2d_physics": ["environment", "player", "enemy", "pickup", "hazard", "trigger"],
                 "2d_render": ["background", "midground", "foreground", "ui"]
             }),
             autoloads: serde_json::json!({
@@ -1367,7 +1372,7 @@ pub async fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, S
                 "ui_cancel": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194305}] }
             }),
             layer_names: serde_json::json!({
-                "2d_physics": ["player", "npc", "environment", "pickup", "trigger"],
+                "2d_physics": ["environment", "player", "npc", "pickup", "hazard", "trigger"],
                 "2d_render": ["background", "midground", "foreground", "ui"]
             }),
             autoloads: serde_json::json!({
@@ -1445,7 +1450,7 @@ pub async fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, S
                 "ui_cancel": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194305}] }
             }),
             layer_names: serde_json::json!({
-                "3d_physics": ["player", "enemy", "environment", "pickup", "hazard"],
+                "3d_physics": ["environment", "player", "enemy", "pickup", "hazard"],
                 "3d_render": ["background", "environment", "characters", "foreground", "ui"]
             }),
             autoloads: serde_json::json!({
@@ -1512,7 +1517,7 @@ pub async fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, S
                 "ui_cancel": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194305}] }
             }),
             layer_names: serde_json::json!({
-                "2d_physics": ["player", "other_player", "environment", "pickup", "hazard"],
+                "2d_physics": ["environment", "player", "other_player", "pickup", "hazard", "trigger"],
                 "2d_render": ["background", "foreground", "ui"]
             }),
             autoloads: serde_json::json!({

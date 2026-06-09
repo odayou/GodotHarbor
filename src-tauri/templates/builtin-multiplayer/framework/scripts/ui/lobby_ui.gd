@@ -32,7 +32,7 @@ func _on_join_pressed() -> void:
     var port = int(port_input.value) if port_input else 7777
     _set_status("Connecting...")
     if NetworkManager.join_game(address, port):
-        _set_status("Connected!")
+        _set_status("Connecting to %s:%d..." % [address, port])
         _show_lobby()
     else:
         _set_status("Connection failed")

@@ -62,7 +62,8 @@ impl ProjectScanner {
 
         for projects in results {
             for project in projects {
-                if seen_paths.insert(project.path.clone()) {
+                let normalized = project.path.to_lowercase().replace('/', "\\");
+                if seen_paths.insert(normalized) {
                     all_projects.push(project);
                 }
             }

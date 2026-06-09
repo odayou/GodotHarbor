@@ -631,6 +631,11 @@ const onRemovePluginConfirm = async () => {
       )
     }
     await api.removePlugin(deletePluginId.value)
+    selectedPluginIds.value.delete(deletePluginId.value)
+    selectedPluginIds.value = new Set(selectedPluginIds.value)
+    if (selectedPluginIds.value.size === 0) {
+      isBatchMode.value = false
+    }
     toast.success(t('common.projectDeleted'))
     showPluginDetail.value = false
     selectedPlugin.value = null

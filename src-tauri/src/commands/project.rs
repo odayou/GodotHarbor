@@ -5,6 +5,35 @@ use crate::scanner::ProjectScanner;
 use super::utils::*;
 use super::system::get_default_scan_dirs;
 
+fn normalize_path(path: &str) -> String {
+    let p = std::path::Path::new(path);
+    match std::fs::canonicalize(p) {
+        Ok(canonical) => {
+            let s = canonical.to_string_lossy().to_string();
+            if cfg!(windows) {
+                s.trim_start_matches(r"\\?\").to_string()
+            } else {
+                s
+            }
+        }
+        Err(_) => {
+            if cfg!(windows) {
+                path.to_lowercase().replace('/', "\\")
+            } else {
+                path.to_string()
+            }
+        }
+    }
+}
+
+fn path_matches(a: &str, b: &str) -> bool {
+    if cfg!(windows) {
+        normalize_path(a) == normalize_path(b)
+    } else {
+        a == b
+    }
+}
+
 #[tauri::command]
 pub async fn scan_projects(app: AppHandle, root_dirs: Vec<String>) -> Result<Vec<Project>, String> {
     if root_dirs.is_empty() {
@@ -31,7 +60,7 @@ pub async fn scan_projects(app: AppHandle, root_dirs: Vec<String>) -> Result<Vec
     let mut existing_projects: Vec<Project> = storage.load_or_default("projects.json");
 
     for project in &all_projects {
-        if let Some(index) = existing_projects.iter().position(|p| p.path == project.path) {
+        if let Some(index) = existing_projects.iter().position(|p| path_matches(&p.path, &project.path)) {
             let mut existing = existing_projects[index].clone();
             existing.name = project.name.clone();
             existing.godot_version = project.godot_version.clone();
@@ -62,7 +91,21 @@ pub fn get_projects(app: AppHandle) -> Result<Vec<Project>, String> {
         }
     }
 
-    Ok(projects)
+    let original_len = projects.len();
+    let mut seen = Vec::new();
+    let mut deduped = Vec::new();
+    for project in projects {
+        let norm = normalize_path(&project.path);
+        if !seen.contains(&norm) {
+            seen.push(norm);
+            deduped.push(project);
+        }
+    }
+    if deduped.len() < original_len {
+        let _ = storage.save("projects.json", &deduped);
+    }
+
+    Ok(deduped)
 }
 
 #[tauri::command]
@@ -87,7 +130,7 @@ pub fn add_project(app: AppHandle, path: String) -> Result<Project, String> {
     let storage = get_storage(&app);
     let mut projects: Vec<Project> = storage.load_or_default("projects.json");
 
-    if projects.iter().any(|p| p.path == project.path) {
+    if projects.iter().any(|p| path_matches(&p.path, &project.path)) {
         return Err("该项目已存在，请勿重复添加".to_string());
     }
 
@@ -139,7 +182,7 @@ pub async fn import_project_from_git(
             let storage = get_storage(&app);
             let projects: Vec<Project> = storage.load_or_default("projects.json");
             let existing_path = clone_target.to_string_lossy().to_string();
-            if projects.iter().any(|p| p.path == existing_path) {
+            if projects.iter().any(|p| path_matches(&p.path, &existing_path)) {
                 return Err("该项目已存在，请勿重复添加".to_string());
             }
             let project = ProjectScanner::parse_project(&project_godot)
@@ -204,7 +247,7 @@ pub async fn import_project_from_git(
     let storage = get_storage(&app);
     let mut all_projects: Vec<Project> = storage.load_or_default("projects.json");
 
-    if all_projects.iter().any(|p| p.path == project.path) {
+    if all_projects.iter().any(|p| path_matches(&p.path, &project.path)) {
         let _ = std::fs::remove_dir_all(&clone_target);
         return Err("该项目已存在，请勿重复添加".to_string());
     }
@@ -318,7 +361,6 @@ pub async fn auto_scan_projects(app: AppHandle) -> Result<Vec<Project>, String> 
     let mut all_new_projects = Vec::new();
     let storage = get_storage(&app);
     let mut existing_projects: Vec<Project> = storage.load_or_default("projects.json");
-    let existing_paths: Vec<String> = existing_projects.iter().map(|p| p.path.clone()).collect();
 
     for dir in &scan_dirs {
         if !std::path::Path::new(dir).exists() {
@@ -328,7 +370,7 @@ pub async fn auto_scan_projects(app: AppHandle) -> Result<Vec<Project>, String> 
         match ProjectScanner::scan_directory(dir) {
             Ok(scanned) => {
                 for project in scanned {
-                    if !existing_paths.contains(&project.path) {
+                    if !existing_projects.iter().any(|p| path_matches(&p.path, &project.path)) {
                         existing_projects.push(project.clone());
                         all_new_projects.push(project);
                     }
@@ -422,9 +464,8 @@ pub async fn detect_moved_projects(app: AppHandle) -> Result<Vec<MovedProjectCan
             }
         }
 
-        let existing_paths: Vec<String> = projects.iter().map(|p| p.path.clone()).collect();
         let new_projects: Vec<&Project> = all_scanned.iter()
-            .filter(|p| !existing_paths.contains(&p.path))
+            .filter(|p| !projects.iter().any(|ep| path_matches(&ep.path, &p.path)))
             .collect();
 
         let mut candidates = Vec::new();

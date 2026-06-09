@@ -30,7 +30,8 @@ export default {
       warning: '警告',
       error: '错误',
       conflict: '冲突',
-      missingSource: '路径缺失'
+      missingSource: '路径缺失',
+      missingsource: '路径缺失'
     },
     search: '搜索项目名称或路径...',
     allGroups: '全部分组',
@@ -1062,6 +1063,7 @@ export default {
     addProjectSuccess: '成功添加项目: {name}',
     addProjectFailed: '添加项目失败: {error}',
     projectDeleted: '项目已删除',
+    deleting: '删除中...',
     deleteFailed: '删除项目失败: {error}',
     groupUpdated: '分组已更新',
     groupUpdateFailed: '更新分组失败: {error}',

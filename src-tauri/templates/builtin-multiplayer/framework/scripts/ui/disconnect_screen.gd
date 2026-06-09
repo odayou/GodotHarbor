@@ -5,16 +5,11 @@ extends CanvasLayer
 
 func _ready() -> void:
 	visible = false
-	NetworkManager.connection_failed.connect(func(): visible = true)
-	NetworkManager.client_disconnected.connect(_on_disconnected)
+	NetworkManager.server_disconnected.connect(func(): visible = true)
 	if reconnect_button:
 		reconnect_button.pressed.connect(_on_reconnect)
 	if quit_button:
-		quit_button.pressed.connect(GameManager.quit_game)
-
-func _on_disconnected(peer_id: int) -> void:
-	if peer_id == 1:
-		visible = true
+		quit_button.pressed.connect(func(): get_tree().quit())
 
 func _on_reconnect() -> void:
 	visible = false
