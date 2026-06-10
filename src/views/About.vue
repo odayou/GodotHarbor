@@ -80,6 +80,8 @@ const checkForUpdates = async () => {
   }
 }
 
+void checkForUpdates
+
 const rustDeps = [
   { name: 'Tauri', version: '2.x', url: 'https://tauri.app' },
   { name: 'Serde', version: '1.x', url: 'https://github.com/serde-rs/serde' },
@@ -161,20 +163,6 @@ const inspirationDeps = [
         <p class="text-gray-600 dark:text-content-muted mt-4 max-w-xl mx-auto">
           {{ t('about.appDescription') }}
         </p>
-        <button
-          @click="checkForUpdates"
-          :disabled="isCheckingUpdate"
-          class="mt-4 px-4 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-hover text-gray-700 dark:text-content-secondary rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors text-sm disabled:opacity-50"
-        >
-          <span v-if="isCheckingUpdate" class="flex items-center gap-2">
-            <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            {{ t('about.checking') }}
-          </span>
-          <span v-else>{{ t('about.checkUpdates') }}</span>
-        </button>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">

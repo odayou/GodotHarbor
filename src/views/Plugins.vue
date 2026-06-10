@@ -13,7 +13,7 @@ import { useAutoSetup } from '@/composables/useAutoSetup'
 import { usePluginFilter } from '@/composables/usePluginFilter'
 import { usePluginUpdate } from '@/composables/usePluginUpdate'
 import { useAssetLibrary } from '@/composables/useAssetLibrary'
-import { isOnline } from '@/composables/useNetworkStatus'
+import { isOnline as _isOnline } from '@/composables/useNetworkStatus'
 import { usePluginStore, useSettingsStore } from '@/stores'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import ErrorState from '@/components/ErrorState.vue'
@@ -113,13 +113,6 @@ const quickBindBoundProjectIds = ref<Set<string>>(new Set())
 const quickBindVersionIdx = ref(0)
 const quickBindUnitIdx = ref(0)
 const isQuickBinding = ref(false)
-
-const showContextMenu = ref(false)
-const contextMenuX = ref(0)
-const contextMenuY = ref(0)
-const contextMenuPlugin = ref<Plugin | null>(null)
-
-
 
 const showVersionSwitchDialog = ref(false)
 const versionSwitchBinding = ref<ProjectBinding | null>(null)
@@ -530,7 +523,8 @@ onMounted(async () => {
       } catch {
         quickBindProjects.value = []
       }
-      showQuickBindDialog.value = true
+      showPluginDetail.value = false
+    showQuickBindDialog.value = true
     }
   }
   if (route.query.action === 'import') {
@@ -836,6 +830,7 @@ const removePluginVersion = async (pluginId: string, versionId: string) => {
       versionDeletePluginId.value = pluginId
       versionDeleteVersionId.value = versionId
       versionDeleteWarning.value = t('plugins.versionDeleteBindingWarning', { count: affectedBindings.length, projects: projectNames.length })
+      showPluginDetail.value = false
       showVersionDeleteConfirm.value = true
       return
     }
@@ -982,12 +977,6 @@ const installMissingDeps = async () => {
   if (selectedPlugin.value) {
     pluginDependencies.value = await api.resolvePluginDependencies(selectedPlugin.value.plugin_id)
   }
-}
-
-const goToBindings = async (plugin: Plugin) => {
-  activeTab.value = 'bindings'
-  await loadLinkerData()
-  selectedLinkPluginIds.value = new Set([plugin.plugin_id])
 }
 
 const loadLinkerData = async () => {
@@ -1655,55 +1644,6 @@ const toggleQuickBindProject = (projectId: string) => {
   quickBindSelectedProjectIds.value = newSet
 }
 
-const openContextMenu = (plugin: Plugin, event: MouseEvent) => {
-  event.preventDefault()
-  event.stopPropagation()
-  contextMenuPlugin.value = plugin
-  contextMenuX.value = event.clientX
-  contextMenuY.value = event.clientY
-  showContextMenu.value = true
-}
-
-const closeContextMenu = () => {
-  showContextMenu.value = false
-  contextMenuPlugin.value = null
-}
-
-const handleContextMenuAction = async (action: string) => {
-  const plugin = contextMenuPlugin.value
-  closeContextMenu()
-  if (!plugin) return
-  switch (action) {
-    case 'bindToProject':
-      showPostImportGuide(plugin.name, plugin)
-      break
-    case 'viewDetails':
-      showPluginDetails(plugin)
-      break
-    case 'toggleFavorite':
-      await toggleFavorite(plugin)
-      break
-    case 'checkUpdate':
-      if (!isOnline.value) {
-        toast.warning(t('common.offlineNotice'))
-        break
-      }
-      await checkPluginUpdates()
-      break
-    case 'updatePlugin':
-      if (plugin.source.source_type === 'Git') {
-        await updateGitPlugin(plugin.plugin_id)
-      }
-      break
-    case 'delete':
-      await confirmRemovePlugin(plugin.plugin_id)
-      break
-    case 'goToBindings':
-      await goToBindings(plugin)
-      break
-  }
-}
-
 const openVersionSwitch = (binding: ProjectBinding) => {
   const plugin = plugins.value.find(p => p.plugin_id === binding.plugin_id)
   if (!plugin) return
@@ -1822,10 +1762,6 @@ const retryBatchFailed = async () => {
             @click="activeTab = 'repository'"
             :class="['px-3 py-1.5 rounded-md text-sm font-medium transition-colors', activeTab === 'repository' ? 'bg-white dark:bg-surface-card text-primary-600 dark:text-primary-400 shadow-sm' : 'text-gray-600 dark:text-content-secondary hover:text-gray-900 dark:hover:text-content-primary']"
           >{{ t('plugins.tabRepository') }}</button>
-          <button
-            @click="activeTab = 'bindings'; loadLinkerData()"
-            :class="['px-3 py-1.5 rounded-md text-sm font-medium transition-colors', activeTab === 'bindings' ? 'bg-white dark:bg-surface-card text-primary-600 dark:text-primary-400 shadow-sm' : 'text-gray-600 dark:text-content-secondary hover:text-gray-900 dark:hover:text-content-primary']"
-          >{{ t('plugins.tabBindings') }}</button>
           <button
             @click="activeTab = 'assetLibrary'; openAssetLibraryTab()"
             :class="['px-3 py-1.5 rounded-md text-sm font-medium transition-colors', activeTab === 'assetLibrary' ? 'bg-white dark:bg-surface-card text-primary-600 dark:text-primary-400 shadow-sm' : 'text-gray-600 dark:text-content-secondary hover:text-gray-900 dark:hover:text-content-primary']"
@@ -1994,75 +1930,15 @@ const retryBatchFailed = async () => {
     </div>
 
     <div v-else-if="filteredPlugins.length === 0 && plugins.length === 0" class="text-center py-12 max-w-md mx-auto">
-      <div class="w-16 h-16 mx-auto mb-4 bg-primary-100 dark:bg-primary-900/30 rounded-2xl flex items-center justify-center">
-        <svg class="w-10 h-10 text-primary-600 dark:text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
-        </svg>
-      </div>
-      <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('plugins.onboarding.title') }}</h3>
-      <p class="mt-2 text-sm text-gray-500 dark:text-content-muted">{{ t('plugins.onboarding.desc') }}</p>
-      <div class="mt-6 space-y-3">
-        <button
-          @click="importFromLocal"
-          :disabled="isLoading"
-          class="w-full flex items-center gap-3 p-3 bg-white dark:bg-surface-card border border-gray-200 dark:border-surface-border rounded-lg hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors text-left"
-        >
-          <div class="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
-            <svg class="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-            </svg>
-          </div>
-          <div>
-            <div class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ t('plugins.onboarding.fromDir') }}</div>
-            <div class="text-xs text-gray-500 dark:text-content-muted">{{ t('plugins.onboarding.fromDirDesc') }}</div>
-          </div>
-        </button>
-        <button
-          @click="showRemoteDialog = true"
-          :disabled="isLoading"
-          class="w-full flex items-center gap-3 p-3 bg-white dark:bg-surface-card border border-gray-200 dark:border-surface-border rounded-lg hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors text-left"
-        >
-          <div class="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
-            <svg class="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-            </svg>
-          </div>
-          <div>
-            <div class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ t('plugins.onboarding.fromRemote') }}</div>
-            <div class="text-xs text-gray-500 dark:text-content-muted">{{ t('plugins.onboarding.fromRemoteDesc') }}</div>
-          </div>
-        </button>
-        <button
-          @click="openAssetLibrary"
-          :disabled="isLoading"
-          class="w-full flex items-center gap-3 p-3 bg-white dark:bg-surface-card border border-gray-200 dark:border-surface-border rounded-lg hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors text-left"
-        >
-          <div class="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
-            <svg class="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          </div>
-          <div>
-            <div class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ t('plugins.onboarding.fromAssetLib') }}</div>
-            <div class="text-xs text-gray-500 dark:text-content-muted">{{ t('plugins.onboarding.fromAssetLibDesc') }}</div>
-          </div>
-        </button>
-        <button
-          @click="importFromProjects"
-          :disabled="isLoading"
-          class="w-full flex items-center gap-3 p-3 bg-white dark:bg-surface-card border border-gray-200 dark:border-surface-border rounded-lg hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors text-left"
-        >
-          <div class="w-10 h-10 bg-amber-100 dark:bg-amber-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
-            <svg class="w-5 h-5 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-            </svg>
-          </div>
-          <div>
-            <div class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ t('plugins.onboarding.fromProjects') }}</div>
-            <div class="text-xs text-gray-500 dark:text-content-muted">{{ t('plugins.onboarding.fromProjectsDesc') }}</div>
-          </div>
-        </button>
-      </div>
+      <EmptyState
+        :title="t('plugins.onboarding.title')"
+        :description="t('plugins.onboarding.desc')"
+        :actionLabel="t('plugins.onboarding.fromDir')"
+        @action="importFromLocal"
+        :shortcuts="[
+          { key: 'Ctrl+K', description: t('commandPalette.title') },
+        ]"
+      />
 
       <div v-if="featuredPlugins && featuredPlugins.plugins.length > 0 && showFeatured" class="mt-8 pt-6 border-t border-gray-200 dark:border-surface-border">
         <div class="flex items-center justify-between mb-4">
@@ -2147,8 +2023,7 @@ const retryBatchFailed = async () => {
             'bg-white dark:bg-surface-card rounded-xl shadow hover:shadow-md transition-all p-4',
             selectedPluginIds.has(plugin.plugin_id) ? 'ring-2 ring-primary-500' : ''
           ]"
-          @contextmenu="openContextMenu(plugin, $event)"
-        >
+          >
           <div class="flex items-start gap-3">
             <input
               type="checkbox"
@@ -3283,43 +3158,6 @@ const retryBatchFailed = async () => {
             {{ isQuickBinding ? t('plugins.quickBind.binding') : t('plugins.quickBind.bindSelected') }}
           </button>
         </div>
-      </div>
-    </div>
-  </Teleport>
-
-  <Teleport to="body">
-    <div v-if="showContextMenu" class="fixed inset-0 z-50" @click="closeContextMenu" @contextmenu.prevent="closeContextMenu">
-      <div
-        class="fixed bg-white dark:bg-surface-card rounded-xl shadow-lg border border-gray-200 dark:border-surface-border py-1 min-w-48"
-        :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
-        @click.stop
-      >
-        <button @click="handleContextMenuAction('bindToProject')" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-50 dark:hover:bg-surface-hover flex items-center gap-2">
-          <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
-          {{ t('plugins.contextMenu.bindToProject') }}
-        </button>
-        <button @click="handleContextMenuAction('viewDetails')" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-50 dark:hover:bg-surface-hover flex items-center gap-2">
-          <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-          {{ t('plugins.contextMenu.viewDetails') }}
-        </button>
-        <button @click="handleContextMenuAction('toggleFavorite')" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-50 dark:hover:bg-surface-hover flex items-center gap-2">
-          <svg class="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 24 24"><path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
-          {{ t('plugins.contextMenu.toggleFavorite') }}
-        </button>
-        <div class="border-t border-gray-200 dark:border-surface-border my-1"></div>
-        <button v-if="contextMenuPlugin?.source.source_type === 'Git'" @click="handleContextMenuAction('updatePlugin')" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-50 dark:hover:bg-surface-hover flex items-center gap-2">
-          <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-          {{ t('plugins.contextMenu.updatePlugin') }}
-        </button>
-        <button @click="handleContextMenuAction('goToBindings')" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-50 dark:hover:bg-surface-hover flex items-center gap-2">
-          <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
-          {{ t('plugins.contextMenu.goToBindings') }}
-        </button>
-        <div class="border-t border-gray-200 dark:border-surface-border my-1"></div>
-        <button @click="handleContextMenuAction('delete')" class="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-          {{ t('plugins.contextMenu.delete') }}
-        </button>
       </div>
     </div>
   </Teleport>

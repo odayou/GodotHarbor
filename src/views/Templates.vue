@@ -99,23 +99,6 @@ const projects = ref<Project[]>([])
 const showDeleteConfirm = ref(false)
 const deleteTargetId = ref('')
 
-// 右键菜单
-const contextMenuTemplate = ref<Template | null>(null)
-const contextMenuPos = ref({ x: 0, y: 0 })
-const showContextMenu = ref(false)
-
-const onTemplateContextMenu = (e: MouseEvent, tpl: Template) => {
-  e.preventDefault()
-  contextMenuTemplate.value = tpl
-  contextMenuPos.value = { x: e.clientX, y: e.clientY }
-  showContextMenu.value = true
-}
-
-const closeContextMenu = () => {
-  showContextMenu.value = false
-  contextMenuTemplate.value = null
-}
-
 useDialogEscape(showDetailDialog)
 useDialogEscape(showCreateDialog)
 useDialogEscape(showImportDialog)
@@ -363,12 +346,6 @@ const progressPercent = computed(() => {
         </div>
         <div class="flex items-center gap-2">
           <button
-            @click="showGenerateFromProjectDialog = true"
-            class="px-4 py-2 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors"
-          >
-            {{ t('templates.generateFromProject') || '从项目生成' }}
-          </button>
-          <button
             @click="showImportDialog = true"
             class="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors"
           >
@@ -439,8 +416,7 @@ const progressPercent = computed(() => {
           :key="tpl.template_id"
           class="group relative bg-white dark:bg-surface-card rounded-xl border border-gray-200 dark:border-surface-border hover:border-primary-300 dark:hover:border-primary-600 hover:shadow-lg transition-all duration-200 cursor-pointer overflow-hidden"
           @click="openDetail(tpl)"
-          @contextmenu="onTemplateContextMenu($event, tpl)"
-        >
+          >
           <div class="p-5">
             <div class="flex items-start justify-between mb-3">
               <div class="flex items-center gap-3">
@@ -608,7 +584,7 @@ const progressPercent = computed(() => {
               </button>
               <button
                 v-if="!selectedTemplate.is_builtin"
-                @click="deleteTargetId = selectedTemplate.template_id; showDeleteConfirm = true"
+                @click="deleteTargetId = selectedTemplate.template_id; showDetailDialog = false; showDeleteConfirm = true"
                 class="px-4 py-2.5 text-sm font-medium rounded-lg border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
               >
                 {{ t('common.delete') || 'Delete' }}
@@ -832,40 +808,6 @@ const progressPercent = computed(() => {
               </button>
             </div>
           </div>
-        </div>
-      </div>
-    </Teleport>
-
-    <!-- 右键菜单 -->
-    <Teleport to="body">
-      <div v-if="showContextMenu" class="fixed inset-0 z-50" @click="closeContextMenu" @contextmenu.prevent="closeContextMenu">
-        <div
-          class="fixed bg-white dark:bg-surface-card rounded-lg shadow-xl border border-gray-200 dark:border-surface-border py-1.5 min-w-[180px] z-50"
-          :style="{ left: contextMenuPos.x + 'px', top: contextMenuPos.y + 'px' }"
-          @click.stop
-        >
-          <button
-            @click="openCreateDialog(contextMenuTemplate!); closeContextMenu()"
-            class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-100 dark:hover:bg-surface-hover flex items-center gap-2.5"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
-            {{ t('templates.createProject') }}
-          </button>
-          <button
-            @click="openDetail(contextMenuTemplate!); closeContextMenu()"
-            class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-100 dark:hover:bg-surface-hover flex items-center gap-2.5"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-            {{ t('templates.viewDetail') || t('common.viewDetail') }}
-          </button>
-          <button
-            v-if="contextMenuTemplate && !contextMenuTemplate.is_builtin"
-            @click="deleteTargetId = contextMenuTemplate!.template_id; showDeleteConfirm = true; closeContextMenu()"
-            class="w-full px-4 py-2 text-left text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 flex items-center gap-2.5"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-            {{ t('common.delete') }}
-          </button>
         </div>
       </div>
     </Teleport>

@@ -38,7 +38,7 @@ const toast = useToast()
 const { t } = useI18n()
 const { openInFileManager } = useFileManager()
 
-const activeTab = ref<'templates' | 'presets' | 'build' | 'ci' | 'mcp'>('templates')
+const activeTab = ref<'export' | 'build' | 'mcp'>('export')
 const exportTemplates = ref<ExportTemplateInfo[]>([])
 const builtinPresets = ref<BuiltinExportPreset[]>([])
 const buildRecords = ref<BuildRecord[]>([])
@@ -511,10 +511,8 @@ onUnmounted(() => {
     <div class="px-6 flex gap-1 border-b border-gray-200 dark:border-surface-border mb-4">
       <button
         v-for="tab in ([
-          { key: 'templates', label: t('build.exportTemplates') },
-          { key: 'presets', label: t('build.presets') },
+          { key: 'export', label: t('build.exportConfig') || '导出配置' },
           { key: 'build', label: t('build.buildProject') },
-          { key: 'ci', label: t('build.ciConfig') },
           { key: 'mcp', label: t('build.mcpServer') || 'MCP Server' },
         ] as const)"
         :key="tab.key"
@@ -533,8 +531,8 @@ onUnmounted(() => {
         <div class="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent"></div>
       </div>
       <div v-else>
-      <!-- Export Templates Tab -->
-      <div v-if="activeTab === 'templates'">
+      <!-- Export Config Tab (merged: templates + presets) -->
+      <div v-if="activeTab === 'export'">
         <div class="flex items-center justify-between mb-4">
           <p class="text-sm text-gray-500 dark:text-content-muted">{{ t('build.exportTemplatesDesc') }}</p>
           <div v-if="exportTemplates.length > 0" class="flex items-center gap-2">
@@ -623,8 +621,9 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Export Presets Tab -->
-      <div v-if="activeTab === 'presets'">
+      <!-- Export Presets Section -->
+      <div class="mt-8 pt-6 border-t border-gray-200 dark:border-surface-border">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('build.presets') }}</h3>
         <p class="text-sm text-gray-500 dark:text-content-muted mb-4">{{ t('build.presetsDesc') }}</p>
         <div class="mb-4">
           <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('build.selectProject') }}</label>
@@ -793,8 +792,9 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- CI/CD Tab -->
-      <div v-if="activeTab === 'ci'">
+      <!-- CI/CD Section -->
+      <div class="mt-8 pt-6 border-t border-gray-200 dark:border-surface-border">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('build.ciConfig') }}</h3>
         <p class="text-sm text-gray-500 dark:text-content-muted mb-4">{{ t('build.ciDesc') }}</p>
         <div class="bg-white dark:bg-surface-card rounded-xl border border-gray-200 dark:border-surface-border p-6 mb-6">
           <div class="grid gap-4 sm:grid-cols-2 mb-4">

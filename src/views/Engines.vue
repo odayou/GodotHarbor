@@ -805,43 +805,12 @@ const initCollapsedGroups = () => {
       v-else-if="engines.length === 0"
       :title="t('engines.empty')"
       :description="t('engines.emptyDesc')"
+      :actionLabel="t('engines.discover')"
+      @action="discoverEngines"
       :shortcuts="[
         { key: 'Ctrl+K', description: t('commandPalette.title') },
       ]"
-    >
-      <template #actions>
-        <div class="flex justify-center gap-3">
-          <button
-            @click="discoverEngines"
-            :disabled="isLoading"
-            class="inline-flex items-center gap-1.5 btn-secondary disabled:opacity-50 text-sm"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            {{ t('engines.discover') }}
-          </button>
-          <button
-            @click="openDownloadDialog"
-            class="inline-flex items-center gap-1.5 btn-secondary text-sm"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-            {{ t('engines.download.title') }}
-          </button>
-          <button
-            @click="showAddDialog = true"
-            class="inline-flex items-center gap-1.5 btn-primary text-sm"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-            </svg>
-            {{ t('engines.register') }}
-          </button>
-        </div>
-      </template>
-    </EmptyState>
+    />
 
     <div v-else-if="filteredEngines.length === 0" class="text-center py-12">
       <p class="text-sm text-gray-500 dark:text-content-muted">{{ t('engines.noMatchingEngines') }}</p>
