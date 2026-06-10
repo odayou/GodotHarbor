@@ -1603,7 +1603,7 @@ dependencies = [
 
 [[package]]
 name = "godot-harbor"
-version = "2.2.4"
+version = "2.3.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
