@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useSubscription } from '@/composables/useSubscription'
 import { useI18n } from 'vue-i18n'
@@ -135,7 +135,7 @@ const loadSettings = async () => {
       settings.value.language = localStorageLang
     }
     locale.value = settings.value.language
-    if (['light', 'dark', 'system', 'volcano'].includes(settings.value.theme)) setTheme(settings.value.theme as 'light' | 'dark' | 'system' | 'volcano')
+    if (['light', 'dark', 'system'].includes(settings.value.theme)) setTheme(settings.value.theme as 'light' | 'dark' | 'system')
   } catch (error) { toast.error(t('settings.messages.loadFailed', { error })) }
   finally { isLoading.value = false; originalSettings.value = JSON.stringify(settings.value) }
 }
@@ -145,7 +145,7 @@ watch(() => settings.value.language, (lang) => {
   // 保存语言设置到localStorage
   localStorage.setItem('godotharbor-language', lang)
 })
-watch(() => settings.value.theme, (theme) => { if (['light', 'dark', 'system', 'volcano'].includes(theme)) setTheme(theme as 'light' | 'dark' | 'system' | 'volcano') })
+watch(() => settings.value.theme, (theme) => { if (['light', 'dark', 'system'].includes(theme)) setTheme(theme as 'light' | 'dark' | 'system') })
 
 const addScanDirectory = async () => {
   try {
@@ -518,7 +518,6 @@ const toggleMirrorEnabled = (mirrorId: string) => {
                 <option value="light">{{ t('settings.themeLight') }}</option>
                 <option value="dark">{{ t('settings.themeDark') }}</option>
                 <option value="system">{{ t('settings.themeSystem') }}</option>
-                <option value="volcano">{{ t('settings.cloudProvider.volcano') }}</option>
               </select>
             </div>
           </div>
@@ -976,8 +975,8 @@ const toggleMirrorEnabled = (mirrorId: string) => {
             <li>{{ t('settings.resetDataItem.bindings') }}</li>
             <li>{{ t('settings.resetDataItem.settings') }}</li>
           </ul>
-          <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 mb-4">
-            <p class="text-sm text-blue-800 dark:text-blue-300">
+          <div class="bg-blue-50 dark:bg-surface-hover rounded-lg p-3 mb-4">
+            <p class="text-sm text-blue-800 dark:text-content-secondary">
               {{ t('settings.resetDataAutoBackup') }}
             </p>
           </div>

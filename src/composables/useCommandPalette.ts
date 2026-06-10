@@ -269,7 +269,7 @@ export function useCommandPalette() {
         label: t('commandPalette.cycleTheme'),
         category: 'command',
         icon: 'theme',
-        keywords: `${t('commandPalette.cycleTheme')} theme dark light system volcano`,
+        keywords: `${t('commandPalette.cycleTheme')} theme dark light system`,
         action: () => {
           cycleTheme()
           closePalette()
@@ -279,7 +279,7 @@ export function useCommandPalette() {
         id: `cmd-set-theme-${theme}`,
         label: t(`commandPalette.theme.${theme}`),
         category: 'command',
-        icon: theme === 'volcano' ? 'volcano' : theme === 'dark' ? 'theme' : theme === 'light' ? 'theme' : 'settings',
+        icon: theme === 'dark' ? 'theme' : theme === 'light' ? 'theme' : 'settings',
         keywords: `${t(`commandPalette.theme.${theme}`)} ${theme}`,
         action: () => {
           setTheme(theme)

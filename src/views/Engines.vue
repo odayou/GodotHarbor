@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
@@ -200,7 +200,7 @@ const subGroupedVersions = (versions: RemoteEngineVersion[]) => {
 const channelBadgeClass = (channel: EngineReleaseChannel) => {
   switch (channel) {
     case 'Stable': return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-    case 'Rc': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+    case 'Rc': return 'bg-blue-100 text-blue-800 dark:bg-surface-hover dark:text-brand-primary'
     case 'Beta': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
     case 'Alpha': return 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400'
     case 'Dev': return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
@@ -724,9 +724,9 @@ const initCollapsedGroups = () => {
       </div>
     </div>
 
-    <div v-if="activeDownloads.size > 0 && !showDownloadDialog" class="fixed bottom-4 right-4 z-30 bg-white dark:bg-surface-card rounded-xl shadow-lg border border-blue-200 dark:border-blue-800 p-4 w-80">
+    <div v-if="activeDownloads.size > 0 && !showDownloadDialog" class="fixed bottom-4 right-4 z-30 bg-white dark:bg-surface-card rounded-xl shadow-lg border border-blue-200 dark:border-surface-border p-4 w-80">
       <div class="flex items-center justify-between mb-2">
-        <span class="text-sm font-medium text-blue-800 dark:text-blue-300">
+        <span class="text-sm font-medium text-blue-800 dark:text-content-secondary">
           {{ t('engines.download.downloading') }} ({{ activeDownloads.size }})
         </span>
         <button
@@ -739,10 +739,10 @@ const initCollapsedGroups = () => {
       <div class="space-y-2">
         <div v-for="[key, progress] in activeDownloads" :key="key">
           <div class="flex items-center justify-between mb-1">
-            <span class="text-xs text-blue-700 dark:text-blue-300">v{{ progress.version }}{{ progress.variant === 'mono' ? ' (.NET)' : '' }} - {{ formatProgressMessage(progress) }}</span>
+            <span class="text-xs text-blue-700 dark:text-content-secondary">v{{ progress.version }}{{ progress.variant === 'mono' ? ' (.NET)' : '' }} - {{ formatProgressMessage(progress) }}</span>
             <div class="flex items-center gap-2">
-              <span v-if="progress.speed > 0" class="text-xs text-blue-600 dark:text-blue-400">{{ formatFileSize(progress.speed) }}/s</span>
-              <span class="text-xs text-blue-600 dark:text-blue-400">{{ progress.progress.toFixed(1) }}%</span>
+              <span v-if="progress.speed > 0" class="text-xs text-blue-600 dark:text-brand-primary">{{ formatFileSize(progress.speed) }}/s</span>
+              <span class="text-xs text-blue-600 dark:text-brand-primary">{{ progress.progress.toFixed(1) }}%</span>
               <button
                 @click="cancelDownload(progress.version, progress.variant)"
                 class="text-xs text-red-600 dark:text-red-400 hover:underline"
@@ -751,8 +751,8 @@ const initCollapsedGroups = () => {
               </button>
             </div>
           </div>
-          <div class="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-1.5">
-            <div class="bg-blue-600 dark:bg-blue-400 h-1.5 rounded-full transition-all duration-300" :style="{ width: `${progress.progress}%` }"></div>
+          <div class="w-full bg-blue-200 dark:bg-surface-border rounded-full h-1.5">
+            <div class="bg-blue-600 dark:bg-brand-primary h-1.5 rounded-full transition-all duration-300" :style="{ width: `${progress.progress}%` }"></div>
           </div>
         </div>
       </div>
@@ -840,7 +840,7 @@ const initCollapsedGroups = () => {
                     <span class="text-xs text-gray-500 dark:text-content-muted">v{{ engine.version }}</span>
                     <span
                       v-if="engine.version.toLowerCase().includes('mono')"
-                      class="px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400"
+                      class="px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-surface-hover dark:text-content-secondary"
                     >
                       .NET
                     </span>
@@ -1096,15 +1096,15 @@ const initCollapsedGroups = () => {
           </div>
 
           <div v-if="activeDownloads.size > 0" class="space-y-2">
-            <div v-for="[key, progress] in activeDownloads" :key="key" class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
+            <div v-for="[key, progress] in activeDownloads" :key="key" class="bg-blue-50 dark:bg-surface-hover rounded-lg p-3">
               <div class="flex justify-between items-center mb-1">
-                <span class="text-sm font-medium text-blue-800 dark:text-blue-300">v{{ progress.version }}{{ progress.variant === 'mono' ? ' (.NET)' : '' }} - {{ formatProgressMessage(progress) }}</span>
-                <span class="text-xs text-blue-600 dark:text-blue-400">{{ progress.progress.toFixed(1) }}%</span>
+                <span class="text-sm font-medium text-blue-800 dark:text-content-secondary">v{{ progress.version }}{{ progress.variant === 'mono' ? ' (.NET)' : '' }} - {{ formatProgressMessage(progress) }}</span>
+                <span class="text-xs text-blue-600 dark:text-brand-primary">{{ progress.progress.toFixed(1) }}%</span>
               </div>
-              <div class="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
-                <div class="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-300" :style="{ width: `${progress.progress}%` }"></div>
+              <div class="w-full bg-blue-200 dark:bg-surface-border rounded-full h-2">
+                <div class="bg-blue-600 dark:bg-brand-primary h-2 rounded-full transition-all duration-300" :style="{ width: `${progress.progress}%` }"></div>
               </div>
-              <div class="flex justify-between text-xs text-blue-500 dark:text-blue-400 mt-1">
+              <div class="flex justify-between text-xs text-blue-500 dark:text-brand-primary mt-1">
                 <span v-if="progress.total_bytes > 0">{{ formatFileSize(progress.downloaded_bytes) }} / {{ formatFileSize(progress.total_bytes) }}</span>
                 <span v-else>{{ formatFileSize(progress.downloaded_bytes) }}</span>
                 <span v-if="progress.speed > 0">{{ formatFileSize(progress.speed) }}/s{{ progress.eta > 0 ? ` · ${formatEta(progress.eta)}` : '' }}</span>
@@ -1219,7 +1219,7 @@ const initCollapsedGroups = () => {
                         </span>
                         <span
                           v-if="version.variant === 'mono'"
-                          class="px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400"
+                          class="px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-surface-hover dark:text-content-secondary"
                         >
                           .NET
                         </span>
@@ -1253,7 +1253,7 @@ const initCollapsedGroups = () => {
                     <template v-if="activeDownloads.has(`${version.version}_${version.variant}`)">
                       <button
                         disabled
-                        class="px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
+                        class="px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap bg-blue-100 text-blue-600 dark:bg-surface-hover dark:text-brand-primary"
                       >
                         {{ t('engines.download.downloading') }}
                       </button>

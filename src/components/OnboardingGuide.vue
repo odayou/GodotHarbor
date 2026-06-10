@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { api } from '@/api'
 import { useOnboarding } from '@/composables/useOnboarding'
@@ -123,8 +123,8 @@ const finish = async () => {
         <!-- Step 2: Projects & Engines -->
         <template v-if="currentStep === 2">
           <div class="flex justify-center mb-6">
-            <div class="w-20 h-20 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-              <svg class="w-10 h-10 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="w-20 h-20 rounded-full bg-blue-100 dark:bg-surface-hover flex items-center justify-center">
+              <svg class="w-10 h-10 text-blue-600 dark:text-brand-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
               </svg>
             </div>
@@ -136,8 +136,8 @@ const finish = async () => {
         <!-- Step 3: Shortcuts -->
         <template v-if="currentStep === 3">
           <div class="flex justify-center mb-6">
-            <div class="w-20 h-20 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-              <svg class="w-10 h-10 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="w-20 h-20 rounded-full bg-purple-100 dark:bg-surface-hover flex items-center justify-center">
+              <svg class="w-10 h-10 text-purple-600 dark:text-content-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </div>

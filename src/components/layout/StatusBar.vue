@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
@@ -128,30 +128,6 @@ const toggleUpdatePanel = () => {
 
 const closeUpdatePanel = () => {
   showUpdatePanel.value = false
-}
-
-const handleAppUpdate = () => {
-  updateStore.installAppUpdate()
-}
-
-const handleSkipVersion = () => {
-  updateStore.skipAppVersion()
-}
-
-const handlePluginUpdate = async (pluginId: string) => {
-  await updateStore.updateSinglePlugin(pluginId)
-}
-
-const handleBatchPluginUpdate = async () => {
-  await updateStore.batchUpdateAllPlugins()
-}
-
-const handleHotUpdate = () => {
-  updateStore.installHotUpdate()
-}
-
-const handleRollbackHotUpdate = () => {
-  updateStore.rollbackHotUpdate()
 }
 
 const handleCheckAll = () => {
@@ -297,7 +273,7 @@ onUnmounted(() => {
     <Teleport to="body">
       <div
         v-if="showUpdatePanel"
-        class="update-panel fixed bottom-8 right-4 w-96 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden"
+        class="update-panel fixed bottom-8 right-4 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden"
       >
         <div class="px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800">
           <div class="flex items-center justify-between">
@@ -312,150 +288,33 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <div class="max-h-80 overflow-y-auto">
-          <div
-            v-if="updateStore.appUpdate"
-            class="px-4 py-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-          >
-            <div class="flex items-center justify-between mb-1">
+        <div class="px-4 py-4 space-y-3">
+          <div v-if="updateStore.appUpdate" class="flex items-center justify-between">
+            <div>
               <span class="text-sm font-medium text-gray-900 dark:text-gray-100">Godot Harbor</span>
-              <span class="text-xs px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded">{{ t('statusbar.appUpdate') }}</span>
-            </div>
-            <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-2">
-              <span>{{ updateStore.appUpdate.current_version }}</span>
-              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-              </svg>
-              <span class="font-medium text-amber-600 dark:text-amber-400">{{ updateStore.appUpdate.latest_version }}</span>
-            </div>
-            <div v-if="updateStore.isInstallingApp" class="mb-2">
-              <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-                <div class="bg-primary-600 h-1.5 rounded-full transition-all" :style="{ width: updateStore.installProgress + '%' }"></div>
-              </div>
-              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ updateStore.installMessage }}</p>
-            </div>
-            <div v-if="updateStore.appUpdate.release_notes" class="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded p-2 mb-2 max-h-20 overflow-y-auto whitespace-pre-wrap">
-              {{ updateStore.appUpdate.release_notes }}
-            </div>
-            <div class="flex items-center gap-2">
-              <button
-                @click="handleAppUpdate"
-                :disabled="updateStore.isInstallingApp"
-                class="text-xs px-2.5 py-1 bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50"
-              >
-                {{ updateStore.isInstallingApp ? t('statusbar.installing') : t('statusbar.update') }}
-              </button>
-              <button
-                @click="handleSkipVersion"
-                class="text-xs px-2.5 py-1 border border-gray-300 dark:border-gray-600 rounded text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
-              >
-                {{ t('statusbar.skip') }}
-              </button>
-            </div>
-          </div>
-
-          <div
-            v-if="updateStore.hotUpdate && !updateStore.appUpdate"
-            class="px-4 py-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-          >
-            <div class="flex items-center justify-between mb-1">
-              <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('statusbar.hotUpdate') }}</span>
-              <span class="text-xs px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded">{{ t('statusbar.hotUpdate') }}</span>
-            </div>
-            <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-2">
-              <span class="font-medium text-amber-600 dark:text-amber-400">{{ updateStore.hotUpdate.version }}</span>
-            </div>
-            <div v-if="updateStore.isInstallingHotUpdate" class="mb-2">
-              <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-                <div class="bg-primary-600 h-1.5 rounded-full transition-all" :style="{ width: updateStore.hotUpdateProgress + '%' }"></div>
-              </div>
-              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ updateStore.hotUpdateMessage }}</p>
-            </div>
-            <div class="flex items-center gap-2">
-              <button
-                @click="handleHotUpdate"
-                :disabled="updateStore.isInstallingHotUpdate"
-                class="text-xs px-2.5 py-1 bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50"
-              >
-                {{ updateStore.isInstallingHotUpdate ? t('statusbar.installing') : t('statusbar.installHotUpdate') }}
-              </button>
-            </div>
-          </div>
-
-          <div
-            v-if="updateStore.appUpdate && updateStore.hotUpdate"
-            class="px-4 py-2 border-b border-gray-100 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/10"
-          >
-            <p class="text-xs text-blue-600 dark:text-blue-400">{{ t('statusbar.bothUpdatesTip') }}</p>
-          </div>
-
-          <div
-            v-if="updateStore.pluginUpdates.length > 0"
-            class="border-b border-gray-100 dark:border-gray-700"
-          >
-            <div class="px-4 py-2 flex items-center justify-between bg-gray-50 dark:bg-gray-700/30">
-              <span class="text-xs font-medium text-gray-700 dark:text-gray-300">
-                {{ t('statusbar.plugins') }} ({{ updateStore.pluginUpdates.length }})
-              </span>
-              <button
-                @click="handleBatchPluginUpdate"
-                :disabled="updateStore.isUpdatingPlugins"
-                class="text-xs px-2 py-0.5 bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50"
-              >
-                {{ updateStore.isUpdatingPlugins ? t('statusbar.installing') : t('statusbar.updateAll') }}
-              </button>
-            </div>
-            <div
-              v-for="pUpdate in updateStore.pluginUpdates"
-              :key="pUpdate.plugin_id"
-              class="px-4 py-2.5 border-b border-gray-50 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-            >
-              <div class="flex items-center justify-between">
-                <div>
-                  <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ pUpdate.plugin_name }}</span>
-                  <div class="text-xs text-gray-500 dark:text-gray-400">
-                    {{ pUpdate.current_version }} → <span class="text-amber-600 dark:text-amber-400 font-medium">{{ pUpdate.latest_version }}</span>
-                  </div>
-                </div>
-                <button
-                  @click="handlePluginUpdate(pUpdate.plugin_id)"
-                  :disabled="updateStore.updatingPluginId === pUpdate.plugin_id || updateStore.isUpdatingPlugins"
-                  class="text-xs px-2 py-1 bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                >
-                  <svg v-if="updateStore.updatingPluginId === pUpdate.plugin_id" class="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  {{ updateStore.updatingPluginId === pUpdate.plugin_id ? t('statusbar.installing') : t('statusbar.update') }}
-                </button>
+              <div class="text-xs text-gray-500 dark:text-gray-400">
+                {{ updateStore.appUpdate.current_version }} → <span class="font-medium text-amber-600 dark:text-amber-400">{{ updateStore.appUpdate.latest_version }}</span>
               </div>
             </div>
+            <span class="text-xs px-1.5 py-0.5 bg-blue-100 dark:bg-surface-hover text-blue-700 dark:text-brand-primary rounded">{{ t('statusbar.appUpdate') }}</span>
           </div>
 
-          <div
-            v-if="updateStore.currentHotUpdateVersion"
-            class="px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-          >
-            <div class="flex items-center justify-between">
-              <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('statusbar.currentHotUpdateVersion') }}: {{ updateStore.currentHotUpdateVersion }}</span>
-              <button
-                @click="handleRollbackHotUpdate"
-                class="text-xs px-2 py-0.5 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
-              >
-                {{ t('statusbar.rollback') }}
-              </button>
-            </div>
+          <div v-if="updateStore.hotUpdate" class="flex items-center justify-between">
+            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('statusbar.hotUpdate') }}</span>
+            <span class="text-xs font-medium text-amber-600 dark:text-amber-400">{{ updateStore.hotUpdate.version }}</span>
           </div>
 
-          <div
-            v-if="!updateStore.isChecking && !updateStore.appUpdate && updateStore.pluginUpdates.length === 0 && !updateStore.hotUpdate"
-            class="px-4 py-6 text-center"
-          >
-            <svg class="mx-auto h-8 w-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">{{ t('statusbar.everythingUpToDate') }}</p>
+          <div v-if="updateStore.pluginUpdates.length > 0" class="flex items-center justify-between">
+            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('statusbar.plugins') }}</span>
+            <span class="text-xs text-gray-500 dark:text-gray-400">{{ updateStore.pluginUpdates.length }} 个可更新</span>
           </div>
+
+          <button
+            @click="closeUpdatePanel(); $router.push('/updates')"
+            class="mt-2 px-2.5 py-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
+          >
+            {{ t('statusbar.viewUpdates') || '查看更新详情' }} →
+          </button>
         </div>
       </div>
     </Teleport>

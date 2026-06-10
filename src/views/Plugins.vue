@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -758,7 +758,6 @@ const {
 } = usePluginUpdate({ loadPlugins })
 
 const {
-  openAssetLibrary,
   openAssetLibraryTab,
 } = useAssetLibrary({
   activeTab,
@@ -1837,18 +1836,6 @@ const retryBatchFailed = async () => {
                 <div class="text-xs text-gray-500 dark:text-content-muted">{{ t('plugins.addMenu.fromRemoteDesc') }}</div>
               </div>
             </button>
-            <button
-              @click="openAssetLibrary(); showAddMenu = false"
-              class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-50 dark:hover:bg-surface-hover flex items-center gap-2.5"
-            >
-              <svg class="w-4 h-4 text-gray-500 dark:text-content-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <div>
-                <div class="font-medium">{{ t('assetLibrary.title') }}</div>
-                <div class="text-xs text-gray-500 dark:text-content-muted">{{ t('plugins.addMenu.fromAssetLibDesc') }}</div>
-              </div>
-            </button>
           </div>
         </div>
       </div>
@@ -1965,7 +1952,7 @@ const retryBatchFailed = async () => {
               <div class="text-xs text-gray-500 dark:text-content-muted truncate">{{ fp.description }}</div>
               <div class="flex items-center gap-2 mt-1">
                 <span class="text-xs text-gray-400 dark:text-content-muted">{{ fp.author }}</span>
-                <span v-if="fp.compatibility" class="text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">{{ fp.compatibility }}</span>
+                <span v-if="fp.compatibility" class="text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-surface-hover text-blue-700 dark:text-content-secondary">{{ fp.compatibility }}</span>
               </div>
             </div>
           </div>
@@ -2039,7 +2026,7 @@ const retryBatchFailed = async () => {
                 <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary">
                   {{ plugin.name }}
                 </h3>
-                <span :class="['badge text-xs', plugin.compatibility === 'Godot4' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : plugin.compatibility === 'Godot3' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : plugin.compatibility === 'Both' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' : 'bg-gray-100 text-gray-500 dark:bg-surface-hover dark:text-content-muted']">
+                <span :class="['badge text-xs', plugin.compatibility === 'Godot4' ? 'bg-blue-100 text-blue-700 dark:bg-surface-hover dark:text-brand-primary' : plugin.compatibility === 'Godot3' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : plugin.compatibility === 'Both' ? 'bg-purple-100 text-purple-700 dark:bg-surface-hover dark:text-content-secondary' : 'bg-gray-100 text-gray-500 dark:bg-surface-hover dark:text-content-muted']">
                   {{ plugin.compatibility === 'Godot4' ? '4.x' : plugin.compatibility === 'Godot3' ? '3.x' : plugin.compatibility === 'Both' ? '3/4' : '?' }}
                 </span>
                 <span class="badge badge-neutral text-xs">
@@ -2048,7 +2035,7 @@ const retryBatchFailed = async () => {
                 <span v-if="plugin.asset_type && plugin.asset_type !== 'Plugin'" :class="['badge text-xs', plugin.asset_type === 'AssetPack' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400']">
                   {{ plugin.asset_type === 'AssetPack' ? t('plugins.assetType.assetPack') : t('plugins.assetType.project') }}
                 </span>
-                <span v-if="pluginBindingCountMap.get(plugin.plugin_id)" class="badge bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-xs">
+                <span v-if="pluginBindingCountMap.get(plugin.plugin_id)" class="badge bg-blue-100 text-blue-700 dark:bg-surface-hover dark:text-brand-primary text-xs">
                   {{ pluginBindingCountMap.get(plugin.plugin_id) }} {{ t('linker.projects') }}
                 </span>
                 <span class="text-xs text-gray-400 ml-auto flex-shrink-0">v{{ plugin.versions[0]?.version || '1.0.0' }}</span>
@@ -2148,7 +2135,7 @@ const retryBatchFailed = async () => {
               @click="remoteGitRef = ref_item.name; gitRefDecisionMade = true"
               :class="['w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-surface-layer flex items-center gap-2', remoteGitRef === ref_item.name ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400' : 'text-gray-700 dark:text-content-secondary']"
             >
-              <span :class="['px-1.5 py-0.5 rounded text-[10px] font-medium', ref_item.ref_type === 'tag' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400']">{{ ref_item.ref_type === 'tag' ? 'tag' : 'branch' }}</span>
+              <span :class="['px-1.5 py-0.5 rounded text-[10px] font-medium', ref_item.ref_type === 'tag' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-blue-100 dark:bg-surface-hover text-blue-700 dark:text-brand-primary']">{{ ref_item.ref_type === 'tag' ? 'tag' : 'branch' }}</span>
               <span>{{ ref_item.name }}</span>
             </button>
           </div>
@@ -2328,7 +2315,7 @@ const retryBatchFailed = async () => {
             <p class="text-sm text-gray-600 dark:text-content-secondary bg-gray-50 dark:bg-surface-layer rounded-lg p-3">
               {{ t(`plugins.pluginDetail.sourceTypes.${selectedPlugin.source.source_type}`) }}
               <span v-if="selectedPlugin.source.url" class="block text-xs mt-1 break-all font-mono">
-                <a v-if="selectedPlugin.source.url.startsWith('http')" :href="selectedPlugin.source.url" target="_blank" rel="noopener" class="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 underline">{{ selectedPlugin.source.url }}</a>
+                <a v-if="selectedPlugin.source.url.startsWith('http')" :href="selectedPlugin.source.url" target="_blank" rel="noopener" class="text-blue-500 hover:text-blue-600 dark:text-brand-primary dark:hover:text-brand-accent underline">{{ selectedPlugin.source.url }}</a>
                 <span v-else>{{ selectedPlugin.source.url }}</span>
               </span>
             </p>
@@ -2612,7 +2599,7 @@ const retryBatchFailed = async () => {
               </div>
               <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-content-secondary">
                 <span>{{ project.godot_version }}</span>
-                <span v-if="linkerProjectBindingCounts.get(project.project_id)" class="text-blue-500 dark:text-blue-400">{{ linkerProjectBindingCounts.get(project.project_id) }} {{ t('linker.bindingCountShort') }}</span>
+                <span v-if="linkerProjectBindingCounts.get(project.project_id)" class="text-blue-500 dark:text-brand-primary">{{ linkerProjectBindingCounts.get(project.project_id) }} {{ t('linker.bindingCountShort') }}</span>
               </div>
               <div v-if="linkerProjectBindingNames.get(project.project_id)?.length" class="mt-1 flex flex-wrap gap-1">
                 <span
@@ -2714,9 +2701,9 @@ const retryBatchFailed = async () => {
                     <span v-if="item.is_healthy === false" class="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" :title="t('plugins.bindDialog.unhealthy')"></span>
                   </div>
                   <div class="text-xs text-gray-500 dark:text-content-secondary flex items-center gap-2">
-                    <span v-if="selectedLinkProjectIds.size > 1" class="text-blue-500 dark:text-blue-400">{{ linkerProjects.find(p => p.project_id === item.project_id)?.name || item.project_id }}</span>
+                    <span v-if="selectedLinkProjectIds.size > 1" class="text-blue-500 dark:text-brand-primary">{{ linkerProjects.find(p => p.project_id === item.project_id)?.name || item.project_id }}</span>
                     <span>{{ item.mount_path }}</span>
-                    <span v-if="getBindingVersion(item)" class="text-blue-500 dark:text-blue-400">v{{ getBindingVersion(item) }}</span>
+                    <span v-if="getBindingVersion(item)" class="text-blue-500 dark:text-brand-primary">v{{ getBindingVersion(item) }}</span>
                   </div>
                 </div>
                 <button @click="unbindPluginFromProject(item)" class="px-2 py-1 text-red-600 dark:text-red-400 text-xs hover:bg-red-50 dark:hover:bg-red-900/20 rounded ml-2 flex-shrink-0">
@@ -2742,7 +2729,7 @@ const retryBatchFailed = async () => {
           <text x="120" y="24" text-anchor="middle" class="fill-gray-500 dark:fill-gray-400" font-size="11">{{ t('linker.projects') }}</text>
           <text x="680" y="24" text-anchor="middle" class="fill-gray-500 dark:fill-gray-400" font-size="11">{{ t('linker.plugins') }}</text>
           <g v-for="node in graphNodes.filter(n => n.type === 'project')" :key="'p-' + node.id">
-            <rect :x="10" :y="node.y - 14" width="220" height="28" rx="6" class="fill-blue-100 dark:fill-blue-900/30 stroke-blue-300 dark:stroke-blue-700" stroke-width="1"/>
+            <rect :x="10" :y="node.y - 14" width="220" height="28" rx="6" class="fill-blue-100 dark:fill-surface-hover stroke-blue-300 dark:stroke-surface-border" stroke-width="1"/>
             <text :x="120" :y="node.y + 4" text-anchor="middle" class="fill-gray-700 dark:fill-gray-300" font-size="11">{{ node.name }}</text>
           </g>
           <g v-for="node in graphNodes.filter(n => n.type === 'plugin')" :key="'pl-' + node.id">
@@ -2892,9 +2879,9 @@ const retryBatchFailed = async () => {
             <li v-for="item in linkerApplyResult.errors" :key="item">{{ item }}</li>
           </ul>
         </div>
-        <div v-if="linkerApplyResult.errors.length === 0 && !autoApplyEnabled" class="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-          <p class="text-xs text-blue-700 dark:text-blue-300 mb-2">{{ t('plugins.autoApplyPrompt') }}</p>
-          <button @click="goToAutoApplySettings" class="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline">{{ t('plugins.autoApplyPromptAction') }} →</button>
+        <div v-if="linkerApplyResult.errors.length === 0 && !autoApplyEnabled" class="mb-3 p-3 bg-blue-50 dark:bg-surface-hover rounded-lg">
+          <p class="text-xs text-blue-700 dark:text-content-secondary mb-2">{{ t('plugins.autoApplyPrompt') }}</p>
+          <button @click="goToAutoApplySettings" class="text-xs font-medium text-blue-600 dark:text-brand-primary hover:underline">{{ t('plugins.autoApplyPromptAction') }} →</button>
         </div>
         <div v-if="linkerApplyResult.removed.length > 0 || linkerApplyResult.created.length > 0" class="mb-3">
           <button @click="loadAddonBackups" class="text-xs font-medium text-orange-600 dark:text-orange-400 hover:underline">{{ t('plugins.rollbackAddons') }}</button>
@@ -2947,7 +2934,7 @@ const retryBatchFailed = async () => {
         <div class="mb-4">
           <p class="text-xs font-medium text-gray-500 dark:text-content-muted mb-1">{{ t('linker.targetProjects') }}：</p>
           <div class="flex flex-wrap gap-1">
-            <span v-for="id in selectedLinkProjectIds" :key="id" class="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
+            <span v-for="id in selectedLinkProjectIds" :key="id" class="text-xs bg-blue-100 dark:bg-surface-hover text-blue-700 dark:text-content-secondary px-2 py-0.5 rounded">
               {{ linkerProjects.find(p => p.project_id === id)?.name || id }}
             </span>
           </div>
@@ -3226,7 +3213,7 @@ const retryBatchFailed = async () => {
         <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('linker.syncResultTitle') }}</h3>
         <div class="space-y-2 mb-4">
           <div v-if="syncResult.imported > 0" class="text-sm text-green-600 dark:text-green-400">{{ t('linker.syncImported', { count: syncResult.imported }) }}</div>
-          <div v-if="syncResult.bound > 0" class="text-sm text-blue-600 dark:text-blue-400">{{ t('linker.syncBound', { count: syncResult.bound }) }}</div>
+          <div v-if="syncResult.bound > 0" class="text-sm text-blue-600 dark:text-brand-primary">{{ t('linker.syncBound', { count: syncResult.bound }) }}</div>
           <div v-if="syncResult.skipped > 0" class="text-sm text-yellow-600 dark:text-yellow-400">{{ t('linker.syncSkipped', { count: syncResult.skipped }) }}</div>
           <div v-if="syncResult.errors.length > 0" class="space-y-1">
             <p class="text-sm font-medium text-orange-600 dark:text-orange-400">{{ t('linker.syncWarnings') }}</p>

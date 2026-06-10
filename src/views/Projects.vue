@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
@@ -1058,7 +1058,7 @@ const toggleAddPluginPanel = () => {
       <h1 class="text-2xl font-bold text-gray-900 dark:text-content-primary">{{ t('projects.title') }}</h1>
       <div class="flex flex-wrap gap-2">
         <button
-          @click="showScanDialog = true"
+          @click="quickScan"
           :disabled="isLoading"
           class="btn-primary disabled:opacity-50 text-sm"
         >
@@ -1096,7 +1096,7 @@ const toggleAddPluginPanel = () => {
             </button>
             <hr class="my-1 border-gray-200 dark:border-surface-border" />
             <button
-              @click="showAddMenu = false; $router.push('/templates')"
+              @click="showAddMenu = false; $router.push('/templates?action=create')"
               class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-100 dark:hover:bg-surface-hover flex items-center gap-2"
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" /></svg>
@@ -1706,7 +1706,7 @@ const toggleAddPluginPanel = () => {
             :key="idx"
             class="flex items-center gap-2 p-2 rounded-lg text-sm cursor-pointer"
             :class="{
-              'bg-blue-50 dark:bg-blue-900/20': action.action_type === 'install',
+              'bg-blue-50 dark:bg-surface-hover': action.action_type === 'install',
               'bg-yellow-50 dark:bg-yellow-900/20': action.action_type === 'update',
               'bg-orange-50 dark:bg-orange-900/20': action.action_type === 'remove',
               'opacity-50': !selectedSyncItems.has(`${action.item_type}:${action.name}`),
@@ -1725,7 +1725,7 @@ const toggleAddPluginPanel = () => {
             />
             <span class="font-medium px-1.5 py-0.5 rounded text-xs"
               :class="{
-                'bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-300': action.action_type === 'install',
+                'bg-blue-100 text-blue-700 dark:bg-surface-border dark:text-content-secondary': action.action_type === 'install',
                 'bg-yellow-100 text-yellow-700 dark:bg-yellow-800 dark:text-yellow-300': action.action_type === 'update',
                 'bg-orange-100 text-orange-700 dark:bg-orange-800 dark:text-orange-300': action.action_type === 'remove',
               }"
@@ -2101,7 +2101,7 @@ const toggleAddPluginPanel = () => {
                   {{ me.engine.name }}
                   <span v-if="me.engine.engine_id === engineSelectProject?.last_used_engine_id" class="text-xs text-primary-600 dark:text-primary-400 font-normal">{{ t('projects.lastUsedEngine') }}</span>
                 </div>
-                <div class="text-xs text-gray-500 dark:text-content-muted mt-0.5 font-mono flex items-center gap-1.5">v{{ me.engine.version }}<span v-if="me.engine.is_mono" class="text-[10px] px-1 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 font-sans font-medium">{{ t('projects.monoLabel') }}</span></div>
+                <div class="text-xs text-gray-500 dark:text-content-muted mt-0.5 font-mono flex items-center gap-1.5">v{{ me.engine.version }}<span v-if="me.engine.is_mono" class="text-[10px] px-1 py-0.5 rounded bg-purple-100 dark:bg-surface-hover text-purple-700 dark:text-content-secondary font-sans font-medium">{{ t('projects.monoLabel') }}</span></div>
               </div>
               <span
                 :class="['text-xs px-2 py-0.5 rounded-full font-medium ml-2 flex-shrink-0', getMatchLevelClass(me.match_level)]"

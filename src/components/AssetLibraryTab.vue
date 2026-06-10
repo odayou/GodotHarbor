@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { useAssetLibrary } from '@/composables/useAssetLibrary'
 import { usePluginStore } from '@/stores'
@@ -164,7 +164,7 @@ const {
           <div class="flex-1 min-w-0 cursor-pointer" @click="openAssetDetail(asset.asset_id)">
             <div class="flex items-center gap-2">
               <span class="font-medium text-gray-900 dark:text-content-primary text-sm truncate">{{ asset.title }}</span>
-              <span v-if="asset.support_level === 'official'" class="px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">{{ t('assetLibrary.supportOfficial') }}</span>
+              <span v-if="asset.support_level === 'official'" class="px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-surface-hover dark:text-brand-primary">{{ t('assetLibrary.supportOfficial') }}</span>
               <span v-else-if="asset.support_level === 'featured'" class="px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">{{ t('assetLibrary.supportFeatured') }}</span>
             </div>
             <div class="text-xs text-gray-500 dark:text-content-secondary mt-0.5">

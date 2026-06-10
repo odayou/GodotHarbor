@@ -135,6 +135,7 @@ export default {
     openWithEngineDesc: '选择引擎打开此项目',
     noMatchingEngines: '没有匹配的引擎',
     noMatchingEnginesDesc: '未找到与项目 Godot 版本匹配的引擎，请先在引擎管理中注册',
+    goToEngines: '前往引擎管理',
     matchExact: '精确匹配',
     matchMinor: '小版本匹配',
     matchMajor: '大版本匹配',
@@ -159,6 +160,8 @@ export default {
     addLocalDesc: '选择本地已有的项目目录',
     addFromGit: '从 Git 克隆',
     addFromGitDesc: '从 Git 仓库克隆项目',
+    createFromTemplate: '从模板创建',
+    createFromTemplateDesc: '选择模板快速创建项目',
     gitImport: {
       title: '从 Git 克隆项目',
       desc: '克隆 Git 仓库到本地并添加为 Godot 项目',
@@ -726,6 +729,7 @@ export default {
     noUpdates: '所有引擎已是最新版本',
     checkUpdatesFailed: '检查更新失败: {error}',
     deleteEngine: '删除引擎',
+    moreActions: '更多操作',
     noMatchingEngines: '没有匹配的引擎',
     download: {
       title: '下载引擎',
@@ -968,9 +972,7 @@ export default {
       zhCN: '简体中文',
       en: 'English'
     },
-    cloudProvider: {
-      volcano: '火山引擎'
-    },
+    cloudProvider: {},
     logs: {
       title: '操作日志',
       empty: '暂无日志记录',
@@ -1141,7 +1143,8 @@ export default {
     everythingUpToDate: '一切已是最新',
     upToDate: '已是最新版本',
     rollback: '回滚',
-    updateAll: '全部更新'
+    updateAll: '全部更新',
+    viewUpdates: '查看更新详情'
   },
   commandPalette: {
     title: '命令面板',
@@ -1163,8 +1166,7 @@ export default {
     theme: {
       light: '浅色主题',
       dark: '深色主题',
-      system: '跟随系统',
-      volcano: '火山主题'
+      system: '跟随系统'
     },
     toggleTheme: '切换深色/浅色主题',
     toggleSidebar: '切换侧边栏折叠',
@@ -1350,6 +1352,7 @@ export default {
   templates: {
     title: '模板市场',
     subtitle: '从模板快速创建项目，开箱即用',
+    selectToCreate: '选择一个模板创建项目',
     empty: '暂无模板',
     emptyDesc: '内置模板将在启动时自动加载',
     builtin: '内置',
@@ -1411,6 +1414,7 @@ export default {
     title: '构建发布',
     subtitle: '管理导出模板、构建项目、生成 CI/CD 配置',
     exportTemplates: '导出模板',
+    exportConfig: '导出配置',
     exportTemplatesDesc: '管理 Godot 导出模板，构建前需下载对应版本',
     download: '下载',
     downloading: '下载中...',
@@ -1477,6 +1481,7 @@ export default {
     statusCancelled: '已取消',
     openOutput: '打开输出目录',
     templateDownloaded: '导出模板下载完成',
+    downloadStalled: '下载似乎已停滞，请检查网络连接',
     templateImported: '导出模板导入完成',
     importLocal: '本地导入',
     selectTemplateFile: '选择导出模板文件',

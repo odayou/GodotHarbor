@@ -1,26 +1,22 @@
 import { ref, watch } from 'vue'
 import { api } from '@/api'
 
-export type Theme = 'light' | 'dark' | 'system' | 'volcano'
+export type Theme = 'light' | 'dark' | 'system'
 
-const ALL_THEMES: Theme[] = ['light', 'dark', 'system', 'volcano']
+const ALL_THEMES: Theme[] = ['light', 'dark', 'system']
 
 const currentTheme = ref<Theme>('system')
 
 function applyTheme(theme: Theme) {
   const root = document.documentElement
 
-  root.classList.remove('dark', 'theme-volcano')
+  root.classList.remove('dark')
 
   const isDark = theme === 'dark' ||
     (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
 
   if (isDark) {
     root.classList.add('dark')
-  }
-
-  if (theme === 'volcano') {
-    root.classList.add('theme-volcano')
   }
 }
 

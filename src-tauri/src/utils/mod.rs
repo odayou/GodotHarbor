@@ -56,6 +56,7 @@ pub fn create_http_client(timeout: Option<std::time::Duration>) -> Result<reqwes
         .user_agent("GodotHarbor")
         .timeout(timeout_duration)
         .connect_timeout(std::time::Duration::from_secs(10))
+        .read_timeout(std::time::Duration::from_secs(60))
         .build()
         .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))
 }

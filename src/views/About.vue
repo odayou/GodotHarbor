@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, onMounted, onErrorCaptured } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -167,8 +167,8 @@ const inspirationDeps = [
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div class="card p-6 text-center">
-          <div class="w-10 h-10 mx-auto mb-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
-            <svg class="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div class="w-10 h-10 mx-auto mb-3 bg-blue-100 dark:bg-surface-hover rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-blue-600 dark:text-brand-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           </div>
@@ -185,8 +185,8 @@ const inspirationDeps = [
           <p class="text-sm text-gray-500 dark:text-content-muted mt-2">{{ t('about.features.versionManagement.desc') }}</p>
         </div>
         <div class="card p-6 text-center">
-          <div class="w-10 h-10 mx-auto mb-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center">
-            <svg class="w-6 h-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div class="w-10 h-10 mx-auto mb-3 bg-purple-100 dark:bg-surface-hover rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-purple-600 dark:text-content-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
           </div>
@@ -361,7 +361,7 @@ const inspirationDeps = [
 
         <div class="card p-6">
           <div class="flex items-center gap-3 mb-4">
-            <div class="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
+            <div class="w-10 h-10 bg-blue-100 dark:bg-surface-hover rounded-lg flex items-center justify-center">
               <span class="text-xl">🌟</span>
             </div>
             <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('about.starGithub') }}</h3>

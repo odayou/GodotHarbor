@@ -132,6 +132,7 @@ export default {
     openWithEngineDesc: 'Select an engine to open this project',
     noMatchingEngines: 'No matching engines',
     noMatchingEnginesDesc: 'No engine matching the project Godot version found. Please register an engine first',
+    goToEngines: 'Go to Engine Manager',
     matchExact: 'Exact Match',
     matchMinor: 'Minor Match',
     matchMajor: 'Major Match',
@@ -156,6 +157,8 @@ export default {
     addLocalDesc: 'Select an existing local project directory',
     addFromGit: 'Clone from Git',
     addFromGitDesc: 'Clone a project from a Git repository',
+    createFromTemplate: 'Create from Template',
+    createFromTemplateDesc: 'Select a template to quickly create a project',
     gitImport: {
       title: 'Clone Project from Git',
       desc: 'Clone a Git repository and add it as a Godot project',
@@ -723,6 +726,7 @@ export default {
     noUpdates: 'All engines are up to date',
     checkUpdatesFailed: 'Check updates failed: {error}',
     deleteEngine: 'Delete Engine',
+    moreActions: 'More Actions',
     noMatchingEngines: 'No matching engines',
     download: {
       title: 'Download Engine',
@@ -965,9 +969,7 @@ export default {
       zhCN: '简体中文',
       en: 'English'
     },
-    cloudProvider: {
-      volcano: 'Volcano Engine'
-    },
+    cloudProvider: {},
     logs: {
       title: 'Operation Logs',
       empty: 'No log records',
@@ -1137,7 +1139,8 @@ export default {
     everythingUpToDate: 'Everything is up to date',
     upToDate: 'Already up to date',
     rollback: 'Rollback',
-    updateAll: 'Update All'
+    updateAll: 'Update All',
+    viewUpdates: 'View Update Details'
   },
   commandPalette: {
     title: 'Command Palette',
@@ -1159,8 +1162,7 @@ export default {
     theme: {
       light: 'Light theme',
       dark: 'Dark theme',
-      system: 'Follow system',
-      volcano: 'Volcano theme'
+      system: 'Follow system'
     },
     toggleTheme: 'Toggle dark/light theme',
     toggleSidebar: 'Toggle sidebar collapse',
@@ -1349,6 +1351,7 @@ export default {
   templates: {
     title: 'Template Hub',
     subtitle: 'Create projects from templates, ready to use',
+    selectToCreate: 'Select a template to create a project',
     empty: 'No templates yet',
     emptyDesc: 'Built-in templates will be loaded automatically on startup',
     builtin: 'Built-in',
@@ -1410,6 +1413,7 @@ export default {
     title: 'Build & Export',
     subtitle: 'Manage export templates, build projects, generate CI/CD configs',
     exportTemplates: 'Export Templates',
+    exportConfig: 'Export Config',
     exportTemplatesDesc: 'Manage Godot export templates. Download before building.',
     download: 'Download',
     downloading: 'Downloading...',
@@ -1476,6 +1480,7 @@ export default {
     statusCancelled: 'Cancelled',
     openOutput: 'Open Output Directory',
     templateDownloaded: 'Export template downloaded',
+    downloadStalled: 'Download appears stalled, please check your network',
     templateImported: 'Export template imported',
     importLocal: 'Import Local',
     selectTemplateFile: 'Select export template file',

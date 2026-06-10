@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
@@ -181,6 +181,29 @@ async function loadData(force = false) {
 
 async function downloadTemplate(version: string, mono: boolean) {
   downloadingVersion.value = `${version}-${mono}`
+  downloadProgress.value = null
+  let stalledTimer: ReturnType<typeof setTimeout> | null = null
+  let lastProgressTime = Date.now()
+
+  const unlisten = await listen<DownloadProgressPayload>('export-template-download-progress', (event) => {
+    downloadProgress.value = event.payload
+    lastProgressTime = Date.now()
+    if (event.payload.stage === 'complete') {
+      if (stalledTimer) clearTimeout(stalledTimer)
+      setTimeout(() => { downloadProgress.value = null; loadData() }, 1500)
+    } else if (event.payload.stage === 'failed') {
+      if (stalledTimer) clearTimeout(stalledTimer)
+      setTimeout(() => { downloadProgress.value = null; loadData() }, 3000)
+    }
+  })
+
+  stalledTimer = setInterval(() => {
+    if (downloadingVersion.value && Date.now() - lastProgressTime > 120_000) {
+      toast.warning(t('build.downloadStalled') || '下载似乎已停滞，请检查网络连接')
+      lastProgressTime = Date.now()
+    }
+  }, 30_000)
+
   try {
     await api.downloadExportTemplate(version, mono)
     toast.success(t('build.templateDownloaded'))
@@ -189,6 +212,8 @@ async function downloadTemplate(version: string, mono: boolean) {
     toast.error(e)
   } finally {
     downloadingVersion.value = null
+    if (stalledTimer) clearTimeout(stalledTimer)
+    unlisten()
   }
 }
 
@@ -354,11 +379,6 @@ async function confirmDeleteRecord() {
   }
 }
 
-// 构建记录右键菜单
-const contextMenuRecord = ref<BuildRecord | null>(null)
-const contextMenuPos = ref({ x: 0, y: 0 })
-const showContextMenu = ref(false)
-
 // 构建记录筛选
 const buildFilterProject = ref('')
 
@@ -424,18 +444,6 @@ async function deleteAllInstalled() {
   }
   toast.success(t('build.allDeleted') || '全部删除完成')
   await loadData()
-}
-
-const onRecordContextMenu = (e: MouseEvent, record: BuildRecord) => {
-  e.preventDefault()
-  contextMenuRecord.value = record
-  contextMenuPos.value = { x: e.clientX, y: e.clientY }
-  showContextMenu.value = true
-}
-
-const closeContextMenu = () => {
-  showContextMenu.value = false
-  contextMenuRecord.value = null
 }
 
 async function startMcpServer() {
@@ -571,7 +579,7 @@ onUnmounted(() => {
                 {{ tmpl.installed ? t('build.installed') : t('build.notInstalled') }}
               </span>
               <span class="font-medium text-gray-900 dark:text-content-primary">{{ tmpl.version }}</span>
-              <span v-if="tmpl.mono" class="text-xs text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 px-1.5 py-0.5 rounded">
+              <span v-if="tmpl.mono" class="text-xs text-purple-600 dark:text-content-secondary bg-purple-50 dark:bg-surface-hover px-1.5 py-0.5 rounded">
                 {{ t('build.mono') }}
               </span>
               <span v-if="tmpl.file_size" class="text-xs text-gray-400">{{ formatSize(tmpl.file_size) }}</span>
@@ -618,7 +626,6 @@ onUnmounted(() => {
               </div>
             </div>
           </div>
-        </div>
       </div>
 
       <!-- Export Presets Section -->
@@ -676,6 +683,7 @@ onUnmounted(() => {
             </button>
           </div>
         </div>
+      </div>
       </div>
 
       <!-- Build Tab -->
@@ -749,7 +757,6 @@ onUnmounted(() => {
             v-for="record in filteredBuildRecords.slice().reverse()"
             :key="record.build_id"
             class="flex items-center justify-between p-4 bg-white dark:bg-surface-card rounded-xl border border-gray-200 dark:border-surface-border"
-            @contextmenu="onRecordContextMenu($event, record)"
           >
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 mb-1">
@@ -790,7 +797,6 @@ onUnmounted(() => {
             </div>
           </div>
         </div>
-      </div>
 
       <!-- CI/CD Section -->
       <div class="mt-8 pt-6 border-t border-gray-200 dark:border-surface-border">
@@ -878,6 +884,7 @@ onUnmounted(() => {
             spellcheck="false"
           ></textarea>
         </div>
+      </div>
       </div>
 
       <!-- MCP Server Tab -->
@@ -1035,41 +1042,6 @@ onUnmounted(() => {
     />
       </div>
   </div>
-
-  <!-- 构建记录右键菜单 -->
-  <Teleport to="body">
-    <div v-if="showContextMenu" class="fixed inset-0 z-50" @click="closeContextMenu" @contextmenu.prevent="closeContextMenu">
-      <div
-        class="fixed bg-white dark:bg-surface-card rounded-lg shadow-xl border border-gray-200 dark:border-surface-border py-1.5 min-w-[180px] z-50"
-        :style="{ left: contextMenuPos.x + 'px', top: contextMenuPos.y + 'px' }"
-        @click.stop
-      >
-        <button
-          v-if="contextMenuRecord?.status === 'Failed'"
-          @click="retryBuild(contextMenuRecord!); closeContextMenu()"
-          class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-100 dark:hover:bg-surface-hover flex items-center gap-2.5"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-          {{ t('build.retry') || '重试' }}
-        </button>
-        <button
-          v-if="contextMenuRecord?.status === 'Success' && contextMenuRecord?.output_path"
-          @click="openInFileManager(contextMenuRecord!.output_path); closeContextMenu()"
-          class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-100 dark:hover:bg-surface-hover flex items-center gap-2.5"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
-          {{ t('build.openOutput') }}
-        </button>
-        <button
-          @click="removeBuildRecord(contextMenuRecord!.build_id); closeContextMenu()"
-          class="w-full px-4 py-2 text-left text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 flex items-center gap-2.5"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-          {{ t('build.delete') }}
-        </button>
-      </div>
-    </div>
-  </Teleport>
 
   <ConfirmDialog
     v-model="showClearRecordsConfirm"

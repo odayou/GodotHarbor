@@ -13,21 +13,21 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   
-  --surface-base: #050508;
-  --surface-layer: #0f1018;
-  --surface-card: #1a1b28;
-  --surface-border: #2d2d42;
-  --surface-hover: #222236;
-  --surface-light-base: #f0f4ff;
-  --surface-light-layer: #f8faff;
+  --surface-base: #1a1a1a;
+  --surface-layer: #1e1e1e;
+  --surface-card: #252526;
+  --surface-border: #3c3c3c;
+  --surface-hover: #2a2d2e;
+  --surface-light-base: #f8f9fa;
+  --surface-light-layer: #ffffff;
   --surface-light-card: #ffffff;
-  --surface-light-border: #dce4f0;
-  --surface-light-hover: #e8f0fe;
-  --content-primary: #F7FAFC;
-  --content-secondary: #CBD5E0;
-  --content-muted: #718096;
+  --surface-light-border: #dee2e6;
+  --surface-light-hover: #e9ecef;
+  --content-primary: #d4d4d4;
+  --content-secondary: #9d9d9d;
+  --content-muted: #6e6e6e;
   --brand-primary: #3766be;
-  --brand-secondary: #7d4ed2;
+  --brand-secondary: #4a8fe7;
   --brand-accent: #33b5dc;
   
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
@@ -76,153 +76,6 @@ input, textarea, select, [contenteditable="true"], .selectable {
 .dark {
   color: var(--content-primary);
   background-color: var(--surface-layer);
-}
-
-.theme-volcano {
-  --brand-primary: #4a6cf7;
-  --brand-secondary: #6c8eff;
-  --brand-gradient: linear-gradient(135deg, #2563eb, #3b82f6);
-  --surface-base: #f8faff;
-  --surface-layer: #ffffff;
-  --surface-card: #e8f0fe;
-  --surface-border: #d4e1ff;
-  --content-primary: #1a237e;
-  --content-secondary: #455a64;
-  
-  color: var(--content-primary);
-  background-color: var(--surface-layer);
-}
-
-.theme-volcano .card {
-  @apply bg-blue-50 border-blue-100;
-}
-
-.theme-volcano .card:hover {
-  @apply shadow-blue-100;
-}
-
-.theme-volcano .btn-primary {
-  @apply bg-gradient-to-r from-blue-500 to-blue-600 text-white;
-}
-
-.theme-volcano .btn-secondary {
-  @apply border-blue-200 bg-white text-blue-900 hover:bg-blue-50;
-}
-
-.theme-volcano .btn-danger {
-  @apply bg-red-500 text-white hover:bg-red-600;
-}
-
-.theme-volcano .badge-neutral {
-  @apply bg-blue-100 text-blue-800;
-}
-
-.theme-volcano .badge-success {
-  @apply bg-green-100 text-green-800;
-}
-
-.theme-volcano .badge-warning {
-  @apply bg-yellow-100 text-yellow-800;
-}
-
-.theme-volcano .badge-error {
-  @apply bg-red-100 text-red-800;
-}
-
-.theme-volcano input[type="text"],
-.theme-volcano input[type="email"],
-.theme-volcano input[type="password"],
-.theme-volcano textarea,
-.theme-volcano select {
-  @apply border-blue-200 bg-white text-blue-900 placeholder-blue-400 focus:border-blue-500 focus:ring-blue-500;
-}
-
-.theme-volcano input[type="checkbox"] {
-  @apply text-blue-500 focus:ring-blue-500;
-}
-
-.theme-volcano .bg-gray-800 {
-  @apply bg-blue-50;
-}
-
-.theme-volcano .border-gray-300 {
-  @apply border-blue-200;
-}
-
-.theme-volcano .border-gray-600 {
-  @apply border-blue-200;
-}
-
-.theme-volcano .text-gray-900 {
-  @apply text-blue-900;
-}
-
-.theme-volcano .text-gray-700 {
-  @apply text-blue-800;
-}
-
-.theme-volcano .text-gray-500 {
-  @apply text-blue-700;
-}
-
-.theme-volcano .text-gray-400 {
-  @apply text-blue-600;
-}
-
-.theme-volcano .text-gray-300 {
-  @apply text-blue-500;
-}
-
-.theme-volcano .hover\:bg-gray-50:hover {
-  @apply bg-blue-50;
-}
-
-.theme-volcano .hover\:bg-gray-700:hover {
-  @apply bg-blue-100;
-}
-
-.theme-volcano .hover\:bg-gray-600:hover {
-  @apply bg-blue-100;
-}
-
-.theme-volcano .dark\:bg-gray-800 {
-  @apply bg-blue-50;
-}
-
-.theme-volcano .dark\:bg-gray-700 {
-  @apply bg-blue-100;
-}
-
-.theme-volcano .dark\:bg-gray-600 {
-  @apply bg-blue-100;
-}
-
-.theme-volcano .dark\:text-gray-100 {
-  @apply text-blue-900;
-}
-
-.theme-volcano .dark\:text-gray-300 {
-  @apply text-blue-800;
-}
-
-.theme-volcano .dark\:text-gray-400 {
-  @apply text-blue-700;
-}
-
-.theme-volcano .dark\:border-gray-600 {
-  @apply border-blue-200;
-}
-
-.theme-volcano .dark\:hover\:bg-gray-700:hover {
-  @apply bg-blue-100;
-}
-
-.theme-volcano .dark\:hover\:bg-gray-600:hover {
-  @apply bg-blue-100;
-}
-
-.theme-volcano .desktop-focus {
-  @apply focus:ring-blue-500 focus:ring-offset-white;
 }
 
 body {

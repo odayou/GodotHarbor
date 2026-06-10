@@ -1,6 +1,7 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, onMounted, computed, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { api } from '@/api'
 import type { Template, TemplateCategory, TemplateInstantiationProgress, Project } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
@@ -17,6 +18,7 @@ import ProjectSelector from '@/components/ProjectSelector.vue'
 
 const toast = useToast()
 const { t } = useI18n()
+const route = useRoute()
 const {
   openProjectWithEngine,
   showEngineSelectDialog,
@@ -33,6 +35,7 @@ const {
 const { openInFileManager } = useFileManager()
 
 const templates = ref<Template[]>([])
+const showCreateHint = ref(false)
 const isLoading = ref(true)
 const isRefreshing = ref(false)
 const loadError = ref<string | null>(null)
@@ -115,6 +118,9 @@ onMounted(async () => {
   unlistenProgress = await listen('template-instantiation-progress', (event) => {
     createProgress.value = event.payload as TemplateInstantiationProgress
   })
+  if (route.query.action === 'create' && templates.value.length > 0) {
+    showCreateHint.value = true
+  }
 })
 
 onUnmounted(() => {
@@ -338,6 +344,12 @@ const progressPercent = computed(() => {
 
 <template>
   <div class="h-full flex flex-col overflow-hidden">
+    <div v-if="showCreateHint" class="mx-6 mt-4 px-4 py-3 bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg flex items-center justify-between">
+      <span class="text-sm text-primary-700 dark:text-primary-300">{{ t('templates.selectToCreate') || '选择一个模板创建项目' }}</span>
+      <button @click="showCreateHint = false" class="text-primary-500 hover:text-primary-700 dark:hover:text-primary-300">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
     <div class="shrink-0 px-6 pb-4">
       <div class="flex items-center justify-between mb-4">
         <div>
@@ -857,7 +869,7 @@ const progressPercent = computed(() => {
                     {{ me.engine.name }}
                     <span v-if="me.engine.engine_id === engineSelectProject?.last_used_engine_id" class="text-xs text-primary-600 dark:text-primary-400 font-normal">{{ t('projects.lastUsedEngine') }}</span>
                   </div>
-                  <div class="text-xs text-gray-500 dark:text-content-muted mt-0.5 font-mono flex items-center gap-1.5">v{{ me.engine.version }}<span v-if="me.engine.is_mono" class="text-[10px] px-1 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 font-sans font-medium">{{ t('projects.monoLabel') }}</span></div>
+                  <div class="text-xs text-gray-500 dark:text-content-muted mt-0.5 font-mono flex items-center gap-1.5">v{{ me.engine.version }}<span v-if="me.engine.is_mono" class="text-[10px] px-1 py-0.5 rounded bg-purple-100 dark:bg-surface-hover text-purple-700 dark:text-content-secondary font-sans font-medium">{{ t('projects.monoLabel') }}</span></div>
                 </div>
                 <span :class="['text-xs px-2 py-0.5 rounded-full font-medium ml-2 flex-shrink-0', getMatchLevelClass(me.match_level)]" :title="getMatchLevelDesc(me.match_level)">{{ getMatchLevelLabel(me.match_level) }}</span>
               </div>

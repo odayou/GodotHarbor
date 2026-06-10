@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="space-y-6">
     <div class="flex items-center justify-between">
       <h1 class="text-2xl font-bold text-gray-900 dark:text-content-primary">{{ t('nav.updates') }}</h1>
@@ -85,8 +85,8 @@
       </div>
     </div>
 
-    <div v-if="store.appUpdate && store.hotUpdate" class="card bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-      <p class="text-sm text-blue-700 dark:text-blue-300">
+    <div v-if="store.appUpdate && store.hotUpdate" class="card bg-blue-50 dark:bg-surface-hover border border-blue-200 dark:border-surface-border">
+      <p class="text-sm text-blue-700 dark:text-content-secondary">
         {{ t('updates.bothUpdatesTip') }}
       </p>
     </div>
@@ -302,8 +302,8 @@ function formatBytes(bytes: number): string {
 
 function updateTypeClass(type: string): string {
   switch (type) {
-    case 'app': return 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
-    case 'plugin': return 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400'
+    case 'app': return 'bg-blue-100 text-blue-600 dark:bg-surface-hover dark:text-brand-primary'
+    case 'plugin': return 'bg-purple-100 text-purple-600 dark:bg-surface-hover dark:text-content-secondary'
     case 'engine': return 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
     case 'hot': return 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'
     default: return 'bg-gray-100 text-gray-600 dark:bg-surface-hover dark:text-content-muted'
