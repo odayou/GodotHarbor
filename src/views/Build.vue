@@ -526,7 +526,7 @@ onUnmounted(() => {
         :key="tab.key"
         class="px-4 py-2 text-sm font-medium border-b-2 transition-colors"
         :class="activeTab === tab.key
-          ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+          ? 'border-primary-500 text-primary-600 dark:text-brand-primary'
           : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-content-secondary dark:hover:text-content-primary'"
         @click="activeTab = tab.key"
       >
@@ -595,7 +595,7 @@ onUnmounted(() => {
               </button>
               <button
                 v-if="!tmpl.installed"
-                class="px-3 py-1.5 text-sm font-medium text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/10 rounded-lg transition-colors disabled:opacity-50"
+                class="px-3 py-1.5 text-sm font-medium text-primary-600 dark:text-brand-primary hover:bg-primary-50 dark:hover:bg-surface-hover rounded-lg transition-colors disabled:opacity-50"
                 :disabled="downloadingVersion === `${tmpl.version}-import`"
                 @click="importTemplateFromFile(tmpl.version, tmpl.mono)"
               >
@@ -612,17 +612,17 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <div v-if="downloadProgress" class="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-xl p-4 mt-4">
+        <div v-if="downloadProgress" class="bg-primary-50 dark:bg-surface-hover border border-primary-200 dark:border-surface-border rounded-xl p-4 mt-4">
           <div class="flex items-center gap-3">
             <div class="animate-spin rounded-full h-5 w-5 border-2 border-primary-600 border-t-transparent flex-shrink-0" v-if="downloadProgress.stage !== 'complete'"></div>
             <svg v-else class="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
             <div class="flex-1 min-w-0">
               <div class="flex items-center justify-between">
-                <p class="text-sm font-medium text-primary-800 dark:text-primary-300">{{ downloadProgress.message }}</p>
-                <span v-if="downloadProgress.stage !== 'complete'" class="text-xs font-medium text-primary-600 dark:text-primary-400 ml-2">{{ Math.round(downloadProgress.progress * 100) }}%</span>
+                <p class="text-sm font-medium text-primary-800 dark:text-content-secondary">{{ downloadProgress.message }}</p>
+                <span v-if="downloadProgress.stage !== 'complete'" class="text-xs font-medium text-primary-600 dark:text-brand-primary ml-2">{{ Math.round(downloadProgress.progress * 100) }}%</span>
               </div>
-              <div v-if="downloadProgress.stage !== 'complete'" class="mt-2 w-full bg-primary-200 dark:bg-primary-800 rounded-full h-1.5">
-                <div class="bg-primary-600 h-1.5 rounded-full transition-all" :style="{ width: (downloadProgress.progress * 100) + '%' }"></div>
+              <div v-if="downloadProgress.stage !== 'complete'" class="mt-2 w-full bg-surface-border dark:bg-surface-border rounded-full h-1.5">
+                <div class="bg-brand-primary h-1.5 rounded-full transition-all" :style="{ width: (downloadProgress.progress * 100) + '%' }"></div>
               </div>
             </div>
           </div>
@@ -650,7 +650,7 @@ onUnmounted(() => {
             <p class="text-sm text-gray-500 dark:text-content-muted mb-3">{{ preset.description }}</p>
             <div class="flex items-center gap-2">
               <button
-                class="px-3 py-1.5 text-sm font-medium text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/20 dark:text-primary-400 dark:hover:bg-primary-900/30 rounded-lg transition-colors"
+                class="px-3 py-1.5 text-sm font-medium text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 dark:bg-surface-hover dark:text-brand-primary dark:hover:bg-surface-hover rounded-lg transition-colors"
                 @click="applyPreset(preset)"
               >
                 {{ t('build.applyPreset') }}
@@ -675,7 +675,7 @@ onUnmounted(() => {
               class="flex-1 px-3 py-2 text-sm bg-white dark:bg-surface-layer border border-gray-300 dark:border-surface-border rounded-lg text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none"
             />
             <button
-              class="px-4 py-2 text-sm font-medium text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/20 dark:text-primary-400 dark:hover:bg-primary-900/30 rounded-lg transition-colors disabled:opacity-50"
+              class="px-4 py-2 text-sm font-medium text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 dark:bg-surface-hover dark:text-brand-primary dark:hover:bg-surface-hover rounded-lg transition-colors disabled:opacity-50"
               :disabled="!importPresetJson.trim() || !presetProjectId"
               @click="importPreset"
             >
@@ -716,17 +716,17 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <div v-if="buildProgress" class="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-xl p-4 mb-6">
+        <div v-if="buildProgress" class="bg-primary-50 dark:bg-surface-hover border border-primary-200 dark:border-surface-border rounded-xl p-4 mb-6">
           <div class="flex items-center gap-3">
             <div class="animate-spin rounded-full h-5 w-5 border-2 border-primary-600 border-t-transparent flex-shrink-0" v-if="buildProgress.stage !== 'complete' && buildProgress.stage !== 'failed'"></div>
             <svg v-else-if="buildProgress.stage === 'complete'" class="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
             <svg v-else class="w-5 h-5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
             <div class="flex-1 min-w-0">
               <div class="flex items-center justify-between">
-                <p class="text-sm font-medium text-primary-800 dark:text-primary-300">{{ buildProgress.message }}</p>
+                <p class="text-sm font-medium text-primary-800 dark:text-content-secondary">{{ buildProgress.message }}</p>
               </div>
-              <div v-if="buildProgress.stage !== 'complete' && buildProgress.stage !== 'failed'" class="mt-2 w-full bg-primary-200 dark:bg-primary-800 rounded-full h-1.5 overflow-hidden">
-                <div class="bg-primary-600 h-1.5 rounded-full animate-indeterminate-progress"></div>
+              <div v-if="buildProgress.stage !== 'complete' && buildProgress.stage !== 'failed'" class="mt-2 w-full bg-surface-border dark:bg-surface-border rounded-full h-1.5 overflow-hidden">
+                <div class="bg-brand-primary h-1.5 rounded-full animate-indeterminate-progress"></div>
               </div>
             </div>
           </div>
@@ -838,7 +838,7 @@ onUnmounted(() => {
                 :key="opt.value"
                 class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm cursor-pointer transition-colors"
                 :class="ciPlatforms.includes(opt.value)
-                  ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400'
+                  ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-surface-hover dark:text-brand-primary'
                   : 'border-gray-300 dark:border-surface-border text-gray-600 dark:text-content-secondary'"
               >
                 <input type="checkbox" :value="opt.value" v-model="ciPlatforms" class="sr-only" />
@@ -929,7 +929,7 @@ onUnmounted(() => {
             <span class="text-xs text-gray-500 dark:text-content-muted">{{ t('mcp.exePath') || '可执行文件路径' }}:</span>
             <code class="text-xs bg-gray-100 dark:bg-surface-layer px-2 py-0.5 rounded break-all">{{ mcpExePath }}</code>
             <button
-              class="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400"
+              class="text-xs text-primary-600 hover:text-primary-700 dark:text-brand-primary"
               @click="copyToClipboard(mcpExePath).then(ok => ok ? toast.success(t('mcp.pathCopied') || '路径已复制') : toast.error('Failed'))"
             >
               {{ t('mcp.copyPath') || '复制' }}
@@ -956,13 +956,13 @@ onUnmounted(() => {
               :key="section.key"
               class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors cursor-pointer"
               :class="mcpExpandedSection === section.key
-                ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400 border border-primary-200 dark:border-primary-800'
+                ? 'bg-primary-50 dark:bg-surface-hover text-primary-700 dark:text-brand-primary border border-primary-200 dark:border-surface-border'
                 : 'bg-gray-50 dark:bg-surface-layer text-gray-700 dark:text-content-secondary border border-transparent hover:bg-gray-100 dark:hover:bg-surface-hover'"
               @click="mcpExpandedSection = mcpExpandedSection === section.key ? null : section.key as any"
             >
               <span class="font-medium">{{ section.label }}</span>
               <span class="text-xs px-1.5 py-0.5 rounded-full"
-                :class="mcpExpandedSection === section.key ? 'bg-primary-200 dark:bg-primary-800 text-primary-800 dark:text-primary-200' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'">
+                :class="mcpExpandedSection === section.key ? 'bg-surface-hover dark:bg-surface-border text-content-primary dark:text-content-secondary' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'">
                 {{ section.count }}
               </span>
             </button>
@@ -970,7 +970,7 @@ onUnmounted(() => {
 
           <div v-if="mcpExpandedSection === 'tools' && mcpCapabilities" class="space-y-1">
             <div v-for="tool in mcpCapabilities.tools" :key="tool.name" class="flex items-start gap-3 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-surface-hover">
-              <code class="text-xs font-mono text-primary-600 dark:text-primary-400 whitespace-nowrap mt-0.5">{{ tool.name }}</code>
+              <code class="text-xs font-mono text-primary-600 dark:text-brand-primary whitespace-nowrap mt-0.5">{{ tool.name }}</code>
               <span class="text-xs text-gray-500 dark:text-content-muted">{{ tool.description }}</span>
             </div>
           </div>
@@ -1023,11 +1023,11 @@ onUnmounted(() => {
         <div class="bg-white dark:bg-surface-card rounded-xl border border-gray-200 dark:border-surface-border p-6">
           <h3 class="text-sm font-medium text-gray-900 dark:text-content-primary mb-3">{{ t('mcp.usageGuide') || '使用指南' }}</h3>
           <ol class="space-y-2 text-xs text-gray-600 dark:text-content-secondary">
-            <li class="flex gap-2"><span class="font-medium text-primary-600 dark:text-primary-400">1.</span> {{ t('mcp.step1') || '点击上方"复制配置"按钮，复制 JSON 配置' }}</li>
-            <li class="flex gap-2"><span class="font-medium text-primary-600 dark:text-primary-400">2.</span> {{ t('mcp.step2') || '打开 AI 编程工具的 MCP 配置文件（见上方路径）' }}</li>
-            <li class="flex gap-2"><span class="font-medium text-primary-600 dark:text-primary-400">3.</span> {{ t('mcp.step3') || '将 JSON 配置粘贴到配置文件中并保存' }}</li>
-            <li class="flex gap-2"><span class="font-medium text-primary-600 dark:text-primary-400">4.</span> {{ t('mcp.step4') || '重启 AI 编程工具' }}</li>
-            <li class="flex gap-2"><span class="font-medium text-primary-600 dark:text-primary-400">5.</span> {{ t('mcp.step5') || '在对话中输入"帮我检查项目环境"测试 MCP 是否工作' }}</li>
+            <li class="flex gap-2"><span class="font-medium text-primary-600 dark:text-brand-primary">1.</span> {{ t('mcp.step1') || '点击上方"复制配置"按钮，复制 JSON 配置' }}</li>
+            <li class="flex gap-2"><span class="font-medium text-primary-600 dark:text-brand-primary">2.</span> {{ t('mcp.step2') || '打开 AI 编程工具的 MCP 配置文件（见上方路径）' }}</li>
+            <li class="flex gap-2"><span class="font-medium text-primary-600 dark:text-brand-primary">3.</span> {{ t('mcp.step3') || '将 JSON 配置粘贴到配置文件中并保存' }}</li>
+            <li class="flex gap-2"><span class="font-medium text-primary-600 dark:text-brand-primary">4.</span> {{ t('mcp.step4') || '重启 AI 编程工具' }}</li>
+            <li class="flex gap-2"><span class="font-medium text-primary-600 dark:text-brand-primary">5.</span> {{ t('mcp.step5') || '在对话中输入"帮我检查项目环境"测试 MCP 是否工作' }}</li>
           </ol>
         </div>
       </div>

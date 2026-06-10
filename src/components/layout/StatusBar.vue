@@ -311,7 +311,7 @@ onUnmounted(() => {
 
           <button
             @click="closeUpdatePanel(); $router.push('/updates')"
-            class="mt-2 px-2.5 py-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
+            class="mt-2 px-2.5 py-1 text-xs font-medium text-primary-600 dark:text-brand-primary hover:text-primary-700 dark:hover:text-brand-primary transition-colors"
           >
             {{ t('statusbar.viewUpdates') || '查看更新详情' }} →
           </button>

@@ -136,7 +136,7 @@ const {
         <button
           v-if="hasData && !isAutoSetupRunning"
           @click="runAutoSetup()"
-          class="px-3 py-1.5 border border-primary-300 dark:border-primary-700 text-primary-600 dark:text-primary-400 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors text-sm flex items-center gap-1.5"
+          class="px-3 py-1.5 border border-primary-300 dark:border-surface-border text-primary-600 dark:text-brand-primary rounded-lg hover:bg-primary-50 dark:hover:bg-surface-hover transition-colors text-sm flex items-center gap-1.5"
           :title="t('home.autoSetupDesc')"
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -290,7 +290,7 @@ const {
               <button
                 @click.stop="openProjectWithEngine(project)"
                 :disabled="isLaunching"
-                class="p-2.5 rounded-lg text-gray-500 dark:text-content-muted hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                class="p-2.5 rounded-lg text-gray-500 dark:text-content-muted hover:text-primary-600 dark:hover:text-brand-primary hover:bg-primary-50 dark:hover:bg-surface-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 :title="t('projects.openWithEngine')"
               >
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -325,7 +325,7 @@ const {
             </svg>
             {{ t('home.oneClickSetup') }}
           </button>
-          <div v-else class="flex items-center gap-2 text-sm text-primary-600 dark:text-primary-400">
+          <div v-else class="flex items-center gap-2 text-sm text-primary-600 dark:text-brand-primary">
             <div class="animate-spin rounded-full h-4 w-4 border-2 border-primary-600 border-t-transparent"></div>
             <span>{{ autoSetupMessage }}</span>
           </div>
@@ -337,7 +337,7 @@ const {
         </div>
         <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div
-            class="p-4 border border-gray-200 dark:border-surface-border rounded-xl cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-colors"
+            class="p-4 border border-gray-200 dark:border-surface-border rounded-xl cursor-pointer hover:border-primary-400 dark:hover:border-surface-border hover:bg-primary-50/50 dark:hover:bg-surface-hover transition-colors"
             @click="navigateTo('/projects')"
           >
             <div class="flex items-center gap-3 mb-2">
@@ -351,7 +351,7 @@ const {
             <p class="text-sm text-gray-600 dark:text-content-secondary pl-11">{{ t('home.step1Desc') }}</p>
           </div>
           <div
-            class="p-4 border border-gray-200 dark:border-surface-border rounded-xl cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-colors"
+            class="p-4 border border-gray-200 dark:border-surface-border rounded-xl cursor-pointer hover:border-primary-400 dark:hover:border-surface-border hover:bg-primary-50/50 dark:hover:bg-surface-hover transition-colors"
             @click="navigateTo('/plugins')"
           >
             <div class="flex items-center gap-3 mb-2">
@@ -365,7 +365,7 @@ const {
             <p class="text-sm text-gray-600 dark:text-content-secondary pl-11">{{ t('home.step2Desc') }}</p>
           </div>
           <div
-            class="p-4 border border-gray-200 dark:border-surface-border rounded-xl cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-colors"
+            class="p-4 border border-gray-200 dark:border-surface-border rounded-xl cursor-pointer hover:border-primary-400 dark:hover:border-surface-border hover:bg-primary-50/50 dark:hover:bg-surface-hover transition-colors"
             @click="navigateTo('/plugins')"
           >
             <div class="flex items-center gap-3 mb-2">
@@ -379,7 +379,7 @@ const {
             <p class="text-sm text-gray-600 dark:text-content-secondary pl-11">{{ t('home.step3Desc') }}</p>
           </div>
           <div
-            class="p-4 border border-gray-200 dark:border-surface-border rounded-xl cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-colors"
+            class="p-4 border border-gray-200 dark:border-surface-border rounded-xl cursor-pointer hover:border-primary-400 dark:hover:border-surface-border hover:bg-primary-50/50 dark:hover:bg-surface-hover transition-colors"
             @click="navigateTo('/engines')"
           >
             <div class="flex items-center gap-3 mb-2">
@@ -432,15 +432,15 @@ const {
               :class="[
                 'w-full text-left p-3 rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
                 me.engine.engine_id === engineSelectProject?.last_used_engine_id
-                  ? 'border-primary-300 dark:border-primary-700 bg-primary-50 dark:bg-primary-900/10'
-                  : 'border-gray-200 dark:border-surface-border hover:border-primary-300 dark:hover:border-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900/10'
+                  ? 'border-primary-300 dark:border-surface-border bg-primary-50 dark:bg-surface-hover'
+                  : 'border-gray-200 dark:border-surface-border hover:border-primary-300 dark:hover:border-surface-border hover:bg-primary-50 dark:hover:bg-surface-hover'
               ]"
             >
               <div class="flex items-center justify-between">
                 <div class="min-w-0 flex-1">
                   <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate flex items-center gap-1.5">
                     {{ me.engine.name }}
-                    <span v-if="me.engine.engine_id === engineSelectProject?.last_used_engine_id" class="text-xs text-primary-600 dark:text-primary-400 font-normal">{{ t('projects.lastUsedEngine') }}</span>
+                    <span v-if="me.engine.engine_id === engineSelectProject?.last_used_engine_id" class="text-xs text-primary-600 dark:text-brand-primary font-normal">{{ t('projects.lastUsedEngine') }}</span>
                   </div>
                   <div class="text-xs text-gray-500 dark:text-content-muted mt-0.5 font-mono flex items-center gap-1.5">v{{ me.engine.version }}<span v-if="me.engine.is_mono" class="text-[10px] px-1 py-0.5 rounded bg-purple-100 dark:bg-surface-hover text-purple-700 dark:text-content-secondary font-sans font-medium">{{ t('projects.monoLabel') }}</span></div>
                 </div>

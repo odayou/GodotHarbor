@@ -477,8 +477,8 @@ const toggleMirrorEnabled = (mirrorId: string) => {
             :class="[
               'flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors w-full text-left',
               activeSection === section.id
-                ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 font-medium'
-                : 'text-gray-600 dark:text-content-muted hover:bg-primary-50 dark:hover:bg-primary-900/20 hover:text-primary-600 dark:hover:text-primary-400'
+                ? 'bg-primary-50 dark:bg-surface-hover text-primary-600 dark:text-brand-primary font-medium'
+                : 'text-gray-600 dark:text-content-muted hover:bg-primary-50 dark:hover:bg-surface-hover hover:text-primary-600 dark:hover:text-brand-primary'
             ]"
           >
             <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -633,7 +633,7 @@ const toggleMirrorEnabled = (mirrorId: string) => {
                 ]" :key="item.key">
                   <td class="px-3 py-1.5 text-gray-700 dark:text-content-secondary whitespace-nowrap">{{ t(`settings.storage.${item.key}`) }}</td>
                   <td class="px-3 py-1.5 font-mono text-gray-600 dark:text-content-muted break-all">{{ item.path }}</td>
-                  <td class="px-3 py-1.5 text-right"><button @click="openPath(item.path)" class="text-primary-600 dark:text-primary-400 hover:underline">{{ t('settings.storage.open') }}</button></td>
+                  <td class="px-3 py-1.5 text-right"><button @click="openPath(item.path)" class="text-primary-600 dark:text-brand-primary hover:underline">{{ t('settings.storage.open') }}</button></td>
                 </tr>
               </tbody>
             </table>
@@ -759,7 +759,7 @@ const toggleMirrorEnabled = (mirrorId: string) => {
                 </button>
                 <button
                   @click="openEditMirror(mirror)"
-                  class="text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 p-1 rounded hover:bg-gray-100 dark:hover:bg-surface-layer transition-colors"
+                  class="text-gray-500 hover:text-primary-600 dark:hover:text-brand-primary p-1 rounded hover:bg-gray-100 dark:hover:bg-surface-layer transition-colors"
                   :title="t('settings.engineMirror.edit')"
                 >
                   <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
@@ -795,7 +795,7 @@ const toggleMirrorEnabled = (mirrorId: string) => {
       leave-from-class="translate-y-0 opacity-100"
       leave-to-class="translate-y-full opacity-0"
     >
-      <div v-if="isDirty" class="fixed bottom-0 left-0 right-0 bg-white dark:bg-surface-card border-t border-primary-200 dark:border-primary-800 shadow-lg z-40 px-6 py-3 flex items-center justify-between">
+      <div v-if="isDirty" class="fixed bottom-0 left-0 right-0 bg-white dark:bg-surface-card border-t border-primary-200 dark:border-surface-border shadow-lg z-40 px-6 py-3 flex items-center justify-between">
         <p class="text-sm text-gray-600 dark:text-content-muted">{{ t('settings.unsavedChanges') }}</p>
         <div class="flex gap-3">
           <button @click="loadSettings" class="px-4 py-2 border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-secondary rounded-lg hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors text-sm">{{ t('settings.discardChanges') }}</button>
@@ -833,7 +833,7 @@ const toggleMirrorEnabled = (mirrorId: string) => {
               </div>
               <div class="flex items-center gap-2">
                 <span class="text-xs text-gray-500 dark:text-content-muted">{{ formatTime(log.timestamp) }}</span>
-                <button v-if="log.level === 'error'" @click="copyError(log)" class="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400">{{ t('settings.logs.copy') }}</button>
+                <button v-if="log.level === 'error'" @click="copyError(log)" class="text-xs text-primary-600 hover:text-primary-700 dark:text-brand-primary">{{ t('settings.logs.copy') }}</button>
               </div>
             </div>
             <p v-if="log.target" class="text-xs text-gray-500 dark:text-content-muted mt-1">{{ t('settings.logs.target', { target: log.target }) }}</p>

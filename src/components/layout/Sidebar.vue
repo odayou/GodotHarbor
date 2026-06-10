@@ -43,7 +43,7 @@ const navigateTo = (path: string) => {
       <img src="/favicon.png" alt="Godot Harbor" class="w-8 h-8 shrink-0 rounded-lg" />
       <h1
         v-if="!isCollapsed"
-        class="text-lg font-bold text-primary-600 dark:text-primary-400 whitespace-nowrap overflow-hidden"
+        class="text-lg font-bold text-primary-600 dark:text-brand-primary whitespace-nowrap overflow-hidden"
       >
         Godot Harbor
       </h1>
@@ -60,7 +60,7 @@ const navigateTo = (path: string) => {
                 ? 'justify-center p-3'
                 : 'px-4 py-3 text-sm font-medium',
               route.path === item.path
-                ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400'
+                ? 'bg-primary-50 dark:bg-surface-hover text-primary-600 dark:text-brand-primary'
                 : 'text-gray-700 dark:text-content-primary hover:bg-gray-100 dark:hover:bg-surface-layer'
             ]"
             :title="isCollapsed ? t(item.labelKey) : undefined"

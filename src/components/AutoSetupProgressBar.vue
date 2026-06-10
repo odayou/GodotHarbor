@@ -57,7 +57,7 @@ const stepItems = computed(() =>
                       item.completed
                         ? 'bg-green-500 text-white'
                         : item.active
-                          ? 'bg-primary-600 text-white ring-2 ring-primary-200 dark:ring-primary-800'
+                          ? 'bg-brand-primary text-white ring-2 ring-surface-border dark:ring-surface-border'
                           : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
                     ]"
                   >
@@ -70,7 +70,7 @@ const stepItems = computed(() =>
                     :class="[
                       'text-[11px] whitespace-nowrap transition-colors',
                       item.active
-                        ? 'text-primary-700 dark:text-primary-400 font-medium'
+                        ? 'text-primary-700 dark:text-brand-primary font-medium'
                         : item.completed
                           ? 'text-green-600 dark:text-green-400'
                           : 'text-gray-400 dark:text-gray-500'

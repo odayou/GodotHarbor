@@ -1043,7 +1043,7 @@ const toggleAddPluginPanel = () => {
         <svg class="mx-auto h-12 w-12 text-primary-500 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
         </svg>
-        <p class="text-lg font-semibold text-primary-600 dark:text-primary-400">{{ t('projects.dragTitle') }}</p>
+        <p class="text-lg font-semibold text-primary-600 dark:text-brand-primary">{{ t('projects.dragTitle') }}</p>
         <p class="text-sm text-gray-500 dark:text-content-muted mt-1">{{ t('projects.dragDesc') }}</p>
       </div>
     </div>
@@ -1177,12 +1177,12 @@ const toggleAddPluginPanel = () => {
       </div>
     </div>
 
-    <div v-if="isBatchMode && selectedCount > 0" class="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-3 flex items-center justify-between">
+    <div v-if="isBatchMode && selectedCount > 0" class="bg-primary-50 dark:bg-surface-hover border border-primary-200 dark:border-surface-border rounded-lg p-3 flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <span class="text-sm font-medium text-primary-700 dark:text-primary-300">{{ t('projects.selectedCount', { count: selectedCount }) }}</span>
+        <span class="text-sm font-medium text-primary-700 dark:text-content-secondary">{{ t('projects.selectedCount', { count: selectedCount }) }}</span>
         <button
           @click="selectAllProjects"
-          class="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+          class="text-xs text-primary-600 dark:text-brand-primary hover:underline"
         >
           {{ t('common.selectAll') }}
         </button>
@@ -1286,7 +1286,7 @@ const toggleAddPluginPanel = () => {
               <div class="text-blue-500">{{ getIconDebugInfo(project.icon_path) }}</div>
             </div>
             <div 
-              class="min-w-0 flex-1 cursor-pointer hover:text-primary-600 dark:hover:text-primary-400"
+              class="min-w-0 flex-1 cursor-pointer hover:text-primary-600 dark:hover:text-brand-primary"
               @click="showProjectDetails(project)"
             >
               <div class="flex items-center gap-2">
@@ -1303,7 +1303,7 @@ const toggleAddPluginPanel = () => {
                 <button
                   v-else
                   @click.stop="openGroupDialog(project)"
-                  class="text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 p-0.5 rounded hover:bg-gray-100 dark:hover:bg-surface-hover"
+                  class="text-gray-400 hover:text-primary-600 dark:hover:text-brand-primary p-0.5 rounded hover:bg-gray-100 dark:hover:bg-surface-hover"
                   :title="t('projects.setGroup')"
                 >
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1350,7 +1350,7 @@ const toggleAddPluginPanel = () => {
               <button
                 @click.stop="openProjectWithEngineWrapper(project)"
                 :disabled="isLaunching"
-                class="p-2.5 rounded-lg text-gray-500 dark:text-content-muted hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                class="p-2.5 rounded-lg text-gray-500 dark:text-content-muted hover:text-primary-600 dark:hover:text-brand-primary hover:bg-primary-50 dark:hover:bg-surface-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 :title="t('projects.openWithEngine')"
               >
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -1467,7 +1467,7 @@ const toggleAddPluginPanel = () => {
             </p>
             <button
               @click="openInFileManager(selectedProject.path)"
-              class="text-primary-600 hover:text-primary-800 dark:text-primary-400 p-1 flex-shrink-0"
+              class="text-primary-600 hover:text-primary-800 dark:text-brand-primary p-1 flex-shrink-0"
               :title="t('projects.openInFileManager')"
             >
               <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1495,7 +1495,7 @@ const toggleAddPluginPanel = () => {
             <button
               @click="checkDrift(selectedProject!.project_id)"
               :disabled="isCheckingDrift"
-              class="text-xs text-primary-600 hover:text-primary-800 dark:text-primary-400 disabled:opacity-50"
+              class="text-xs text-primary-600 hover:text-primary-800 dark:text-brand-primary disabled:opacity-50"
             >
               {{ isCheckingDrift ? '...' : (t('projects.recheck') || '重新检测') }}
             </button>
@@ -1623,8 +1623,8 @@ const toggleAddPluginPanel = () => {
             </button>
           </div>
 
-          <div v-if="showAddPluginPanel" class="mt-2 border border-primary-200 dark:border-primary-800 rounded-lg overflow-hidden">
-            <div class="p-2 bg-primary-50 dark:bg-primary-900/20 border-b border-primary-200 dark:border-primary-800">
+          <div v-if="showAddPluginPanel" class="mt-2 border border-primary-200 dark:border-surface-border rounded-lg overflow-hidden">
+            <div class="p-2 bg-primary-50 dark:bg-surface-hover border-b border-primary-200 dark:border-surface-border">
               <input
                 v-model="addPluginSearchQuery"
                 type="text"
@@ -1770,7 +1770,7 @@ const toggleAddPluginPanel = () => {
         <button
           v-if="hasScanDirs"
           @click="quickScanFromDialog"
-          class="w-full mb-4 px-4 py-2.5 border border-primary-300 dark:border-primary-700 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 rounded-lg hover:bg-primary-100 dark:hover:bg-primary-900/30 text-sm text-left flex items-center gap-2"
+          class="w-full mb-4 px-4 py-2.5 border border-primary-300 dark:border-surface-border bg-primary-50 dark:bg-surface-hover text-primary-700 dark:text-content-secondary rounded-lg hover:bg-primary-100 dark:hover:bg-surface-hover text-sm text-left flex items-center gap-2"
         >
           <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -2091,15 +2091,15 @@ const toggleAddPluginPanel = () => {
             :class="[
               'w-full text-left p-3 rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
               me.engine.engine_id === engineSelectProject?.last_used_engine_id
-                ? 'border-primary-300 dark:border-primary-700 bg-primary-50 dark:bg-primary-900/10'
-                : 'border-gray-200 dark:border-surface-border hover:border-primary-300 dark:hover:border-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900/10'
+                ? 'border-primary-300 dark:border-surface-border bg-primary-50 dark:bg-surface-hover'
+                : 'border-gray-200 dark:border-surface-border hover:border-primary-300 dark:hover:border-surface-border hover:bg-primary-50 dark:hover:bg-surface-hover'
             ]"
           >
             <div class="flex items-center justify-between">
               <div class="min-w-0 flex-1">
                 <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate flex items-center gap-1.5">
                   {{ me.engine.name }}
-                  <span v-if="me.engine.engine_id === engineSelectProject?.last_used_engine_id" class="text-xs text-primary-600 dark:text-primary-400 font-normal">{{ t('projects.lastUsedEngine') }}</span>
+                  <span v-if="me.engine.engine_id === engineSelectProject?.last_used_engine_id" class="text-xs text-primary-600 dark:text-brand-primary font-normal">{{ t('projects.lastUsedEngine') }}</span>
                 </div>
                 <div class="text-xs text-gray-500 dark:text-content-muted mt-0.5 font-mono flex items-center gap-1.5">v{{ me.engine.version }}<span v-if="me.engine.is_mono" class="text-[10px] px-1 py-0.5 rounded bg-purple-100 dark:bg-surface-hover text-purple-700 dark:text-content-secondary font-sans font-medium">{{ t('projects.monoLabel') }}</span></div>
               </div>

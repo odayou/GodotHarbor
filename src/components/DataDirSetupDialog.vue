@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref } from 'vue'
 import { api } from '@/api'
 import { useI18n } from 'vue-i18n'
@@ -74,16 +74,16 @@ const useDefault = async () => {
           </p>
 
           <div class="space-y-4">
-            <div class="p-4 border border-gray-200 dark:border-surface-border rounded-xl hover:border-primary-300 dark:hover:border-primary-700 transition-colors cursor-pointer" @click="selectDirectory">
+            <div class="p-4 border border-gray-200 dark:border-surface-border rounded-xl hover:border-primary-300 dark:hover:border-surface-border transition-colors cursor-pointer" @click="selectDirectory">
               <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-lg bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center shrink-0">
-                  <svg class="w-5 h-5 text-primary-600 dark:text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="w-10 h-10 rounded-lg bg-primary-100 dark:bg-surface-hover flex items-center justify-center shrink-0">
+                  <svg class="w-5 h-5 text-primary-600 dark:text-brand-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                   </svg>
                 </div>
                 <div class="flex-1 min-w-0">
                   <div class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ t('dataDirSetup.customDir') }}</div>
-                  <div v-if="selectedPath" class="text-xs text-primary-600 dark:text-primary-400 mt-0.5 truncate">{{ selectedPath }}</div>
+                  <div v-if="selectedPath" class="text-xs text-primary-600 dark:text-brand-primary mt-0.5 truncate">{{ selectedPath }}</div>
                   <div v-else class="text-xs text-gray-400 dark:text-content-muted mt-0.5">{{ t('dataDirSetup.customDirHint') }}</div>
                 </div>
               </div>

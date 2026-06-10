@@ -344,9 +344,9 @@ const progressPercent = computed(() => {
 
 <template>
   <div class="h-full flex flex-col overflow-hidden">
-    <div v-if="showCreateHint" class="mx-6 mt-4 px-4 py-3 bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg flex items-center justify-between">
-      <span class="text-sm text-primary-700 dark:text-primary-300">{{ t('templates.selectToCreate') || '选择一个模板创建项目' }}</span>
-      <button @click="showCreateHint = false" class="text-primary-500 hover:text-primary-700 dark:hover:text-primary-300">
+    <div v-if="showCreateHint" class="mx-6 mt-4 px-4 py-3 bg-primary-50 dark:bg-surface-hover border border-primary-200 dark:border-surface-border rounded-lg flex items-center justify-between">
+      <span class="text-sm text-primary-700 dark:text-content-secondary">{{ t('templates.selectToCreate') || '选择一个模板创建项目' }}</span>
+      <button @click="showCreateHint = false" class="text-primary-500 hover:text-primary-700 dark:hover:text-brand-primary">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
       </button>
     </div>
@@ -386,7 +386,7 @@ const progressPercent = computed(() => {
             :class="[
               'px-3 py-1.5 text-xs font-medium rounded-full transition-colors',
               categoryFilter === cat
-                ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
+                ? 'bg-primary-100 dark:bg-surface-hover text-primary-700 dark:text-content-secondary'
                 : 'bg-gray-100 dark:bg-surface-layer text-gray-600 dark:text-content-secondary hover:bg-gray-200 dark:hover:bg-surface-border'
             ]"
           >
@@ -405,7 +405,7 @@ const progressPercent = computed(() => {
         </svg>
         <p class="text-red-500 text-sm mb-2">{{ loadError }}</p>
         <button
-          class="px-4 py-2 text-sm font-medium text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/20 dark:text-primary-400 dark:hover:bg-primary-900/30 rounded-lg transition-colors"
+          class="px-4 py-2 text-sm font-medium text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 dark:bg-surface-hover dark:text-brand-primary dark:hover:bg-surface-hover rounded-lg transition-colors"
           @click="loadTemplates(true)"
         >
           {{ t('common.retry') || '重试' }}
@@ -426,13 +426,13 @@ const progressPercent = computed(() => {
         <div
           v-for="tpl in filteredTemplates"
           :key="tpl.template_id"
-          class="group relative bg-white dark:bg-surface-card rounded-xl border border-gray-200 dark:border-surface-border hover:border-primary-300 dark:hover:border-primary-600 hover:shadow-lg transition-all duration-200 cursor-pointer overflow-hidden"
+          class="group relative bg-white dark:bg-surface-card rounded-xl border border-gray-200 dark:border-surface-border hover:border-surface-border dark:hover:border-surface-border hover:shadow-lg transition-all duration-200 cursor-pointer overflow-hidden"
           @click="openDetail(tpl)"
           >
           <div class="p-5">
             <div class="flex items-start justify-between mb-3">
               <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-lg bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center text-xl">
+                <div class="w-10 h-10 rounded-lg bg-primary-50 dark:bg-surface-hover flex items-center justify-center text-xl">
                   {{ categoryIcon(tpl.category) }}
                 </div>
                 <div>
@@ -442,7 +442,7 @@ const progressPercent = computed(() => {
               </div>
               <span
                 v-if="tpl.is_builtin"
-                class="px-2 py-0.5 text-xs font-medium rounded-full bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400"
+                class="px-2 py-0.5 text-xs font-medium rounded-full bg-primary-50 dark:bg-surface-hover text-primary-600 dark:text-brand-primary"
               >
                 {{ t('templates.builtin') }}
               </span>
@@ -500,7 +500,7 @@ const progressPercent = computed(() => {
           <div class="p-6">
             <div class="flex items-center justify-between mb-4">
               <div class="flex items-center gap-3">
-                <div class="w-12 h-12 rounded-xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center text-2xl">
+                <div class="w-12 h-12 rounded-xl bg-primary-50 dark:bg-surface-hover flex items-center justify-center text-2xl">
                   {{ categoryIcon(selectedTemplate.category) }}
                 </div>
                 <div>
@@ -665,7 +665,7 @@ const progressPercent = computed(() => {
             <div v-if="createProgress" class="mt-4">
               <div class="flex items-center justify-between mb-1">
                 <span class="text-xs text-gray-500 dark:text-content-muted">{{ createProgress.message }}</span>
-                <span class="text-xs font-medium text-primary-600 dark:text-primary-400">{{ progressPercent }}%</span>
+                <span class="text-xs font-medium text-primary-600 dark:text-brand-primary">{{ progressPercent }}%</span>
               </div>
               <div class="w-full bg-gray-200 dark:bg-surface-border rounded-full h-1.5">
                 <div
@@ -859,15 +859,15 @@ const progressPercent = computed(() => {
               :class="[
                 'w-full text-left p-3 rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
                 me.engine.engine_id === engineSelectProject?.last_used_engine_id
-                  ? 'border-primary-300 dark:border-primary-700 bg-primary-50 dark:bg-primary-900/10'
-                  : 'border-gray-200 dark:border-surface-border hover:border-primary-300 dark:hover:border-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900/10'
+                  ? 'border-primary-300 dark:border-surface-border bg-primary-50 dark:bg-surface-hover'
+                  : 'border-gray-200 dark:border-surface-border hover:border-primary-300 dark:hover:border-surface-border hover:bg-primary-50 dark:hover:bg-surface-hover'
               ]"
             >
               <div class="flex items-center justify-between">
                 <div class="min-w-0 flex-1">
                   <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate flex items-center gap-1.5">
                     {{ me.engine.name }}
-                    <span v-if="me.engine.engine_id === engineSelectProject?.last_used_engine_id" class="text-xs text-primary-600 dark:text-primary-400 font-normal">{{ t('projects.lastUsedEngine') }}</span>
+                    <span v-if="me.engine.engine_id === engineSelectProject?.last_used_engine_id" class="text-xs text-primary-600 dark:text-brand-primary font-normal">{{ t('projects.lastUsedEngine') }}</span>
                   </div>
                   <div class="text-xs text-gray-500 dark:text-content-muted mt-0.5 font-mono flex items-center gap-1.5">v{{ me.engine.version }}<span v-if="me.engine.is_mono" class="text-[10px] px-1 py-0.5 rounded bg-purple-100 dark:bg-surface-hover text-purple-700 dark:text-content-secondary font-sans font-medium">{{ t('projects.monoLabel') }}</span></div>
                 </div>

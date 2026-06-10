@@ -102,8 +102,8 @@ const {
       </select>
     </div>
 
-    <div v-if="selectedAssetIds.size > 0" class="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-2 mb-3 flex items-center justify-between">
-      <span class="text-xs font-medium text-primary-700 dark:text-primary-300">{{ t('assetLibrary.selectedCount', { count: selectedAssetIds.size }) }}</span>
+    <div v-if="selectedAssetIds.size > 0" class="bg-primary-50 dark:bg-surface-hover border border-primary-200 dark:border-surface-border rounded-lg p-2 mb-3 flex items-center justify-between">
+      <span class="text-xs font-medium text-primary-700 dark:text-content-secondary">{{ t('assetLibrary.selectedCount', { count: selectedAssetIds.size }) }}</span>
       <button
         @click="batchImportAssets"
         :disabled="!!pluginStore.isImporting"

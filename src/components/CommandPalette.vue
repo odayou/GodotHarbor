@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, watch, nextTick, computed } from 'vue'
 import { useCommandPalette } from '@/composables/useCommandPalette'
 import type { SearchItem } from '@/composables/useCommandPalette'
@@ -153,14 +153,14 @@ function getHighlightSegments(text: string, searchQuery: string): Array<{ text: 
                 :data-palette-index="getFlatIndex(item)"
                 :class="[
                   'w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors',
-                  getFlatIndex(item) === selectedIndex ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 palette-selected' : 'text-gray-700 dark:text-content-secondary hover:bg-gray-50 dark:hover:bg-surface-hover/50'
+                  getFlatIndex(item) === selectedIndex ? 'bg-primary-50 dark:bg-surface-hover text-primary-700 dark:text-content-secondary palette-selected' : 'text-gray-700 dark:text-content-secondary hover:bg-gray-50 dark:hover:bg-surface-hover/50'
                 ]"
                 @click="selectItem(item)"
                 @mouseenter="selectedIndex = getFlatIndex(item)"
               >
                 <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
                   :class="getFlatIndex(item) === selectedIndex
-                    ? 'bg-primary-100 dark:bg-primary-800/30'
+                    ? 'bg-surface-hover dark:bg-surface-hover'
                     : 'bg-gray-100 dark:bg-surface-hover'"
                 >
                   <svg v-if="item.icon === 'home'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -220,7 +220,7 @@ function getHighlightSegments(text: string, searchQuery: string): Array<{ text: 
                 >{{ item.shortcutKey }}</kbd>
                 <svg
                   v-if="getFlatIndex(item) === selectedIndex && !item.shortcutKey"
-                  class="w-4 h-4 text-primary-500 dark:text-primary-400 shrink-0"
+                  class="w-4 h-4 text-primary-500 dark:text-brand-primary shrink-0"
                   fill="none" stroke="currentColor" viewBox="0 0 24 24"
                 >
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
@@ -294,15 +294,15 @@ function getHighlightSegments(text: string, searchQuery: string): Array<{ text: 
             :class="[
               'w-full text-left p-3 rounded-lg border transition-colors',
               me.engine.engine_id === engineSelectProject?.last_used_engine_id
-                ? 'border-primary-300 dark:border-primary-700 bg-primary-50 dark:bg-primary-900/10'
-                : 'border-gray-200 dark:border-surface-border hover:border-primary-300 dark:hover:border-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900/10'
+                ? 'border-primary-300 dark:border-surface-border bg-primary-50 dark:bg-surface-hover'
+                : 'border-gray-200 dark:border-surface-border hover:border-primary-300 dark:hover:border-surface-border hover:bg-primary-50 dark:hover:bg-surface-hover'
             ]"
           >
             <div class="flex items-center justify-between">
               <div class="min-w-0 flex-1">
                 <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate flex items-center gap-1.5">
                   {{ me.engine.name }}
-                  <span v-if="me.engine.engine_id === engineSelectProject?.last_used_engine_id" class="text-xs text-primary-600 dark:text-primary-400 font-normal">{{ t('projects.lastUsedEngine') }}</span>
+                  <span v-if="me.engine.engine_id === engineSelectProject?.last_used_engine_id" class="text-xs text-primary-600 dark:text-brand-primary font-normal">{{ t('projects.lastUsedEngine') }}</span>
                 </div>
                 <div class="text-xs text-gray-500 dark:text-content-muted mt-0.5 font-mono flex items-center gap-1.5">v{{ me.engine.version }}<span v-if="me.engine.is_mono" class="text-[10px] px-1 py-0.5 rounded bg-purple-100 dark:bg-surface-hover text-purple-700 dark:text-content-secondary font-sans font-medium">{{ t('projects.monoLabel') }}</span></div>
               </div>

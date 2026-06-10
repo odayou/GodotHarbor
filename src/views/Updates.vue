@@ -44,11 +44,11 @@
         </div>
         <div class="mt-3 pt-3 border-t border-gray-100 dark:border-surface-border">
           <p class="text-xs text-gray-400 dark:text-content-muted">{{ t('updates.offlineUpdateTip') }}</p>
-          <a :href="githubReleaseUrl" target="_blank" class="inline-flex items-center gap-1 mt-1 text-xs text-primary-600 dark:text-primary-400 hover:underline">
+          <a :href="githubReleaseUrl" target="_blank" class="inline-flex items-center gap-1 mt-1 text-xs text-primary-600 dark:text-brand-primary hover:underline">
             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
             {{ t('updates.githubRelease') }}
           </a>
-          <a :href="giteeReleaseUrl" target="_blank" class="inline-flex items-center gap-1 mt-1 text-xs text-primary-600 dark:text-primary-400 hover:underline">
+          <a :href="giteeReleaseUrl" target="_blank" class="inline-flex items-center gap-1 mt-1 text-xs text-primary-600 dark:text-brand-primary hover:underline">
             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
             {{ t('updates.giteeRelease') }}
           </a>
@@ -126,7 +126,7 @@
         <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">
           {{ t('statusbar.engine') }} {{ t('statusbar.update') }}
         </h3>
-        <router-link v-if="store.engineUpdates.length > 0" to="/engines" class="px-3 py-1.5 text-sm border border-primary-600 text-primary-600 dark:text-primary-400 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20">
+        <router-link v-if="store.engineUpdates.length > 0" to="/engines" class="px-3 py-1.5 text-sm border border-primary-600 text-primary-600 dark:text-brand-primary rounded-lg hover:bg-primary-50 dark:hover:bg-surface-hover">
           {{ t('updates.goToEngines') }}
         </router-link>
       </div>
@@ -139,7 +139,7 @@
               <span v-if="update.is_major_update" class="ml-2 px-1.5 py-0.5 text-xs bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 rounded">{{ t('statusbar.majorUpdate') }}</span>
             </div>
           </div>
-          <a :href="update.download_url" target="_blank" class="px-3 py-1 text-sm border border-primary-600 text-primary-600 dark:text-primary-400 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20">
+          <a :href="update.download_url" target="_blank" class="px-3 py-1 text-sm border border-primary-600 text-primary-600 dark:text-brand-primary rounded-lg hover:bg-primary-50 dark:hover:bg-surface-hover">
             {{ t('updates.download') }}
           </a>
         </div>
@@ -184,11 +184,11 @@
         </svg>
         <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-content-primary">{{ t('statusbar.everythingUpToDate') }}</h3>
         <p class="mt-1 text-sm text-gray-500 dark:text-content-secondary">{{ t('updates.allUpToDateDesc') }}</p>
-        <a :href="githubReleaseUrl" target="_blank" class="inline-flex items-center gap-1 mt-3 text-xs text-primary-600 dark:text-primary-400 hover:underline">
+        <a :href="githubReleaseUrl" target="_blank" class="inline-flex items-center gap-1 mt-3 text-xs text-primary-600 dark:text-brand-primary hover:underline">
           <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
           {{ t('updates.githubRelease') }}
         </a>
-        <a :href="giteeReleaseUrl" target="_blank" class="inline-flex items-center gap-1 mt-3 text-xs text-primary-600 dark:text-primary-400 hover:underline">
+        <a :href="giteeReleaseUrl" target="_blank" class="inline-flex items-center gap-1 mt-3 text-xs text-primary-600 dark:text-brand-primary hover:underline">
           <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
           {{ t('updates.giteeRelease') }}
         </a>

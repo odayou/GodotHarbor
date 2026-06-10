@@ -708,7 +708,7 @@ const initCollapsedGroups = () => {
         </button>
         <button
           @click="openDownloadDialog"
-          class="px-4 py-2 border border-primary-600 text-primary-600 dark:text-primary-400 bg-white dark:bg-surface-card rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors text-sm inline-flex items-center gap-1.5"
+          class="px-4 py-2 border border-primary-600 text-primary-600 dark:text-brand-primary bg-white dark:bg-surface-card rounded-lg hover:bg-primary-50 dark:hover:bg-surface-hover transition-colors text-sm inline-flex items-center gap-1.5"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -731,7 +731,7 @@ const initCollapsedGroups = () => {
         </span>
         <button
           @click="openDownloadDialog"
-          class="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+          class="text-xs text-primary-600 dark:text-brand-primary hover:underline"
         >
           {{ t('engines.download.title') }}
         </button>
@@ -826,8 +826,8 @@ const initCollapsedGroups = () => {
             >
               <td class="px-4 py-4 whitespace-nowrap">
                 <div class="flex items-center gap-3">
-                  <div class="w-8 h-8 rounded-lg bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
-                    <svg class="w-5 h-5 text-primary-600 dark:text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div class="w-8 h-8 rounded-lg bg-primary-100 dark:bg-surface-hover flex items-center justify-center">
+                    <svg class="w-5 h-5 text-primary-600 dark:text-brand-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
                   </div>
@@ -869,7 +869,7 @@ const initCollapsedGroups = () => {
               </td>
               <td class="px-4 py-4">
                 <span
-                  class="text-sm text-primary-600 dark:text-primary-400 hover:underline cursor-pointer truncate max-w-xs block"
+                  class="text-sm text-primary-600 dark:text-brand-primary hover:underline cursor-pointer truncate max-w-xs block"
                   :title="engine.path"
                   @click="openInFileManager(engine.path)"
                 >
@@ -881,7 +881,7 @@ const initCollapsedGroups = () => {
                   <button
                     @click="launchEngine(engine.engine_id)"
                     :disabled="engineHealthMap.get(engine.engine_id) === false || isLaunchingEngine"
-                    class="text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-300 p-2.5 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    class="text-primary-600 dark:text-brand-primary hover:text-primary-800 dark:hover:text-brand-primary p-2.5 rounded-lg hover:bg-primary-50 dark:hover:bg-surface-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     :title="t('engines.launch')"
                   >
                     <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1025,13 +1025,13 @@ const initCollapsedGroups = () => {
           <div class="flex border-b border-gray-200 dark:border-surface-border mb-2">
             <button
               @click="downloadTab = 'mirror'"
-              :class="['px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors', downloadTab === 'mirror' ? 'border-primary-600 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300']"
+              :class="['px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors', downloadTab === 'mirror' ? 'border-primary-600 text-primary-600 dark:text-brand-primary' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300']"
             >
               {{ t('engines.download.mirrorTab') }}
             </button>
             <button
               @click="downloadTab = 'url'"
-              :class="['px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors', downloadTab === 'url' ? 'border-primary-600 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300']"
+              :class="['px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors', downloadTab === 'url' ? 'border-primary-600 text-primary-600 dark:text-brand-primary' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300']"
             >
               {{ t('engines.download.urlTab') }}
             </button>
@@ -1225,7 +1225,7 @@ const initCollapsedGroups = () => {
                         </span>
                         <span
                           v-if="version.is_installed"
-                          class="px-1.5 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-400"
+                          class="px-1.5 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800 dark:bg-surface-hover dark:text-brand-primary"
                         >
                           {{ t('engines.download.installed') }}
                         </span>
@@ -1236,7 +1236,7 @@ const initCollapsedGroups = () => {
                         <button
                           v-if="version.release_url"
                           @click="openUrl(version.release_url)"
-                          class="text-primary-600 dark:text-primary-400 hover:underline inline-flex items-center gap-0.5"
+                          class="text-primary-600 dark:text-brand-primary hover:underline inline-flex items-center gap-0.5"
                         >
                           {{ t('engines.download.sourceLink') }}
                           <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
@@ -1244,7 +1244,7 @@ const initCollapsedGroups = () => {
                         <button
                           v-if="version.release_notes"
                           @click="expandedReleaseVersion = expandedReleaseVersion === `${version.version}_${version.variant}` ? '' : `${version.version}_${version.variant}`"
-                          class="text-primary-600 dark:text-primary-400 hover:underline"
+                          class="text-primary-600 dark:text-brand-primary hover:underline"
                         >
                           {{ expandedReleaseVersion === `${version.version}_${version.variant}` ? t('engines.download.hideNotes') : t('engines.download.showNotes') }}
                         </button>

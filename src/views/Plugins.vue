@@ -1759,11 +1759,11 @@ const retryBatchFailed = async () => {
         <div class="flex bg-gray-100 dark:bg-surface-layer rounded-lg p-1">
           <button
             @click="activeTab = 'repository'"
-            :class="['px-3 py-1.5 rounded-md text-sm font-medium transition-colors', activeTab === 'repository' ? 'bg-white dark:bg-surface-card text-primary-600 dark:text-primary-400 shadow-sm' : 'text-gray-600 dark:text-content-secondary hover:text-gray-900 dark:hover:text-content-primary']"
+            :class="['px-3 py-1.5 rounded-md text-sm font-medium transition-colors', activeTab === 'repository' ? 'bg-white dark:bg-surface-card text-primary-600 dark:text-brand-primary shadow-sm' : 'text-gray-600 dark:text-content-secondary hover:text-gray-900 dark:hover:text-content-primary']"
           >{{ t('plugins.tabRepository') }}</button>
           <button
             @click="activeTab = 'assetLibrary'; openAssetLibraryTab()"
-            :class="['px-3 py-1.5 rounded-md text-sm font-medium transition-colors', activeTab === 'assetLibrary' ? 'bg-white dark:bg-surface-card text-primary-600 dark:text-primary-400 shadow-sm' : 'text-gray-600 dark:text-content-secondary hover:text-gray-900 dark:hover:text-content-primary']"
+            :class="['px-3 py-1.5 rounded-md text-sm font-medium transition-colors', activeTab === 'assetLibrary' ? 'bg-white dark:bg-surface-card text-primary-600 dark:text-brand-primary shadow-sm' : 'text-gray-600 dark:text-content-secondary hover:text-gray-900 dark:hover:text-content-primary']"
           >{{ t('assetLibrary.title') }}</button>
         </div>
       </div>
@@ -1875,7 +1875,7 @@ const retryBatchFailed = async () => {
             :class="[
               'px-3 py-2 rounded-lg text-sm font-medium transition-colors',
               showFavoritesOnly
-                ? 'bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-400'
+                ? 'bg-primary-100 text-primary-800 dark:bg-surface-hover dark:text-brand-primary'
                 : 'bg-gray-100 text-gray-700 dark:bg-surface-layer dark:text-content-primary hover:bg-gray-200 dark:hover:bg-surface-layer'
             ]"
           >
@@ -1941,11 +1941,11 @@ const retryBatchFailed = async () => {
           <div
             v-for="fp in featuredPlugins.plugins"
             :key="fp.source_url"
-            class="flex items-start gap-3 p-3 bg-white dark:bg-surface-card border border-gray-200 dark:border-surface-border rounded-lg hover:border-primary-300 dark:hover:border-primary-700 transition-colors cursor-pointer group"
+            class="flex items-start gap-3 p-3 bg-white dark:bg-surface-card border border-gray-200 dark:border-surface-border rounded-lg hover:border-primary-300 dark:hover:border-surface-border transition-colors cursor-pointer group"
             @click="importFeaturedPlugin(fp.source_url)"
           >
-            <div class="w-9 h-9 bg-primary-100 dark:bg-primary-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
-              <svg class="w-4 h-4 text-primary-600 dark:text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            <div class="w-9 h-9 bg-primary-100 dark:bg-surface-hover rounded-lg flex items-center justify-center flex-shrink-0">
+              <svg class="w-4 h-4 text-primary-600 dark:text-brand-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
             </div>
             <div class="flex-1 min-w-0">
               <div class="text-sm font-medium text-gray-900 dark:text-content-primary group-hover:text-primary-600 dark:group-hover:text-primary-400 truncate">{{ fp.name }}</div>
@@ -1972,16 +1972,16 @@ const retryBatchFailed = async () => {
       </svg>
       <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-content-primary">{{ t('plugins.searchNoResult') }}</h3>
       <p class="mt-1 text-sm text-gray-500 dark:text-content-muted">{{ t('plugins.emptyDesc') }}</p>
-      <button @click="searchQuery = ''" class="mt-3 text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400">{{ t('common.clearSearch') }}</button>
+      <button @click="searchQuery = ''" class="mt-3 text-sm text-primary-600 hover:text-primary-700 dark:text-brand-primary">{{ t('common.clearSearch') }}</button>
     </div>
 
     <div v-else class="space-y-4">
-      <div v-if="isBatchMode && selectedPluginCount > 0" class="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-3 flex items-center justify-between">
+      <div v-if="isBatchMode && selectedPluginCount > 0" class="bg-primary-50 dark:bg-surface-hover border border-primary-200 dark:border-surface-border rounded-lg p-3 flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <span class="text-sm font-medium text-primary-700 dark:text-primary-300">{{ t('plugins.selectedCount', { count: selectedPluginCount }) }}</span>
+          <span class="text-sm font-medium text-primary-700 dark:text-content-secondary">{{ t('plugins.selectedCount', { count: selectedPluginCount }) }}</span>
           <button
             @click="selectAllPlugins"
-            class="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+            class="text-xs text-primary-600 dark:text-brand-primary hover:underline"
           >
             {{ t('plugins.batchActions.selectAll') }}
           </button>
@@ -2018,8 +2018,8 @@ const retryBatchFailed = async () => {
               @click.stop="togglePluginSelection(plugin, $event)"
               class="w-4 h-4 text-primary-600 rounded flex-shrink-0 cursor-pointer mt-1"
             />
-            <div class="w-10 h-10 rounded-lg overflow-hidden bg-primary-50 dark:bg-primary-900/30 flex items-center justify-center flex-shrink-0">
-              <span class="text-primary-600 dark:text-primary-400 font-semibold text-sm">{{ plugin.name.charAt(0).toUpperCase() }}</span>
+            <div class="w-10 h-10 rounded-lg overflow-hidden bg-primary-50 dark:bg-surface-hover flex items-center justify-center flex-shrink-0">
+              <span class="text-primary-600 dark:text-brand-primary font-semibold text-sm">{{ plugin.name.charAt(0).toUpperCase() }}</span>
             </div>
             <div class="min-w-0 flex-1 cursor-pointer" @click="showPluginDetails(plugin)">
               <div class="flex items-center gap-2 flex-wrap">
@@ -2065,7 +2065,7 @@ const retryBatchFailed = async () => {
               <button
                 v-if="plugin.source.source_type === 'Git'"
                 @click.stop="updateGitPlugin(plugin.plugin_id)"
-                class="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 p-1.5 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
+                class="text-primary-600 dark:text-brand-primary hover:text-primary-700 dark:hover:text-brand-primary p-1.5 rounded-lg hover:bg-primary-50 dark:hover:bg-surface-hover transition-colors"
                 :title="t('plugins.contextMenu.updatePlugin')"
               >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2124,7 +2124,7 @@ const retryBatchFailed = async () => {
           <div class="max-h-40 overflow-y-auto border border-gray-200 dark:border-surface-border rounded-lg">
             <button
               @click="remoteGitRef = ''; gitRefDecisionMade = true"
-              :class="['w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-surface-layer flex items-center gap-2', !remoteGitRef && gitRefDecisionMade ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400' : 'text-gray-700 dark:text-content-secondary']"
+              :class="['w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-surface-layer flex items-center gap-2', !remoteGitRef && gitRefDecisionMade ? 'bg-primary-50 dark:bg-surface-hover text-primary-600 dark:text-brand-primary' : 'text-gray-700 dark:text-content-secondary']"
             >
               <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">{{ t('plugins.remoteImport.useDefault') }}</span>
               <span>{{ t('plugins.remoteImport.defaultBranch') }}</span>
@@ -2133,7 +2133,7 @@ const retryBatchFailed = async () => {
               v-for="ref_item in gitRefs"
               :key="ref_item.name"
               @click="remoteGitRef = ref_item.name; gitRefDecisionMade = true"
-              :class="['w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-surface-layer flex items-center gap-2', remoteGitRef === ref_item.name ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400' : 'text-gray-700 dark:text-content-secondary']"
+              :class="['w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-surface-layer flex items-center gap-2', remoteGitRef === ref_item.name ? 'bg-primary-50 dark:bg-surface-hover text-primary-600 dark:text-brand-primary' : 'text-gray-700 dark:text-content-secondary']"
             >
               <span :class="['px-1.5 py-0.5 rounded text-[10px] font-medium', ref_item.ref_type === 'tag' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-blue-100 dark:bg-surface-hover text-blue-700 dark:text-brand-primary']">{{ ref_item.ref_type === 'tag' ? 'tag' : 'branch' }}</span>
               <span>{{ ref_item.name }}</span>
@@ -2270,7 +2270,7 @@ const retryBatchFailed = async () => {
                   <button
                     v-if="binding.is_healthy === false"
                     @click="repairBinding(binding.project_id, binding.plugin_id)"
-                    class="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+                    class="text-xs text-primary-600 dark:text-brand-primary hover:underline"
                   >
                     {{ t('plugins.bindDialog.repair') }}
                   </button>
@@ -2292,7 +2292,7 @@ const retryBatchFailed = async () => {
                 v-if="missingDepPluginIds.length > 0"
                 @click="installMissingDeps"
                 :disabled="isInstallingDeps"
-                class="text-xs text-primary-600 dark:text-primary-400 hover:underline disabled:opacity-50"
+                class="text-xs text-primary-600 dark:text-brand-primary hover:underline disabled:opacity-50"
               >
                 {{ isInstallingDeps ? t('plugins.depDialog.installing') : t('plugins.depDialog.installMissing', { count: missingDepPluginIds.length }) }}
               </button>
@@ -2399,7 +2399,7 @@ const retryBatchFailed = async () => {
             <div v-if="update.release_notes" class="mt-2 pt-2 border-t border-gray-200 dark:border-surface-border">
               <button
                 @click="expandedReleaseNotes.has(update.plugin_id) ? expandedReleaseNotes.delete(update.plugin_id) : expandedReleaseNotes.add(update.plugin_id)"
-                class="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+                class="text-xs text-primary-600 dark:text-brand-primary hover:underline"
               >
                 {{ expandedReleaseNotes.has(update.plugin_id) ? t('plugins.updateCheck.hideNotes') : t('plugins.updateCheck.showNotes') }}
               </button>
@@ -2458,7 +2458,7 @@ const retryBatchFailed = async () => {
         <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">{{ t('plugins.importFromProject.modeSelect') }}</p>
         <div class="space-y-3 mb-6">
           <label class="flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors"
-            :class="importMode === 'copy' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-surface-border hover:bg-gray-50 dark:hover:bg-surface-layer'">
+            :class="importMode === 'copy' ? 'border-primary-500 bg-primary-50 dark:bg-surface-hover' : 'border-gray-200 dark:border-surface-border hover:bg-gray-50 dark:hover:bg-surface-layer'">
             <input type="radio" v-model="importMode" value="copy" class="mt-1" />
             <div>
               <div class="font-medium text-gray-900 dark:text-content-primary text-sm">{{ t('plugins.importModes.copy.label') }}</div>
@@ -2466,7 +2466,7 @@ const retryBatchFailed = async () => {
             </div>
           </label>
           <label class="flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors"
-            :class="importMode === 'move' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-surface-border hover:bg-gray-50 dark:hover:bg-surface-layer'">
+            :class="importMode === 'move' ? 'border-primary-500 bg-primary-50 dark:bg-surface-hover' : 'border-gray-200 dark:border-surface-border hover:bg-gray-50 dark:hover:bg-surface-layer'">
             <input type="radio" v-model="importMode" value="move" class="mt-1" />
             <div>
               <div class="font-medium text-gray-900 dark:text-content-primary text-sm">{{ t('plugins.importModes.move.label') }}</div>
@@ -2474,7 +2474,7 @@ const retryBatchFailed = async () => {
             </div>
           </label>
           <label class="flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors"
-            :class="importMode === 'reference' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-surface-border hover:bg-gray-50 dark:hover:bg-surface-layer'">
+            :class="importMode === 'reference' ? 'border-primary-500 bg-primary-50 dark:bg-surface-hover' : 'border-gray-200 dark:border-surface-border hover:bg-gray-50 dark:hover:bg-surface-layer'">
             <input type="radio" v-model="importMode" value="reference" class="mt-1" />
             <div>
               <div class="font-medium text-gray-900 dark:text-content-primary text-sm">{{ t('plugins.importModes.reference.label') }}</div>
@@ -2587,7 +2587,7 @@ const retryBatchFailed = async () => {
               v-for="project in linkerProjects"
               :key="project.project_id"
               @click="selectLinkProject(project, $event)"
-              :class="['px-3 py-2.5 cursor-pointer border-b border-gray-100 dark:border-surface-border last:border-0 transition-colors group', selectedLinkProjectIds.has(project.project_id) ? 'bg-primary-50 dark:bg-primary-900/20' : 'hover:bg-gray-50 dark:hover:bg-surface-layer']"
+              :class="['px-3 py-2.5 cursor-pointer border-b border-gray-100 dark:border-surface-border last:border-0 transition-colors group', selectedLinkProjectIds.has(project.project_id) ? 'bg-primary-50 dark:bg-surface-hover' : 'hover:bg-gray-50 dark:hover:bg-surface-layer']"
             >
               <div class="flex items-center gap-1.5">
                 <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate flex-1 min-w-0">{{ project.name }}</div>
@@ -2612,11 +2612,11 @@ const retryBatchFailed = async () => {
               <div class="mt-1.5 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
                   @click.stop="selectedLinkId = project.project_id; exportHarborConfig()"
-                  class="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-surface-layer text-gray-600 dark:text-content-muted hover:bg-primary-100 dark:hover:bg-primary-900/30 hover:text-primary-600 dark:hover:text-primary-400"
+                  class="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-surface-layer text-gray-600 dark:text-content-muted hover:bg-primary-100 dark:hover:bg-surface-hover hover:text-primary-600 dark:hover:text-brand-primary"
                 >{{ t('linker.exportConfig') }}</button>
                 <button
                   @click.stop="selectedLinkId = project.project_id; syncHarborConfig()"
-                  class="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-surface-layer text-gray-600 dark:text-content-muted hover:bg-primary-100 dark:hover:bg-primary-900/30 hover:text-primary-600 dark:hover:text-primary-400"
+                  class="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-surface-layer text-gray-600 dark:text-content-muted hover:bg-primary-100 dark:hover:bg-surface-hover hover:text-primary-600 dark:hover:text-brand-primary"
                 >{{ t('linker.syncConfig') }}</button>
               </div>
             </div>
@@ -2653,7 +2653,7 @@ const retryBatchFailed = async () => {
               v-for="plugin in filteredUnboundPlugins"
               :key="plugin.plugin_id"
               @click="toggleLinkPluginSelection(plugin.plugin_id, $event)"
-              :class="['px-3 py-2.5 cursor-pointer border-b border-gray-100 dark:border-surface-border last:border-0 transition-colors', selectedLinkPluginIds.has(plugin.plugin_id) ? 'bg-primary-50 dark:bg-primary-900/20' : 'hover:bg-gray-50 dark:hover:bg-surface-layer']"
+              :class="['px-3 py-2.5 cursor-pointer border-b border-gray-100 dark:border-surface-border last:border-0 transition-colors', selectedLinkPluginIds.has(plugin.plugin_id) ? 'bg-primary-50 dark:bg-surface-hover' : 'hover:bg-gray-50 dark:hover:bg-surface-layer']"
             >
               <div class="flex items-center justify-between">
                 <div class="min-w-0 flex-1">
@@ -2709,7 +2709,7 @@ const retryBatchFailed = async () => {
                 <button @click="unbindPluginFromProject(item)" class="px-2 py-1 text-red-600 dark:text-red-400 text-xs hover:bg-red-50 dark:hover:bg-red-900/20 rounded ml-2 flex-shrink-0">
                   {{ t('linker.unbind') }}
                 </button>
-                <button @click="openVersionSwitch(item)" class="px-2 py-1 text-primary-600 dark:text-primary-400 text-xs hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded ml-1 flex-shrink-0" :title="t('linker.switchVersion')">
+                <button @click="openVersionSwitch(item)" class="px-2 py-1 text-primary-600 dark:text-brand-primary text-xs hover:bg-primary-50 dark:hover:bg-surface-hover rounded ml-1 flex-shrink-0" :title="t('linker.switchVersion')">
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
@@ -3119,7 +3119,7 @@ const retryBatchFailed = async () => {
             v-for="project in quickBindProjects"
             :key="project.project_id"
             @click="toggleQuickBindProject(project.project_id)"
-            :class="['flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-colors', quickBindSelectedProjectIds.has(project.project_id) ? 'bg-primary-50 dark:bg-primary-900/20 ring-1 ring-primary-300 dark:ring-primary-700' : 'hover:bg-gray-50 dark:hover:bg-surface-layer']"
+            :class="['flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-colors', quickBindSelectedProjectIds.has(project.project_id) ? 'bg-primary-50 dark:bg-surface-hover ring-1 ring-primary-300 dark:ring-brand-primary' : 'hover:bg-gray-50 dark:hover:bg-surface-layer']"
           >
             <div class="w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center" :class="quickBindSelectedProjectIds.has(project.project_id) ? 'bg-primary-600 border-primary-600' : 'border-gray-300 dark:border-surface-border'">
               <svg v-if="quickBindSelectedProjectIds.has(project.project_id)" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3261,10 +3261,10 @@ const retryBatchFailed = async () => {
             <button
               @click="handleBindWithCopyMode"
               class="w-full text-left p-3 rounded-lg border-2 transition-colors"
-              :class="mountStrategyDisplay !== 'Copy' ? 'border-primary-300 dark:border-primary-700 bg-primary-50 dark:bg-primary-900/10' : 'border-gray-200 dark:border-surface-border'"
+              :class="mountStrategyDisplay !== 'Copy' ? 'border-primary-300 dark:border-surface-border bg-primary-50 dark:bg-surface-hover' : 'border-gray-200 dark:border-surface-border'"
             >
               <div class="flex items-center gap-2">
-                <svg class="w-4 h-4 text-primary-600 dark:text-primary-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-4 h-4 text-primary-600 dark:text-brand-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <span class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ t('linker.uidConflictSolutionCopy') }}</span>

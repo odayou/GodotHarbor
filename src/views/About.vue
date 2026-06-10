@@ -152,7 +152,7 @@ const inspirationDeps = [
           <p class="text-gray-500 dark:text-content-muted">v{{ appVersion }}</p>
           <button
             @click="copyVersion"
-            class="p-1 rounded text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+            class="p-1 rounded text-gray-400 hover:text-primary-600 dark:hover:text-brand-primary transition-colors"
             :title="t('about.copyVersion')"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -234,23 +234,23 @@ const inspirationDeps = [
           {{ t('about.openSource') }}
         </p>
         <div class="flex flex-wrap justify-center gap-4 mt-4">
-          <a href="https://github.com/odayou/GodotHarbor" target="_blank" class="text-primary-600 dark:text-primary-400 hover:underline text-sm">
+          <a href="https://github.com/odayou/GodotHarbor" target="_blank" class="text-primary-600 dark:text-brand-primary hover:underline text-sm">
             {{ t('about.githubRepo') }}
           </a>
-          <a href="https://gitee.com/odayou/godot-harbor" target="_blank" class="text-primary-600 dark:text-primary-400 hover:underline text-sm">
+          <a href="https://gitee.com/odayou/godot-harbor" target="_blank" class="text-primary-600 dark:text-brand-primary hover:underline text-sm">
             {{ t('about.giteeRepo') }}
           </a>
-          <a href="https://github.com/odayou/GodotHarbor/issues" target="_blank" class="text-primary-600 dark:text-primary-400 hover:underline text-sm">
+          <a href="https://github.com/odayou/GodotHarbor/issues" target="_blank" class="text-primary-600 dark:text-brand-primary hover:underline text-sm">
             {{ t('about.issueReport') }}
           </a>
-          <a href="https://github.com/odayou/GodotHarbor/contribute" target="_blank" class="text-primary-600 dark:text-primary-400 hover:underline text-sm">
+          <a href="https://github.com/odayou/GodotHarbor/contribute" target="_blank" class="text-primary-600 dark:text-brand-primary hover:underline text-sm">
             {{ t('about.contribute') }}
           </a>
           <span class="flex items-center gap-1 text-gray-500 dark:text-content-muted text-sm">
             {{ t('about.email') }}: gbytl@sina.cn
             <button
               @click="copyEmail"
-              class="p-1 rounded text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+              class="p-1 rounded text-gray-400 hover:text-primary-600 dark:hover:text-brand-primary transition-colors"
               :title="t('about.copyEmail')"
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -276,7 +276,7 @@ const inspirationDeps = [
             :key="dep.name"
             class="flex items-center p-3 bg-gray-50 dark:bg-surface-hover rounded-lg"
           >
-            <a :href="dep.url" target="_blank" class="text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline">
+            <a :href="dep.url" target="_blank" class="text-sm font-medium text-primary-600 dark:text-brand-primary hover:underline">
               {{ dep.name }}
             </a>
             <span class="text-xs text-gray-500 dark:text-content-muted ml-3">v{{ dep.version }}</span>
@@ -290,7 +290,7 @@ const inspirationDeps = [
             :key="dep.name"
             class="flex items-center p-3 bg-gray-50 dark:bg-surface-hover rounded-lg"
           >
-            <a :href="dep.url" target="_blank" class="text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline">
+            <a :href="dep.url" target="_blank" class="text-sm font-medium text-primary-600 dark:text-brand-primary hover:underline">
               {{ dep.name }}
             </a>
             <span class="text-xs text-gray-500 dark:text-content-muted ml-3">v{{ dep.version }}</span>
