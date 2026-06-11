@@ -184,6 +184,39 @@ impl Plugin {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ProjectGroup {
+    pub group_id: String,
+    pub name: String,
+    #[serde(default)]
+    pub icon: String,
+    #[serde(default = "default_group_color")]
+    pub color: String,
+    #[serde(default)]
+    pub description: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+fn default_group_color() -> String {
+    "#6B7280".to_string()
+}
+
+impl ProjectGroup {
+    pub fn new(name: String, icon: String, color: String, description: String) -> Self {
+        let now = Utc::now();
+        Self {
+            group_id: Uuid::new_v4().to_string(),
+            name,
+            icon,
+            color: if color.is_empty() { default_group_color() } else { color },
+            description,
+            created_at: now,
+            updated_at: now,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ProjectStatus {
     Ready,
@@ -367,8 +400,6 @@ pub struct Settings {
     pub enable_anonymous_usage_stats: bool,
     #[serde(default)]
     pub anonymous_user_id: String,
-    #[serde(default)]
-    pub active_workspace_id: Option<String>,
 }
 
 fn default_true() -> bool { true }
@@ -410,7 +441,6 @@ impl Default for Settings {
             engine_update_channels: default_engine_update_channels(),
             enable_anonymous_usage_stats: true,
             anonymous_user_id: String::new(),
-            active_workspace_id: None,
         }
     }
 }

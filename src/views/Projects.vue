@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '@/api'
-import type { Project, Engine, MovedProjectCandidate, ProjectBinding, Plugin, DriftReport, SyncPreview, SyncEnvironmentResult, VcsInfo, ModuleType } from '@/types'
+import type { Project, Engine, MovedProjectCandidate, ProjectBinding, Plugin, DriftReport, SyncPreview, SyncEnvironmentResult, VcsInfo, ModuleType, ProjectGroup } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
@@ -14,8 +14,6 @@ import { useFileManager } from '@/composables/useFileManager'
 import { getStatusBadgeClass, getStatusInlineClass } from '@/utils/statusBadge'
 import { preloadIcons, getIconUrl, getIconDebugInfo } from '@/composables/useIconCache'
 import { useEngineLauncher } from '@/composables/useEngineLauncher'
-import { useWorkspace } from '@/composables/useWorkspace'
-import WorkspaceProjectAssign from '@/components/WorkspaceProjectAssign.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import SkeletonList from '@/components/SkeletonList.vue'
 import ErrorState from '@/components/ErrorState.vue'
@@ -26,7 +24,7 @@ import MissingModulesWarning from '@/components/MissingModulesWarning.vue'
 import LockStatusBadge from '@/components/LockStatusBadge.vue'
 import LockfilePanel from '@/components/LockfilePanel.vue'
 import EnvironmentSnapshotPanel from '@/components/EnvironmentSnapshotPanel.vue'
-import ProjectCompareDialog from '@/components/ProjectCompareDialog.vue'
+
 
 const router = useRouter()
 const route = useRoute()
@@ -34,35 +32,21 @@ const toast = useToast()
 const { t } = useI18n()
 const { isRunning: isAutoSetupRunning, stepMessage: autoSetupMessage, runAutoSetup } = useAutoSetup()
 const { openInFileManager } = useFileManager()
-const {
-  activeWorkspaceId,
-  activeWorkspace,
-  loadWorkspaces,
-} = useWorkspace()
-const showWorkspaceAssign = ref(false)
-const assignProjectId = ref('')
-const assignProjectName = ref('')
-const activeWorkspaceProjectIds = ref<Set<string>>(new Set())
 
-// Check if a project belongs to the active workspace
-const isInActiveWorkspace = (projectId: string) => {
-  if (!activeWorkspaceId.value) return true
-  return activeWorkspaceProjectIds.value.has(projectId)
-}
-
-// Watch for active workspace changes and load project IDs
-watch(activeWorkspaceId, async (newId) => {
-  if (newId) {
-    try {
-      const ws = await api.getWorkspace(newId)
-      activeWorkspaceProjectIds.value = new Set(ws.project_ids)
-    } catch {
-      activeWorkspaceProjectIds.value = new Set()
-    }
-  } else {
-    activeWorkspaceProjectIds.value = new Set()
+const handleInstallModule = async (moduleType: any) => {
+  if (!selectedProject.value) return
+  const engineId = selectedProject.value.last_used_engine_id
+  if (!engineId) {
+    toast.warning('请先为项目指定引擎')
+    return
   }
-}, { immediate: true })
+  try {
+    await api.installEngineModule(engineId, moduleType)
+    toast.success(`正在安装 ${moduleType} 模块...`)
+  } catch (e: any) {
+    toast.error(String(e))
+  }
+}
 const debugMode = ref(false)
 const toggleDebug = (e: KeyboardEvent) => {
   if (e.ctrlKey && e.shiftKey && e.key === 'D') {
@@ -80,7 +64,13 @@ const scanDirInput = ref('')
 const showProjectDetail = ref(false)
 const selectedProject = ref<Project | null>(null)
 const showGroupDialog = ref(false)
-const groupInput = ref('')
+const selectedGroupId = ref('')
+const showCreateGroupDialog = ref(false)
+const newGroupName = ref('')
+const newGroupIcon = ref('')
+const newGroupColor = ref('#6B7280')
+const newGroupDescription = ref('')
+const isCreatingGroup = ref(false)
 const showGitDialog = ref(false)
 const gitUrl = ref('')
 const gitTargetDir = ref('')
@@ -149,7 +139,7 @@ watch(searchQuery, (val) => {
 })
 const filterGroup = ref<string>('all')
 const filterStatus = ref<string>('all')
-const availableGroups = ref<string[]>([])
+const availableGroups = ref<ProjectGroup[]>([])
 let unlisten: UnlistenFn | null = null
 let unlistenFs: UnlistenFn | null = null
 let unlistenAutoSetup: UnlistenFn | null = null
@@ -159,7 +149,7 @@ const sortOrder = ref<string>('asc')
 const hasScanDirs = ref(false)
 
 const showBatchGroupDialog = ref(false)
-const batchGroupInput = ref('')
+const batchGroupId = ref('')
 
 const isBatchApplying = ref(false)
 
@@ -210,21 +200,17 @@ const batchRemoveProjects = async () => {
 const batchSetGroup = async () => {
   const ids = Array.from(selectedProjectIds.value)
   if (ids.length === 0) return
-  batchGroupInput.value = ''
+  batchGroupId.value = ''
   showBatchGroupDialog.value = true
 }
 
 const saveBatchGroup = async () => {
   const ids = Array.from(selectedProjectIds.value)
-  const results = await Promise.allSettled(
-    ids.map(id => api.updateProjectGroup(id, batchGroupInput.value))
-  )
-  const successCount = results.filter(r => r.status === 'fulfilled').length
-  const failCount = results.filter(r => r.status === 'rejected').length
-  if (failCount === 0) {
-    toast.success(t('projects.batchGroupSuccess', { count: successCount }))
-  } else {
-    toast.warning(t('projects.batchGroupPartial', { success: successCount, failed: failCount }))
+  try {
+    await api.batchSetProjectGroup(ids, batchGroupId.value)
+    toast.success(t('projects.batchGroupSuccess', { count: ids.length }))
+  } catch (error) {
+    toast.error(String(error))
   }
   showBatchGroupDialog.value = false
   clearSelection()
@@ -235,7 +221,6 @@ onMounted(async () => {
   loadProjects()
   loadGroups()
   loadEngines()
-  loadWorkspaces()
   document.addEventListener('click', handleGlobalClick)
   document.addEventListener('keydown', toggleDebug)
   try {
@@ -284,6 +269,25 @@ const matchesSearch = (project: Project) =>
   project.name.toLowerCase().includes(debouncedSearchQuery.value.toLowerCase()) ||
   project.path.toLowerCase().includes(debouncedSearchQuery.value.toLowerCase())
 
+const getGroupById = (groupId: string): ProjectGroup | undefined => {
+  return availableGroups.value.find(g => g.group_id === groupId)
+}
+
+const getGroupName = (groupId: string): string => {
+  if (!groupId) return t('projects.ungrouped')
+  return getGroupById(groupId)?.name || groupId
+}
+
+const getGroupIcon = (groupId: string): string => {
+  if (!groupId) return ''
+  return getGroupById(groupId)?.icon || ''
+}
+
+const getGroupColor = (groupId: string): string => {
+  if (!groupId) return '#6B7280'
+  return getGroupById(groupId)?.color || '#6B7280'
+}
+
 const groupedProjects = computed(() => {
   const groups: Record<string, Project[]> = {}
 
@@ -311,11 +315,6 @@ const filteredProjects = computed(() => {
 
     return matchesSearch(project) && matchesGroup && matchesStatus
   })
-
-  // Filter by active workspace
-  if (activeWorkspaceId.value && activeWorkspaceProjectIds.value.size > 0) {
-    result = result.filter(p => activeWorkspaceProjectIds.value.has(p.project_id))
-  }
 
   result.sort((a, b) => {
     let cmp = 0
@@ -456,6 +455,7 @@ const loadProjects = async (force = false) => {
       loadAllDrifts(),
       loadAllVcsInfo(),
       loadAllMissingModules(),
+      loadAllLockStatuses(),
     ]).catch(() => {})
   } catch (error) {
     loadError.value = String(error)
@@ -847,7 +847,7 @@ const syncAllProjects = async () => {
 
 const openGroupDialog = (project: Project) => {
   editingProjectId.value = project.project_id
-  groupInput.value = project.group || ''
+  selectedGroupId.value = project.group || ''
   showGroupDialog.value = true
 }
 
@@ -855,15 +855,15 @@ const saveGroup = async () => {
   if (!editingProjectId.value) return
 
   try {
-    await api.updateProjectGroup(editingProjectId.value, groupInput.value)
+    await api.updateProjectGroup(editingProjectId.value, selectedGroupId.value)
     const project = projects.value.find(p => p.project_id === editingProjectId.value)
     if (project) {
-      project.group = groupInput.value
+      project.group = selectedGroupId.value
     }
     toast.success(t('common.groupUpdated'))
     showGroupDialog.value = false
     editingProjectId.value = null
-    groupInput.value = ''
+    selectedGroupId.value = ''
     await loadGroups()
   } catch (error) {
     toast.error(t('common.groupUpdateFailed', { error }))
@@ -876,6 +876,56 @@ const loadEngines = async () => {
   } catch (error) {
     console.error('Failed to load engines:', error)
   }
+}
+
+const openCreateGroupDialog = () => {
+  newGroupName.value = ''
+  newGroupIcon.value = ''
+  newGroupColor.value = '#6B7280'
+  newGroupDescription.value = ''
+  showCreateGroupDialog.value = true
+}
+
+const createGroup = async () => {
+  if (!newGroupName.value.trim()) {
+    toast.warning('请输入分组名称')
+    return
+  }
+  isCreatingGroup.value = true
+  try {
+    const group = await api.createProjectGroup(
+      newGroupName.value.trim(),
+      newGroupIcon.value || undefined,
+      newGroupColor.value || undefined,
+      newGroupDescription.value || undefined
+    )
+    await loadGroups()
+    selectedGroupId.value = group.group_id
+    showCreateGroupDialog.value = false
+    toast.success(`分组「${group.name}」已创建`)
+  } catch (error) {
+    toast.error(String(error))
+  } finally {
+    isCreatingGroup.value = false
+  }
+}
+
+const deleteGroup = async (groupId: string) => {
+  const group = getGroupById(groupId)
+  if (!group) return
+  confirm(t('common.confirmDelete'), `确定要删除分组「${group.name}」吗？该分组下的项目将变为未分组。`, async () => {
+    try {
+      await api.deleteProjectGroup(groupId)
+      if (selectedGroupId.value === groupId) {
+        selectedGroupId.value = ''
+      }
+      await loadGroups()
+      await loadProjects()
+      toast.success(`分组「${group.name}」已删除`)
+    } catch (error) {
+      toast.error(String(error))
+    }
+  })
 }
 
 const showRelocateDialog = ref(false)
@@ -906,6 +956,7 @@ useDialogEscape(showMovedDialog)
 useDialogEscape(showBatchGroupDialog)
 useDialogEscape(showGitDialog)
 useDialogEscape(showEngineSelectDialog)
+useDialogEscape(showCreateGroupDialog)
 
 const showSaveAsTemplateDialog = ref(false)
 useDialogEscape(showSaveAsTemplateDialog)
@@ -913,10 +964,6 @@ const saveAsTemplateProjectId = ref('')
 const saveAsTemplateName = ref('')
 const saveAsTemplateCategory = ref('Custom')
 const isSavingAsTemplate = ref(false)
-
-// ─── Batch Ops: Compare & Snapshots ───
-const showCompareDialog = ref(false)
-useDialogEscape(showCompareDialog)
 
 const openSaveAsTemplateDialog = (project: Project) => {
   saveAsTemplateProjectId.value = project.project_id
@@ -1226,17 +1273,6 @@ const toggleAddPluginPanel = () => {
           </svg>
           {{ t('projects.syncProject') }}
         </button>
-        <button
-          @click="showCompareDialog = true"
-          :disabled="isLoading || projects.length < 2"
-          class="btn-secondary disabled:opacity-50 text-sm flex items-center gap-1.5"
-          :title="t('batchOps.compareProjects') || '比较项目环境'"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-          </svg>
-          {{ t('batchOps.compare') || '比较' }}
-        </button>
       </div>
     </div>
 
@@ -1257,7 +1293,7 @@ const toggleAddPluginPanel = () => {
           >
             <option value="all">{{ t('projects.allGroups') }}</option>
             <option value="ungrouped">{{ t('projects.ungrouped') }}</option>
-            <option v-for="group in availableGroups" :key="group" :value="group">{{ group }}</option>
+            <option v-for="group in availableGroups" :key="group.group_id" :value="group.group_id">{{ group.icon }} {{ group.name }}</option>
           </select>
           <select
             v-model="filterStatus"
@@ -1369,8 +1405,19 @@ const toggleAddPluginPanel = () => {
     <div v-else class="space-y-6">
       <div v-for="(groupProjects, groupName) in (filterGroup === 'all' ? groupedProjects : { all: filteredProjects })" :key="groupName" class="space-y-3">
         <div v-if="filterGroup === 'all' && Object.keys(groupedProjects).length > 1" class="flex items-center gap-2">
+          <span
+            v-if="getGroupIcon(groupName) || groupName !== t('projects.ungrouped')"
+            class="inline-flex items-center gap-1.5"
+          >
+            <span v-if="getGroupIcon(groupName)" class="text-base">{{ getGroupIcon(groupName) }}</span>
+            <span
+              v-if="groupName !== t('projects.ungrouped')"
+              class="w-2.5 h-2.5 rounded-full"
+              :style="{ backgroundColor: getGroupColor(groupName) }"
+            ></span>
+          </span>
           <h2 class="text-lg font-semibold text-gray-700 dark:text-content-primary">
-            {{ groupName === t('projects.ungrouped') ? t('projects.ungrouped') : groupName }}
+            {{ getGroupName(groupName) }}
           </h2>
           <span class="text-sm text-gray-500 dark:text-content-secondary">({{ groupProjects.length }} {{ t('projects.projectCount') }})</span>
         </div>
@@ -1415,18 +1462,13 @@ const toggleAddPluginPanel = () => {
                 <span
                   v-if="project.group"
                   @click.stop="openGroupDialog(project)"
-                  class="badge badge-neutral hover:bg-gray-200 dark:hover:bg-surface-layer cursor-pointer"
+                  class="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs rounded-full font-medium cursor-pointer hover:opacity-80"
+                  :style="{ backgroundColor: getGroupColor(project.group) + '20', color: getGroupColor(project.group) }"
                 >
-                  {{ project.group }}
+                  <span v-if="getGroupIcon(project.group)">{{ getGroupIcon(project.group) }}</span>
+                  {{ getGroupName(project.group) }}
                 </span>
                 <span
-                  v-if="activeWorkspaceId && isInActiveWorkspace(project.project_id)"
-                  class="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs rounded-full font-medium"
-                  :style="{ backgroundColor: (activeWorkspace?.color || '#3B82F6') + '20', color: activeWorkspace?.color || '#3B82F6' }"
-                >
-                  {{ activeWorkspace?.icon || '📁' }}
-                </span>
-                <button
                   v-else
                   @click.stop="openGroupDialog(project)"
                   class="text-gray-400 hover:text-primary-600 dark:hover:text-brand-primary p-0.5 rounded hover:bg-gray-100 dark:hover:bg-surface-hover"
@@ -1435,7 +1477,7 @@ const toggleAddPluginPanel = () => {
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                   </svg>
-                </button>
+                </span>
                 <span
                   :class="getStatusBadgeClass(project.status)"
                 >
@@ -1569,13 +1611,6 @@ const toggleAddPluginPanel = () => {
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" /></svg>
                     {{ t('templates.saveFromProject') }}
                   </button>
-                  <button
-                    @click.stop="assignProjectId = project.project_id; assignProjectName = project.name; showWorkspaceAssign = true; projectMenuId = ''"
-                    class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-content-primary hover:bg-gray-100 dark:hover:bg-surface-layer flex items-center gap-2"
-                  >
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
-                    分配到工作区
-                  </button>
                   <hr class="my-1 border-gray-200 dark:border-surface-border" />
                   <button
                     @click.stop="removeProject(project.project_id); projectMenuId = ''"
@@ -1656,7 +1691,7 @@ const toggleAddPluginPanel = () => {
 
         <!-- Missing Modules Warning -->
         <div class="mb-4">
-          <MissingModulesWarning :projectId="selectedProject.project_id" />
+          <MissingModulesWarning :projectId="selectedProject.project_id" @install="handleInstallModule" />
         </div>
 
         <!-- Lockfile Panel -->
@@ -1992,42 +2027,54 @@ const toggleAddPluginPanel = () => {
   </Teleport>
 
   <Teleport to="body">
-    <div v-if="showGroupDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showGroupDialog = false; groupInput = ''; editingProjectId = null">
+    <div v-if="showGroupDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showGroupDialog = false; selectedGroupId = ''; editingProjectId = null">
       <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('projects.groupTitle') }}</h3>
         <p class="text-sm text-gray-500 dark:text-content-muted mb-4">
           {{ t('projects.groupDesc') }}
         </p>
-        <input
-          v-model="groupInput"
-          type="text"
-          :placeholder="t('projects.groupPlaceholder')"
-          class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
-        />
-        <div v-if="availableGroups.length > 0" class="mt-3">
-          <p class="text-xs text-gray-500 dark:text-content-muted mb-1">{{ t('projects.existingGroups') }}</p>
-          <div class="flex flex-wrap gap-1">
+        <div class="space-y-2 max-h-60 overflow-y-auto">
+          <button
+            @click="selectedGroupId = ''"
+            :class="[
+              'w-full flex items-center gap-2 p-2.5 rounded-lg border transition-colors text-left',
+              !selectedGroupId ? 'border-primary-300 dark:border-surface-border bg-primary-50 dark:bg-surface-hover' : 'border-gray-200 dark:border-surface-border hover:border-primary-300 dark:hover:border-surface-border hover:bg-gray-50 dark:hover:bg-surface-layer'
+            ]"
+          >
+            <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            <span class="text-sm text-gray-500 dark:text-content-muted">{{ t('projects.ungrouped') }}</span>
+          </button>
+          <button
+            v-for="group in availableGroups"
+            :key="group.group_id"
+            @click="selectedGroupId = group.group_id"
+            :class="[
+              'w-full flex items-center gap-2 p-2.5 rounded-lg border transition-colors text-left',
+              selectedGroupId === group.group_id ? 'border-primary-300 dark:border-surface-border bg-primary-50 dark:bg-surface-hover' : 'border-gray-200 dark:border-surface-border hover:border-primary-300 dark:hover:border-surface-border hover:bg-gray-50 dark:hover:bg-surface-layer'
+            ]"
+          >
+            <span v-if="group.icon" class="text-base shrink-0">{{ group.icon }}</span>
+            <span v-else class="w-4 h-4 rounded-full shrink-0" :style="{ backgroundColor: group.color }"></span>
+            <span class="text-sm font-medium text-gray-900 dark:text-content-primary flex-1 truncate">{{ group.name }}</span>
             <button
-              v-for="group in availableGroups"
-              :key="group"
-              @click="groupInput = group"
-              class="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-surface-hover text-gray-700 dark:text-content-secondary hover:bg-gray-200 dark:hover:bg-surface-layer"
+              @click.stop="deleteGroup(group.group_id)"
+              class="text-gray-400 hover:text-red-500 dark:hover:text-red-400 p-0.5 shrink-0"
+              :title="'删除分组'"
             >
-              {{ group }}
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
             </button>
-          </div>
+          </button>
         </div>
+        <button
+          @click="openCreateGroupDialog"
+          class="w-full mt-2 py-2 text-sm text-primary-600 dark:text-brand-primary hover:bg-primary-50 dark:hover:bg-surface-hover rounded-lg border border-dashed border-primary-300 dark:border-surface-border flex items-center justify-center gap-1.5 transition-colors"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+          创建新分组
+        </button>
         <div class="flex justify-end space-x-3 mt-6">
           <button
-            v-if="groupInput"
-            @click="groupInput = ''"
-            class="px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50"
-          >
-            {{ t('projects.clearGroup') }}
-          </button>
-          <div class="flex-1"></div>
-          <button
-            @click="showGroupDialog = false; groupInput = ''; editingProjectId = null"
+            @click="showGroupDialog = false; selectedGroupId = ''; editingProjectId = null"
             class="btn-secondary"
           >
             {{ t('common.cancel') }}
@@ -2050,24 +2097,30 @@ const toggleAddPluginPanel = () => {
         <p class="text-sm text-gray-500 dark:text-content-muted mb-4">
           {{ t('projects.batchGroupDesc', { count: selectedCount }) }}
         </p>
-        <input
-          v-model="batchGroupInput"
-          type="text"
-          :placeholder="t('projects.groupPlaceholder')"
-          class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
-        />
-        <div v-if="availableGroups.length > 0" class="mt-3">
-          <p class="text-xs text-gray-500 dark:text-content-muted mb-1">{{ t('projects.existingGroups') }}</p>
-          <div class="flex flex-wrap gap-1">
-            <button
-              v-for="group in availableGroups"
-              :key="group"
-              @click="batchGroupInput = group"
-              class="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-surface-hover text-gray-700 dark:text-content-secondary hover:bg-gray-200 dark:hover:bg-surface-layer"
-            >
-              {{ group }}
-            </button>
-          </div>
+        <div class="space-y-2 max-h-60 overflow-y-auto">
+          <button
+            @click="batchGroupId = ''"
+            :class="[
+              'w-full flex items-center gap-2 p-2.5 rounded-lg border transition-colors text-left',
+              !batchGroupId ? 'border-primary-300 dark:border-surface-border bg-primary-50 dark:bg-surface-hover' : 'border-gray-200 dark:border-surface-border hover:border-primary-300 dark:hover:border-surface-border hover:bg-gray-50 dark:hover:bg-surface-layer'
+            ]"
+          >
+            <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            <span class="text-sm text-gray-500 dark:text-content-muted">{{ t('projects.ungrouped') }}</span>
+          </button>
+          <button
+            v-for="group in availableGroups"
+            :key="group.group_id"
+            @click="batchGroupId = group.group_id"
+            :class="[
+              'w-full flex items-center gap-2 p-2.5 rounded-lg border transition-colors text-left',
+              batchGroupId === group.group_id ? 'border-primary-300 dark:border-surface-border bg-primary-50 dark:bg-surface-hover' : 'border-gray-200 dark:border-surface-border hover:border-primary-300 dark:hover:border-surface-border hover:bg-gray-50 dark:hover:bg-surface-layer'
+            ]"
+          >
+            <span v-if="group.icon" class="text-base shrink-0">{{ group.icon }}</span>
+            <span v-else class="w-4 h-4 rounded-full shrink-0" :style="{ backgroundColor: group.color }"></span>
+            <span class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ group.name }}</span>
+          </button>
         </div>
         <div class="flex justify-end space-x-3 mt-6">
           <button
@@ -2365,21 +2418,84 @@ const toggleAddPluginPanel = () => {
     </div>
   </Teleport>
 
-  <!-- Project Compare Dialog -->
-  <ProjectCompareDialog
-    :visible="showCompareDialog"
-    :projects="projects"
-    @update:visible="showCompareDialog = $event"
-    @close="showCompareDialog = false"
-  />
-
-  <!-- Workspace Assign Dialog -->
-  <WorkspaceProjectAssign
-    v-if="showWorkspaceAssign"
-    :projectId="assignProjectId"
-    :projectName="assignProjectName"
-    @close="showWorkspaceAssign = false"
-    @updated="loadWorkspaces(); loadProjects(true)"
-  />
+  <!-- Create Group Dialog -->
+  <Teleport to="body">
+    <div v-if="showCreateGroupDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="!isCreatingGroup && (showCreateGroupDialog = false)">
+      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">创建新分组</h3>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">分组名称</label>
+            <input
+              v-model="newGroupName"
+              type="text"
+              placeholder="例如：2D项目、3D项目"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+              @keyup.enter="createGroup"
+            />
+          </div>
+          <div class="flex gap-4">
+            <div class="flex-1">
+              <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">图标 (Emoji)</label>
+              <input
+                v-model="newGroupIcon"
+                type="text"
+                placeholder="🎮"
+                class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+              />
+            </div>
+            <div class="flex-1">
+              <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">颜色</label>
+              <div class="flex items-center gap-2">
+                <input
+                  v-model="newGroupColor"
+                  type="color"
+                  class="w-8 h-8 rounded border border-gray-300 dark:border-surface-border cursor-pointer"
+                />
+                <input
+                  v-model="newGroupColor"
+                  type="text"
+                  class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm font-mono"
+                />
+              </div>
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">描述 (可选)</label>
+            <input
+              v-model="newGroupDescription"
+              type="text"
+              placeholder="分组描述"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+            />
+          </div>
+          <div class="p-3 rounded-lg border border-gray-200 dark:border-surface-border bg-gray-50 dark:bg-surface-hover">
+            <p class="text-xs text-gray-500 dark:text-content-muted mb-1">预览</p>
+            <div class="flex items-center gap-2">
+              <span v-if="newGroupIcon" class="text-base">{{ newGroupIcon }}</span>
+              <span class="w-3 h-3 rounded-full" :style="{ backgroundColor: newGroupColor }"></span>
+              <span class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ newGroupName || '分组名称' }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="flex gap-3 mt-6">
+          <button
+            @click="showCreateGroupDialog = false"
+            :disabled="isCreatingGroup"
+            class="flex-1 py-2.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors disabled:opacity-50"
+          >
+            {{ t('common.cancel') }}
+          </button>
+          <button
+            @click="createGroup"
+            :disabled="isCreatingGroup || !newGroupName.trim()"
+            class="flex-1 py-2.5 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
+          >
+            {{ isCreatingGroup ? '...' : t('common.confirm') }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 
 </template>

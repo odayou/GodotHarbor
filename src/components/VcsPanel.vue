@@ -15,6 +15,7 @@ const vcsInfo = ref<VcsInfo | null>(null)
 const commits = ref<VcsCommit[]>([])
 const diffSummary = ref<VcsDiffSummary | null>(null)
 const commitMessage = ref('')
+const stageAllChanges = ref(false)
 const isExpanded = ref(false)
 const isOperating = ref(false)
 
@@ -65,7 +66,7 @@ const handleCommit = async () => {
   }
   isOperating.value = true
   try {
-    const result = await commit(props.projectId, commitMessage.value.trim())
+    const result = await commit(props.projectId, commitMessage.value.trim(), stageAllChanges.value)
     toast.success(result)
     commitMessage.value = ''
     await loadVcsData()
@@ -198,21 +199,31 @@ onMounted(() => {
       </div>
 
       <!-- Commit -->
-      <div class="flex gap-2">
-        <input
-          v-model="commitMessage"
-          type="text"
-          placeholder="提交信息"
-          class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
-          @keyup.enter="handleCommit"
-        />
-        <button
-          @click="handleCommit"
-          :disabled="isOperating || !commitMessage.trim()"
-          class="px-4 py-2 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors disabled:opacity-50"
-        >
-          提交
-        </button>
+      <div class="space-y-2">
+        <div class="flex gap-2">
+          <input
+            v-model="commitMessage"
+            type="text"
+            placeholder="提交信息"
+            class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+            @keyup.enter="handleCommit"
+          />
+          <button
+            @click="handleCommit"
+            :disabled="isOperating || !commitMessage.trim()"
+            class="px-4 py-2 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors disabled:opacity-50"
+          >
+            提交
+          </button>
+        </div>
+        <label class="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            v-model="stageAllChanges"
+            type="checkbox"
+            class="w-3.5 h-3.5 rounded border-gray-300 dark:border-surface-border text-green-600 focus:ring-green-500"
+          />
+          <span class="text-xs text-gray-500 dark:text-content-muted">暂存所有更改</span>
+        </label>
       </div>
 
       <!-- Diff Summary -->

@@ -2,6 +2,7 @@ use base64::Engine;
 use tauri::AppHandle;
 use crate::template_signer::{self, KeyPair, TemplateManifest, SignatureVerification};
 use crate::commands::utils::{get_data_dir, get_storage};
+use crate::models::Template;
 use crate::storage::Storage;
 
 fn get_keypairs(storage: &Storage) -> Vec<KeyPair> {
@@ -77,36 +78,36 @@ pub fn write_template_export(file_path: String, data_base64: String) -> Result<(
 
 #[tauri::command]
 pub async fn import_template_from_file(
-    app: AppHandle,
     file_path: String,
 ) -> Result<TemplateManifest, String> {
-    let app_clone = app.clone();
     tokio::task::spawn_blocking(move || {
+        // Only read and verify the template, do NOT save it
         let manifest = template_signer::import_template_from_file(&file_path)?;
-
-        // Save the imported template
-        let mut template = manifest.template.clone();
-        template.template_id = uuid::Uuid::new_v4().to_string();
-        template.is_builtin = false;
-        template.source_url = file_path.clone();
-
-        let data_dir = get_data_dir(&app_clone);
-        let templates_dir = data_dir.join("templates");
-        let template_dir = templates_dir.join(&template.template_id);
-        std::fs::create_dir_all(&template_dir)
-            .map_err(|e| format!("创建模板目录失败: {}", e))?;
-
-        let template_file = template_dir.join("template.yml");
-        let yaml = template.to_yaml()?;
-        std::fs::write(&template_file, yaml)
-            .map_err(|e| format!("写入模板文件失败: {}", e))?;
-
-        // Return manifest with updated template
-        Ok(TemplateManifest {
-            template,
-            ..manifest
-        })
+        Ok(manifest)
     }).await.map_err(|e| format!("任务执行失败: {}", e))?
+}
+
+#[tauri::command]
+pub fn confirm_import_template(
+    app: AppHandle,
+    manifest: TemplateManifest,
+) -> Result<Template, String> {
+    let mut template = manifest.template.clone();
+    template.template_id = uuid::Uuid::new_v4().to_string();
+    template.is_builtin = false;
+
+    let data_dir = get_data_dir(&app);
+    let templates_dir = data_dir.join("templates");
+    let template_dir = templates_dir.join(&template.template_id);
+    std::fs::create_dir_all(&template_dir)
+        .map_err(|e| format!("创建模板目录失败: {}", e))?;
+
+    let template_file = template_dir.join("template.yml");
+    let yaml = template.to_yaml()?;
+    std::fs::write(&template_file, yaml)
+        .map_err(|e| format!("写入模板文件失败: {}", e))?;
+
+    Ok(template)
 }
 
 #[tauri::command]

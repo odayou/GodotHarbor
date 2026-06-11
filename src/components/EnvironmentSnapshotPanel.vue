@@ -23,6 +23,8 @@ const {
 
 const showDeleteConfirm = ref(false)
 const snapshotToDelete = ref<EnvironmentSnapshot | null>(null)
+const showRestoreConfirm = ref(false)
+const snapshotToRestore = ref<EnvironmentSnapshot | null>(null)
 const showDetailSnapshot = ref<EnvironmentSnapshot | null>(null)
 
 onMounted(() => {
@@ -39,9 +41,18 @@ const handleCreateSnapshot = async () => {
   await createSnapshot(props.projectId)
 }
 
-const handleRestoreSnapshot = async (snapshot: EnvironmentSnapshot) => {
-  await restoreSnapshot(props.projectId, snapshot.snapshot_id)
-  await loadSnapshots(props.projectId)
+const handleRestoreSnapshot = (snapshot: EnvironmentSnapshot) => {
+  snapshotToRestore.value = snapshot
+  showRestoreConfirm.value = true
+}
+
+const doRestoreSnapshot = async () => {
+  if (snapshotToRestore.value) {
+    await restoreSnapshot(props.projectId, snapshotToRestore.value.snapshot_id)
+    await loadSnapshots(props.projectId)
+    showRestoreConfirm.value = false
+    snapshotToRestore.value = null
+  }
 }
 
 const confirmDeleteSnapshot = (snapshot: EnvironmentSnapshot) => {
@@ -173,6 +184,14 @@ const formatDate = (dateStr: string) => {
       :description="t('batchOps.deleteSnapshotConfirm') || '确定要删除此快照吗？此操作不可恢复。'"
       :confirm-text="t('common.confirmDelete')"
       @confirm="doDeleteSnapshot"
+    />
+
+    <ConfirmDialog
+      v-model="showRestoreConfirm"
+      :title="t('batchOps.restoreSnapshot') || '恢复快照'"
+      :description="t('batchOps.restoreSnapshotConfirm') || '恢复快照将覆盖当前环境配置，确定要继续吗？'"
+      :confirm-text="t('batchOps.restore') || '恢复'"
+      @confirm="doRestoreSnapshot"
     />
   </div>
 </template>

@@ -103,7 +103,6 @@ export interface Settings {
   engine_update_channels?: string[]
   enable_anonymous_usage_stats?: boolean
   anonymous_user_id?: string
-  active_workspace_id?: string | null
 }
 
 export interface ApplyResult {
@@ -778,55 +777,38 @@ export interface ModuleInstallProgress {
   message: string
 }
 
-// ─── Plugin Store Types ───
-export interface StorePlugin {
-  asset_id: number
-  name: string
-  author: string
-  description: string
-  category: string
-  godot_version: string
-  support_level: 'official' | 'featured' | 'community' | 'testing'
-  download_count: number
-  rating: number
-  rating_count: number
-  icon_url: string
-  preview_images: string[]
-  source_url: string
-  tags: string[]
-  is_installed: boolean
-  installed_version: string | null
-  compatible: boolean
-  last_updated: string
-}
-
-export interface StoreSearchResult {
-  plugins: StorePlugin[]
-  total: number
-  page: number
-  page_size: number
-  has_more: boolean
-}
-
-export interface StoreRecommendation {
-  plugin: StorePlugin
-  reason: string
-  relevance_score: number
-}
-
-export interface StoreCategory {
-  id: string
-  name: string
-  icon: string
-  count: number
-}
-
+// ─── One-Click Install Types ───
 export interface OneClickInstallResult {
   success: boolean
   plugin_id: string | null
   binding_created: boolean
   changes_applied: boolean
   errors: string[]
+}
+
+export interface StoreRecommendation {
+  plugin: {
+    asset_id: number
+    name: string
+    author: string
+    description: string
+    category: string
+    godot_version: string
+    support_level: 'official' | 'featured' | 'community' | 'testing'
+    download_count: number
+    rating: number
+    rating_count: number
+    icon_url: string
+    preview_images: string[]
+    source_url: string
+    tags: string[]
+    is_installed: boolean
+    installed_version: string | null
+    compatible: boolean
+    last_updated: string
+  }
+  reason: string
+  relevance_score: number
 }
 
 // ─── Template Signer Types ───
@@ -882,31 +864,6 @@ export interface EnvironmentSnapshot {
   plugins: SnapshotPlugin[]
 }
 
-export interface DiffPlugin {
-  plugin_name: string
-  version: string
-  mount_path: string
-}
-
-export interface DiffVersionChange {
-  plugin_name: string
-  version_a: string
-  version_b: string
-  mount_path_a: string
-  mount_path_b: string
-}
-
-export interface EnvironmentDiff {
-  project_a: string
-  project_a_name: string
-  project_b: string
-  project_b_name: string
-  only_in_a: DiffPlugin[]
-  only_in_b: DiffPlugin[]
-  different_version: DiffVersionChange[]
-  same: string[]
-}
-
 export interface GlobalUpgradeResult {
   plugin_name: string
   old_version: string
@@ -916,15 +873,14 @@ export interface GlobalUpgradeResult {
   error: string | null
 }
 
-export interface ProjectInitResult {
-  project_name: string
-  success: boolean
-  error: string | null
-  plugins_installed: number
-}
-
-export interface BatchProjectInitResult {
-  results: ProjectInitResult[]
+export interface ProjectGroup {
+  group_id: string
+  name: string
+  icon: string
+  color: string
+  description: string
+  created_at: string
+  updated_at: string
 }
 
 // ─── Lockfile Types ───
@@ -985,27 +941,4 @@ export interface LockVerifyResult {
   mismatches: LockMismatch[]
 }
 
-// ─── Workspace Types ───
-export interface Workspace {
-  workspace_id: string
-  name: string
-  description: string
-  icon: string
-  color: string
-  scan_directories: string[]
-  project_ids: string[]
-  plugin_favorites: string[]
-  default_engine_id: string | null
-  mount_strategy: 'Symlink' | 'Junction' | 'Copy' | null
-  created_at: string
-  updated_at: string
-}
 
-export interface WorkspaceSummary {
-  workspace_id: string
-  name: string
-  icon: string
-  color: string
-  project_count: number
-  is_active: boolean
-}

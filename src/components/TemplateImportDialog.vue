@@ -1,15 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { useTemplateSigner } from '@/composables/useTemplateSigner'
+import { api } from '@/api'
 import { useDialogEscape } from '@/composables/useDialogEscape'
 import { open } from '@tauri-apps/plugin-dialog'
 import type { TemplateManifest, SignatureVerification } from '@/types'
-
-const {
-  isImporting,
-  importTemplate,
-  verifySignature,
-} = useTemplateSigner()
 
 const props = defineProps<{
   modelValue: boolean
@@ -26,6 +20,7 @@ const selectedFilePath = ref('')
 const manifest = ref<TemplateManifest | null>(null)
 const verification = ref<SignatureVerification | null>(null)
 const isVerifying = ref(false)
+const isConfirming = ref(false)
 
 watch(() => props.modelValue, (isOpen) => {
   if (isOpen) {
@@ -55,11 +50,19 @@ const handleImportAndVerify = async () => {
   isVerifying.value = true
   verification.value = null
   try {
-    const result = await importTemplate(selectedFilePath.value)
+    const result = await api.importTemplateFromFile(selectedFilePath.value)
     if (result) {
       manifest.value = result
-      const verifyResult = await verifySignature(result)
+      const verifyResult = await api.verifyTemplateSignature(result)
       verification.value = verifyResult
+    }
+  } catch (e: any) {
+    // Verification/read failed - show error
+    verification.value = {
+      is_valid: false,
+      signed_by: null,
+      checksum_valid: false,
+      error: e?.toString() || '读取模板文件失败',
     }
   } finally {
     isVerifying.value = false
@@ -77,18 +80,32 @@ const isUnsigned = computed(() => {
 })
 
 const canConfirmImport = computed(() => {
-  if (!manifest.value || isImporting.value) return false
+  if (!manifest.value || isConfirming.value) return false
   // Allow import even if unsigned, but verification must have been attempted
   return verification.value !== null
 })
 
-const confirmImport = () => {
-  emit('imported')
-  emit('update:modelValue', false)
+const confirmImport = async () => {
+  if (!manifest.value) return
+  isConfirming.value = true
+  try {
+    await api.confirmImportTemplate(manifest.value)
+    emit('imported')
+    emit('update:modelValue', false)
+  } catch (e: any) {
+    verification.value = {
+      is_valid: false,
+      signed_by: null,
+      checksum_valid: false,
+      error: `导入失败: ${e?.toString() || e}`,
+    }
+  } finally {
+    isConfirming.value = false
+  }
 }
 
 const close = () => {
-  if (!isImporting.value && !isVerifying.value) {
+  if (!isConfirming.value && !isVerifying.value) {
     emit('update:modelValue', false)
   }
 }
@@ -117,7 +134,7 @@ const close = () => {
                 />
                 <button
                   @click="selectFile"
-                  :disabled="isVerifying || isImporting"
+                  :disabled="isVerifying || isConfirming"
                   class="px-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border hover:bg-gray-50 dark:hover:bg-surface-layer disabled:opacity-50"
                 >
                   浏览
@@ -196,7 +213,7 @@ const close = () => {
           <div class="flex gap-3 mt-6">
             <button
               @click="close"
-              :disabled="isImporting || isVerifying"
+              :disabled="isConfirming || isVerifying"
               class="flex-1 py-2.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors disabled:opacity-50"
             >
               取消
@@ -207,7 +224,7 @@ const close = () => {
               :disabled="!canConfirmImport"
               class="flex-1 py-2.5 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
             >
-              {{ isImporting ? '导入中...' : '确认导入' }}
+              {{ isConfirming ? '导入中...' : '确认导入' }}
             </button>
           </div>
         </div>

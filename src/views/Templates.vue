@@ -10,7 +10,6 @@ import { useToast } from '@/composables/useToast'
 import { useEngineLauncher } from '@/composables/useEngineLauncher'
 import { useFileManager } from '@/composables/useFileManager'
 import { useDialogEscape } from '@/composables/useDialogEscape'
-import { useBatchOps } from '@/composables/useBatchOps'
 import { isOnline } from '@/composables/useNetworkStatus'
 import EmptyState from '@/components/EmptyState.vue'
 import SkeletonList from '@/components/SkeletonList.vue'
@@ -105,54 +104,6 @@ const projects = ref<Project[]>([])
 
 const showDeleteConfirm = ref(false)
 const deleteTargetId = ref('')
-
-// ─── Batch Create ───
-const showBatchCreateDialog = ref(false)
-useDialogEscape(showBatchCreateDialog)
-const batchCreateTemplateId = ref('')
-const batchCreateProjectNames = ref('')
-const batchCreateBaseDir = ref('')
-const isBatchCreating = ref(false)
-const { batchInitFromTemplate, batchInitResult } = useBatchOps()
-
-const openBatchCreateDialog = (template: Template) => {
-  batchCreateTemplateId.value = template.template_id
-  batchCreateProjectNames.value = ''
-  batchCreateBaseDir.value = ''
-  showBatchCreateDialog.value = true
-}
-
-const selectBatchCreateDir = async () => {
-  try {
-    const selected = await open({
-      directory: true,
-      multiple: false,
-      title: t('projects.scanTitle')
-    })
-    if (selected && typeof selected === 'string') {
-      batchCreateBaseDir.value = selected
-    }
-  } catch { /* ignore */ }
-}
-
-const handleBatchCreate = async () => {
-  const names = batchCreateProjectNames.value.split('\n').map(n => n.trim()).filter(n => n.length > 0)
-  if (names.length === 0) {
-    toast.warning(t('batchOps.enterProjectNames') || '请输入至少一个项目名称')
-    return
-  }
-  if (!batchCreateBaseDir.value) {
-    toast.warning(t('batchOps.selectBaseDir') || '请选择基础目录')
-    return
-  }
-  isBatchCreating.value = true
-  try {
-    await batchInitFromTemplate(batchCreateTemplateId.value, names, batchCreateBaseDir.value)
-    showBatchCreateDialog.value = false
-  } finally {
-    isBatchCreating.value = false
-  }
-}
 
 const showExportDialog = ref(false)
 const exportTemplate = ref<Template | null>(null)
@@ -554,21 +505,14 @@ const progressPercent = computed(() => {
               </span>
             </div>
 
-            <button
-              @click.stop="openCreateDialog(tpl)"
-              class="flex-1 py-2 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors"
-            >
-              {{ t('templates.createProject') }}
-            </button>
-            <button
-              @click.stop="openBatchCreateDialog(tpl)"
-              class="px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-secondary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors flex items-center gap-1"
-              :title="t('batchOps.batchCreate') || '批量创建'"
-            >
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14v6m-3-3h6M6 10h2a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2zm10 0h2a2 2 0 002-2V6a2 2 0 00-2-2h-2a2 2 0 00-2 2v2a2 2 0 002 2zM6 20h2a2 2 0 002-2v-2a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2z" />
-              </svg>
-            </button>
+            <div class="flex gap-2">
+              <button
+                @click.stop="openCreateDialog(tpl)"
+                class="flex-1 py-2 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors"
+              >
+                {{ t('templates.createProject') }}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -988,86 +932,5 @@ const progressPercent = computed(() => {
       v-model="showKeypairManager"
     />
 
-    <!-- Batch Create Dialog -->
-    <Teleport to="body">
-      <div v-if="showBatchCreateDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="!isBatchCreating && (showBatchCreateDialog = false)">
-        <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">
-            {{ t('batchOps.batchCreate') || '批量创建项目' }}
-          </h3>
-          <p class="text-sm text-gray-500 dark:text-content-muted mb-4">
-            {{ t('batchOps.batchCreateDesc') || '每行输入一个项目名称，将依次创建' }}
-          </p>
-          <div class="space-y-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">
-                {{ t('batchOps.projectNames') || '项目名称列表' }}
-              </label>
-              <textarea
-                v-model="batchCreateProjectNames"
-                rows="5"
-                :placeholder="t('batchOps.projectNamesPlaceholder') || '项目A\n项目B\n项目C'"
-                :disabled="isBatchCreating"
-                class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm resize-none disabled:opacity-50"
-              ></textarea>
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">
-                {{ t('batchOps.baseDir') || '基础目录' }}
-              </label>
-              <div class="flex gap-2">
-                <input
-                  v-model="batchCreateBaseDir"
-                  type="text"
-                  readonly
-                  :placeholder="t('projects.scanPlaceholder')"
-                  :disabled="isBatchCreating"
-                  class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-gray-50 dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm disabled:opacity-50"
-                />
-                <button
-                  @click="selectBatchCreateDir"
-                  :disabled="isBatchCreating"
-                  class="btn-secondary text-sm whitespace-nowrap disabled:opacity-50"
-                >
-                  {{ t('projects.browse') }}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Results -->
-          <div v-if="batchInitResult && batchInitResult.results.length > 0" class="mt-4 p-3 rounded-lg border text-sm"
-            :class="batchInitResult.results.some(r => !r.success) ? 'bg-yellow-50 dark:bg-yellow-900/10 border-yellow-200 dark:border-yellow-800' : 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800'"
-          >
-            <p class="font-medium mb-1">{{ t('batchOps.batchCreateResult') || '创建结果' }}</p>
-            <div class="space-y-1 max-h-32 overflow-y-auto">
-              <div v-for="(r, i) in batchInitResult.results" :key="i" class="flex items-center justify-between text-xs">
-                <span class="text-gray-700 dark:text-content-secondary">{{ r.project_name }}</span>
-                <span :class="r.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'">
-                  {{ r.success ? (t('batchOps.success') || '成功') : r.error }}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div class="flex gap-3 mt-6">
-            <button
-              @click="showBatchCreateDialog = false"
-              :disabled="isBatchCreating"
-              class="flex-1 py-2.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors disabled:opacity-50"
-            >
-              {{ t('common.cancel') }}
-            </button>
-            <button
-              @click="handleBatchCreate"
-              :disabled="isBatchCreating || !batchCreateProjectNames.trim() || !batchCreateBaseDir"
-              class="flex-1 py-2.5 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
-            >
-              {{ isBatchCreating ? '...' : (t('batchOps.confirmCreate') || '确认创建') }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
   </div>
 </template>

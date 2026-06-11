@@ -93,8 +93,8 @@ fn check_godot_compatibility(godot_version: &str, plugin_godot_version: &str) ->
         return true;
     }
     let plugin_lower = plugin_godot_version.to_lowercase();
-    let is_godot4 = godot_version.starts_with('4') || godot_version.starts_with("4.");
-    let is_godot3 = godot_version.starts_with('3') || godot_version.starts_with("3.");
+    let is_godot4 = crate::utils::is_godot4(godot_version);
+    let is_godot3 = crate::utils::is_godot3(godot_version);
 
     if plugin_lower.contains("4.0") || plugin_lower.contains("4.1") || plugin_lower.contains("4.2") || plugin_lower.contains("4.3") || plugin_lower.contains("4.4") || plugin_lower.contains("4.x") {
         is_godot4

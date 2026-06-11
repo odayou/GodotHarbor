@@ -9,13 +9,11 @@ import { useAutoSetup } from '@/composables/useAutoSetup'
 import { preloadIcons, getIconUrl, getIconDebugInfo } from '@/composables/useIconCache'
 import { useEngineLauncher } from '@/composables/useEngineLauncher'
 import { useFileManager } from '@/composables/useFileManager'
-import { useWorkspace } from '@/composables/useWorkspace'
 
 const router = useRouter()
 const { t } = useI18n()
 const { isRunning: isAutoSetupRunning, stepMessage: autoSetupMessage, runAutoSetup } = useAutoSetup()
 const { openInFileManager: _openInFileManager } = useFileManager()
-const { activeWorkspace, isAllProjects, loadWorkspaces } = useWorkspace()
 
 const debugMode = ref(false)
 const toggleDebug = (e: KeyboardEvent) => {
@@ -56,7 +54,6 @@ const loadStats = async () => {
 
 onMounted(async () => {
   document.addEventListener('keydown', toggleDebug)
-  loadWorkspaces()
   const [_, fsListener, engineListener, autoSetupListener, projectOpenedListener] = await Promise.all([
     loadStats(),
     listen('project-fs-changed', () => loadStats()),
@@ -134,10 +131,10 @@ const {
       <div class="flex items-center justify-between">
         <div>
           <h1 class="text-2xl font-bold text-gray-900 dark:text-content-primary">
-            {{ isAllProjects ? t('home.welcome') : `${activeWorkspace?.icon || '📁'} ${activeWorkspace?.name || ''}` }}
+            {{ t('home.welcome') }}
           </h1>
           <p class="text-sm text-gray-500 dark:text-content-secondary mt-1">
-            {{ isAllProjects ? t('home.desc') : (activeWorkspace?.name ? `工作区视图` : t('home.desc')) }}
+            {{ t('home.desc') }}
           </p>
         </div>
         <button

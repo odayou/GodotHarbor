@@ -69,6 +69,8 @@ pub struct LockMismatch {
     pub actual_hash: String,
     pub expected_version: String,
     pub actual_version: String,
+    #[serde(default)]
+    pub mount_path_issue: Option<String>,
 }
 
 // ─── Core Functions ───
@@ -184,13 +186,72 @@ pub fn read_lock(project_path: &str) -> Result<Option<HarborLock>> {
 }
 
 pub fn verify_lock(
-    _project_path: &str,
+    project_path: &str,
     lock: &HarborLock,
     plugins: &[Plugin],
 ) -> LockVerifyResult {
     let mut mismatches = Vec::new();
 
     for locked in &lock.plugins {
+        let mut mount_path_issue: Option<String> = None;
+
+        // Check project directory state for this plugin's mount path
+        let mount_full_path = Path::new(project_path).join(&locked.mount_path);
+        if !mount_full_path.exists() {
+            mount_path_issue = Some(format!(
+                "挂载路径 '{}' 在项目目录中不存在", locked.mount_path
+            ));
+        } else {
+            let metadata = std::fs::symlink_metadata(&mount_full_path);
+            match &metadata {
+                Ok(meta) => {
+                    if meta.file_type().is_symlink() {
+                        // Symlink: check if it points to a valid target
+                        if let Ok(target) = std::fs::read_link(&mount_full_path) {
+                            if !target.exists() {
+                                mount_path_issue = Some(format!(
+                                    "符号链接 '{}' 指向不存在的目标: {}",
+                                    locked.mount_path,
+                                    target.to_string_lossy()
+                                ));
+                            }
+                        }
+                    } else if is_junction_path(&mount_full_path) {
+                        // Junction: check if target exists
+                        let plugin_payload = Path::new("plugins")
+                            .join(&locked.plugin_id)
+                            .join(&locked.version_id)
+                            .join("payload");
+                        let source_path = if locked.subdirectory.is_empty() {
+                            plugin_payload
+                        } else {
+                            plugin_payload.join(&locked.subdirectory)
+                        };
+                        if !source_path.exists() {
+                            mount_path_issue = Some(format!(
+                                "Junction '{}' 的源路径不存在", locked.mount_path
+                            ));
+                        }
+                    } else if mount_full_path.is_dir() {
+                        // Copy mode: optionally check hash of key files
+                        if mount_full_path.join(".harbor-managed").exists() {
+                            let actual_hash = compute_dir_hash(&mount_full_path).unwrap_or_default();
+                            if !actual_hash.is_empty() && actual_hash != locked.content_hash {
+                                mount_path_issue = Some(format!(
+                                    "复制模式目录 '{}' 内容哈希不匹配", locked.mount_path
+                                ));
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    mount_path_issue = Some(format!(
+                        "无法读取挂载路径 '{}' 的元数据: {}", locked.mount_path, e
+                    ));
+                }
+            }
+        }
+
         if let Some(plugin) = plugins.iter().find(|p| p.plugin_id == locked.plugin_id) {
             let version = plugin.versions.iter()
                 .find(|v| v.version_id == locked.version_id);
@@ -199,7 +260,7 @@ pub fn verify_lock(
                 let actual_hash = compute_dir_hash(Path::new(&ver.path))
                     .unwrap_or_default();
 
-                if actual_hash != locked.content_hash {
+                if actual_hash != locked.content_hash || mount_path_issue.is_some() {
                     let actual_version = ver.version.clone();
                     mismatches.push(LockMismatch {
                         plugin_name: locked.plugin_name.clone(),
@@ -207,6 +268,7 @@ pub fn verify_lock(
                         actual_hash,
                         expected_version: locked.version.clone(),
                         actual_version,
+                        mount_path_issue,
                     });
                 }
             } else {
@@ -216,6 +278,7 @@ pub fn verify_lock(
                     actual_hash: String::new(),
                     expected_version: locked.version.clone(),
                     actual_version: "未找到版本".to_string(),
+                    mount_path_issue,
                 });
             }
         } else {
@@ -225,6 +288,7 @@ pub fn verify_lock(
                 actual_hash: String::new(),
                 expected_version: locked.version.clone(),
                 actual_version: "未安装".to_string(),
+                mount_path_issue,
             });
         }
     }
@@ -233,6 +297,19 @@ pub fn verify_lock(
         is_valid: mismatches.is_empty(),
         mismatches,
     }
+}
+
+fn is_junction_path(path: &Path) -> bool {
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        if let Ok(metadata) = std::fs::symlink_metadata(path) {
+            const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+            return metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0;
+        }
+    }
+    let _ = path;
+    false
 }
 
 pub fn diff_locks(old: &HarborLock, new: &HarborLock) -> LockDiff {

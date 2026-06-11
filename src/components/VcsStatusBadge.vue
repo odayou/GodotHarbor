@@ -50,6 +50,15 @@ const getStatusLabel = (status: VcsStatus): string => {
 </script>
 
 <template>
+  <!-- Non-Git project hint -->
+  <span
+    v-if="vcsInfo && vcsInfo.vcs_type === 'None'"
+    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500"
+    title="此项目未使用 Git 版本控制"
+  >
+    非Git
+  </span>
+  <!-- Git project badge -->
   <span
     v-if="vcsInfo && vcsInfo.vcs_type === 'Git'"
     class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer transition-colors hover:opacity-80"

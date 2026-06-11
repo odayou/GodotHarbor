@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { api } from '@/api'
 import { useToast } from '@/composables/useToast'
-import type { EnvironmentSnapshot, EnvironmentDiff, GlobalUpgradeResult, BatchProjectInitResult } from '@/types'
+import type { EnvironmentSnapshot, GlobalUpgradeResult } from '@/types'
 
 export function useBatchOps() {
   const toast = useToast()
@@ -63,23 +63,6 @@ export function useBatchOps() {
     }
   }
 
-  // ─── Environment Comparison ───
-  const environmentDiff = ref<EnvironmentDiff | null>(null)
-  const isComparing = ref(false)
-
-  const compareProjects = async (projectIdA: string, projectIdB: string) => {
-    isComparing.value = true
-    try {
-      environmentDiff.value = await api.compareProjects(projectIdA, projectIdB)
-      return environmentDiff.value
-    } catch (error) {
-      toast.error(`项目比较失败: ${error}`)
-      return null
-    } finally {
-      isComparing.value = false
-    }
-  }
-
   // ─── Global Upgrade ───
   const upgradeResults = ref<GlobalUpgradeResult[]>([])
   const isUpgrading = ref(false)
@@ -104,30 +87,6 @@ export function useBatchOps() {
     }
   }
 
-  // ─── Batch Init ───
-  const batchInitResult = ref<BatchProjectInitResult | null>(null)
-  const isBatchIniting = ref(false)
-
-  const batchInitFromTemplate = async (templateId: string, projectNames: string[], baseDir: string) => {
-    isBatchIniting.value = true
-    try {
-      batchInitResult.value = await api.batchInitFromTemplate(templateId, projectNames, baseDir)
-      const successCount = batchInitResult.value.results.filter(r => r.success).length
-      const failCount = batchInitResult.value.results.filter(r => !r.success).length
-      if (failCount > 0) {
-        toast.warning(`批量创建完成: ${successCount} 成功, ${failCount} 失败`)
-      } else {
-        toast.success(`批量创建完成: ${successCount} 个项目`)
-      }
-      return batchInitResult.value
-    } catch (error) {
-      toast.error(`批量创建失败: ${error}`)
-      return null
-    } finally {
-      isBatchIniting.value = false
-    }
-  }
-
   return {
     // Snapshot
     snapshots,
@@ -138,17 +97,9 @@ export function useBatchOps() {
     createSnapshot,
     restoreSnapshot,
     deleteSnapshot,
-    // Comparison
-    environmentDiff,
-    isComparing,
-    compareProjects,
     // Global Upgrade
     upgradeResults,
     isUpgrading,
     globalUpgradePlugin,
-    // Batch Init
-    batchInitResult,
-    isBatchIniting,
-    batchInitFromTemplate,
   }
 }

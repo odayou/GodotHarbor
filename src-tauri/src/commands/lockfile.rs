@@ -1,5 +1,7 @@
 use crate::lockfile::{self, HarborLock, LockDiff, LockVerifyResult};
-use crate::commands::utils::{get_storage, log_operation};
+use crate::commands::utils::{get_storage, log_operation, get_data_dir, load_settings};
+use crate::storage::Storage;
+use crate::linker::Linker;
 use tauri::AppHandle;
 
 #[tauri::command]
@@ -121,7 +123,7 @@ pub fn sync_from_lock(app: AppHandle, project_id: String, strict: Option<bool>) 
     let mut bindings: Vec<crate::models::ProjectBinding> = storage.load_or_default("bindings.json");
 
     let strict_mode = strict.unwrap_or(false);
-    let messages = lockfile::sync_from_lock(
+    let mut messages = lockfile::sync_from_lock(
         &project.path,
         &lock,
         &plugins,
@@ -132,6 +134,58 @@ pub fn sync_from_lock(app: AppHandle, project_id: String, strict: Option<bool>) 
 
     storage.save("bindings.json", &bindings)
         .map_err(|e| format!("保存绑定列表失败: {}", e))?;
+
+    // Apply changes to project directory via linker
+    let desired_bindings: Vec<crate::models::ProjectBinding> = bindings.iter()
+        .filter(|b| b.project_id == project_id)
+        .cloned()
+        .collect();
+
+    if !desired_bindings.is_empty() {
+        let settings = load_settings(&app);
+        let linker = Linker::new(settings.mount_strategy);
+        let data_dir = get_data_dir(&app);
+        let plugin_base_path = data_dir.join("plugins");
+
+        let applied_dir = data_dir.join("applied_bindings");
+        let applied_file = applied_dir.join(format!("{}.json", project_id));
+        let current_bindings: Vec<crate::models::ProjectBinding> = if applied_file.exists() {
+            let applied_storage = Storage::new(applied_dir.clone());
+            applied_storage.load_or_default::<Vec<crate::models::ProjectBinding>>(&format!("{}.json", project_id))
+        } else {
+            Vec::new()
+        };
+
+        match linker.apply_bindings(
+            &project.path,
+            &current_bindings,
+            &desired_bindings,
+            &plugin_base_path.to_string_lossy()
+        ) {
+            Ok(result) => {
+                if result.success {
+                    if let Err(e) = std::fs::create_dir_all(&applied_dir) {
+                        eprintln!("Failed to create applied_bindings dir: {}", e);
+                    }
+                    let applied_storage = Storage::new(applied_dir);
+                    if let Err(e) = applied_storage.save(&format!("{}.json", project_id), &desired_bindings) {
+                        eprintln!("Failed to save applied bindings: {}", e);
+                    }
+                    messages.push(format!(
+                        "已应用变更到项目目录: 创建 {} 项, 移除 {} 项",
+                        result.created.len(), result.removed.len()
+                    ));
+                } else {
+                    for err in &result.errors {
+                        messages.push(format!("应用变更错误: {}", err));
+                    }
+                }
+            }
+            Err(e) => {
+                messages.push(format!("应用变更到项目目录失败: {}", e));
+            }
+        }
+    }
 
     log_operation(&app, "sync_from_lock", &project_id,
         &format!("从 harbor.lock 同步完成（{}）", if strict_mode { "严格模式" } else { "宽松模式" }));

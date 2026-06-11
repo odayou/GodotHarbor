@@ -44,19 +44,14 @@ import type {
   EngineModulesInfo,
   KeyPair,
   SignatureVerification,
-  StoreSearchResult,
   StoreRecommendation,
-  StoreCategory,
   OneClickInstallResult,
   HarborLock,
   LockVerifyResult,
   LockDiff,
   EnvironmentSnapshot,
-  EnvironmentDiff,
   GlobalUpgradeResult,
-  BatchProjectInitResult,
-  Workspace,
-  WorkspaceSummary
+  ProjectGroup
 } from '@/types'
 
 export const api = {
@@ -94,12 +89,28 @@ export const api = {
     return await invoke('remove_project', { projectId, deleteFiles })
   },
 
-  async updateProjectGroup(projectId: string, group: string): Promise<void> {
-    return await invoke('update_project_group', { projectId, group })
+  async updateProjectGroup(projectId: string, groupId: string): Promise<void> {
+    return await invoke('update_project_group', { projectId, groupId })
   },
 
-  async getProjectGroups(): Promise<string[]> {
+  async getProjectGroups(): Promise<ProjectGroup[]> {
     return await invoke('get_project_groups')
+  },
+
+  async createProjectGroup(name: string, icon?: string, color?: string, description?: string): Promise<ProjectGroup> {
+    return await invoke('create_project_group', { name, icon: icon || null, color: color || null, description: description || null })
+  },
+
+  async updateProjectGroupInfo(group: ProjectGroup): Promise<void> {
+    return await invoke('update_project_group_info', { group })
+  },
+
+  async deleteProjectGroup(groupId: string): Promise<void> {
+    return await invoke('delete_project_group', { groupId })
+  },
+
+  async batchSetProjectGroup(projectIds: string[], groupId: string): Promise<void> {
+    return await invoke('batch_set_project_group', { projectIds, groupId })
   },
 
   async relocateProject(projectId: string, newPath: string): Promise<Project> {
@@ -708,8 +719,8 @@ export const api = {
     return await invoke('vcs_push', { projectId })
   },
 
-  async vcsCommit(projectId: string, message: string): Promise<string> {
-    return await invoke('vcs_commit', { projectId, message })
+  async vcsCommit(projectId: string, message: string, addAll?: boolean): Promise<string> {
+    return await invoke('vcs_commit', { projectId, message, addAll: addAll ?? null })
   },
 
   async vcsGetDiff(projectId: string): Promise<VcsDiffSummary> {
@@ -739,6 +750,10 @@ export const api = {
 
   async importTemplateFromFile(filePath: string): Promise<TemplateManifest> {
     return await invoke('import_template_from_file', { filePath })
+  },
+
+  async confirmImportTemplate(manifest: TemplateManifest): Promise<Template> {
+    return await invoke('confirm_import_template', { manifest })
   },
 
   async verifyTemplateSignature(manifest: TemplateManifest): Promise<SignatureVerification> {
@@ -778,31 +793,9 @@ export const api = {
     return await invoke('get_module_download_info', { moduleType, version, isMono })
   },
 
-  // ─── Plugin Store ───
-  async searchPluginStore(params: {
-    query: string
-    category?: string
-    godot_version?: string
-    sort_by?: string
-    page?: number
-    page_size?: number
-  }): Promise<StoreSearchResult> {
-    return await invoke('search_plugin_store', {
-      query: params.query,
-      category: params.category || null,
-      godotVersion: params.godot_version || null,
-      sortBy: params.sort_by || null,
-      page: params.page || null,
-      pageSize: params.page_size || null,
-    })
-  },
-
+  // ─── Plugin Store (Recommendations & One-Click Install) ───
   async getPluginStoreRecommendations(projectId?: string): Promise<StoreRecommendation[]> {
     return await invoke('get_plugin_store_recommendations', { projectId: projectId || null })
-  },
-
-  async getPluginStoreCategoriesWithCounts(): Promise<StoreCategory[]> {
-    return await invoke('get_plugin_store_categories_with_counts')
   },
 
   async oneClickInstallPlugin(assetId: number, projectId: string, autoApply?: boolean): Promise<OneClickInstallResult> {
@@ -859,58 +852,10 @@ export const api = {
     return await invoke('delete_snapshot', { snapshotId })
   },
 
-  async compareProjects(projectIdA: string, projectIdB: string): Promise<EnvironmentDiff> {
-    return await invoke('compare_projects', { projectIdA, projectIdB })
-  },
-
   async globalUpgradePlugin(pluginId: string): Promise<GlobalUpgradeResult[]> {
     return await invoke('global_upgrade_plugin', { pluginId })
   },
 
-  async batchInitFromTemplate(templateId: string, projectNames: string[], baseDir: string): Promise<BatchProjectInitResult> {
-    return await invoke('batch_init_from_template', { templateId, projectNames, baseDir })
-  },
-
-  // ─── Workspace ───
-  async createWorkspace(name: string, icon?: string, color?: string): Promise<Workspace> {
-    return await invoke('create_workspace', { name, icon: icon || null, color: color || null })
-  },
-
-  async updateWorkspace(workspace: Workspace): Promise<void> {
-    return await invoke('update_workspace', { workspace })
-  },
-
-  async deleteWorkspace(workspaceId: string): Promise<void> {
-    return await invoke('delete_workspace', { workspaceId })
-  },
-
-  async listWorkspaces(): Promise<WorkspaceSummary[]> {
-    return await invoke('list_workspaces')
-  },
-
-  async getWorkspace(workspaceId: string): Promise<Workspace> {
-    return await invoke('get_workspace', { workspaceId })
-  },
-
-  async addProjectToWorkspace(workspaceId: string, projectId: string): Promise<void> {
-    return await invoke('add_project_to_workspace', { workspaceId, projectId })
-  },
-
-  async removeProjectFromWorkspace(workspaceId: string, projectId: string): Promise<void> {
-    return await invoke('remove_project_from_workspace', { workspaceId, projectId })
-  },
-
-  async getActiveWorkspace(): Promise<string | null> {
-    return await invoke('get_active_workspace')
-  },
-
-  async setActiveWorkspace(workspaceId: string | null): Promise<void> {
-    return await invoke('set_active_workspace', { workspaceId })
-  },
-
-  async moveProjectToWorkspace(projectId: string, fromWorkspaceId: string | null, toWorkspaceId: string | null): Promise<void> {
-    return await invoke('move_project_to_workspace', { projectId, fromWorkspaceId, toWorkspaceId })
-  },
 }
 
 export async function withErrorLogging<T>(

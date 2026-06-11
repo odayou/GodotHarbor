@@ -54,10 +54,11 @@ pub async fn vcs_push(app: AppHandle, project_id: String) -> Result<String, Stri
 }
 
 #[tauri::command]
-pub async fn vcs_commit(app: AppHandle, project_id: String, message: String) -> Result<String, String> {
+pub async fn vcs_commit(app: AppHandle, project_id: String, message: String, add_all: Option<bool>) -> Result<String, String> {
     let project_path = find_project_path(&app, &project_id)?;
+    let add_all = add_all.unwrap_or(false);
     tauri::async_runtime::spawn_blocking(move || {
-        vcs::commit(&project_path, &message)
+        vcs::commit(&project_path, &message, add_all)
             .map_err(|e| format!("提交失败: {}", e))
     }).await
         .map_err(|e| format!("提交操作异常: {}", e))?

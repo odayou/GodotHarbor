@@ -18,7 +18,6 @@ import { usePluginStore, useSettingsStore } from '@/stores'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import ErrorState from '@/components/ErrorState.vue'
 import AssetLibraryTab from '@/components/AssetLibraryTab.vue'
-import PluginStoreTab from '@/components/PluginStoreTab.vue'
 import GlobalUpgradeDialog from '@/components/GlobalUpgradeDialog.vue'
 
 const pluginStore = usePluginStore()
@@ -95,7 +94,7 @@ const showAddMenu = ref(false)
 const isDragOver = ref(false)
 const dragCounter = ref(0)
 
-const activeTab = ref<'repository' | 'bindings' | 'assetLibrary' | 'store'>('repository')
+const activeTab = ref<'repository' | 'bindings' | 'assetLibrary'>('repository')
 
 const featuredPlugins = ref<FeaturedPluginsList | null>(null)
 const showFeatured = ref(true)
@@ -1778,10 +1777,6 @@ const retryBatchFailed = async () => {
             @click="activeTab = 'assetLibrary'; openAssetLibraryTab()"
             :class="['px-3 py-1.5 rounded-md text-sm font-medium transition-colors', activeTab === 'assetLibrary' ? 'bg-white dark:bg-surface-card text-primary-600 dark:text-brand-primary shadow-sm' : 'text-gray-600 dark:text-content-secondary hover:text-gray-900 dark:hover:text-content-primary']"
           >{{ t('assetLibrary.title') }}</button>
-          <button
-            @click="activeTab = 'store'"
-            :class="['px-3 py-1.5 rounded-md text-sm font-medium transition-colors', activeTab === 'store' ? 'bg-white dark:bg-surface-card text-primary-600 dark:text-brand-primary shadow-sm' : 'text-gray-600 dark:text-content-secondary hover:text-gray-900 dark:hover:text-content-primary']"
-          >{{ t('pluginStore.title') }}</button>
         </div>
       </div>
       <div v-if="activeTab === 'repository'" class="flex flex-wrap gap-2">
@@ -2378,11 +2373,6 @@ const retryBatchFailed = async () => {
       :active-tab="activeTab"
       :load-plugins="loadPlugins"
       :show-post-import-guide="showPostImportGuide"
-    />
-
-    <PluginStoreTab
-      v-if="activeTab === 'store'"
-      :load-plugins="loadPlugins"
     />
 
   <Teleport to="body">

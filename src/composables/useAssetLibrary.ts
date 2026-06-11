@@ -5,10 +5,10 @@ import { useToast } from '@/composables/useToast'
 import { usePluginStore } from '@/stores'
 import { sendAppNotification } from '@/composables/useNotification'
 import { isOnline } from '@/composables/useNetworkStatus'
-import type { Plugin, AssetLibrarySearchResult, AssetLibrarySearchResponse, AssetLibraryCategory, AssetLibraryAsset } from '@/types'
+import type { Plugin, AssetLibrarySearchResult, AssetLibrarySearchResponse, AssetLibraryCategory, AssetLibraryAsset, StoreRecommendation, OneClickInstallResult, Project } from '@/types'
 
 export function useAssetLibrary(options: {
-  activeTab: Ref<'repository' | 'bindings' | 'assetLibrary' | 'store'>
+  activeTab: Ref<'repository' | 'bindings' | 'assetLibrary'>
   loadPlugins: (force?: boolean) => Promise<void>
   showPostImportGuide: (pluginName: string, plugin?: Plugin) => Promise<void>
 }) {
@@ -36,6 +36,19 @@ export function useAssetLibrary(options: {
   const categoriesLoaded = ref(false)
   const hasSearched = ref(false)
   let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
+
+  // ─── Recommendations ───
+  const recommendations = ref<StoreRecommendation[]>([])
+  const isLoadingRecommendations = ref(false)
+
+  // ─── One-Click Install ───
+  const projects = ref<Project[]>([])
+  const showOneClickDialog = ref(false)
+  const oneClickPluginName = ref('')
+  const oneClickResult = ref<OneClickInstallResult | null>(null)
+  const isOneClickInstalling = ref(false)
+  const oneClickStage = ref<'downloading' | 'importing' | 'binding' | 'applying' | 'complete' | 'error' | null>(null)
+  const oneClickMessage = ref('')
 
   onUnmounted(() => {
     if (searchDebounceTimer) {
@@ -223,6 +236,80 @@ export function useAssetLibrary(options: {
     window.open(url, '_blank')
   }
 
+  // ─── Recommendations ───
+  const loadRecommendations = async (projectId?: string) => {
+    if (!isOnline.value) return
+    isLoadingRecommendations.value = true
+    try {
+      recommendations.value = await api.getPluginStoreRecommendations(projectId)
+    } catch (error) {
+      console.error('Failed to load recommendations:', error)
+    } finally {
+      isLoadingRecommendations.value = false
+    }
+  }
+
+  // ─── Projects ───
+  const loadProjects = async () => {
+    try {
+      projects.value = await api.getProjects()
+    } catch (e) {
+      console.error('Failed to load projects:', e)
+    }
+  }
+
+  // ─── One-Click Install ───
+  const oneClickInstall = async (assetId: number, assetName: string, projectId: string, autoApply: boolean) => {
+    showOneClickDialog.value = true
+    oneClickPluginName.value = assetName
+    oneClickResult.value = null
+    oneClickStage.value = 'downloading'
+    oneClickMessage.value = t('assetLibrary.stepDownloading')
+    isOneClickInstalling.value = true
+
+    try {
+      oneClickStage.value = 'importing'
+      oneClickMessage.value = t('assetLibrary.stepImporting')
+
+      const result = await api.oneClickInstallPlugin(assetId, projectId, autoApply)
+      oneClickResult.value = result
+
+      if (result.success) {
+        oneClickStage.value = 'complete'
+        oneClickMessage.value = t('assetLibrary.installSuccess')
+        if (result.binding_created) {
+          oneClickStage.value = 'binding'
+          await new Promise(r => setTimeout(r, 300))
+          oneClickStage.value = 'applying'
+          await new Promise(r => setTimeout(r, 300))
+          oneClickStage.value = 'complete'
+        }
+        await options.loadPlugins(true)
+      } else {
+        oneClickStage.value = 'error'
+        oneClickMessage.value = result.errors.join('; ')
+      }
+    } catch (error) {
+      oneClickStage.value = 'error'
+      oneClickMessage.value = String(error)
+      oneClickResult.value = {
+        success: false,
+        plugin_id: null,
+        binding_created: false,
+        changes_applied: false,
+        errors: [String(error)],
+      }
+    } finally {
+      isOneClickInstalling.value = false
+    }
+  }
+
+  const closeOneClickDialog = () => {
+    if (!isOneClickInstalling.value) {
+      showOneClickDialog.value = false
+    }
+  }
+
   const openAssetLibraryTab = async () => {
     const loadCategories = async () => {
       if (!categoriesLoaded.value || assetCategories.value.length === 0) {
@@ -238,9 +325,9 @@ export function useAssetLibrary(options: {
 
     if (assetSearchResults.value.length === 0 && !isSearchingAssets.value && !hasSearched.value) {
       assetFilterSupport.value = 'featured'
-      await Promise.all([loadCategories(), searchAssets(true)])
+      await Promise.all([loadCategories(), searchAssets(true), loadRecommendations(), loadProjects()])
     } else {
-      await loadCategories()
+      await Promise.all([loadCategories(), loadRecommendations(), loadProjects()])
     }
   }
 
@@ -274,6 +361,15 @@ export function useAssetLibrary(options: {
     showAssetDetailDialog,
     importedAssetIds,
     hasSearched,
+    recommendations,
+    isLoadingRecommendations,
+    projects,
+    showOneClickDialog,
+    oneClickPluginName,
+    oneClickResult,
+    isOneClickInstalling,
+    oneClickStage,
+    oneClickMessage,
     openAssetLibrary,
     searchAssets,
     assetPrevPage,
@@ -284,5 +380,8 @@ export function useAssetLibrary(options: {
     openAssetDetail,
     openPreviewLink,
     openAssetLibraryTab,
+    loadRecommendations,
+    oneClickInstall,
+    closeOneClickDialog,
   }
 }

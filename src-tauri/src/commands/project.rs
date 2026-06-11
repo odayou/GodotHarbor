@@ -5,6 +5,19 @@ use crate::scanner::ProjectScanner;
 use super::utils::*;
 use super::system::get_default_scan_dirs;
 
+const GROUPS_FILE: &str = "groups.json";
+
+fn load_groups(app: &AppHandle) -> Vec<ProjectGroup> {
+    let storage = get_storage(app);
+    storage.load_or_default(GROUPS_FILE)
+}
+
+fn save_groups(app: &AppHandle, groups: &Vec<ProjectGroup>) -> Result<(), String> {
+    let storage = get_storage(app);
+    storage.save(GROUPS_FILE, groups)
+        .map_err(|e| format!("保存分组失败: {}", e))
+}
+
 fn normalize_path(path: &str) -> String {
     let p = std::path::Path::new(path);
     match std::fs::canonicalize(p) {
@@ -305,7 +318,7 @@ pub async fn remove_project(app: AppHandle, project_id: String, delete_files: Op
 
 
 #[tauri::command]
-pub fn update_project_group(app: AppHandle, project_id: String, group: String) -> Result<(), String> {
+pub fn update_project_group(app: AppHandle, project_id: String, group_id: String) -> Result<(), String> {
     let storage = get_storage(&app);
     let mut projects: Vec<Project> = storage.load_or_default("projects.json");
 
@@ -313,28 +326,234 @@ pub fn update_project_group(app: AppHandle, project_id: String, group: String) -
         .find(|p| p.project_id == project_id)
         .ok_or("未找到指定项目".to_string())?;
 
-    project.group = group.clone();
+    project.group = group_id.clone();
 
     storage.save("projects.json", &projects)
         .map_err(|e| format!("保存项目分组失败: {}", e))?;
 
-    log_operation(&app, "update_project_group", &project_id, &format!("项目分组已更新: {}", group));
+    log_operation(&app, "update_project_group", &project_id, &format!("项目分组已更新: {}", group_id));
     Ok(())
 }
 
 #[tauri::command]
-pub fn get_project_groups(app: AppHandle) -> Result<Vec<String>, String> {
-    let storage = get_storage(&app);
-    let projects: Vec<Project> = storage.load_or_default("projects.json");
-
-    let mut groups: Vec<String> = projects.iter()
-        .filter(|p| !p.group.is_empty())
-        .map(|p| p.group.clone())
-        .collect();
-    groups.sort();
-    groups.dedup();
-
+pub fn get_project_groups(app: AppHandle) -> Result<Vec<ProjectGroup>, String> {
+    let groups = load_groups(&app);
     Ok(groups)
+}
+
+#[tauri::command]
+pub fn create_project_group(
+    app: AppHandle,
+    name: String,
+    icon: Option<String>,
+    color: Option<String>,
+    description: Option<String>,
+) -> Result<ProjectGroup, String> {
+    if name.trim().is_empty() {
+        return Err("分组名称不能为空".to_string());
+    }
+
+    let group = ProjectGroup::new(
+        name,
+        icon.unwrap_or_default(),
+        color.unwrap_or_default(),
+        description.unwrap_or_default(),
+    );
+
+    let mut groups = load_groups(&app);
+    groups.push(group.clone());
+    save_groups(&app, &groups)?;
+
+    log_operation(&app, "create_project_group", &group.group_id,
+        &format!("创建分组: {}", group.name));
+
+    Ok(group)
+}
+
+#[tauri::command]
+pub fn update_project_group_info(app: AppHandle, group: ProjectGroup) -> Result<(), String> {
+    if group.name.trim().is_empty() {
+        return Err("分组名称不能为空".to_string());
+    }
+
+    let mut groups = load_groups(&app);
+    let idx = groups.iter().position(|g| g.group_id == group.group_id)
+        .ok_or("未找到指定分组".to_string())?;
+
+    let mut updated = group;
+    updated.updated_at = chrono::Utc::now();
+    groups[idx] = updated.clone();
+    save_groups(&app, &groups)?;
+
+    log_operation(&app, "update_project_group_info", &updated.group_id,
+        &format!("更新分组: {}", updated.name));
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn delete_project_group(app: AppHandle, group_id: String) -> Result<(), String> {
+    let mut groups = load_groups(&app);
+    let group = groups.iter().find(|g| g.group_id == group_id)
+        .ok_or("未找到指定分组".to_string())?;
+    let name = group.name.clone();
+
+    groups.retain(|g| g.group_id != group_id);
+    save_groups(&app, &groups)?;
+
+    // Ungroup projects in this group
+    let storage = get_storage(&app);
+    let mut projects: Vec<Project> = storage.load_or_default("projects.json");
+    let mut changed = false;
+    for project in projects.iter_mut() {
+        if project.group == group_id {
+            project.group = String::new();
+            changed = true;
+        }
+    }
+    if changed {
+        storage.save("projects.json", &projects)
+            .map_err(|e| format!("保存项目列表失败: {}", e))?;
+    }
+
+    log_operation(&app, "delete_project_group", &group_id,
+        &format!("删除分组: {}", name));
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn batch_set_project_group(app: AppHandle, project_ids: Vec<String>, group_id: String) -> Result<(), String> {
+    let storage = get_storage(&app);
+    let mut projects: Vec<Project> = storage.load_or_default("projects.json");
+
+    let mut count = 0;
+    for project in projects.iter_mut() {
+        if project_ids.contains(&project.project_id) && project.group != group_id {
+            project.group = group_id.clone();
+            count += 1;
+        }
+    }
+
+    storage.save("projects.json", &projects)
+        .map_err(|e| format!("保存项目分组失败: {}", e))?;
+
+    log_operation(&app, "batch_set_project_group", &group_id,
+        &format!("批量设置分组: {} 个项目", count));
+
+    Ok(())
+}
+
+/// Migrate workspaces.json → groups.json and old-style text groups → ProjectGroup entries
+pub fn migrate_groups(app: &AppHandle) {
+    let storage = get_storage(app);
+
+    // 1. Migrate workspaces.json → groups.json
+    if storage.exists("workspaces.json") {
+        #[derive(serde::Deserialize)]
+        struct OldWorkspace {
+            workspace_id: String,
+            name: String,
+            #[serde(default)]
+            icon: String,
+            #[serde(default)]
+            color: String,
+            #[serde(default)]
+            project_ids: Vec<String>,
+        }
+
+        if let Ok(workspaces) = storage.load::<Vec<OldWorkspace>>("workspaces.json") {
+            let mut groups: Vec<ProjectGroup> = load_groups(app);
+            let mut projects: Vec<Project> = storage.load_or_default("projects.json");
+            let mut changed = false;
+
+            for ws in &workspaces {
+                // Create a ProjectGroup from the workspace
+                let group = ProjectGroup::new(
+                    ws.name.clone(),
+                    ws.icon.clone(),
+                    if ws.color.is_empty() { "#3B82F6".to_string() } else { ws.color.clone() },
+                    String::new(),
+                );
+
+                // Update projects that were in this workspace to reference the new group_id
+                for pid in &ws.project_ids {
+                    if let Some(project) = projects.iter_mut().find(|p| p.project_id == *pid) {
+                        project.group = group.group_id.clone();
+                        changed = true;
+                    }
+                }
+
+                groups.push(group);
+            }
+
+            if let Err(e) = save_groups(app, &groups) {
+                eprintln!("迁移工作区到分组失败: {}", e);
+            }
+
+            if changed {
+                if let Err(e) = storage.save("projects.json", &projects) {
+                    eprintln!("迁移项目分组引用失败: {}", e);
+                }
+            }
+
+            // Delete workspaces.json after successful migration
+            let ws_path = get_data_dir(app).join("workspaces.json");
+            let _ = std::fs::remove_file(ws_path);
+
+            eprintln!("工作区迁移完成: {} 个工作区已转为分组", workspaces.len());
+        }
+    }
+
+    // 2. Migrate old-style text groups → ProjectGroup entries
+    // If groups.json doesn't exist yet but projects have text group values
+    let groups: Vec<ProjectGroup> = load_groups(app);
+    if groups.is_empty() {
+        let projects: Vec<Project> = storage.load_or_default("projects.json");
+        let text_groups: Vec<String> = projects.iter()
+            .filter(|p| !p.group.is_empty())
+            .map(|p| p.group.clone())
+            .collect::<std::collections::HashSet<_>>()
+            .into_iter()
+            .collect();
+
+        if !text_groups.is_empty() {
+            let mut new_groups: Vec<ProjectGroup> = Vec::new();
+            let mut projects = projects;
+            let mut changed = false;
+
+            for group_name in &text_groups {
+                let group = ProjectGroup::new(
+                    group_name.clone(),
+                    String::new(),
+                    String::new(),
+                    String::new(),
+                );
+
+                // Update projects referencing this text group name to use group_id
+                for project in projects.iter_mut() {
+                    if project.group == *group_name {
+                        project.group = group.group_id.clone();
+                        changed = true;
+                    }
+                }
+
+                new_groups.push(group);
+            }
+
+            if let Err(e) = save_groups(app, &new_groups) {
+                eprintln!("迁移文本分组失败: {}", e);
+            }
+
+            if changed {
+                if let Err(e) = storage.save("projects.json", &projects) {
+                    eprintln!("更新项目分组引用失败: {}", e);
+                }
+            }
+
+            eprintln!("文本分组迁移完成: {} 个分组已创建", new_groups.len());
+        }
+    }
 }
 
 

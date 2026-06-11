@@ -101,6 +101,18 @@ pub fn parse_version(version: &str) -> (u32, u32, u32) {
     (major, minor, patch)
 }
 
+/// Check if a Godot version string represents Godot 4.x.
+/// Uses major version parsing to avoid false positives like "3.4.1" matching ".4.".
+pub fn is_godot4(version: &str) -> bool {
+    parse_version(version).0 >= 4
+}
+
+/// Check if a Godot version string represents Godot 3.x.
+pub fn is_godot3(version: &str) -> bool {
+    let major = parse_version(version).0;
+    major >= 3 && major < 4
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -202,5 +214,32 @@ mod tests {
             apply_github_api_proxy("https://api.github.com/repos/test", "https://mirror.example.com/"),
             "https://mirror.example.com/repos/test"
         );
+    }
+
+    #[test]
+    fn test_is_godot4_standard() {
+        assert!(is_godot4("4.2.1"));
+        assert!(is_godot4("4.0"));
+        assert!(is_godot4("4"));
+    }
+
+    #[test]
+    fn test_is_godot4_not_3x() {
+        assert!(!is_godot4("3.4.1"));
+        assert!(!is_godot4("3.5"));
+        assert!(!is_godot4("3"));
+    }
+
+    #[test]
+    fn test_is_godot3_standard() {
+        assert!(is_godot3("3.4.1"));
+        assert!(is_godot3("3.5"));
+        assert!(is_godot3("3"));
+    }
+
+    #[test]
+    fn test_is_godot3_not_4x() {
+        assert!(!is_godot3("4.2.1"));
+        assert!(!is_godot3("4.0"));
     }
 }

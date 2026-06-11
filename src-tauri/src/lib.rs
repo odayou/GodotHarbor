@@ -22,7 +22,6 @@ pub mod cli;
 pub mod vcs;
 pub mod engine_modules;
 pub mod template_signer;
-pub mod workspace;
 pub mod batch_ops;
 pub mod lockfile;
 
@@ -134,6 +133,9 @@ pub fn run() {
             let logs_dir = data_dir.join("logs");
             std::fs::create_dir_all(&logs_dir)
                 .expect("Failed to create logs directory");
+
+            // Migrate workspaces and old-style text groups to ProjectGroup
+            commands::project::migrate_groups(&app_handle);
 
             let handle = app_handle.clone();
             tauri::async_runtime::spawn(async move {
@@ -404,6 +406,10 @@ pub fn run() {
             commands::toggle_plugin_favorite,
             commands::update_project_group,
             commands::get_project_groups,
+            commands::create_project_group,
+            commands::update_project_group_info,
+            commands::delete_project_group,
+            commands::batch_set_project_group,
             commands::backup_data,
             commands::restore_data,
             commands::reset_data,
@@ -539,6 +545,7 @@ pub fn run() {
             commands::export_template_signed,
             commands::write_template_export,
             commands::import_template_from_file,
+            commands::confirm_import_template,
             commands::verify_template_signature,
             commands::get_stored_keypairs,
             commands::save_keypair,
@@ -548,23 +555,11 @@ pub fn run() {
             commands::check_project_missing_modules,
             commands::install_engine_module,
             commands::get_module_download_info,
-            commands::create_workspace,
-            commands::update_workspace,
-            commands::delete_workspace,
-            commands::list_workspaces,
-            commands::get_workspace,
-            commands::add_project_to_workspace,
-            commands::remove_project_from_workspace,
-            commands::get_active_workspace,
-            commands::set_active_workspace,
-            commands::move_project_to_workspace,
             commands::create_snapshot,
             commands::list_snapshots,
             commands::restore_snapshot,
             commands::delete_snapshot,
-            commands::compare_projects,
             commands::global_upgrade_plugin,
-            commands::batch_init_from_template,
             commands::generate_project_lock,
             commands::write_project_lock,
             commands::read_project_lock,

@@ -18,7 +18,6 @@ pub mod template_signer;
 pub mod engine_modules;
 pub mod lockfile;
 pub mod batch_ops;
-pub mod workspace;
 
 pub use utils::*;
 pub use backup::*;
@@ -40,4 +39,3 @@ pub use template_signer::*;
 pub use engine_modules::*;
 pub use lockfile::*;
 pub use batch_ops::*;
-pub use workspace::*;

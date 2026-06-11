@@ -151,9 +151,9 @@ impl EngineManager {
 
     fn detect_engine_type(version_output: &str) -> EngineType {
         let version_str = version_output.trim();
-        if version_str.starts_with('4') || version_str.contains(".4.") {
+        if crate::utils::is_godot4(version_str) {
             EngineType::Godot4
-        } else if version_str.starts_with('3') || version_str.contains(".3.") {
+        } else if crate::utils::is_godot3(version_str) {
             EngineType::Godot3
         } else {
             EngineType::Unknown

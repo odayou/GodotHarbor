@@ -52,11 +52,11 @@ export function useVcs() {
     }
   }
 
-  const commit = async (projectId: string, message: string): Promise<string> => {
+  const commit = async (projectId: string, message: string, addAll?: boolean): Promise<string> => {
     isLoading.value = true
     error.value = null
     try {
-      const result = await api.vcsCommit(projectId, message)
+      const result = await api.vcsCommit(projectId, message, addAll)
       return result
     } catch (e) {
       error.value = String(e)

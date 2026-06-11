@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { Project, Plugin, ProjectBinding, Settings, AssetImportProgress } from '@/types'
+import type { Project, Plugin, ProjectBinding, Settings, AssetImportProgress, ProjectGroup } from '@/types'
 import { api } from '@/api'
 
 function useLoadingState() {
@@ -58,7 +58,7 @@ export const useProjectStore = defineStore('projects', () => {
     }
   }, error, true)
 
-  const loadGroups = async (): Promise<string[]> => {
+  const loadGroups = async (): Promise<ProjectGroup[]> => {
     try {
       return await api.getProjectGroups()
     } catch (e) {

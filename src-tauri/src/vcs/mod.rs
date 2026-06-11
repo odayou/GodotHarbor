@@ -458,14 +458,41 @@ pub fn push(project_path: &str) -> Result<String> {
     Ok("推送成功".to_string())
 }
 
-pub fn commit(project_path: &str, message: &str) -> Result<String> {
+pub fn commit(project_path: &str, message: &str, add_all: bool) -> Result<String> {
     let repo = git2::Repository::open(project_path)
         .with_context(|| format!("无法打开 Git 仓库: {}", project_path))?;
 
-    // Stage all changes
     let mut index = repo.index()?;
-    index.add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)?;
-    index.write()?;
+
+    if add_all {
+        // Stage all changes when explicitly requested
+        index.add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)?;
+        index.write()?;
+    } else {
+        // Only commit what's already staged; check if there's anything staged
+        let statuses = repo.statuses(Some(
+            git2::StatusOptions::new()
+                .include_untracked(true)
+                .recurse_untracked_dirs(false),
+        ))?;
+
+        let has_staged = statuses.iter().any(|e| {
+            let s = e.status();
+            s.is_index_new() || s.is_index_modified() || s.is_index_deleted() || s.is_index_renamed()
+        });
+
+        if !has_staged {
+            let has_unstaged = statuses.iter().any(|e| {
+                let s = e.status();
+                s.is_wt_modified() || s.is_wt_deleted() || s.is_wt_renamed() || s.is_wt_new()
+            });
+            if has_unstaged {
+                bail!("没有暂存的更改。请先暂存要提交的文件，或使用 --all 选项。");
+            } else {
+                bail!("没有可提交的更改。");
+            }
+        }
+    }
 
     let tree_id = index.write_tree()?;
     let tree = repo.find_tree(tree_id)?;

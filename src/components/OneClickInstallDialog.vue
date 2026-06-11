@@ -21,32 +21,28 @@ const { t } = useI18n()
 const steps = computed(() => [
   {
     key: 'downloading',
-    label: t('pluginStore.stepDownloading'),
-    icon: '⬇️',
+    label: t('assetLibrary.stepDownloading'),
     done: props.result !== null || (props.currentStage !== null && ['importing', 'binding', 'applying', 'complete'].includes(props.currentStage)),
     active: props.currentStage === 'downloading',
     error: props.currentStage === 'error' && props.result === null,
   },
   {
     key: 'importing',
-    label: t('pluginStore.stepImporting'),
-    icon: '📦',
+    label: t('assetLibrary.stepImporting'),
     done: props.result !== null || (props.currentStage !== null && ['binding', 'applying', 'complete'].includes(props.currentStage)),
     active: props.currentStage === 'importing',
     error: false,
   },
   {
     key: 'binding',
-    label: t('pluginStore.stepBinding'),
-    icon: '🔗',
+    label: t('assetLibrary.stepBinding'),
     done: props.result !== null && props.result.binding_created,
     active: props.currentStage === 'binding',
     error: props.result !== null && !props.result.binding_created && props.result.errors.some(e => e.includes('绑定')),
   },
   {
     key: 'applying',
-    label: t('pluginStore.stepApplying'),
-    icon: '✅',
+    label: t('assetLibrary.stepApplying'),
     done: props.result !== null && props.result.changes_applied,
     active: props.currentStage === 'applying',
     error: props.result !== null && !props.result.changes_applied && props.result.errors.some(e => e.includes('应用')),
@@ -59,7 +55,7 @@ const steps = computed(() => [
     <div v-if="visible" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="!isInstalling && emit('close')">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
         <div class="flex justify-between items-center mb-5">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('pluginStore.oneClickInstallTitle') }}</h3>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('assetLibrary.oneClickInstallTitle') }}</h3>
           <button
             v-if="!isInstalling"
             @click="emit('close')"
@@ -104,7 +100,7 @@ const steps = computed(() => [
               <svg v-else-if="step.active" class="w-4 h-4 text-primary-600 dark:text-primary-400 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              <span v-else class="text-gray-400 dark:text-content-muted">{{ step.icon }}</span>
+              <span v-else class="text-gray-400 dark:text-content-muted text-xs">{{ steps.indexOf(step) + 1 }}</span>
             </div>
 
             <div class="flex-1">
@@ -125,12 +121,12 @@ const steps = computed(() => [
 
         <div v-if="result && !isInstalling" class="mt-4">
           <div v-if="result.success" class="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-            <p class="text-sm text-green-700 dark:text-green-400 font-medium">{{ t('pluginStore.installSuccess') }}</p>
-            <div v-if="result.binding_created" class="text-xs text-green-600 dark:text-green-400 mt-1">{{ t('pluginStore.bindingCreated') }}</div>
-            <div v-if="result.changes_applied" class="text-xs text-green-600 dark:text-green-400">{{ t('pluginStore.changesApplied') }}</div>
+            <p class="text-sm text-green-700 dark:text-green-400 font-medium">{{ t('assetLibrary.installSuccess') }}</p>
+            <div v-if="result.binding_created" class="text-xs text-green-600 dark:text-green-400 mt-1">{{ t('assetLibrary.bindingCreated') }}</div>
+            <div v-if="result.changes_applied" class="text-xs text-green-600 dark:text-green-400">{{ t('assetLibrary.changesApplied') }}</div>
           </div>
           <div v-else class="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
-            <p class="text-sm text-red-700 dark:text-red-400 font-medium">{{ t('pluginStore.installFailed') }}</p>
+            <p class="text-sm text-red-700 dark:text-red-400 font-medium">{{ t('assetLibrary.installFailed') }}</p>
             <div v-if="result.errors.length > 0" class="mt-1 space-y-0.5">
               <p v-for="(err, i) in result.errors" :key="i" class="text-xs text-red-600 dark:text-red-400">{{ err }}</p>
             </div>

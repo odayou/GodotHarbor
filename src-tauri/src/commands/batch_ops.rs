@@ -127,28 +127,6 @@ pub fn delete_snapshot(app: AppHandle, snapshot_id: String) -> Result<(), String
 }
 
 #[tauri::command]
-pub fn compare_projects(app: AppHandle, project_id_a: String, project_id_b: String) -> Result<EnvironmentDiff, String> {
-    let storage = get_storage(&app);
-
-    let projects: Vec<Project> = storage.load_or_default("projects.json");
-    let project_a = projects.iter().find(|p| p.project_id == project_id_a)
-        .ok_or("未找到项目 A".to_string())?;
-    let project_b = projects.iter().find(|p| p.project_id == project_id_b)
-        .ok_or("未找到项目 B".to_string())?;
-
-    let bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
-    let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
-
-    let diff = compare_environments(project_a, &bindings, project_b, &bindings, &plugins);
-
-    log_operation(&app, "compare_projects", &format!("{} vs {}", project_id_a, project_id_b),
-        &format!("项目环境比较: 仅A有{} 仅B有{} 版本不同{} 相同{}",
-            diff.only_in_a.len(), diff.only_in_b.len(), diff.different_version.len(), diff.same.len()));
-
-    Ok(diff)
-}
-
-#[tauri::command]
 pub fn global_upgrade_plugin(app: AppHandle, plugin_id: String) -> Result<Vec<GlobalUpgradeResult>, String> {
     let storage = get_storage(&app);
 
@@ -159,6 +137,63 @@ pub fn global_upgrade_plugin(app: AppHandle, plugin_id: String) -> Result<Vec<Gl
 
     let success_count = results.iter().filter(|r| r.success).count();
     let fail_count = results.len() - success_count;
+
+    // Apply bindings for each affected project
+    // Reload bindings since global_upgrade_plugin_inner updated them
+    let updated_bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
+    let projects: Vec<Project> = storage.load_or_default("projects.json");
+    let settings = crate::commands::utils::load_settings(&app);
+    let linker = crate::linker::Linker::new(settings.mount_strategy);
+    let data_dir = crate::commands::utils::get_data_dir(&app);
+    let plugin_base_path = data_dir.join("plugins");
+    let applied_dir = data_dir.join("applied_bindings");
+
+    // Collect unique project IDs from affected bindings
+    let affected_project_ids: std::collections::HashSet<String> = updated_bindings
+        .iter()
+        .filter(|b| b.plugin_id == plugin_id)
+        .map(|b| b.project_id.clone())
+        .collect();
+
+    for project_id in &affected_project_ids {
+        let project = match projects.iter().find(|p| p.project_id == *project_id) {
+            Some(p) => p,
+            None => continue,
+        };
+
+        let desired_bindings: Vec<ProjectBinding> = updated_bindings
+            .iter()
+            .filter(|b| b.project_id == *project_id)
+            .cloned()
+            .collect();
+
+        let applied_file = applied_dir.join(format!("{}.json", project_id));
+        let current_bindings: Vec<ProjectBinding> = if applied_file.exists() {
+            let applied_storage = crate::storage::Storage::new(applied_dir.clone());
+            applied_storage.load_or_default::<Vec<ProjectBinding>>(&format!("{}.json", project_id))
+        } else {
+            Vec::new()
+        };
+
+        let apply_result = linker.apply_bindings(
+            &project.path,
+            &current_bindings,
+            &desired_bindings,
+            &plugin_base_path.to_string_lossy(),
+        );
+
+        if let Ok(apply_result) = apply_result {
+            if apply_result.success {
+                if let Err(e) = std::fs::create_dir_all(&applied_dir) {
+                    eprintln!("Failed to create applied_bindings dir: {}", e);
+                }
+                let applied_storage = crate::storage::Storage::new(applied_dir.clone());
+                if let Err(e) = applied_storage.save(&format!("{}.json", project_id), &desired_bindings) {
+                    eprintln!("Failed to save applied bindings: {}", e);
+                }
+            }
+        }
+    }
 
     let _ = app.emit("bindings-changed", ());
 
@@ -175,31 +210,4 @@ fn global_upgrade_plugin_inner(
     storage: &crate::storage::Storage,
 ) -> Vec<GlobalUpgradeResult> {
     crate::batch_ops::global_upgrade_plugin(plugin_id, plugins, bindings, storage)
-}
-
-#[tauri::command]
-pub fn batch_init_from_template(
-    app: AppHandle,
-    template_id: String,
-    project_names: Vec<String>,
-    base_dir: String,
-) -> Result<BatchProjectInitResult, String> {
-    let storage = get_storage(&app);
-
-    let result = crate::batch_ops::batch_init_from_template(
-        &template_id,
-        &project_names,
-        &base_dir,
-        &storage,
-    );
-
-    let success_count = result.results.iter().filter(|r| r.success).count();
-    let fail_count = result.results.len() - success_count;
-
-    let _ = app.emit("projects-changed", ());
-
-    log_operation(&app, "batch_init_from_template", &template_id,
-        &format!("从模板批量创建项目: 成功 {} 失败 {}", success_count, fail_count));
-
-    Ok(result)
 }

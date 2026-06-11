@@ -90,7 +90,7 @@ fn get_template_version_dir(version: &str) -> PathBuf {
 }
 
 fn is_godot4(version: &str) -> bool {
-    version.starts_with('4') || version.contains(".4.")
+    crate::utils::is_godot4(version)
 }
 
 fn file_exists_in_dir(dir: &PathBuf, pattern: &str) -> bool {

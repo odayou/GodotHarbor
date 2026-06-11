@@ -138,7 +138,7 @@ const failCount = computed(() => upgradeResults.value.filter(r => !r.success).le
           <button
             v-if="!hasUpgraded"
             @click="handleUpgrade"
-            :disabled="isUpgrading || affectedProjects.length === 0"
+            :disabled="isUpgrading || affectedProjects.length === 0 || affectedProjects.includes('无项目使用此插件')"
             class="flex-1 py-2.5 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
           >
             {{ isUpgrading ? '...' : (t('batchOps.confirmUpgrade') || '确认升级') }}
