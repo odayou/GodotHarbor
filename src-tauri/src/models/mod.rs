@@ -367,6 +367,8 @@ pub struct Settings {
     pub enable_anonymous_usage_stats: bool,
     #[serde(default)]
     pub anonymous_user_id: String,
+    #[serde(default)]
+    pub active_workspace_id: Option<String>,
 }
 
 fn default_true() -> bool { true }
@@ -408,6 +410,7 @@ impl Default for Settings {
             engine_update_channels: default_engine_update_channels(),
             enable_anonymous_usage_stats: true,
             anonymous_user_id: String::new(),
+            active_workspace_id: None,
         }
     }
 }

@@ -537,7 +537,37 @@ export default {
     errorDownload: '下载失败，请重试',
     errorParse: '解析插件失败',
     searchPlaceholder: '搜索 Asset Library...',
-    selectedCount: '已选择 {count} 个资产'
+    selectedCount: '已选择 {count} 个资产',
+    imported: '已导入'
+  },
+  pluginStore: {
+    title: '商店',
+    searchPlaceholder: '搜索插件商店...',
+    searching: '搜索中...',
+    noResults: '没有找到匹配的插件',
+    searchHint: '输入关键词搜索，或浏览推荐插件',
+    recommendations: '为你推荐',
+    allCategories: '全部分类',
+    sortUpdated: '最近更新',
+    sortRating: '最高评分',
+    sortDownloads: '最多下载',
+    sortName: '名称排序',
+    allVersions: '所有版本',
+    godot4: 'Godot 4',
+    godot3: 'Godot 3',
+    totalResults: '共 {count} 个结果',
+    oneClickInstall: '一键安装',
+    selectProject: '选择项目',
+    oneClickInstallTitle: '一键安装',
+    stepDownloading: '下载插件',
+    stepImporting: '导入到仓库',
+    stepBinding: '绑定到项目',
+    stepApplying: '应用变更',
+    installSuccess: '安装成功',
+    installFailed: '安装失败',
+    bindingCreated: '已绑定到项目',
+    changesApplied: '变更已应用',
+    viewSource: '查看源码'
   },
   linker: {
     title: '插件绑定',
@@ -784,6 +814,22 @@ export default {
       variantStandard: '标准版',
       variantMono: '.NET版',
       sourceLink: '来源'
+    },
+    modules: {
+      title: '引擎模块',
+      installed: '已安装',
+      noModules: '暂无模块信息',
+      statusInstalled: '已安装',
+      statusMissing: '未安装',
+      install: '安装',
+      installing: '安装中...',
+      installSuccess: '{type} 模块安装成功',
+      installFailed: '安装模块失败: {error}',
+      editor: '编辑器',
+      dotnetHint: '需下载 .NET 版',
+      missingWarning: '缺少必需的引擎模块',
+      missingDesc: '项目导出需要以下模块，但尚未安装',
+      checking: '正在检查模块...'
     }
   },
   settings: {

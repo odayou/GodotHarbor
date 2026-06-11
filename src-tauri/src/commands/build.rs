@@ -349,8 +349,7 @@ async fn find_template_on_github(client: &reqwest::Client, version: &str, mono: 
     Err("无法找到导出模板下载地址，请检查网络连接或配置镜像源".to_string())
 }
 
-#[tauri::command]
-pub async fn download_export_template(app: AppHandle, version: String, mono: bool) -> Result<String, String> {
+pub async fn download_export_template_inner(app: &AppHandle, version: String, mono: bool) -> Result<String, String> {
     let _ = app.emit("export-template-download-progress", serde_json::json!({
         "version": &version,
         "stage": "downloading",
@@ -362,7 +361,7 @@ pub async fn download_export_template(app: AppHandle, version: String, mono: boo
     fs::create_dir_all(&temp_dir)
         .map_err(|e| format!("创建临时目录失败: {}", e))?;
 
-    let download_url = resolve_template_download_url(&app, &version, mono).await?;
+    let download_url = resolve_template_download_url(app, &version, mono).await?;
 
     let client = create_http_client(Some(std::time::Duration::from_secs(300)))?;
     let resp = client.get(&download_url).send().await
@@ -430,6 +429,11 @@ pub async fn download_export_template(app: AppHandle, version: String, mono: boo
     }));
 
     Ok(format!("导出模板 {} 安装完成", version))
+}
+
+#[tauri::command]
+pub async fn download_export_template(app: AppHandle, version: String, mono: bool) -> Result<String, String> {
+    download_export_template_inner(&app, version, mono).await
 }
 
 #[tauri::command]

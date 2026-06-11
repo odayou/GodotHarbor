@@ -16,20 +16,35 @@ pub mod utils;
 pub mod featured;
 pub mod harbor_config;
 pub mod asset_store;
+pub mod plugin_store;
 pub mod mcp;
+pub mod cli;
+pub mod vcs;
+pub mod engine_modules;
+pub mod template_signer;
+pub mod workspace;
+pub mod batch_ops;
+pub mod lockfile;
 
+#[cfg(not(feature = "cli-only"))]
 use tauri::{Emitter, Manager};
+#[cfg(not(feature = "cli-only"))]
 use tauri_plugin_notification::NotificationExt;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(not(feature = "cli-only"))]
+use std::sync::atomic::Ordering;
+#[cfg(not(feature = "cli-only"))]
+use std::sync::atomic::AtomicBool;
 
 pub struct AppState {
     pub fs_watcher: Mutex<watcher::FsWatcher>,
 }
 
+#[cfg(not(feature = "cli-only"))]
 static WINDOW_CLOSED: AtomicBool = AtomicBool::new(false);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+#[cfg(not(feature = "cli-only"))]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -508,6 +523,55 @@ pub fn run() {
             commands::is_mcp_server_running,
             commands::get_mcp_server_path,
             commands::get_mcp_capabilities,
+            commands::get_project_vcs_info,
+            commands::get_project_vcs_history,
+            commands::vcs_pull,
+            commands::vcs_push,
+            commands::vcs_commit,
+            commands::vcs_get_diff,
+            commands::vcs_update_gitignore,
+            commands::batch_get_vcs_info,
+            commands::search_plugin_store,
+            commands::get_plugin_store_recommendations,
+            commands::get_plugin_store_categories_with_counts,
+            commands::one_click_install_plugin,
+            commands::generate_signing_keypair,
+            commands::export_template_signed,
+            commands::write_template_export,
+            commands::import_template_from_file,
+            commands::verify_template_signature,
+            commands::get_stored_keypairs,
+            commands::save_keypair,
+            commands::delete_keypair,
+            commands::get_engine_modules,
+            commands::get_all_engines_modules,
+            commands::check_project_missing_modules,
+            commands::install_engine_module,
+            commands::get_module_download_info,
+            commands::create_workspace,
+            commands::update_workspace,
+            commands::delete_workspace,
+            commands::list_workspaces,
+            commands::get_workspace,
+            commands::add_project_to_workspace,
+            commands::remove_project_from_workspace,
+            commands::get_active_workspace,
+            commands::set_active_workspace,
+            commands::move_project_to_workspace,
+            commands::create_snapshot,
+            commands::list_snapshots,
+            commands::restore_snapshot,
+            commands::delete_snapshot,
+            commands::compare_projects,
+            commands::global_upgrade_plugin,
+            commands::batch_init_from_template,
+            commands::generate_project_lock,
+            commands::write_project_lock,
+            commands::read_project_lock,
+            commands::verify_project_lock,
+            commands::diff_project_lock,
+            commands::sync_from_lock,
+            commands::batch_check_locks,
         ))
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

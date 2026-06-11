@@ -103,6 +103,7 @@ export interface Settings {
   engine_update_channels?: string[]
   enable_anonymous_usage_stats?: boolean
   anonymous_user_id?: string
+  active_workspace_id?: string | null
 }
 
 export interface ApplyResult {
@@ -708,3 +709,303 @@ export interface BuildRecord {
 
 export type ExportPlatform = 'Windows' | 'MacOS' | 'Linux' | 'Web' | 'Android' | 'IOS'
 export type BuildStatus = 'Pending' | 'Running' | 'Success' | 'Failed' | 'Cancelled'
+
+// ─── VCS Types ───
+export type VcsType = 'Git' | 'None'
+
+export type VcsStatus = 'Clean' | 'Modified' | 'Untracked' | 'Ahead' | 'Behind' | 'Diverged' | 'NoRemote'
+
+export interface VcsInfo {
+  vcs_type: VcsType
+  branch: string
+  remote: string
+  status: VcsStatus
+  ahead: number
+  behind: number
+  staged_files: number
+  modified_files: number
+  untracked_files: number
+  last_commit_hash: string
+  last_commit_message: string
+  last_commit_date: string | null
+}
+
+export interface VcsCommit {
+  hash: string
+  short_hash: string
+  message: string
+  author: string
+  date: string
+}
+
+export interface VcsDiffFile {
+  path: string
+  status: string
+  old_path: string | null
+}
+
+export interface VcsDiffSummary {
+  added: number
+  modified: number
+  deleted: number
+  files: VcsDiffFile[]
+}
+
+// ─── Engine Modules Types ───
+export type ModuleType = 'DotNet' | 'Android' | 'IOS' | 'Web' | 'Linux' | 'Windows' | 'MacOS' | 'Editor'
+
+export interface EngineModule {
+  module_type: ModuleType
+  version: string
+  is_installed: boolean
+  install_path: string | null
+  file_size: number | null
+  last_updated: string | null
+}
+
+export interface EngineModulesInfo {
+  engine_id: string
+  engine_version: string
+  modules: EngineModule[]
+  missing_for_project: ModuleType[]
+}
+
+export interface ModuleInstallProgress {
+  module_type: ModuleType
+  version: string
+  stage: string
+  progress: number
+  message: string
+}
+
+// ─── Plugin Store Types ───
+export interface StorePlugin {
+  asset_id: number
+  name: string
+  author: string
+  description: string
+  category: string
+  godot_version: string
+  support_level: 'official' | 'featured' | 'community' | 'testing'
+  download_count: number
+  rating: number
+  rating_count: number
+  icon_url: string
+  preview_images: string[]
+  source_url: string
+  tags: string[]
+  is_installed: boolean
+  installed_version: string | null
+  compatible: boolean
+  last_updated: string
+}
+
+export interface StoreSearchResult {
+  plugins: StorePlugin[]
+  total: number
+  page: number
+  page_size: number
+  has_more: boolean
+}
+
+export interface StoreRecommendation {
+  plugin: StorePlugin
+  reason: string
+  relevance_score: number
+}
+
+export interface StoreCategory {
+  id: string
+  name: string
+  icon: string
+  count: number
+}
+
+export interface OneClickInstallResult {
+  success: boolean
+  plugin_id: string | null
+  binding_created: boolean
+  changes_applied: boolean
+  errors: string[]
+}
+
+// ─── Template Signer Types ───
+export interface TemplateManifest {
+  version: string
+  template: Template
+  signature: string | null
+  signed_by: string | null
+  public_key: string | null
+  checksum: string
+  created_at: string
+}
+
+export interface KeyPair {
+  public_key: string
+  private_key: string
+  name: string
+  created_at: string
+}
+
+export interface SignatureVerification {
+  is_valid: boolean
+  signed_by: string | null
+  checksum_valid: boolean
+  error: string | null
+}
+
+// ─── Batch Ops Types ───
+export interface SnapshotEngine {
+  engine_id: string
+  name: string
+  version: string
+}
+
+export interface SnapshotPlugin {
+  plugin_id: string
+  plugin_name: string
+  version_id: string
+  version: string
+  unit_id: string
+  unit_name: string
+  mount_path: string
+  content_hash: string
+}
+
+export interface EnvironmentSnapshot {
+  snapshot_id: string
+  project_id: string
+  project_name: string
+  created_at: string
+  godot_version: string
+  engine: SnapshotEngine | null
+  plugins: SnapshotPlugin[]
+}
+
+export interface DiffPlugin {
+  plugin_name: string
+  version: string
+  mount_path: string
+}
+
+export interface DiffVersionChange {
+  plugin_name: string
+  version_a: string
+  version_b: string
+  mount_path_a: string
+  mount_path_b: string
+}
+
+export interface EnvironmentDiff {
+  project_a: string
+  project_a_name: string
+  project_b: string
+  project_b_name: string
+  only_in_a: DiffPlugin[]
+  only_in_b: DiffPlugin[]
+  different_version: DiffVersionChange[]
+  same: string[]
+}
+
+export interface GlobalUpgradeResult {
+  plugin_name: string
+  old_version: string
+  new_version: string
+  affected_projects: string[]
+  success: boolean
+  error: string | null
+}
+
+export interface ProjectInitResult {
+  project_name: string
+  success: boolean
+  error: string | null
+  plugins_installed: number
+}
+
+export interface BatchProjectInitResult {
+  results: ProjectInitResult[]
+}
+
+// ─── Lockfile Types ───
+export interface LockedEngine {
+  engine_id: string
+  version: string
+  engine_type: string
+  path_hash: string
+}
+
+export interface LockedPlugin {
+  plugin_id: string
+  plugin_name: string
+  version_id: string
+  version: string
+  unit_id: string
+  unit_name: string
+  mount_path: string
+  subdirectory: string
+  content_hash: string
+  source_type: string
+  source_url: string
+}
+
+export interface HarborLock {
+  version: string
+  locked_at: string
+  project_name: string
+  project_path: string
+  godot_version: string
+  engine: LockedEngine | null
+  plugins: LockedPlugin[]
+}
+
+export interface LockChange {
+  plugin_name: string
+  field: string
+  old_value: string
+  new_value: string
+}
+
+export interface LockDiff {
+  added: LockedPlugin[]
+  removed: LockedPlugin[]
+  changed: LockChange[]
+}
+
+export interface LockMismatch {
+  plugin_name: string
+  expected_hash: string
+  actual_hash: string
+  expected_version: string
+  actual_version: string
+}
+
+export interface LockVerifyResult {
+  is_valid: boolean
+  mismatches: LockMismatch[]
+}
+
+// ─── Workspace Types ───
+export interface Workspace {
+  workspace_id: string
+  name: string
+  description: string
+  icon: string
+  color: string
+  scan_directories: string[]
+  project_ids: string[]
+  plugin_favorites: string[]
+  default_engine_id: string | null
+  mount_strategy: 'Symlink' | 'Junction' | 'Copy' | null
+  created_at: string
+  updated_at: string
+}
+
+export interface WorkspaceSummary {
+  workspace_id: string
+  name: string
+  icon: string
+  color: string
+  project_count: number
+  is_active: boolean
+}

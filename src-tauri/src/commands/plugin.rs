@@ -388,6 +388,29 @@ pub async fn apply_changes(app: AppHandle, project_id: String) -> Result<ApplyRe
             if let Err(e) = applied_storage.save(&format!("{}.json", project_id), &desired_bindings) {
                 eprintln!("Failed to save applied bindings: {}", e);
             }
+
+            // Auto .gitignore management
+            let managed_paths: Vec<String> = desired_bindings.iter()
+                .map(|b| b.mount_path.clone())
+                .collect();
+            if !managed_paths.is_empty() {
+                if let Err(e) = crate::vcs::ensure_gitignore(&project.path, &managed_paths) {
+                    eprintln!("Failed to update .gitignore: {}", e);
+                }
+            }
+
+            // Auto-generate harbor.lock after successful apply
+            let plugins: Vec<crate::models::Plugin> = storage.load_or_default("plugins.json");
+            let engines: Vec<crate::models::Engine> = storage.load_or_default("engines.json");
+            let engine_bindings = if let Some(ref engine_id) = project.last_used_engine_id {
+                vec![(project.project_id.clone(), engine_id.clone())]
+            } else {
+                vec![]
+            };
+            let lock = crate::lockfile::generate_lock(project, &desired_bindings, &plugins, &engines, &engine_bindings);
+            if let Err(e) = crate::lockfile::write_lock(&project.path, &lock) {
+                eprintln!("Failed to write harbor.lock: {}", e);
+            }
         }
 
         log_operation(&app_clone, "apply_changes", &project_id,

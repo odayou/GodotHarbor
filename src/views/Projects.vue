@@ -1,9 +1,9 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '@/api'
-import type { Project, Engine, MovedProjectCandidate, ProjectBinding, Plugin, DriftReport, SyncPreview, SyncEnvironmentResult } from '@/types'
+import type { Project, Engine, MovedProjectCandidate, ProjectBinding, Plugin, DriftReport, SyncPreview, SyncEnvironmentResult, VcsInfo, ModuleType } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
@@ -14,10 +14,19 @@ import { useFileManager } from '@/composables/useFileManager'
 import { getStatusBadgeClass, getStatusInlineClass } from '@/utils/statusBadge'
 import { preloadIcons, getIconUrl, getIconDebugInfo } from '@/composables/useIconCache'
 import { useEngineLauncher } from '@/composables/useEngineLauncher'
+import { useWorkspace } from '@/composables/useWorkspace'
+import WorkspaceProjectAssign from '@/components/WorkspaceProjectAssign.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import SkeletonList from '@/components/SkeletonList.vue'
 import ErrorState from '@/components/ErrorState.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import VcsStatusBadge from '@/components/VcsStatusBadge.vue'
+import VcsPanel from '@/components/VcsPanel.vue'
+import MissingModulesWarning from '@/components/MissingModulesWarning.vue'
+import LockStatusBadge from '@/components/LockStatusBadge.vue'
+import LockfilePanel from '@/components/LockfilePanel.vue'
+import EnvironmentSnapshotPanel from '@/components/EnvironmentSnapshotPanel.vue'
+import ProjectCompareDialog from '@/components/ProjectCompareDialog.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -25,6 +34,35 @@ const toast = useToast()
 const { t } = useI18n()
 const { isRunning: isAutoSetupRunning, stepMessage: autoSetupMessage, runAutoSetup } = useAutoSetup()
 const { openInFileManager } = useFileManager()
+const {
+  activeWorkspaceId,
+  activeWorkspace,
+  loadWorkspaces,
+} = useWorkspace()
+const showWorkspaceAssign = ref(false)
+const assignProjectId = ref('')
+const assignProjectName = ref('')
+const activeWorkspaceProjectIds = ref<Set<string>>(new Set())
+
+// Check if a project belongs to the active workspace
+const isInActiveWorkspace = (projectId: string) => {
+  if (!activeWorkspaceId.value) return true
+  return activeWorkspaceProjectIds.value.has(projectId)
+}
+
+// Watch for active workspace changes and load project IDs
+watch(activeWorkspaceId, async (newId) => {
+  if (newId) {
+    try {
+      const ws = await api.getWorkspace(newId)
+      activeWorkspaceProjectIds.value = new Set(ws.project_ids)
+    } catch {
+      activeWorkspaceProjectIds.value = new Set()
+    }
+  } else {
+    activeWorkspaceProjectIds.value = new Set()
+  }
+}, { immediate: true })
 const debugMode = ref(false)
 const toggleDebug = (e: KeyboardEvent) => {
   if (e.ctrlKey && e.shiftKey && e.key === 'D') {
@@ -59,6 +97,10 @@ const showSyncPreview = ref(false)
 const syncResult = ref<SyncEnvironmentResult | null>(null)
 const driftMap = ref<Map<string, DriftReport>>(new Map())
 const selectedSyncItems = ref<Set<string>>(new Set())
+
+const vcsInfoMap = ref<Map<string, VcsInfo>>(new Map())
+const projectMissingModulesMap = ref<Map<string, ModuleType[]>>(new Map())
+const lockStatusMap = ref<Map<string, 'locked_verified' | 'locked_drifted' | 'not_locked'>>(new Map())
 
 const toggleProjectMenu = (projectId: string) => {
   projectMenuId.value = projectMenuId.value === projectId ? '' : projectId
@@ -193,6 +235,7 @@ onMounted(async () => {
   loadProjects()
   loadGroups()
   loadEngines()
+  loadWorkspaces()
   document.addEventListener('click', handleGlobalClick)
   document.addEventListener('keydown', toggleDebug)
   try {
@@ -268,6 +311,11 @@ const filteredProjects = computed(() => {
 
     return matchesSearch(project) && matchesGroup && matchesStatus
   })
+
+  // Filter by active workspace
+  if (activeWorkspaceId.value && activeWorkspaceProjectIds.value.size > 0) {
+    result = result.filter(p => activeWorkspaceProjectIds.value.has(p.project_id))
+  }
 
   result.sort((a, b) => {
     let cmp = 0
@@ -387,7 +435,7 @@ const loadProjects = async (force = false) => {
       projects.value = result
       loadError.value = null
       preloadIcons(result.map(p => p.icon_path).filter(Boolean)).catch(() => {})
-      Promise.all([loadAllProjectBindings(), loadAllDrifts()]).catch(() => {})
+      Promise.all([loadAllProjectBindings(), loadAllDrifts(), loadAllVcsInfo(), loadAllMissingModules(), loadAllLockStatuses()]).catch(() => {})
     } catch (error) {
       loadError.value = String(error)
     } finally {
@@ -406,6 +454,8 @@ const loadProjects = async (force = false) => {
       loadAllProjectBindings(),
       api.getPlugins().then(p => { allPlugins.value = p }).catch(() => { allPlugins.value = [] }),
       loadAllDrifts(),
+      loadAllVcsInfo(),
+      loadAllMissingModules(),
     ]).catch(() => {})
   } catch (error) {
     loadError.value = String(error)
@@ -424,6 +474,60 @@ const loadAllDrifts = async () => {
     driftMap.value = map
   } catch {
     driftMap.value = new Map()
+  }
+}
+
+const loadAllVcsInfo = async () => {
+  try {
+    const ids = projects.value.map(p => p.project_id)
+    if (ids.length === 0) return
+    const results = await api.batchGetVcsInfo(ids)
+    const map = new Map<string, VcsInfo>()
+    for (const [id, info] of results) {
+      map.set(id, info)
+    }
+    vcsInfoMap.value = map
+  } catch {
+    vcsInfoMap.value = new Map()
+  }
+}
+
+const loadAllMissingModules = async () => {
+  try {
+    const map = new Map<string, ModuleType[]>()
+    const checks = projects.value.map(async (p) => {
+      try {
+        const missing = await api.checkProjectMissingModules(p.project_id)
+        map.set(p.project_id, missing)
+      } catch {
+        // Silently ignore - this is informational
+      }
+    })
+    await Promise.allSettled(checks)
+    projectMissingModulesMap.value = map
+  } catch {
+    projectMissingModulesMap.value = new Map()
+  }
+}
+
+const loadAllLockStatuses = async () => {
+  try {
+    const ids = projects.value.map(p => p.project_id)
+    if (ids.length === 0) return
+    const results = await api.batchCheckLocks(ids)
+    const map = new Map<string, 'locked_verified' | 'locked_drifted' | 'not_locked'>()
+    for (const [id, lock, verifyResult] of results) {
+      if (!lock) {
+        map.set(id, 'not_locked')
+      } else if (verifyResult.is_valid) {
+        map.set(id, 'locked_verified')
+      } else {
+        map.set(id, 'locked_drifted')
+      }
+    }
+    lockStatusMap.value = map
+  } catch {
+    lockStatusMap.value = new Map()
   }
 }
 
@@ -810,6 +914,10 @@ const saveAsTemplateName = ref('')
 const saveAsTemplateCategory = ref('Custom')
 const isSavingAsTemplate = ref(false)
 
+// ─── Batch Ops: Compare & Snapshots ───
+const showCompareDialog = ref(false)
+useDialogEscape(showCompareDialog)
+
 const openSaveAsTemplateDialog = (project: Project) => {
   saveAsTemplateProjectId.value = project.project_id
   saveAsTemplateName.value = project.name
@@ -1118,6 +1226,17 @@ const toggleAddPluginPanel = () => {
           </svg>
           {{ t('projects.syncProject') }}
         </button>
+        <button
+          @click="showCompareDialog = true"
+          :disabled="isLoading || projects.length < 2"
+          class="btn-secondary disabled:opacity-50 text-sm flex items-center gap-1.5"
+          :title="t('batchOps.compareProjects') || '比较项目环境'"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+          {{ t('batchOps.compare') || '比较' }}
+        </button>
       </div>
     </div>
 
@@ -1300,6 +1419,13 @@ const toggleAddPluginPanel = () => {
                 >
                   {{ project.group }}
                 </span>
+                <span
+                  v-if="activeWorkspaceId && isInActiveWorkspace(project.project_id)"
+                  class="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs rounded-full font-medium"
+                  :style="{ backgroundColor: (activeWorkspace?.color || '#3B82F6') + '20', color: activeWorkspace?.color || '#3B82F6' }"
+                >
+                  {{ activeWorkspace?.icon || '📁' }}
+                </span>
                 <button
                   v-else
                   @click.stop="openGroupDialog(project)"
@@ -1315,6 +1441,13 @@ const toggleAddPluginPanel = () => {
                 >
                   {{ t(`projects.status.${project.status.toLowerCase()}`) }}
                 </span>
+                <VcsStatusBadge
+                  :vcsInfo="vcsInfoMap.get(project.project_id) || null"
+                  @click="showProjectDetails(project)"
+                />
+                <LockStatusBadge
+                  :lockStatus="lockStatusMap.get(project.project_id) || 'not_locked'"
+                />
               </div>
               <div class="flex items-center gap-3 mt-1">
                 <span class="text-sm text-gray-500 dark:text-content-secondary" :title="project.path">
@@ -1322,6 +1455,16 @@ const toggleAddPluginPanel = () => {
                 </span>
                 <span class="text-sm text-gray-400">|</span>
                 <span class="text-sm text-gray-500 dark:text-content-secondary">Godot {{ project.godot_version }}</span>
+                <span
+                  v-if="projectMissingModulesMap.get(project.project_id)?.length"
+                  class="text-sm text-yellow-500 flex items-center gap-1 cursor-pointer hover:text-yellow-600 transition-colors"
+                  :title="t('engines.modules.missingWarning')"
+                  @click.stop="showProjectDetails(project)"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                </span>
                 <span
                   v-if="projectBindingMap.get(project.project_id)?.length"
                   class="text-sm text-gray-500 dark:text-content-secondary flex items-center gap-1"
@@ -1343,6 +1486,17 @@ const toggleAddPluginPanel = () => {
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                   </svg>
                   {{ t('projects.hasDrift') || '漂移' }}
+                </span>
+                <span
+                  v-if="lockStatusMap.get(project.project_id) === 'locked_drifted'"
+                  class="text-sm text-yellow-500 flex items-center gap-1 cursor-pointer hover:text-yellow-600 transition-colors"
+                  :title="'锁文件漂移'"
+                  @click.stop="showProjectDetails(project)"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  锁漂移
                 </span>
               </div>
             </div>
@@ -1415,6 +1569,13 @@ const toggleAddPluginPanel = () => {
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" /></svg>
                     {{ t('templates.saveFromProject') }}
                   </button>
+                  <button
+                    @click.stop="assignProjectId = project.project_id; assignProjectName = project.name; showWorkspaceAssign = true; projectMenuId = ''"
+                    class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-content-primary hover:bg-gray-100 dark:hover:bg-surface-layer flex items-center gap-2"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                    分配到工作区
+                  </button>
                   <hr class="my-1 border-gray-200 dark:border-surface-border" />
                   <button
                     @click.stop="removeProject(project.project_id); projectMenuId = ''"
@@ -1486,6 +1647,26 @@ const toggleAddPluginPanel = () => {
           <span v-if="selectedProject.last_synced_at" class="text-xs text-gray-400 dark:text-content-muted ml-3">
             {{ t('projects.lastSynced') }} {{ new Date(selectedProject.last_synced_at).toLocaleString() }}
           </span>
+        </div>
+
+        <!-- VCS Panel -->
+        <div class="mb-4">
+          <VcsPanel :projectId="selectedProject.project_id" />
+        </div>
+
+        <!-- Missing Modules Warning -->
+        <div class="mb-4">
+          <MissingModulesWarning :projectId="selectedProject.project_id" />
+        </div>
+
+        <!-- Lockfile Panel -->
+        <div class="mb-4">
+          <LockfilePanel :projectId="selectedProject.project_id" />
+        </div>
+
+        <!-- Environment Snapshots -->
+        <div class="mb-4">
+          <EnvironmentSnapshotPanel :projectId="selectedProject.project_id" />
         </div>
 
         <!-- Drift Status -->
@@ -2183,5 +2364,22 @@ const toggleAddPluginPanel = () => {
       </div>
     </div>
   </Teleport>
+
+  <!-- Project Compare Dialog -->
+  <ProjectCompareDialog
+    :visible="showCompareDialog"
+    :projects="projects"
+    @update:visible="showCompareDialog = $event"
+    @close="showCompareDialog = false"
+  />
+
+  <!-- Workspace Assign Dialog -->
+  <WorkspaceProjectAssign
+    v-if="showWorkspaceAssign"
+    :projectId="assignProjectId"
+    :projectName="assignProjectName"
+    @close="showWorkspaceAssign = false"
+    @updated="loadWorkspaces(); loadProjects(true)"
+  />
 
 </template>

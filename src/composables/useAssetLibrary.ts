@@ -8,7 +8,7 @@ import { isOnline } from '@/composables/useNetworkStatus'
 import type { Plugin, AssetLibrarySearchResult, AssetLibrarySearchResponse, AssetLibraryCategory, AssetLibraryAsset } from '@/types'
 
 export function useAssetLibrary(options: {
-  activeTab: Ref<'repository' | 'bindings' | 'assetLibrary'>
+  activeTab: Ref<'repository' | 'bindings' | 'assetLibrary' | 'store'>
   loadPlugins: (force?: boolean) => Promise<void>
   showPostImportGuide: (pluginName: string, plugin?: Plugin) => Promise<void>
 }) {

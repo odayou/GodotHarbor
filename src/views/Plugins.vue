@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -18,6 +18,8 @@ import { usePluginStore, useSettingsStore } from '@/stores'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import ErrorState from '@/components/ErrorState.vue'
 import AssetLibraryTab from '@/components/AssetLibraryTab.vue'
+import PluginStoreTab from '@/components/PluginStoreTab.vue'
+import GlobalUpgradeDialog from '@/components/GlobalUpgradeDialog.vue'
 
 const pluginStore = usePluginStore()
 const settingsStore = useSettingsStore()
@@ -78,11 +80,22 @@ const showImportModeDialog = ref(false)
 const importMode = ref<'copy' | 'move' | 'reference'>('copy')
 const totalStorageStats = ref<TotalStorageStats | null>(null)
 
+// ─── Global Upgrade ───
+const showGlobalUpgradeDialog = ref(false)
+const globalUpgradePluginId = ref('')
+const globalUpgradePluginName = ref('')
+
+const openGlobalUpgradeDialog = (plugin: Plugin) => {
+  globalUpgradePluginId.value = plugin.plugin_id
+  globalUpgradePluginName.value = plugin.name
+  showGlobalUpgradeDialog.value = true
+}
+
 const showAddMenu = ref(false)
 const isDragOver = ref(false)
 const dragCounter = ref(0)
 
-const activeTab = ref<'repository' | 'bindings' | 'assetLibrary'>('repository')
+const activeTab = ref<'repository' | 'bindings' | 'assetLibrary' | 'store'>('repository')
 
 const featuredPlugins = ref<FeaturedPluginsList | null>(null)
 const showFeatured = ref(true)
@@ -1765,6 +1778,10 @@ const retryBatchFailed = async () => {
             @click="activeTab = 'assetLibrary'; openAssetLibraryTab()"
             :class="['px-3 py-1.5 rounded-md text-sm font-medium transition-colors', activeTab === 'assetLibrary' ? 'bg-white dark:bg-surface-card text-primary-600 dark:text-brand-primary shadow-sm' : 'text-gray-600 dark:text-content-secondary hover:text-gray-900 dark:hover:text-content-primary']"
           >{{ t('assetLibrary.title') }}</button>
+          <button
+            @click="activeTab = 'store'"
+            :class="['px-3 py-1.5 rounded-md text-sm font-medium transition-colors', activeTab === 'store' ? 'bg-white dark:bg-surface-card text-primary-600 dark:text-brand-primary shadow-sm' : 'text-gray-600 dark:text-content-secondary hover:text-gray-900 dark:hover:text-content-primary']"
+          >{{ t('pluginStore.title') }}</button>
         </div>
       </div>
       <div v-if="activeTab === 'repository'" class="flex flex-wrap gap-2">
@@ -2188,6 +2205,13 @@ const retryBatchFailed = async () => {
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
               {{ t('plugins.contextMenu.updatePlugin') }}
             </button>
+            <button
+              @click="openGlobalUpgradeDialog(selectedPlugin)"
+              class="px-3 py-1 border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-secondary text-xs rounded-lg hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors flex items-center gap-1"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" /></svg>
+              {{ t('batchOps.globalUpgrade') || '全局升级' }}
+            </button>
             <button @click="closePluginDetail" class="text-gray-500 dark:text-content-secondary hover:text-gray-700 dark:hover:text-content-primary text-sm">
               {{ t('common.close') }}
             </button>
@@ -2354,6 +2378,11 @@ const retryBatchFailed = async () => {
       :active-tab="activeTab"
       :load-plugins="loadPlugins"
       :show-post-import-guide="showPostImportGuide"
+    />
+
+    <PluginStoreTab
+      v-if="activeTab === 'store'"
+      :load-plugins="loadPlugins"
     />
 
   <Teleport to="body">
@@ -3293,4 +3322,13 @@ const retryBatchFailed = async () => {
     </div>
   </Teleport>
 
+  <!-- Global Upgrade Dialog -->
+  <GlobalUpgradeDialog
+    :visible="showGlobalUpgradeDialog"
+    :pluginId="globalUpgradePluginId"
+    :pluginName="globalUpgradePluginName"
+    @update:visible="showGlobalUpgradeDialog = $event"
+    @close="showGlobalUpgradeDialog = false"
+    @upgraded="loadPlugins()"
+  />
 </template>

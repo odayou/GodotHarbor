@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { useSidebar } from '@/composables/useSidebar'
+import WorkspaceSwitcher from '@/components/WorkspaceSwitcher.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -47,6 +48,10 @@ const navigateTo = (path: string) => {
       >
         Godot Harbor
       </h1>
+    </div>
+
+    <div :class="['px-2 py-2', isCollapsed ? '' : '']">
+      <WorkspaceSwitcher />
     </div>
 
     <nav class="flex-1 py-4 overflow-hidden">

@@ -21,6 +21,10 @@ impl PluginManager {
         Self { plugins_dir }
     }
 
+    pub fn plugins_dir(&self) -> &Path {
+        &self.plugins_dir
+    }
+
 fn detect_plugin_source(plugin_dir: &Path) -> (crate::models::SourceType, String, String) {
     let git_dir = plugin_dir.join(".git");
     if !git_dir.exists() {
@@ -155,6 +159,15 @@ fn detect_plugin_source(plugin_dir: &Path) -> (crate::models::SourceType, String
     }
 
     fn finalize_import(&self, plugin: &mut Plugin, payload_dir: &Path, version_id: &str, plugin_name: &str) -> Result<()> {
+        self.finalize_import_impl(plugin, payload_dir, version_id, plugin_name)
+    }
+
+    /// CLI-friendly version of finalize_import (public)
+    pub fn finalize_import_cli(&self, plugin: &mut Plugin, payload_dir: &Path, version_id: &str, plugin_name: &str) -> Result<()> {
+        self.finalize_import_impl(plugin, payload_dir, version_id, plugin_name)
+    }
+
+    fn finalize_import_impl(&self, plugin: &mut Plugin, payload_dir: &Path, version_id: &str, plugin_name: &str) -> Result<()> {
         let (mut units, asset_type) = self.analyze_asset_type(payload_dir, plugin_name);
 
         for unit in &mut units {
@@ -298,6 +311,14 @@ fn detect_plugin_source(plugin_dir: &Path) -> (crate::models::SourceType, String
     }
 
     fn extract_zip(archive_path: &Path, target_dir: &Path) -> Result<()> {
+        Self::extract_zip_impl(archive_path, target_dir)
+    }
+
+    pub fn extract_zip_cli(archive_path: &Path, target_dir: &Path) -> Result<()> {
+        Self::extract_zip_impl(archive_path, target_dir)
+    }
+
+    fn extract_zip_impl(archive_path: &Path, target_dir: &Path) -> Result<()> {
         let file = fs::File::open(archive_path)
             .context("Failed to open zip archive")?;
         let mut archive = zip::ZipArchive::new(file)
@@ -308,6 +329,14 @@ fn detect_plugin_source(plugin_dir: &Path) -> (crate::models::SourceType, String
     }
 
     fn extract_tar(archive_path: &Path, target_dir: &Path) -> Result<()> {
+        Self::extract_tar_impl(archive_path, target_dir)
+    }
+
+    pub fn extract_tar_cli(archive_path: &Path, target_dir: &Path) -> Result<()> {
+        Self::extract_tar_impl(archive_path, target_dir)
+    }
+
+    fn extract_tar_impl(archive_path: &Path, target_dir: &Path) -> Result<()> {
         let file = fs::File::open(archive_path)
             .context("Failed to open tar archive")?;
         let file_name = archive_path.file_name()
@@ -337,6 +366,14 @@ fn detect_plugin_source(plugin_dir: &Path) -> (crate::models::SourceType, String
     }
 
     fn find_single_subdir(dir: &Path) -> Option<PathBuf> {
+        Self::find_single_subdir_impl(dir)
+    }
+
+    pub fn find_single_subdir_cli(dir: &Path) -> Option<PathBuf> {
+        Self::find_single_subdir_impl(dir)
+    }
+
+    fn find_single_subdir_impl(dir: &Path) -> Option<PathBuf> {
         if let Ok(entries) = fs::read_dir(dir) {
             let subdirs: Vec<PathBuf> = entries
                 .filter_map(|e| e.ok())

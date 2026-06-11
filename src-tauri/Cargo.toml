@@ -6,6 +6,10 @@ authors = ["Godot Harbor Team"]
 edition = "2021"
 default-run = "godot-harbor"
 
+[features]
+default = []
+cli-only = []
+
 [lib]
 name = "godot_harbor_lib"
 crate-type = ["lib", "cdylib", "staticlib"]
@@ -13,6 +17,10 @@ crate-type = ["lib", "cdylib", "staticlib"]
 [[bin]]
 name = "harbor-mcp-server"
 path = "src/bin/mcp_server.rs"
+
+[[bin]]
+name = "harbor"
+path = "src/bin/harbor_cli.rs"
 
 [build-dependencies]
 tauri-build = { version = "=2.6.2", features = [] }
@@ -51,6 +59,11 @@ futures = "=0.3.32"
 fs2 = "=0.4.3"
 sha2 = "=0.10.9"
 base64 = "=0.22.1"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+rand = "0.8"
+clap = { version = "4", features = ["derive"] }
+indicatif = "0.17"
+console = "0.15"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "=0.52.0"

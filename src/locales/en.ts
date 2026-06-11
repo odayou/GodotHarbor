@@ -534,7 +534,37 @@ export default {
     errorDownload: 'Download failed, please retry',
     errorParse: 'Plugin parsing failed',
     searchPlaceholder: 'Search Asset Library...',
-    selectedCount: '{count} assets selected'
+    selectedCount: '{count} assets selected',
+    imported: 'Imported'
+  },
+  pluginStore: {
+    title: 'Store',
+    searchPlaceholder: 'Search plugin store...',
+    searching: 'Searching...',
+    noResults: 'No matching plugins found',
+    searchHint: 'Enter keywords to search, or browse recommended plugins',
+    recommendations: 'Recommended for you',
+    allCategories: 'All Categories',
+    sortUpdated: 'Recently Updated',
+    sortRating: 'Highest Rated',
+    sortDownloads: 'Most Downloaded',
+    sortName: 'Name',
+    allVersions: 'All Versions',
+    godot4: 'Godot 4',
+    godot3: 'Godot 3',
+    totalResults: '{count} results',
+    oneClickInstall: 'One-Click Install',
+    selectProject: 'Select Project',
+    oneClickInstallTitle: 'One-Click Install',
+    stepDownloading: 'Download Plugin',
+    stepImporting: 'Import to Vault',
+    stepBinding: 'Bind to Project',
+    stepApplying: 'Apply Changes',
+    installSuccess: 'Installation successful',
+    installFailed: 'Installation failed',
+    bindingCreated: 'Bound to project',
+    changesApplied: 'Changes applied',
+    viewSource: 'View source'
   },
   linker: {
     title: 'Plugin Binding',
@@ -781,6 +811,22 @@ export default {
       variantStandard: 'Standard',
       variantMono: '.NET',
       sourceLink: 'Source'
+    },
+    modules: {
+      title: 'Engine Modules',
+      installed: 'installed',
+      noModules: 'No module information',
+      statusInstalled: 'Installed',
+      statusMissing: 'Missing',
+      install: 'Install',
+      installing: 'Installing...',
+      installSuccess: '{type} module installed successfully',
+      installFailed: 'Failed to install module: {error}',
+      editor: 'Editor',
+      dotnetHint: 'Requires .NET version',
+      missingWarning: 'Missing required engine modules',
+      missingDesc: 'The following modules are needed for project export but not installed',
+      checking: 'Checking modules...'
     }
   },
   settings: {

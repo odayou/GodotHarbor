@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { useAssetLibrary } from '@/composables/useAssetLibrary'
 import { usePluginStore } from '@/stores'
@@ -6,14 +6,14 @@ import { ref, type Ref } from 'vue'
 import type { Plugin } from '@/types'
 
 const props = defineProps<{
-  activeTab: 'repository' | 'bindings' | 'assetLibrary'
+  activeTab: 'repository' | 'bindings' | 'assetLibrary' | 'store'
   loadPlugins: (force?: boolean) => Promise<void>
   showPostImportGuide: (pluginName: string, plugin?: Plugin) => Promise<void>
 }>()
 
 const { t } = useI18n()
 const pluginStore = usePluginStore()
-const activeTabRef = ref(props.activeTab) as Ref<'repository' | 'bindings' | 'assetLibrary'>
+const activeTabRef = ref(props.activeTab) as Ref<'repository' | 'bindings' | 'assetLibrary' | 'store'>
 
 const {
   assetSearchQuery,

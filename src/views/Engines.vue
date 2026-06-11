@@ -1,10 +1,10 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { open as openUrl } from '@tauri-apps/plugin-shell'
 import { api } from '@/api'
-import type { Engine, RemoteEngineVersion, EngineMirrorConfig, EngineDownloadProgress, EngineReleaseChannel, Project } from '@/types'
+import type { Engine, RemoteEngineVersion, EngineMirrorConfig, EngineDownloadProgress, EngineReleaseChannel, Project, EngineModulesInfo } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
@@ -15,6 +15,7 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import SkeletonList from '@/components/SkeletonList.vue'
 import ErrorState from '@/components/ErrorState.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import EngineModulesPanel from '@/components/EngineModulesPanel.vue'
 
 const toast = useToast()
 const { t } = useI18n()
@@ -72,6 +73,8 @@ const openMenuId = ref<string>('')
 const collapsedGroups = ref<Set<string>>(new Set())
 const showReDownloadConfirm = ref(false)
 const reDownloadTarget = ref<RemoteEngineVersion | null>(null)
+const expandedModulesEngineId = ref<string>('')
+const engineModulesMap = ref<Map<string, EngineModulesInfo>>(new Map())
 
 useDialogEscape(showAddDialog)
 useDialogEscape(showRenameDialog)
@@ -691,6 +694,38 @@ const initCollapsedGroups = () => {
   }
   collapsedGroups.value = keys
 }
+
+const toggleModulesPanel = async (engineId: string) => {
+  if (expandedModulesEngineId.value === engineId) {
+    expandedModulesEngineId.value = ''
+    return
+  }
+  expandedModulesEngineId.value = engineId
+  if (!engineModulesMap.value.has(engineId)) {
+    try {
+      const info = await api.getEngineModules(engineId)
+      const newMap = new Map(engineModulesMap.value)
+      newMap.set(engineId, info)
+      engineModulesMap.value = newMap
+    } catch { /* ignore */ }
+  }
+}
+
+const getModuleCountBadge = (engineId: string): string => {
+  const info = engineModulesMap.value.get(engineId)
+  if (!info) return ''
+  const nonEditor = info.modules.filter(m => m.module_type !== 'Editor')
+  const installed = nonEditor.filter(m => m.is_installed).length
+  const total = nonEditor.length
+  if (total === 0) return ''
+  return `${installed}/${total}`
+}
+
+const hasMissingModules = (engineId: string): boolean => {
+  const info = engineModulesMap.value.get(engineId)
+  if (!info) return false
+  return info.modules.some(m => m.module_type !== 'Editor' && !m.is_installed)
+}
 </script>
 
 <template>
@@ -844,6 +879,18 @@ const initCollapsedGroups = () => {
                     >
                       .NET
                     </span>
+                    <span
+                      v-if="getModuleCountBadge(engine.engine_id)"
+                      :class="[
+                        'px-1.5 py-0.5 rounded text-xs font-medium cursor-pointer',
+                        hasMissingModules(engine.engine_id)
+                          ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+                          : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                      ]"
+                      @click="toggleModulesPanel(engine.engine_id)"
+                    >
+                      {{ getModuleCountBadge(engine.engine_id) }}
+                    </span>
                   </div>
                 </div>
               </td>
@@ -878,6 +925,20 @@ const initCollapsedGroups = () => {
               </td>
               <td class="px-4 py-4 whitespace-nowrap">
                 <div class="flex items-center justify-end gap-1">
+                  <button
+                    @click="toggleModulesPanel(engine.engine_id)"
+                    :class="[
+                      'p-2 rounded-lg transition-colors',
+                      expandedModulesEngineId === engine.engine_id
+                        ? 'bg-primary-50 dark:bg-surface-hover text-primary-600 dark:text-brand-primary'
+                        : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-surface-layer'
+                    ]"
+                    :title="t('engines.modules.title')"
+                  >
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                  </button>
                   <button
                     @click="launchEngine(engine.engine_id)"
                     :disabled="engineHealthMap.get(engine.engine_id) === false || isLaunchingEngine"
@@ -947,6 +1008,11 @@ const initCollapsedGroups = () => {
                     </div>
                   </div>
                 </div>
+              </td>
+            </tr>
+            <tr v-if="expandedModulesEngineId === engine.engine_id">
+              <td colspan="5" class="px-6 py-4 bg-gray-50 dark:bg-surface-hover/30">
+                <EngineModulesPanel :engine-id="engine.engine_id" />
               </td>
             </tr>
             </template>

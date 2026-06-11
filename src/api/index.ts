@@ -1,9 +1,9 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { 
-  Plugin, 
-  Project, 
-  ProjectBinding, 
-  Settings, 
+import type {
+  Plugin,
+  Project,
+  ProjectBinding,
+  Settings,
   ApplyResult,
   LogEntry,
   Engine,
@@ -35,7 +35,28 @@ import type {
   AddonBackupInfo,
   ProjectTemplate,
   Template,
-  TemplateInstantiationResult
+  TemplateInstantiationResult,
+  VcsInfo,
+  VcsCommit,
+  VcsDiffSummary,
+  TemplateManifest,
+  ModuleType,
+  EngineModulesInfo,
+  KeyPair,
+  SignatureVerification,
+  StoreSearchResult,
+  StoreRecommendation,
+  StoreCategory,
+  OneClickInstallResult,
+  HarborLock,
+  LockVerifyResult,
+  LockDiff,
+  EnvironmentSnapshot,
+  EnvironmentDiff,
+  GlobalUpgradeResult,
+  BatchProjectInitResult,
+  Workspace,
+  WorkspaceSummary
 } from '@/types'
 
 export const api = {
@@ -668,6 +689,227 @@ export const api = {
 
   async getMcpCapabilities(): Promise<any> {
     return await invoke('get_mcp_capabilities')
+  },
+
+  // ─── VCS ───
+  async getProjectVcsInfo(projectId: string): Promise<VcsInfo> {
+    return await invoke('get_project_vcs_info', { projectId })
+  },
+
+  async getProjectVcsHistory(projectId: string, limit?: number): Promise<VcsCommit[]> {
+    return await invoke('get_project_vcs_history', { projectId, limit: limit ?? null })
+  },
+
+  async vcsPull(projectId: string): Promise<string> {
+    return await invoke('vcs_pull', { projectId })
+  },
+
+  async vcsPush(projectId: string): Promise<string> {
+    return await invoke('vcs_push', { projectId })
+  },
+
+  async vcsCommit(projectId: string, message: string): Promise<string> {
+    return await invoke('vcs_commit', { projectId, message })
+  },
+
+  async vcsGetDiff(projectId: string): Promise<VcsDiffSummary> {
+    return await invoke('vcs_get_diff', { projectId })
+  },
+
+  async vcsUpdateGitignore(projectId: string): Promise<void> {
+    return await invoke('vcs_update_gitignore', { projectId })
+  },
+
+  async batchGetVcsInfo(projectIds: string[]): Promise<Array<[string, VcsInfo]>> {
+    return await invoke('batch_get_vcs_info', { projectIds })
+  },
+
+  // ─── Template Signer ───
+  async generateSigningKeypair(name: string): Promise<KeyPair> {
+    return await invoke('generate_signing_keypair', { name })
+  },
+
+  async exportTemplateSigned(templateId: string, signerName?: string): Promise<string> {
+    return await invoke('export_template_signed', { templateId, signerName: signerName || null })
+  },
+
+  async writeTemplateExport(filePath: string, dataBase64: string): Promise<void> {
+    return await invoke('write_template_export', { filePath, dataBase64 })
+  },
+
+  async importTemplateFromFile(filePath: string): Promise<TemplateManifest> {
+    return await invoke('import_template_from_file', { filePath })
+  },
+
+  async verifyTemplateSignature(manifest: TemplateManifest): Promise<SignatureVerification> {
+    return await invoke('verify_template_signature', { manifest })
+  },
+
+  async getStoredKeypairs(): Promise<KeyPair[]> {
+    return await invoke('get_stored_keypairs')
+  },
+
+  async saveKeypair(keypair: KeyPair): Promise<void> {
+    return await invoke('save_keypair', { keypair })
+  },
+
+  async deleteKeypair(publicKey: string): Promise<void> {
+    return await invoke('delete_keypair', { publicKey })
+  },
+
+  // ─── Engine Modules ───
+  async getEngineModules(engineId: string): Promise<EngineModulesInfo> {
+    return await invoke('get_engine_modules', { engineId })
+  },
+
+  async getAllEnginesModules(): Promise<EngineModulesInfo[]> {
+    return await invoke('get_all_engines_modules')
+  },
+
+  async checkProjectMissingModules(projectId: string): Promise<ModuleType[]> {
+    return await invoke('check_project_missing_modules', { projectId })
+  },
+
+  async installEngineModule(engineId: string, moduleType: ModuleType): Promise<void> {
+    return await invoke('install_engine_module', { engineId, moduleType })
+  },
+
+  async getModuleDownloadInfo(moduleType: ModuleType, version: string, isMono: boolean): Promise<Record<string, unknown>> {
+    return await invoke('get_module_download_info', { moduleType, version, isMono })
+  },
+
+  // ─── Plugin Store ───
+  async searchPluginStore(params: {
+    query: string
+    category?: string
+    godot_version?: string
+    sort_by?: string
+    page?: number
+    page_size?: number
+  }): Promise<StoreSearchResult> {
+    return await invoke('search_plugin_store', {
+      query: params.query,
+      category: params.category || null,
+      godotVersion: params.godot_version || null,
+      sortBy: params.sort_by || null,
+      page: params.page || null,
+      pageSize: params.page_size || null,
+    })
+  },
+
+  async getPluginStoreRecommendations(projectId?: string): Promise<StoreRecommendation[]> {
+    return await invoke('get_plugin_store_recommendations', { projectId: projectId || null })
+  },
+
+  async getPluginStoreCategoriesWithCounts(): Promise<StoreCategory[]> {
+    return await invoke('get_plugin_store_categories_with_counts')
+  },
+
+  async oneClickInstallPlugin(assetId: number, projectId: string, autoApply?: boolean): Promise<OneClickInstallResult> {
+    return await invoke('one_click_install_plugin', {
+      assetId,
+      projectId,
+      autoApply: autoApply ?? null,
+    })
+  },
+
+  // ─── Lockfile ───
+  async generateProjectLock(projectId: string): Promise<HarborLock> {
+    return await invoke('generate_project_lock', { projectId })
+  },
+
+  async writeProjectLock(projectId: string): Promise<void> {
+    return await invoke('write_project_lock', { projectId })
+  },
+
+  async readProjectLock(projectId: string): Promise<HarborLock | null> {
+    return await invoke('read_project_lock', { projectId })
+  },
+
+  async verifyProjectLock(projectId: string): Promise<LockVerifyResult> {
+    return await invoke('verify_project_lock', { projectId })
+  },
+
+  async diffProjectLock(projectId: string): Promise<LockDiff | null> {
+    return await invoke('diff_project_lock', { projectId })
+  },
+
+  async syncFromLock(projectId: string, strict?: boolean): Promise<string[]> {
+    return await invoke('sync_from_lock', { projectId, strict: strict ?? null })
+  },
+
+  async batchCheckLocks(projectIds: string[]): Promise<Array<[string, HarborLock | null, LockVerifyResult]>> {
+    return await invoke('batch_check_locks', { projectIds })
+  },
+
+  // ─── Batch Ops ───
+  async createSnapshot(projectId: string): Promise<EnvironmentSnapshot> {
+    return await invoke('create_snapshot', { projectId })
+  },
+
+  async listSnapshots(projectId: string): Promise<EnvironmentSnapshot[]> {
+    return await invoke('list_snapshots', { projectId })
+  },
+
+  async restoreSnapshot(projectId: string, snapshotId: string): Promise<string[]> {
+    return await invoke('restore_snapshot', { projectId, snapshotId })
+  },
+
+  async deleteSnapshot(snapshotId: string): Promise<void> {
+    return await invoke('delete_snapshot', { snapshotId })
+  },
+
+  async compareProjects(projectIdA: string, projectIdB: string): Promise<EnvironmentDiff> {
+    return await invoke('compare_projects', { projectIdA, projectIdB })
+  },
+
+  async globalUpgradePlugin(pluginId: string): Promise<GlobalUpgradeResult[]> {
+    return await invoke('global_upgrade_plugin', { pluginId })
+  },
+
+  async batchInitFromTemplate(templateId: string, projectNames: string[], baseDir: string): Promise<BatchProjectInitResult> {
+    return await invoke('batch_init_from_template', { templateId, projectNames, baseDir })
+  },
+
+  // ─── Workspace ───
+  async createWorkspace(name: string, icon?: string, color?: string): Promise<Workspace> {
+    return await invoke('create_workspace', { name, icon: icon || null, color: color || null })
+  },
+
+  async updateWorkspace(workspace: Workspace): Promise<void> {
+    return await invoke('update_workspace', { workspace })
+  },
+
+  async deleteWorkspace(workspaceId: string): Promise<void> {
+    return await invoke('delete_workspace', { workspaceId })
+  },
+
+  async listWorkspaces(): Promise<WorkspaceSummary[]> {
+    return await invoke('list_workspaces')
+  },
+
+  async getWorkspace(workspaceId: string): Promise<Workspace> {
+    return await invoke('get_workspace', { workspaceId })
+  },
+
+  async addProjectToWorkspace(workspaceId: string, projectId: string): Promise<void> {
+    return await invoke('add_project_to_workspace', { workspaceId, projectId })
+  },
+
+  async removeProjectFromWorkspace(workspaceId: string, projectId: string): Promise<void> {
+    return await invoke('remove_project_from_workspace', { workspaceId, projectId })
+  },
+
+  async getActiveWorkspace(): Promise<string | null> {
+    return await invoke('get_active_workspace')
+  },
+
+  async setActiveWorkspace(workspaceId: string | null): Promise<void> {
+    return await invoke('set_active_workspace', { workspaceId })
+  },
+
+  async moveProjectToWorkspace(projectId: string, fromWorkspaceId: string | null, toWorkspaceId: string | null): Promise<void> {
+    return await invoke('move_project_to_workspace', { projectId, fromWorkspaceId, toWorkspaceId })
   },
 }
 
