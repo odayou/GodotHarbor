@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useLockfile } from '@/composables/useLockfile'
 
 const props = defineProps<{
   projectId: string
 }>()
+
+const { t } = useI18n()
 
 const {
   lock,
@@ -36,14 +39,13 @@ watch(() => props.projectId, () => {
 <template>
   <div class="space-y-3">
     <div class="flex items-center justify-between">
-      <h4 class="text-sm font-medium text-gray-700 dark:text-content-secondary">harbor.lock 锁文件</h4>
       <div class="flex gap-1.5">
         <button
           @click="generateAndWriteLock"
           :disabled="isWriting"
           class="px-2.5 py-1 text-xs rounded bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 transition-colors"
         >
-          {{ isWriting ? '...' : '生成锁文件' }}
+          {{ isWriting ? '...' : t('lockfile.generate') }}
         </button>
         <button
           v-if="lock"
@@ -51,7 +53,7 @@ watch(() => props.projectId, () => {
           :disabled="isVerifying"
           class="px-2.5 py-1 text-xs rounded border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-secondary hover:bg-gray-50 dark:hover:bg-surface-hover disabled:opacity-50 transition-colors"
         >
-          {{ isVerifying ? '...' : '验证' }}
+          {{ isVerifying ? '...' : t('lockfile.verify') }}
         </button>
         <button
           v-if="lock && hasDrift"
@@ -59,24 +61,20 @@ watch(() => props.projectId, () => {
           :disabled="isSyncing"
           class="px-2.5 py-1 text-xs rounded bg-yellow-500 text-white hover:bg-yellow-600 disabled:opacity-50 transition-colors"
         >
-          {{ isSyncing ? '...' : '同步' }}
+          {{ isSyncing ? '...' : t('lockfile.sync') }}
         </button>
       </div>
     </div>
 
-    <!-- No lock file -->
     <div v-if="!lock && !isLoading" class="p-3 bg-gray-50 dark:bg-surface-hover rounded-lg text-sm text-gray-500 dark:text-content-muted">
-      项目尚未生成 harbor.lock 锁文件。点击"生成锁文件"记录当前环境状态，便于团队协作和版本控制。
+      {{ t('lockfile.noLockDesc') }}
     </div>
 
-    <!-- Loading -->
     <div v-else-if="isLoading" class="p-3 bg-gray-50 dark:bg-surface-hover rounded-lg text-sm text-gray-400">
-      加载中...
+      {{ t('common.loading') }}
     </div>
 
-    <!-- Lock info -->
     <div v-else-if="lock" class="space-y-2">
-      <!-- Summary -->
       <div class="p-3 rounded-lg text-sm"
         :class="verifyResult ? (verifyResult.is_valid ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800' : 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800') : 'bg-gray-50 dark:bg-surface-hover border border-gray-200 dark:border-surface-border'"
       >
@@ -93,16 +91,15 @@ watch(() => props.projectId, () => {
           <span class="font-medium"
             :class="verifyResult ? (verifyResult.is_valid ? 'text-green-700 dark:text-green-400' : 'text-yellow-700 dark:text-yellow-400') : 'text-gray-700 dark:text-content-secondary'"
           >
-            {{ pluginCount }} 个插件已锁定
+            {{ t('lockfile.pluginsLocked', { count: pluginCount }) }}
           </span>
         </div>
         <div class="text-xs text-gray-500 dark:text-content-muted">
-          锁定时间: {{ lockedAt }}
-          <span v-if="lock.engine"> | 引擎: {{ lock.engine.version }} ({{ lock.engine.engine_type }})</span>
+          {{ t('lockfile.lockedAt') }} {{ lockedAt }}
+          <span v-if="lock.engine"> | {{ t('lockfile.engine') }} {{ lock.engine.version }} ({{ lock.engine.engine_type }})</span>
         </div>
       </div>
 
-      <!-- Verify mismatches -->
       <div v-if="verifyResult && !verifyResult.is_valid" class="space-y-1.5">
         <div v-for="(m, i) in verifyResult.mismatches" :key="i"
           class="flex items-start gap-2 p-2 rounded text-xs bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800"
@@ -112,20 +109,19 @@ watch(() => props.projectId, () => {
           </svg>
           <div class="text-red-700 dark:text-red-400">
             <span class="font-medium">{{ m.plugin_name }}</span>:
-            版本 {{ m.expected_version }} → {{ m.actual_version }}
+            {{ t('lockfile.versionMismatch', { expected: m.expected_version, actual: m.actual_version }) }}
           </div>
         </div>
       </div>
 
-      <!-- Diff section -->
       <div v-if="diff && hasDrift" class="space-y-1.5">
         <div class="flex items-center justify-between">
-          <span class="text-xs font-medium text-gray-600 dark:text-content-secondary">环境差异</span>
+          <span class="text-xs font-medium text-gray-600 dark:text-content-secondary">{{ t('lockfile.envDiff') }}</span>
           <button
             @click="computeDiff"
             class="text-[10px] text-primary-600 hover:text-primary-800 dark:text-brand-primary"
           >
-            刷新
+            {{ t('lockfile.refresh') }}
           </button>
         </div>
         <div v-for="p in diff.added" :key="'a-' + p.plugin_id"
@@ -148,13 +144,12 @@ watch(() => props.projectId, () => {
         </div>
       </div>
 
-      <!-- Actions -->
       <div class="flex gap-2 pt-1">
         <button
           @click="computeDiff"
           class="text-xs text-primary-600 hover:text-primary-800 dark:text-brand-primary"
         >
-          检查差异
+          {{ t('lockfile.checkDiff') }}
         </button>
         <span class="text-gray-300 dark:text-gray-600">|</span>
         <button
@@ -162,7 +157,7 @@ watch(() => props.projectId, () => {
           :disabled="isSyncing"
           class="text-xs text-orange-600 hover:text-orange-800 dark:text-orange-400 disabled:opacity-50"
         >
-          严格同步
+          {{ t('lockfile.strictSync') }}
         </button>
         <span class="text-gray-300 dark:text-gray-600">|</span>
         <button
@@ -170,7 +165,7 @@ watch(() => props.projectId, () => {
           :disabled="isSyncing"
           class="text-xs text-primary-600 hover:text-primary-800 dark:text-brand-primary disabled:opacity-50"
         >
-          宽松同步
+          {{ t('lockfile.looseSync') }}
         </button>
       </div>
     </div>

@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '@/api'
-import type { Project, Engine, MovedProjectCandidate, ProjectBinding, Plugin, DriftReport, SyncPreview, SyncEnvironmentResult, VcsInfo, ModuleType, ProjectGroup } from '@/types'
+import type { Project, Engine, MovedProjectCandidate, ProjectBinding, Plugin, DriftReport, SyncPreview, SyncEnvironmentResult, VcsInfo, ModuleType, ProjectGroup, ProjectTemplate } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
@@ -63,6 +63,7 @@ const showScanDialog = ref(false)
 const scanDirInput = ref('')
 const showProjectDetail = ref(false)
 const selectedProject = ref<Project | null>(null)
+const detailTab = ref<'overview' | 'environment' | 'vcs'>('overview')
 const showGroupDialog = ref(false)
 const selectedGroupId = ref('')
 const showCreateGroupDialog = ref(false)
@@ -76,6 +77,14 @@ const gitUrl = ref('')
 const gitTargetDir = ref('')
 const isCloningFromGit = ref(false)
 const showAddMenu = ref(false)
+const showAddProjectDialog = ref(false)
+const addProjectMode = ref<'local' | 'git' | 'template'>('local')
+const templateList = ref<ProjectTemplate[]>([])
+const hubTemplateList = ref<any[]>([])
+const selectedTemplateId = ref('')
+const templateProjectName = ref('')
+const templateTargetDir = ref('')
+const isCreatingFromTemplate = ref(false)
 const editingProjectId = ref<string | null>(null)
 const projectMenuId = ref('')
 
@@ -363,9 +372,10 @@ const loadGroups = async () => {
   }
 }
 
-const showProjectDetails = async (project: Project) => {
+const showProjectDetails = async (project: Project, tab?: 'overview' | 'environment' | 'vcs') => {
   selectedProject.value = project
   showProjectDetail.value = true
+  detailTab.value = tab || 'overview'
   showAddPluginPanel.value = false
   driftReport.value = null
   syncPreview.value = null
@@ -687,6 +697,7 @@ const importProjectFromGit = async () => {
     const result = await api.importProjectFromGit(gitUrl.value.trim(), gitTargetDir.value.trim() || undefined)
     toast.success(t('projects.gitImport.success', { name: result.name }))
     showGitDialog.value = false
+    showAddProjectDialog.value = false
     gitUrl.value = ''
     gitTargetDir.value = ''
     await loadProjects()
@@ -707,6 +718,68 @@ const browseGitTargetDir = async () => {
     })
     if (selected && typeof selected === 'string') {
       gitTargetDir.value = selected
+    }
+  } catch { /* ignore */ }
+}
+
+const loadTemplatesForDialog = async () => {
+  try {
+    const [local, hub] = await Promise.all([
+      api.listTemplates(),
+      api.listHubTemplates()
+    ])
+    templateList.value = local
+    hubTemplateList.value = hub
+  } catch { /* ignore */ }
+}
+
+const openAddProjectDialog = () => {
+  showAddProjectDialog.value = true
+  addProjectMode.value = 'local'
+  loadTemplatesForDialog()
+}
+
+const closeAddProjectDialog = () => {
+  showAddProjectDialog.value = false
+  gitUrl.value = ''
+  gitTargetDir.value = ''
+  selectedTemplateId.value = ''
+  templateProjectName.value = ''
+  templateTargetDir.value = ''
+}
+
+const createProjectFromTemplate = async () => {
+  if (!selectedTemplateId.value || !templateProjectName.value.trim()) {
+    toast.warning(t('projects.addProjectDialog.fillRequired'))
+    return
+  }
+  isCreatingFromTemplate.value = true
+  try {
+    await api.instantiateTemplate(
+      selectedTemplateId.value,
+      templateProjectName.value.trim(),
+      templateTargetDir.value.trim() || '',
+      false
+    )
+    toast.success(t('projects.addProjectDialog.templateCreated', { name: templateProjectName.value }))
+    closeAddProjectDialog()
+    await loadProjects()
+  } catch (error) {
+    toast.error(t('projects.addProjectDialog.templateFailed', { error }))
+  } finally {
+    isCreatingFromTemplate.value = false
+  }
+}
+
+const browseTemplateTargetDir = async () => {
+  try {
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      title: t('projects.addProjectDialog.selectTargetDir')
+    })
+    if (selected && typeof selected === 'string') {
+      templateTargetDir.value = selected
     }
   } catch { /* ignore */ }
 }
@@ -955,6 +1028,7 @@ useDialogEscape(showRelocateDialog)
 useDialogEscape(showMovedDialog)
 useDialogEscape(showBatchGroupDialog)
 useDialogEscape(showGitDialog)
+useDialogEscape(showAddProjectDialog)
 useDialogEscape(showEngineSelectDialog)
 useDialogEscape(showCreateGroupDialog)
 
@@ -1219,49 +1293,14 @@ const toggleAddPluginPanel = () => {
         >
           {{ t('projects.scan') }}
         </button>
-        <div class="relative">
-          <button
-            @click="showAddMenu = !showAddMenu"
-            :disabled="isLoading"
-            class="btn-secondary disabled:opacity-50 text-sm flex items-center gap-1.5"
-          >
-            {{ t('projects.add') }}
-            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
-          </button>
-          <div v-if="showAddMenu" class="absolute right-0 mt-1 w-48 bg-white dark:bg-surface-card border border-gray-200 dark:border-surface-border rounded-xl shadow-lg z-20 py-1">
-            <button
-              @click="showAddMenu = false; addProject()"
-              class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-100 dark:hover:bg-surface-hover flex items-center gap-2"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
-              <div>
-                <div class="font-medium">{{ t('projects.addLocal') }}</div>
-                <div class="text-xs text-gray-500 dark:text-content-muted">{{ t('projects.addLocalDesc') }}</div>
-              </div>
-            </button>
-            <button
-              @click="showAddMenu = false; showGitDialog = true"
-              class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-100 dark:hover:bg-surface-hover flex items-center gap-2"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
-              <div>
-                <div class="font-medium">{{ t('projects.addFromGit') }}</div>
-                <div class="text-xs text-gray-500 dark:text-content-muted">{{ t('projects.addFromGitDesc') }}</div>
-              </div>
-            </button>
-            <hr class="my-1 border-gray-200 dark:border-surface-border" />
-            <button
-              @click="showAddMenu = false; $router.push('/templates?action=create')"
-              class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-100 dark:hover:bg-surface-hover flex items-center gap-2"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" /></svg>
-              <div>
-                <div class="font-medium">{{ t('projects.createFromTemplate') }}</div>
-                <div class="text-xs text-gray-500 dark:text-content-muted">{{ t('projects.createFromTemplateDesc') }}</div>
-              </div>
-            </button>
-          </div>
-        </div>
+        <button
+          @click="openAddProjectDialog"
+          :disabled="isLoading"
+          class="btn-secondary disabled:opacity-50 text-sm flex items-center gap-1.5"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+          {{ t('projects.addProject') }}
+        </button>
         <button
           @click="syncAllProjects"
           :disabled="isLoading"
@@ -1484,10 +1523,12 @@ const toggleAddPluginPanel = () => {
                   {{ t(`projects.status.${project.status.toLowerCase()}`) }}
                 </span>
                 <VcsStatusBadge
+                  v-if="vcsInfoMap.get(project.project_id) && vcsInfoMap.get(project.project_id)!.vcs_type === 'Git' && vcsInfoMap.get(project.project_id)!.status !== 'Clean'"
                   :vcsInfo="vcsInfoMap.get(project.project_id) || null"
                   @click="showProjectDetails(project)"
                 />
                 <LockStatusBadge
+                  v-if="lockStatusMap.get(project.project_id) === 'locked_drifted'"
                   :lockStatus="lockStatusMap.get(project.project_id) || 'not_locked'"
                 />
               </div>
@@ -1508,37 +1549,26 @@ const toggleAddPluginPanel = () => {
                   </svg>
                 </span>
                 <span
-                  v-if="projectBindingMap.get(project.project_id)?.length"
-                  class="text-sm text-gray-500 dark:text-content-secondary flex items-center gap-1"
-                >
-                  <span
-                    v-if="projectBindingMap.get(project.project_id)?.some(b => b.is_healthy === false)"
-                    class="w-2 h-2 rounded-full bg-red-500"
-                    :title="t('projects.unhealthyBindings')"
-                  ></span>
-                  {{ projectBindingMap.get(project.project_id)!.length }} {{ t('projects.pluginCount') }}
-                </span>
-                <span
-                  v-if="driftMap.get(project.project_id)?.has_drift"
-                  class="text-sm text-amber-500 flex items-center gap-1 cursor-pointer hover:text-amber-600 transition-colors"
-                  :title="t('projects.hasDrift')"
+                  v-if="projectBindingMap.get(project.project_id)?.some(b => b.is_healthy === false)"
+                  class="text-sm text-red-500 flex items-center gap-1 cursor-pointer hover:text-red-600 transition-colors"
+                  :title="t('projects.unhealthyBindings')"
                   @click.stop="showProjectDetails(project)"
                 >
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                   </svg>
-                  {{ t('projects.hasDrift') }}
+                  {{ t('projects.unhealthyBindings') }}
                 </span>
                 <span
-                  v-if="lockStatusMap.get(project.project_id) === 'locked_drifted'"
-                  class="text-sm text-yellow-500 flex items-center gap-1 cursor-pointer hover:text-yellow-600 transition-colors"
-                  :title="t('projects.lockfileDrift')"
-                  @click.stop="showProjectDetails(project)"
+                  v-if="driftMap.get(project.project_id)?.has_drift || lockStatusMap.get(project.project_id) === 'locked_drifted'"
+                  class="text-sm text-amber-500 flex items-center gap-1 cursor-pointer hover:text-amber-600 transition-colors"
+                  :title="t('projects.environmentChanged')"
+                  @click.stop="showProjectDetails(project, 'environment')"
                 >
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                   </svg>
-                  {{ t('projects.lockDrift') }}
+                  {{ t('projects.environmentChanged') }}
                 </span>
               </div>
             </div>
@@ -1633,251 +1663,61 @@ const toggleAddPluginPanel = () => {
 
   <Teleport to="body">
   <div v-if="showProjectDetail && selectedProject" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showProjectDetail = false; selectedProject = null; showAddPluginPanel = false">
-      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto" @click.stop>
-        <div class="flex items-center gap-4 mb-4">
-          <div class="flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-gray-100 dark:bg-surface-hover flex items-center justify-center">
-            <img
-              v-if="selectedProject.icon_path && getIconUrl(selectedProject.icon_path)"
-              :src="getIconUrl(selectedProject.icon_path)"
-              :alt="selectedProject.name"
-              class="w-12 h-12 object-contain"
-            />
-            <svg v-else class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-            </svg>
-          </div>
-          <div>
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">
-              {{ selectedProject.name }}
-            </h3>
-            <span class="text-sm text-gray-500 dark:text-content-muted">
-              Godot {{ selectedProject.godot_version }}
-            </span>
-          </div>
-        </div>
-        <div class="mb-4">
-          <h4 class="text-sm font-medium text-gray-700 dark:text-content-secondary mb-2">{{ t('projects.projectPath') }}</h4>
-          <div class="flex items-center gap-2">
-            <p class="text-sm text-gray-600 dark:text-content-muted break-all bg-gray-50 dark:bg-surface-hover rounded-lg p-3 flex-1">
-              {{ selectedProject.path }}
-            </p>
-            <button
-              @click="openInFileManager(selectedProject.path)"
-              class="text-primary-600 hover:text-primary-800 dark:text-brand-primary p-1 flex-shrink-0"
-              :title="t('projects.openInFileManager')"
-            >
-              <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-            </button>
-          </div>
-        </div>
-        <div class="mb-4">
-          <h4 class="text-sm font-medium text-gray-700 dark:text-content-secondary mb-2">{{ t('projects.statusLabel') }}</h4>
-          <span
-            :class="['px-3 py-1 rounded text-sm font-medium', getStatusInlineClass(selectedProject.status)]"
-          >
-            {{ t(`projects.status.${selectedProject.status.toLowerCase()}`) }}
-          </span>
-          <span v-if="selectedProject.last_synced_at" class="text-xs text-gray-400 dark:text-content-muted ml-3">
-            {{ t('projects.lastSynced') }} {{ new Date(selectedProject.last_synced_at).toLocaleString() }}
-          </span>
-        </div>
-
-        <!-- VCS Panel -->
-        <div class="mb-4">
-          <VcsPanel :projectId="selectedProject.project_id" />
-        </div>
-
-        <!-- Missing Modules Warning -->
-        <div class="mb-4">
-          <MissingModulesWarning :projectId="selectedProject.project_id" @install="handleInstallModule" />
-        </div>
-
-        <!-- Lockfile Panel -->
-        <div class="mb-4">
-          <LockfilePanel :projectId="selectedProject.project_id" />
-        </div>
-
-        <!-- Environment Snapshots -->
-        <div class="mb-4">
-          <EnvironmentSnapshotPanel :projectId="selectedProject.project_id" />
-        </div>
-
-        <!-- Drift Status -->
-        <div class="mb-4">
-          <div class="flex items-center justify-between mb-2">
-            <h4 class="text-sm font-medium text-gray-700 dark:text-content-secondary">{{ t('projects.environmentStatus') }}</h4>
-            <button
-              @click="checkDrift(selectedProject!.project_id)"
-              :disabled="isCheckingDrift"
-              class="text-xs text-primary-600 hover:text-primary-800 dark:text-brand-primary disabled:opacity-50"
-            >
-              {{ isCheckingDrift ? '...' : t('projects.recheck') }}
-            </button>
-          </div>
-          <div v-if="isCheckingDrift" class="text-sm text-gray-400">{{ t('common.loading') }}</div>
-          <div v-else-if="driftReport">
-            <div v-if="!driftReport.has_drift" class="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-              <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-              </svg>
-              <span class="text-sm text-green-700 dark:text-green-400">{{ t('projects.environmentInSync') }}</span>
-            </div>
-            <div v-else class="space-y-2">
-              <div v-for="item in driftReport.items" :key="`${item.item_type}-${item.name}`"
-                class="flex items-start gap-2 p-2.5 rounded-lg text-sm"
-                :class="{
-                  'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800': item.status === 'VersionMismatch',
-                  'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800': item.status === 'Missing',
-                  'bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800': item.status === 'Unexpected',
-                }"
-              >
-                <svg v-if="item.status === 'VersionMismatch'" class="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-                <svg v-else-if="item.status === 'Missing'" class="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                <svg v-else class="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span :class="{
-                  'text-yellow-700 dark:text-yellow-400': item.status === 'VersionMismatch',
-                  'text-red-700 dark:text-red-400': item.status === 'Missing',
-                  'text-orange-700 dark:text-orange-400': item.status === 'Unexpected',
-                }">{{ item.message }}</span>
-              </div>
-              <button
-                @click="openSyncPreview"
-                class="w-full mt-2 py-2 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors"
-              >
-                {{ t('projects.syncEnvironment') }}
-              </button>
-            </div>
-          </div>
-          <div v-else class="text-sm text-gray-400">{{ t('projects.noDriftData') }}</div>
-        </div>
-        <div class="mb-4">
-          <div class="flex items-center justify-between mb-2">
-            <h4 class="text-sm font-medium text-gray-700 dark:text-content-secondary">{{ t('projects.pluginBindings') }}</h4>
-            <button
-              @click="goToPluginBindings(selectedProject!)"
-              class="px-2.5 py-1 border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-secondary text-xs rounded hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors flex items-center gap-1"
-            >
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-              </svg>
-              {{ t('linker.goToPluginEcosystem') }}
-            </button>
-          </div>
-          <p class="text-xs text-gray-400 dark:text-content-muted mb-2">{{ t('plugins.pluginReloadHint') }}</p>
-
-          <div v-if="projectBindings.length === 0" class="text-sm text-gray-500 dark:text-content-muted mb-3">
-            {{ t('projects.noBindings') }}
-          </div>
-          <div v-else class="space-y-2 max-h-48 overflow-y-auto mb-3">
-            <div
-              v-for="binding in projectBindings"
-              :key="binding.plugin_id + binding.mount_path"
-              class="flex items-center justify-between p-2 rounded-lg"
-              :class="binding.is_healthy === false ? 'bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800' : 'bg-gray-50 dark:bg-surface-hover'"
-            >
-              <div class="flex items-center gap-2 min-w-0 flex-1">
-                <span v-if="binding.is_healthy === false" class="flex-shrink-0">
-                  <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                  </svg>
-                </span>
-                <span v-else class="flex-shrink-0">
-                  <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                </span>
-                <div class="min-w-0 flex-1">
-                  <span class="text-sm font-medium text-gray-900 dark:text-content-primary truncate">{{ getPluginName(binding.plugin_id) }}</span>
-                  <span class="text-xs text-gray-400 dark:text-content-muted ml-1.5">{{ getPluginVersion(binding.plugin_id) }}</span>
-                  <span class="text-xs text-gray-500 dark:text-content-muted ml-2 font-mono">{{ binding.mount_path }}</span>
-                </div>
-              </div>
-              <div class="flex items-center gap-1 ml-2 flex-shrink-0">
-                <button
-                  @click="togglePluginEnabled(binding)"
-                  :class="['px-2 py-1 text-xs rounded', isPluginEnabled(binding) ? 'text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20' : 'text-gray-500 dark:text-content-muted hover:bg-gray-50 dark:hover:bg-surface-layer']"
-                >
-                  {{ isPluginEnabled(binding) ? t('plugins.pluginEnabled') : t('plugins.pluginEnable') }}
-                </button>
-                <button
-                  v-if="binding.is_healthy === false"
-                  @click="repairProjectBinding(binding)"
-                  class="px-2 py-1 text-xs text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded"
-                >
-                  {{ t('plugins.bindDialog.repair') }}
-                </button>
-                <button
-                  @click="unbindProjectBinding(binding)"
-                  class="px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
-                >
-                  {{ t('linker.unbind') }}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div class="border-t border-gray-200 dark:border-surface-border pt-3">
-            <button
-              @click="toggleAddPluginPanel"
-              :class="['w-full px-3 py-2 text-sm rounded-lg transition-all flex items-center justify-center gap-2 shadow-sm', showAddPluginPanel ? 'bg-gray-100 dark:bg-surface-hover text-gray-600 dark:text-content-secondary border border-gray-300 dark:border-surface-border' : 'bg-primary-600 text-white hover:bg-primary-700 hover:shadow-md']"
-            >
-              <svg v-if="!showAddPluginPanel" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-              </svg>
-              <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-              {{ showAddPluginPanel ? t('linker.cancelBind') : t('linker.bindPlugins') }}
-            </button>
-          </div>
-
-          <div v-if="showAddPluginPanel" class="mt-2 border border-primary-200 dark:border-surface-border rounded-lg overflow-hidden">
-            <div class="p-2 bg-primary-50 dark:bg-surface-hover border-b border-primary-200 dark:border-surface-border">
-              <input
-                v-model="addPluginSearchQuery"
-                type="text"
-                :placeholder="t('plugins.search')"
-                class="w-full px-2.5 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-xs"
+      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-2xl shadow-xl max-h-[90vh] overflow-y-auto" @click.stop>
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-4">
+            <div class="flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-gray-100 dark:bg-surface-hover flex items-center justify-center">
+              <img
+                v-if="selectedProject.icon_path && getIconUrl(selectedProject.icon_path)"
+                :src="getIconUrl(selectedProject.icon_path)"
+                :alt="selectedProject.name"
+                class="w-12 h-12 object-contain"
               />
+              <svg v-else class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              </svg>
             </div>
-            <div class="max-h-48 overflow-y-auto">
-              <div v-if="availablePluginsForProject.length === 0" class="p-4 text-center text-xs text-gray-500 dark:text-content-muted">
-                {{ t('plugins.empty') }}
-              </div>
-              <div v-else-if="filteredAvailablePlugins.length === 0" class="p-4 text-center text-xs text-gray-500 dark:text-content-muted">
-                {{ t('plugins.searchNoResult') }}
-              </div>
-              <div
-                v-for="plugin in filteredAvailablePlugins"
-                :key="plugin.plugin_id"
-                class="flex items-center justify-between px-3 py-2 border-b border-gray-100 dark:border-surface-border last:border-0 hover:bg-gray-50 dark:hover:bg-surface-layer"
-              >
-                <div class="min-w-0 flex-1">
-                  <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate flex items-center gap-1">
-                    {{ plugin.name }}
-                    <span v-if="isCompatWarning(plugin, selectedProject!)" class="text-xs text-orange-500" :title="t('plugins.bindDialog.compatWarning')">⚠</span>
-                  </div>
-                  <div class="text-xs text-gray-500 dark:text-content-secondary">v{{ plugin.versions[0]?.version || '1.0.0' }} · {{ plugin.author || t('plugins.unknownAuthor') }}</div>
-                </div>
-                <button
-                  @click="bindPluginInline(plugin)"
-                  :disabled="isBindingPlugin"
-                  class="px-2 py-1 bg-primary-600 text-white text-xs rounded hover:bg-primary-700 ml-2 flex-shrink-0 disabled:opacity-50"
+            <div>
+              <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">
+                {{ selectedProject.name }}
+              </h3>
+              <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-content-muted">
+                <span>Godot {{ selectedProject.godot_version }}</span>
+                <span>·</span>
+                <span
+                  :class="['px-2 py-0.5 rounded text-xs font-medium', getStatusInlineClass(selectedProject.status)]"
                 >
-                  {{ isBindingPlugin ? t('common.loading') : t('linker.bind') }}
-                </button>
+                  {{ t(`projects.status.${selectedProject.status.toLowerCase()}`) }}
+                </span>
+                <span v-if="selectedProject.last_synced_at" class="text-xs text-gray-400 dark:text-content-muted">
+                  {{ t('projects.lastSynced') }} {{ new Date(selectedProject.last_synced_at).toLocaleString() }}
+                </span>
               </div>
             </div>
           </div>
+          <button
+            @click="showProjectDetail = false; selectedProject = null; showAddPluginPanel = false"
+            class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
+
+        <div class="flex items-center gap-2 mb-4 text-sm text-gray-500 dark:text-content-muted bg-gray-50 dark:bg-surface-hover rounded-lg p-2.5">
+          <span class="break-all flex-1">{{ selectedProject.path }}</span>
+          <button
+            @click="openInFileManager(selectedProject.path)"
+            class="text-primary-600 hover:text-primary-800 dark:text-brand-primary p-1 flex-shrink-0"
+            :title="t('projects.openInFileManager')"
+          >
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+          </button>
+        </div>
+
         <div v-if="selectedProject.status === 'MissingSource'" class="mb-4 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
           <div class="flex items-start gap-2">
             <svg class="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1896,13 +1736,252 @@ const toggleAddPluginPanel = () => {
           </div>
         </div>
 
-        <div class="flex justify-end">
+        <div class="flex border-b border-gray-200 dark:border-surface-border mb-4">
           <button
-            @click="showProjectDetail = false; selectedProject = null; showAddPluginPanel = false"
-            class="btn-secondary"
+            @click="detailTab = 'overview'"
+            :class="['px-4 py-2 text-sm font-medium border-b-2 transition-colors', detailTab === 'overview' ? 'border-primary-600 text-primary-600 dark:border-brand-primary dark:text-brand-primary' : 'border-transparent text-gray-500 dark:text-content-muted hover:text-gray-700 dark:hover:text-content-secondary']"
           >
-            {{ t('common.close') }}
+            {{ t('projects.tabOverview') }}
           </button>
+          <button
+            @click="detailTab = 'environment'"
+            :class="['px-4 py-2 text-sm font-medium border-b-2 transition-colors', detailTab === 'environment' ? 'border-primary-600 text-primary-600 dark:border-brand-primary dark:text-brand-primary' : 'border-transparent text-gray-500 dark:text-content-muted hover:text-gray-700 dark:hover:text-content-secondary']"
+          >
+            {{ t('projects.tabEnvironment') }}
+          </button>
+          <button
+            @click="detailTab = 'vcs'"
+            :class="['px-4 py-2 text-sm font-medium border-b-2 transition-colors', detailTab === 'vcs' ? 'border-primary-600 text-primary-600 dark:border-brand-primary dark:text-brand-primary' : 'border-transparent text-gray-500 dark:text-content-muted hover:text-gray-700 dark:hover:text-content-secondary']"
+          >
+            {{ t('projects.tabVcs') }}
+          </button>
+        </div>
+
+        <div v-if="detailTab === 'overview'">
+          <MissingModulesWarning :projectId="selectedProject.project_id" @install="handleInstallModule" />
+
+          <div class="mb-4">
+            <div class="flex items-center justify-between mb-2">
+              <h4 class="text-sm font-medium text-gray-700 dark:text-content-secondary">{{ t('projects.pluginBindings') }}</h4>
+              <button
+                @click="goToPluginBindings(selectedProject!)"
+                class="px-2.5 py-1 border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-secondary text-xs rounded hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors flex items-center gap-1"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+                {{ t('linker.goToPluginEcosystem') }}
+              </button>
+            </div>
+            <p class="text-xs text-gray-400 dark:text-content-muted mb-2">{{ t('plugins.pluginReloadHint') }}</p>
+
+            <div v-if="projectBindings.length === 0" class="text-sm text-gray-500 dark:text-content-muted mb-3">
+              {{ t('projects.noBindings') }}
+            </div>
+            <div v-else class="space-y-2 max-h-48 overflow-y-auto mb-3">
+              <div
+                v-for="binding in projectBindings"
+                :key="binding.plugin_id + binding.mount_path"
+                class="flex items-center justify-between p-2 rounded-lg"
+                :class="binding.is_healthy === false ? 'bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800' : 'bg-gray-50 dark:bg-surface-hover'"
+              >
+                <div class="flex items-center gap-2 min-w-0 flex-1">
+                  <span v-if="binding.is_healthy === false" class="flex-shrink-0">
+                    <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                  </span>
+                  <span v-else class="flex-shrink-0">
+                    <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </span>
+                  <div class="min-w-0 flex-1">
+                    <span class="text-sm font-medium text-gray-900 dark:text-content-primary truncate">{{ getPluginName(binding.plugin_id) }}</span>
+                    <span class="text-xs text-gray-400 dark:text-content-muted ml-1.5">{{ getPluginVersion(binding.plugin_id) }}</span>
+                    <span class="text-xs text-gray-500 dark:text-content-muted ml-2 font-mono">{{ binding.mount_path }}</span>
+                  </div>
+                </div>
+                <div class="flex items-center gap-1 ml-2 flex-shrink-0">
+                  <button
+                    @click="togglePluginEnabled(binding)"
+                    :class="['px-2 py-1 text-xs rounded', isPluginEnabled(binding) ? 'text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20' : 'text-gray-500 dark:text-content-muted hover:bg-gray-50 dark:hover:bg-surface-layer']"
+                  >
+                    {{ isPluginEnabled(binding) ? t('plugins.pluginEnabled') : t('plugins.pluginEnable') }}
+                  </button>
+                  <button
+                    v-if="binding.is_healthy === false"
+                    @click="repairProjectBinding(binding)"
+                    class="px-2 py-1 text-xs text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded"
+                  >
+                    {{ t('plugins.bindDialog.repair') }}
+                  </button>
+                  <button
+                    @click="unbindProjectBinding(binding)"
+                    class="px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                  >
+                    {{ t('linker.unbind') }}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="border-t border-gray-200 dark:border-surface-border pt-3">
+              <button
+                @click="toggleAddPluginPanel"
+                :class="['w-full px-3 py-2 text-sm rounded-lg transition-all flex items-center justify-center gap-2 shadow-sm', showAddPluginPanel ? 'bg-gray-100 dark:bg-surface-hover text-gray-600 dark:text-content-secondary border border-gray-300 dark:border-surface-border' : 'bg-primary-600 text-white hover:bg-primary-700 hover:shadow-md']"
+              >
+                <svg v-if="!showAddPluginPanel" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                {{ showAddPluginPanel ? t('linker.cancelBind') : t('linker.bindPlugins') }}
+              </button>
+            </div>
+
+            <div v-if="showAddPluginPanel" class="mt-2 border border-primary-200 dark:border-surface-border rounded-lg overflow-hidden">
+              <div class="p-2 bg-primary-50 dark:bg-surface-hover border-b border-primary-200 dark:border-surface-border">
+                <input
+                  v-model="addPluginSearchQuery"
+                  type="text"
+                  :placeholder="t('plugins.search')"
+                  class="w-full px-2.5 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-xs"
+                />
+              </div>
+              <div class="max-h-48 overflow-y-auto">
+                <div v-if="availablePluginsForProject.length === 0" class="p-4 text-center text-xs text-gray-500 dark:text-content-muted">
+                  {{ t('plugins.empty') }}
+                </div>
+                <div v-else-if="filteredAvailablePlugins.length === 0" class="p-4 text-center text-xs text-gray-500 dark:text-content-muted">
+                  {{ t('plugins.searchNoResult') }}
+                </div>
+                <div
+                  v-for="plugin in filteredAvailablePlugins"
+                  :key="plugin.plugin_id"
+                  class="flex items-center justify-between px-3 py-2 border-b border-gray-100 dark:border-surface-border last:border-0 hover:bg-gray-50 dark:hover:bg-surface-layer"
+                >
+                  <div class="min-w-0 flex-1">
+                    <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate flex items-center gap-1">
+                      {{ plugin.name }}
+                      <span v-if="isCompatWarning(plugin, selectedProject!)" class="text-xs text-orange-500" :title="t('plugins.bindDialog.compatWarning')">⚠</span>
+                    </div>
+                    <div class="text-xs text-gray-500 dark:text-content-secondary">v{{ plugin.versions[0]?.version || '1.0.0' }} · {{ plugin.author || t('plugins.unknownAuthor') }}</div>
+                  </div>
+                  <button
+                    @click="bindPluginInline(plugin)"
+                    :disabled="isBindingPlugin"
+                    class="px-2 py-1 bg-primary-600 text-white text-xs rounded hover:bg-primary-700 ml-2 flex-shrink-0 disabled:opacity-50"
+                  >
+                    {{ isBindingPlugin ? t('common.loading') : t('linker.bind') }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            v-if="driftMap.get(selectedProject.project_id)?.has_drift || lockStatusMap.get(selectedProject.project_id) === 'locked_drifted'"
+            class="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg flex items-center justify-between"
+          >
+            <div class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              <span class="text-sm text-amber-700 dark:text-amber-400">{{ t('projects.environmentChanged') }}</span>
+            </div>
+            <button
+              @click="detailTab = 'environment'"
+              class="text-xs text-primary-600 hover:text-primary-800 dark:text-brand-primary font-medium"
+            >
+              {{ t('projects.viewEnvironment') }} →
+            </button>
+          </div>
+        </div>
+
+        <div v-if="detailTab === 'environment'">
+          <div class="mb-4">
+            <div class="flex items-center justify-between mb-2">
+              <h4 class="text-sm font-medium text-gray-700 dark:text-content-secondary">{{ t('projects.environmentStatus') }}</h4>
+              <button
+                @click="checkDrift(selectedProject!.project_id)"
+                :disabled="isCheckingDrift"
+                class="text-xs text-primary-600 hover:text-primary-800 dark:text-brand-primary disabled:opacity-50"
+              >
+                {{ isCheckingDrift ? '...' : t('projects.recheck') }}
+              </button>
+            </div>
+            <div v-if="isCheckingDrift" class="text-sm text-gray-400">{{ t('common.loading') }}</div>
+            <div v-else-if="driftReport">
+              <div v-if="!driftReport.has_drift" class="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+                <span class="text-sm text-green-700 dark:text-green-400">{{ t('projects.environmentInSync') }}</span>
+              </div>
+              <div v-else class="space-y-2">
+                <div v-for="item in driftReport.items" :key="`${item.item_type}-${item.name}`"
+                  class="flex items-start gap-2 p-2.5 rounded-lg text-sm"
+                  :class="{
+                    'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800': item.status === 'VersionMismatch',
+                    'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800': item.status === 'Missing',
+                    'bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800': item.status === 'Unexpected',
+                  }"
+                >
+                  <svg v-if="item.status === 'VersionMismatch'" class="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                  <svg v-else-if="item.status === 'Missing'" class="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  <svg v-else class="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span :class="{
+                    'text-yellow-700 dark:text-yellow-400': item.status === 'VersionMismatch',
+                    'text-red-700 dark:text-red-400': item.status === 'Missing',
+                    'text-orange-700 dark:text-orange-400': item.status === 'Unexpected',
+                  }">{{ item.message }}</span>
+                </div>
+                <button
+                  @click="openSyncPreview"
+                  class="w-full mt-2 py-2 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors"
+                >
+                  {{ t('projects.syncEnvironment') }}
+                </button>
+              </div>
+            </div>
+            <div v-else class="text-sm text-gray-400">{{ t('projects.noDriftData') }}</div>
+          </div>
+
+          <div class="mb-4">
+            <details>
+              <summary class="flex items-center justify-between cursor-pointer py-2 text-sm font-medium text-gray-700 dark:text-content-secondary hover:text-primary-600 dark:hover:text-brand-primary">
+                <span>{{ t('projects.lockfileSection') }}</span>
+                <svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </summary>
+              <LockfilePanel :projectId="selectedProject.project_id" />
+            </details>
+          </div>
+
+          <div class="mb-4">
+            <details>
+              <summary class="flex items-center justify-between cursor-pointer py-2 text-sm font-medium text-gray-700 dark:text-content-secondary hover:text-primary-600 dark:hover:text-brand-primary">
+                <span>{{ t('projects.snapshotSection') }}</span>
+                <svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </summary>
+              <EnvironmentSnapshotPanel :projectId="selectedProject.project_id" />
+            </details>
+          </div>
+        </div>
+
+        <div v-if="detailTab === 'vcs'">
+          <VcsPanel :projectId="selectedProject.project_id" />
         </div>
       </div>
     </div>
@@ -2242,6 +2321,174 @@ const toggleAddPluginPanel = () => {
   </Teleport>
 
   <Teleport to="body">
+    <div v-if="showAddProjectDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="closeAddProjectDialog">
+      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-lg shadow-xl" @click.stop>
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('projects.addProjectDialog.title') }}</h3>
+          <button @click="closeAddProjectDialog" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        <div class="flex border-b border-gray-200 dark:border-surface-border mb-4">
+          <button
+            @click="addProjectMode = 'local'"
+            :class="['px-4 py-2 text-sm font-medium border-b-2 transition-colors', addProjectMode === 'local' ? 'border-primary-600 text-primary-600 dark:border-brand-primary dark:text-brand-primary' : 'border-transparent text-gray-500 dark:text-content-muted hover:text-gray-700 dark:hover:text-content-secondary']"
+          >
+            {{ t('projects.addProjectDialog.local') }}
+          </button>
+          <button
+            @click="addProjectMode = 'git'"
+            :class="['px-4 py-2 text-sm font-medium border-b-2 transition-colors', addProjectMode === 'git' ? 'border-primary-600 text-primary-600 dark:border-brand-primary dark:text-brand-primary' : 'border-transparent text-gray-500 dark:text-content-muted hover:text-gray-700 dark:hover:text-content-secondary']"
+          >
+            {{ t('projects.addProjectDialog.git') }}
+          </button>
+          <button
+            @click="addProjectMode = 'template'"
+            :class="['px-4 py-2 text-sm font-medium border-b-2 transition-colors', addProjectMode === 'template' ? 'border-primary-600 text-primary-600 dark:border-brand-primary dark:text-brand-primary' : 'border-transparent text-gray-500 dark:text-content-muted hover:text-gray-700 dark:hover:text-content-secondary']"
+          >
+            {{ t('projects.addProjectDialog.template') }}
+          </button>
+        </div>
+
+        <div v-if="addProjectMode === 'local'" class="space-y-4">
+          <p class="text-sm text-gray-500 dark:text-content-muted">{{ t('projects.addLocalDesc') }}</p>
+          <div class="flex justify-end">
+            <button
+              @click="closeAddProjectDialog(); addProject()"
+              class="btn-primary text-sm"
+            >
+              {{ t('projects.addProjectDialog.selectDir') }}
+            </button>
+          </div>
+        </div>
+
+        <div v-if="addProjectMode === 'git'" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('projects.gitImport.urlLabel') }}</label>
+            <input
+              v-model="gitUrl"
+              type="text"
+              :placeholder="t('projects.gitImport.urlPlaceholder')"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+              @keyup.enter="importProjectFromGit"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('projects.gitImport.targetDirLabel') }}</label>
+            <div class="flex gap-2">
+              <input
+                v-model="gitTargetDir"
+                type="text"
+                :placeholder="t('projects.gitImport.targetDirPlaceholder')"
+                class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+              />
+              <button
+                @click="browseGitTargetDir"
+                class="px-3 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-hover text-gray-700 dark:text-content-secondary rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer text-sm"
+              >
+                {{ t('projects.browse') }}
+              </button>
+            </div>
+            <p class="mt-1 text-xs text-gray-500 dark:text-content-muted">{{ t('projects.gitImport.targetDirHint') }}</p>
+          </div>
+          <div class="flex justify-end space-x-3">
+            <button @click="closeAddProjectDialog" class="btn-secondary text-sm">{{ t('common.cancel') }}</button>
+            <button
+              @click="importProjectFromGit"
+              :disabled="isCloningFromGit || !gitUrl.trim()"
+              class="btn-primary disabled:opacity-50 text-sm"
+            >
+              {{ isCloningFromGit ? t('projects.gitImport.cloning') : t('projects.gitImport.clone') }}
+            </button>
+          </div>
+        </div>
+
+        <div v-if="addProjectMode === 'template'" class="space-y-4">
+          <div v-if="templateList.length === 0 && hubTemplateList.length === 0" class="text-center py-6">
+            <p class="text-sm text-gray-500 dark:text-content-muted">{{ t('projects.addProjectDialog.noTemplates') }}</p>
+            <button
+              @click="closeAddProjectDialog(); $router.push('/templates')"
+              class="mt-3 text-sm text-primary-600 hover:text-primary-800 dark:text-brand-primary"
+            >
+              {{ t('projects.addProjectDialog.manageTemplates') }} →
+            </button>
+          </div>
+          <div v-else class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('projects.addProjectDialog.selectTemplate') }}</label>
+              <div class="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+                <button
+                  v-for="tmpl in hubTemplateList"
+                  :key="tmpl.id"
+                  @click="selectedTemplateId = tmpl.id"
+                  :class="['p-2.5 rounded-lg border text-left transition-all', selectedTemplateId === tmpl.id ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/20 dark:border-brand-primary' : 'border-gray-200 dark:border-surface-border hover:border-gray-300 dark:hover:border-surface-hover']"
+                >
+                  <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate">{{ tmpl.name }}</div>
+                  <div class="text-xs text-gray-500 dark:text-content-muted truncate">{{ tmpl.description || t('projects.addProjectDialog.noDesc') }}</div>
+                </button>
+                <button
+                  v-for="tmpl in templateList"
+                  :key="tmpl.template_id"
+                  @click="selectedTemplateId = tmpl.template_id"
+                  :class="['p-2.5 rounded-lg border text-left transition-all', selectedTemplateId === tmpl.template_id ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/20 dark:border-brand-primary' : 'border-gray-200 dark:border-surface-border hover:border-gray-300 dark:hover:border-surface-hover']"
+                >
+                  <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate">{{ tmpl.name }}</div>
+                  <div class="text-xs text-gray-500 dark:text-content-muted">{{ t('projects.addProjectDialog.localTemplate') }}</div>
+                </button>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('projects.addProjectDialog.projectName') }}</label>
+              <input
+                v-model="templateProjectName"
+                type="text"
+                :placeholder="t('projects.addProjectDialog.projectNamePlaceholder')"
+                class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('projects.addProjectDialog.targetDir') }}</label>
+              <div class="flex gap-2">
+                <input
+                  v-model="templateTargetDir"
+                  type="text"
+                  :placeholder="t('projects.gitImport.targetDirPlaceholder')"
+                  class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+                />
+                <button
+                  @click="browseTemplateTargetDir"
+                  class="px-3 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-hover text-gray-700 dark:text-content-secondary rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer text-sm"
+                >
+                  {{ t('projects.browse') }}
+                </button>
+              </div>
+            </div>
+            <div class="flex justify-between items-center pt-2">
+              <button
+                @click="closeAddProjectDialog(); $router.push('/templates')"
+                class="text-xs text-primary-600 hover:text-primary-800 dark:text-brand-primary"
+              >
+                {{ t('projects.addProjectDialog.manageTemplates') }}
+              </button>
+              <div class="flex space-x-3">
+                <button @click="closeAddProjectDialog" class="btn-secondary text-sm">{{ t('common.cancel') }}</button>
+                <button
+                  @click="createProjectFromTemplate"
+                  :disabled="isCreatingFromTemplate || !selectedTemplateId || !templateProjectName.trim()"
+                  class="btn-primary disabled:opacity-50 text-sm"
+                >
+                  {{ isCreatingFromTemplate ? t('common.loading') : t('projects.addProjectDialog.create') }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
     <div v-if="showGitDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showGitDialog = false; gitUrl = ''; gitTargetDir = ''">
       <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('projects.gitImport.title') }}</h3>
@@ -2308,12 +2555,26 @@ const toggleAddPluginPanel = () => {
           <div class="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent"></div>
         </div>
 
-        <div v-else-if="matchedEngines.length === 0" class="flex-1 py-8 text-center">
+        <div v-else-if="matchedEngines.length === 0" class="flex-1 py-6 text-center">
           <svg class="mx-auto h-10 w-10 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <p class="text-sm font-medium text-gray-700 dark:text-content-secondary">{{ t('projects.noMatchingEngines') }}</p>
           <p class="text-xs text-gray-500 dark:text-content-muted mt-1">{{ t('projects.noMatchingEnginesDesc') }}</p>
+          <div class="flex items-center justify-center gap-3 mt-4">
+            <button
+              @click="closeEngineSelectDialog(); $router.push('/engines')"
+              class="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors"
+            >
+              {{ t('projects.goToEngines') }}
+            </button>
+            <button
+              @click="closeEngineSelectDialog(); $router.push('/engines?action=discover')"
+              class="px-4 py-2 border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-secondary text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors"
+            >
+              {{ t('projects.discoverEngines') }}
+            </button>
+          </div>
         </div>
 
         <div v-else class="flex-1 overflow-y-auto space-y-2 min-h-0">

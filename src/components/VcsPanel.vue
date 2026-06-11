@@ -5,6 +5,7 @@ import { useVcs } from '@/composables/useVcs'
 import { useToast } from '@/composables/useToast'
 import { api } from '@/api'
 import type { VcsInfo, VcsCommit, VcsDiffSummary, VcsBranch } from '@/types'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const props = defineProps<{
   projectId: string
@@ -19,12 +20,14 @@ const commits = ref<VcsCommit[]>([])
 const diffSummary = ref<VcsDiffSummary | null>(null)
 const commitMessage = ref('')
 const stageAllChanges = ref(false)
-const isExpanded = ref(false)
+const isExpanded = ref(true)
 const isOperating = ref(false)
 const branches = ref<VcsBranch[]>([])
 const showBranchPanel = ref(false)
 const newBranchName = ref('')
 const switchingBranch = ref(false)
+const showCheckoutConfirm = ref(false)
+const pendingCheckoutBranch = ref('')
 
 const loadVcsData = async () => {
   if (!props.projectId) return
@@ -101,7 +104,14 @@ const loadBranches = async () => {
   }
 }
 
-const handleCheckout = async (branch: string) => {
+const handleCheckout = (branch: string) => {
+  pendingCheckoutBranch.value = branch
+  showCheckoutConfirm.value = true
+}
+
+const confirmCheckout = async () => {
+  const branch = pendingCheckoutBranch.value
+  showCheckoutConfirm.value = false
   switchingBranch.value = true
   try {
     await api.vcsCheckout(props.projectId, branch)
@@ -370,4 +380,24 @@ onMounted(() => {
       </button>
     </div>
   </div>
+  <div v-else-if="vcsInfo" class="border border-gray-200 dark:border-surface-border rounded-lg p-4">
+    <div class="flex items-center gap-2 text-gray-500 dark:text-content-muted">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+      <span class="text-sm">{{ t('vcs.notGitProject') }}</span>
+    </div>
+  </div>
+  <div v-else class="border border-gray-200 dark:border-surface-border rounded-lg p-4">
+    <div class="flex items-center gap-2 text-gray-400 dark:text-content-muted">
+      <div class="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-transparent"></div>
+      <span class="text-sm">{{ t('common.loading') }}</span>
+    </div>
+  </div>
+  <ConfirmDialog
+    v-model="showCheckoutConfirm"
+    :title="t('vcs.switchBranch')"
+    :description="t('vcs.checkoutConfirm', { branch: pendingCheckoutBranch })"
+    :confirmText="t('vcs.switchBranch')"
+    confirmColor="blue"
+    @confirm="confirmCheckout"
+  />
 </template>

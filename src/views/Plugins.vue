@@ -170,6 +170,7 @@ const isRestoringAddon = ref(false)
 
 const showHarborConfigDialog = ref(false)
 const showDeleteConfigConfirm = ref(false)
+const showCleanupConfirm = ref(false)
 const isExportingConfig = ref(false)
 const exportSkippedLocal = ref<string[]>([])
 const isSyncingConfig = ref(false)
@@ -719,6 +720,11 @@ const loadTotalStorageStats = async () => {
 }
 
 const cleanupOrphaned = async () => {
+  showCleanupConfirm.value = true
+}
+
+const onConfirmCleanup = async () => {
+  showCleanupConfirm.value = false
   try {
     const count = await api.cleanupOrphanedPluginDirs()
     if (count > 0) {
@@ -1607,6 +1613,7 @@ const doQuickBind = async () => {
   const subdirectory = unit.subdirectory || ''
   let successCount = 0
   let failCount = 0
+  const bindErrors: string[] = []
   const applyErrors: string[] = []
   for (const projectId of quickBindSelectedProjectIds.value) {
     try {
@@ -1623,14 +1630,16 @@ const doQuickBind = async () => {
           // ignore enable failure
         }
       }
-    } catch {
+    } catch (e: any) {
+      bindErrors.push(e?.toString() || t('common.unknownError'))
       failCount++
     }
   }
   isQuickBinding.value = false
   showQuickBindDialog.value = false
   if (failCount > 0) {
-    const errorMsg = applyErrors.length > 0 ? applyErrors.join('; ') : ''
+    const allErrors = [...bindErrors, ...applyErrors]
+    const errorMsg = allErrors.length > 0 ? allErrors.slice(0, 3).join('; ') + (allErrors.length > 3 ? ` ... (+${allErrors.length - 3})` : '') : ''
     toast.warning(t('plugins.bindDialog.partialSuccess', { success: successCount, failed: failCount }) + (errorMsg ? ` — ${errorMsg}` : ''))
   } else {
     toast.success(t('plugins.quickBind.bindSuccess', { name: plugin.name, count: successCount }))
@@ -1681,7 +1690,9 @@ const doSwitchVersion = async () => {
     await api.bindPlugin(binding.project_id, plugin.plugin_id, version.version_id, unit.unit_id, mountPath, subdirectory)
     try {
       await api.applyChanges(binding.project_id)
-    } catch {}
+    } catch {
+      toast.warning(t('plugins.applyChangesFailed'))
+    }
     toast.success(t('plugins.versionSwitch.success'))
     showVersionSwitchDialog.value = false
     if (selectedLinkId.value) {
@@ -1732,7 +1743,7 @@ const retryBatchFailed = async () => {
           const subdirectory = unit.subdirectory || ''
           for (const projectId of selectedLinkProjectIds.value) {
             await api.bindPlugin(projectId, plugin.plugin_id, version.version_id, unit.unit_id, mountPath, subdirectory)
-            try { await api.applyChanges(projectId) } catch {}
+            try { await api.applyChanges(projectId) } catch { toast.warning(t('plugins.applyChangesFailed')) }
           }
           successCount++
         }
@@ -2817,6 +2828,15 @@ const retryBatchFailed = async () => {
       :confirm-text="t('common.confirmDelete')"
       confirm-color="red"
       @confirm="onConfirmDeleteConfig"
+    />
+
+    <ConfirmDialog
+      v-model="showCleanupConfirm"
+      :title="t('plugins.cleanupOrphaned.title')"
+      :description="t('plugins.cleanupOrphaned.confirmDesc')"
+      :confirm-text="t('plugins.cleanupOrphaned.title')"
+      confirm-color="orange"
+      @confirm="onConfirmCleanup"
     />
 
   </Teleport>
