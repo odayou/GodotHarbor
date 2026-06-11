@@ -1,4 +1,5 @@
 use std::fs;
+use std::path::PathBuf;
 use tauri::{AppHandle, Emitter};
 use crate::models::*;
 use uuid::Uuid;
@@ -707,6 +708,30 @@ pub fn rename_engine(app: AppHandle, engine_id: String, new_name: String) -> Res
         .map_err(|e| format!("保存引擎列表失败: {}", e))?;
 
     log_operation(&app, "rename_engine", &engine_id, &format!("引擎重命名: {} -> {}", old_name, new_engine_name));
+    Ok(())
+}
+
+#[tauri::command]
+pub fn relocate_engine(app: AppHandle, engine_id: String, new_path: String) -> Result<(), String> {
+    let path = PathBuf::from(&new_path);
+    if !path.exists() {
+        return Err("指定路径不存在".to_string());
+    }
+
+    let storage = get_storage(&app);
+    let mut engines: Vec<Engine> = storage.load_or_default("engines.json");
+
+    let engine = engines.iter_mut()
+        .find(|e| e.engine_id == engine_id)
+        .ok_or("未找到指定引擎".to_string())?;
+
+    let old_path = engine.path.clone();
+    engine.path = new_path.clone();
+
+    storage.save("engines.json", &engines)
+        .map_err(|e| format!("保存引擎列表失败: {}", e))?;
+
+    log_operation(&app, "relocate_engine", &engine_id, &format!("引擎重定位: {} -> {}", old_path, new_path));
     Ok(())
 }
 

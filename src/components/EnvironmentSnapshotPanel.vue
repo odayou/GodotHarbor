@@ -80,7 +80,7 @@ const formatDate = (dateStr: string) => {
 <template>
   <div class="space-y-3">
     <div class="flex items-center justify-between">
-      <h4 class="text-sm font-medium text-gray-700 dark:text-content-secondary">{{ t('batchOps.snapshots') || '环境快照' }}</h4>
+      <h4 class="text-sm font-medium text-gray-700 dark:text-content-secondary">{{ t('batchOps.snapshots') }}</h4>
       <button
         @click="handleCreateSnapshot"
         :disabled="isCreatingSnapshot"
@@ -93,14 +93,14 @@ const formatDate = (dateStr: string) => {
         <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
         </svg>
-        {{ isCreatingSnapshot ? '...' : (t('batchOps.createSnapshot') || '创建快照') }}
+        {{ isCreatingSnapshot ? '...' : t('batchOps.createSnapshot') }}
       </button>
     </div>
 
     <div v-if="isLoadingSnapshots" class="text-sm text-gray-400 py-2">{{ t('common.loading') }}</div>
 
     <div v-else-if="snapshots.length === 0" class="text-sm text-gray-500 dark:text-content-muted py-2">
-      {{ t('batchOps.noSnapshots') || '暂无快照，点击上方按钮创建' }}
+      {{ t('batchOps.noSnapshots') }}
     </div>
 
     <div v-else class="space-y-2 max-h-60 overflow-y-auto">
@@ -116,7 +116,7 @@ const formatDate = (dateStr: string) => {
                 {{ formatDate(snapshot.created_at) }}
               </span>
               <span class="text-xs text-gray-500 dark:text-content-muted">
-                {{ snapshot.plugins.length }} 个插件
+                {{ snapshot.plugins.length }} {{ t('batchOps.pluginCount') }}
               </span>
               <span v-if="snapshot.engine" class="text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-surface-border text-blue-700 dark:text-content-secondary">
                 {{ snapshot.engine.name }}
@@ -130,7 +130,7 @@ const formatDate = (dateStr: string) => {
             <button
               @click="showDetailSnapshot = showDetailSnapshot?.snapshot_id === snapshot.snapshot_id ? null : snapshot"
               class="p-1.5 text-gray-500 hover:text-primary-600 dark:hover:text-brand-primary hover:bg-gray-200 dark:hover:bg-surface-layer rounded transition-colors"
-              :title="t('batchOps.viewDetail') || '查看详情'"
+              :title="t('batchOps.viewDetail')"
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -141,7 +141,7 @@ const formatDate = (dateStr: string) => {
               @click="handleRestoreSnapshot(snapshot)"
               :disabled="isRestoringSnapshot"
               class="p-1.5 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors disabled:opacity-50"
-              :title="t('batchOps.restore') || '恢复'"
+              :title="t('batchOps.restore')"
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -150,7 +150,7 @@ const formatDate = (dateStr: string) => {
             <button
               @click="confirmDeleteSnapshot(snapshot)"
               class="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-              :title="t('common.delete') || '删除'"
+              :title="t('common.delete')"
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -162,7 +162,7 @@ const formatDate = (dateStr: string) => {
         <!-- Snapshot Detail -->
         <div v-if="showDetailSnapshot?.snapshot_id === snapshot.snapshot_id" class="mt-2 pt-2 border-t border-gray-200 dark:border-surface-border">
           <div v-if="snapshot.plugins.length === 0" class="text-xs text-gray-400">
-            {{ t('batchOps.noPluginsInSnapshot') || '快照中无插件' }}
+            {{ t('batchOps.noPluginsInSnapshot') }}
           </div>
           <div v-else class="space-y-1">
             <div
@@ -180,17 +180,17 @@ const formatDate = (dateStr: string) => {
 
     <ConfirmDialog
       v-model="showDeleteConfirm"
-      :title="t('batchOps.deleteSnapshot') || '删除快照'"
-      :description="t('batchOps.deleteSnapshotConfirm') || '确定要删除此快照吗？此操作不可恢复。'"
+      :title="t('batchOps.deleteSnapshot')"
+      :description="t('batchOps.deleteSnapshotConfirm')"
       :confirm-text="t('common.confirmDelete')"
       @confirm="doDeleteSnapshot"
     />
 
     <ConfirmDialog
       v-model="showRestoreConfirm"
-      :title="t('batchOps.restoreSnapshot') || '恢复快照'"
-      :description="t('batchOps.restoreSnapshotConfirm') || '恢复快照将覆盖当前环境配置，确定要继续吗？'"
-      :confirm-text="t('batchOps.restore') || '恢复'"
+      :title="t('batchOps.restoreSnapshot')"
+      :description="t('batchOps.restoreSnapshotConfirm')"
+      :confirm-text="t('batchOps.restore')"
       @confirm="doRestoreSnapshot"
     />
   </div>

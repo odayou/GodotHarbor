@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useVcs } from '@/composables/useVcs'
 import { useToast } from '@/composables/useToast'
-import type { VcsInfo, VcsCommit, VcsDiffSummary } from '@/types'
+import { api } from '@/api'
+import type { VcsInfo, VcsCommit, VcsDiffSummary, VcsBranch } from '@/types'
 
 const props = defineProps<{
   projectId: string
 }>()
 
+const { t } = useI18n()
 const toast = useToast()
 const { getVcsInfo, getVcsHistory, pull, push, commit, getDiff, updateGitignore } = useVcs()
 
@@ -18,6 +21,10 @@ const commitMessage = ref('')
 const stageAllChanges = ref(false)
 const isExpanded = ref(false)
 const isOperating = ref(false)
+const branches = ref<VcsBranch[]>([])
+const showBranchPanel = ref(false)
+const newBranchName = ref('')
+const switchingBranch = ref(false)
 
 const loadVcsData = async () => {
   if (!props.projectId) return
@@ -37,10 +44,10 @@ const handlePull = async () => {
   isOperating.value = true
   try {
     const result = await pull(props.projectId)
-    toast.success(result)
+    toast.success(result || t('vcs.pullSuccess'))
     await loadVcsData()
   } catch (e: any) {
-    toast.error(`拉取失败: ${e?.toString() || e}`)
+    toast.error(`${t('vcs.pullFailed')}: ${e?.toString() || e}`)
   } finally {
     isOperating.value = false
   }
@@ -50,10 +57,10 @@ const handlePush = async () => {
   isOperating.value = true
   try {
     const result = await push(props.projectId)
-    toast.success(result)
+    toast.success(result || t('vcs.pushSuccess'))
     await loadVcsData()
   } catch (e: any) {
-    toast.error(`推送失败: ${e?.toString() || e}`)
+    toast.error(`${t('vcs.pushFailed')}: ${e?.toString() || e}`)
   } finally {
     isOperating.value = false
   }
@@ -61,17 +68,17 @@ const handlePush = async () => {
 
 const handleCommit = async () => {
   if (!commitMessage.value.trim()) {
-    toast.warning('请输入提交信息')
+    toast.warning(t('vcs.commitMessageRequired'))
     return
   }
   isOperating.value = true
   try {
     const result = await commit(props.projectId, commitMessage.value.trim(), stageAllChanges.value)
-    toast.success(result)
+    toast.success(result || t('vcs.commitSuccess'))
     commitMessage.value = ''
     await loadVcsData()
   } catch (e: any) {
-    toast.error(`提交失败: ${e?.toString() || e}`)
+    toast.error(`${t('vcs.commitFailed')}: ${e?.toString() || e}`)
   } finally {
     isOperating.value = false
   }
@@ -80,23 +87,65 @@ const handleCommit = async () => {
 const handleUpdateGitignore = async () => {
   try {
     await updateGitignore(props.projectId)
-    toast.success('.gitignore 已更新')
+    toast.success(t('vcs.gitignoreUpdated'))
   } catch (e: any) {
-    toast.error(`更新 .gitignore 失败: ${e?.toString() || e}`)
+    toast.error(`${t('vcs.gitignoreUpdateFailed')}: ${e?.toString() || e}`)
+  }
+}
+
+const loadBranches = async () => {
+  try {
+    branches.value = await api.vcsListBranches(props.projectId)
+  } catch {
+    branches.value = []
+  }
+}
+
+const handleCheckout = async (branch: string) => {
+  switchingBranch.value = true
+  try {
+    await api.vcsCheckout(props.projectId, branch)
+    toast.success(t('vcs.checkoutSuccess', { branch }))
+    await loadVcsData()
+    branches.value = []
+    showBranchPanel.value = false
+  } catch (e: any) {
+    toast.error(`${t('vcs.checkoutFailed')}: ${e?.toString() || e}`)
+  } finally {
+    switchingBranch.value = false
+  }
+}
+
+const handleCreateBranch = async () => {
+  if (!newBranchName.value.trim()) {
+    toast.warning(t('vcs.branchNameRequired'))
+    return
+  }
+  switchingBranch.value = true
+  try {
+    const name = newBranchName.value.trim()
+    await api.vcsCreateBranch(props.projectId, name)
+    toast.success(t('vcs.createBranchSuccess', { branch: name }))
+    await loadBranches()
+    newBranchName.value = ''
+  } catch (e: any) {
+    toast.error(`${t('vcs.createBranchFailed')}: ${e?.toString() || e}`)
+  } finally {
+    switchingBranch.value = false
   }
 }
 
 const getStatusLabel = (status: string): string => {
-  const labels: Record<string, string> = {
-    Clean: '干净',
-    Modified: '已修改',
-    Untracked: '未跟踪',
-    Ahead: '领先',
-    Behind: '落后',
-    Diverged: '分叉',
-    NoRemote: '无远程',
+  const map: Record<string, string> = {
+    Clean: t('vcs.statusClean'),
+    Modified: t('vcs.statusModified'),
+    Untracked: t('vcs.statusUntracked'),
+    Ahead: t('vcs.statusAhead'),
+    Behind: t('vcs.statusBehind'),
+    Diverged: t('vcs.statusDiverged'),
+    NoRemote: t('vcs.noRemote'),
   }
-  return labels[status] || status
+  return map[status] || status
 }
 
 const getStatusColor = (status: string): string => {
@@ -128,7 +177,7 @@ onMounted(() => {
         <svg class="w-4 h-4 text-gray-600 dark:text-content-secondary" viewBox="0 0 16 16" fill="currentColor">
           <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
         </svg>
-        <span class="text-sm font-medium text-gray-900 dark:text-content-primary">版本控制</span>
+        <span class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ t('vcs.title') }}</span>
         <span class="text-xs font-mono px-1.5 py-0.5 rounded bg-gray-200 dark:bg-surface-layer text-gray-700 dark:text-content-secondary">{{ vcsInfo.branch }}</span>
         <span class="text-xs" :class="getStatusColor(vcsInfo.status)">{{ getStatusLabel(vcsInfo.status) }}</span>
       </div>
@@ -142,28 +191,75 @@ onMounted(() => {
     </button>
 
     <div v-if="isExpanded" class="p-4 space-y-4">
-      <!-- Branch & Remote -->
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <span class="text-xs text-gray-500 dark:text-content-muted">分支</span>
-          <p class="text-sm font-medium text-gray-900 dark:text-content-primary font-mono">{{ vcsInfo.branch || '-' }}</p>
+          <span class="text-xs text-gray-500 dark:text-content-muted">{{ t('vcs.branch') }}</span>
+          <div class="flex items-center gap-1.5">
+            <p class="text-sm font-medium text-gray-900 dark:text-content-primary font-mono">{{ vcsInfo.branch || '-' }}</p>
+            <button
+              @click="showBranchPanel = !showBranchPanel; if (showBranchPanel) loadBranches()"
+              class="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-surface-layer transition-colors"
+              :title="t('vcs.switchBranch')"
+            >
+              <svg class="w-3.5 h-3.5 text-gray-400 dark:text-content-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+            </button>
+          </div>
         </div>
         <div>
-          <span class="text-xs text-gray-500 dark:text-content-muted">远程</span>
-          <p class="text-sm text-gray-900 dark:text-content-primary truncate" :title="vcsInfo.remote">{{ vcsInfo.remote || '未配置' }}</p>
+          <span class="text-xs text-gray-500 dark:text-content-muted">{{ t('vcs.remote') }}</span>
+          <p class="text-sm text-gray-900 dark:text-content-primary truncate" :title="vcsInfo.remote">{{ vcsInfo.remote || t('vcs.noRemote') }}</p>
         </div>
       </div>
 
-      <!-- Status Summary -->
+      <div v-if="showBranchPanel" class="border border-gray-200 dark:border-surface-border rounded-lg p-3 space-y-2">
+        <div class="flex gap-2">
+          <input
+            v-model="newBranchName"
+            type="text"
+            :placeholder="t('vcs.newBranchName')"
+            class="flex-1 px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-xs"
+            @keyup.enter="handleCreateBranch"
+          />
+          <button
+            @click="handleCreateBranch"
+            :disabled="switchingBranch || !newBranchName.trim()"
+            class="px-2 py-1.5 text-xs font-medium rounded bg-green-600 text-white hover:bg-green-700 transition-colors disabled:opacity-50"
+          >{{ t('vcs.createBranch') }}</button>
+        </div>
+        <div class="max-h-40 overflow-y-auto space-y-0.5">
+          <button
+            v-for="b in branches"
+            :key="b.name + (b.is_remote ? '-r' : '-l')"
+            @click="!b.is_current && !b.is_remote && handleCheckout(b.name)"
+            :disabled="b.is_current || b.is_remote || switchingBranch"
+            :class="[
+              'w-full flex items-center justify-between px-2 py-1.5 rounded text-xs transition-colors',
+              b.is_current
+                ? 'bg-surface-hover text-brand-primary font-medium'
+                : b.is_remote
+                  ? 'text-gray-400 dark:text-content-muted cursor-not-allowed'
+                  : 'text-gray-700 dark:text-content-secondary hover:bg-gray-100 dark:hover:bg-surface-layer'
+            ]"
+          >
+            <span class="font-mono flex items-center gap-1.5">
+              <span v-if="b.is_current" class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+              <span v-if="b.is_remote" class="text-[10px] text-gray-400">remote/</span>
+              {{ b.name }}
+            </span>
+            <span v-if="b.last_commit_date" class="text-[10px] text-gray-400 dark:text-content-muted">{{ b.last_commit_date }}</span>
+          </button>
+        </div>
+      </div>
+
       <div class="flex gap-3 text-sm">
         <span v-if="vcsInfo.staged_files > 0" class="text-green-600 dark:text-green-400">
-          <span class="font-medium">{{ vcsInfo.staged_files }}</span> 已暂存
+          <span class="font-medium">{{ vcsInfo.staged_files }}</span> {{ t('vcs.staged') }}
         </span>
         <span v-if="vcsInfo.modified_files > 0" class="text-yellow-600 dark:text-yellow-400">
-          <span class="font-medium">{{ vcsInfo.modified_files }}</span> 已修改
+          <span class="font-medium">{{ vcsInfo.modified_files }}</span> {{ t('vcs.statusModified') }}
         </span>
         <span v-if="vcsInfo.untracked_files > 0" class="text-blue-600 dark:text-blue-400">
-          <span class="font-medium">{{ vcsInfo.untracked_files }}</span> 未跟踪
+          <span class="font-medium">{{ vcsInfo.untracked_files }}</span> {{ t('vcs.statusUntracked') }}
         </span>
         <span v-if="vcsInfo.ahead > 0" class="text-purple-600 dark:text-purple-400">
           ↑<span class="font-medium">{{ vcsInfo.ahead }}</span>
@@ -172,11 +268,10 @@ onMounted(() => {
           ↓<span class="font-medium">{{ vcsInfo.behind }}</span>
         </span>
         <span v-if="vcsInfo.staged_files === 0 && vcsInfo.modified_files === 0 && vcsInfo.untracked_files === 0" class="text-green-600 dark:text-green-400">
-          无变更
+          {{ t('vcs.noChanges') }}
         </span>
       </div>
 
-      <!-- Actions -->
       <div class="flex gap-2">
         <button
           @click="handlePull"
@@ -185,7 +280,7 @@ onMounted(() => {
         >
           <svg v-if="isOperating" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
           <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-          拉取
+          {{ t('vcs.pull') }}
         </button>
         <button
           @click="handlePush"
@@ -194,17 +289,16 @@ onMounted(() => {
         >
           <svg v-if="isOperating" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
           <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
-          推送
+          {{ t('vcs.push') }}
         </button>
       </div>
 
-      <!-- Commit -->
       <div class="space-y-2">
         <div class="flex gap-2">
           <input
             v-model="commitMessage"
             type="text"
-            placeholder="提交信息"
+            :placeholder="t('vcs.commitMessage')"
             class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
             @keyup.enter="handleCommit"
           />
@@ -213,7 +307,7 @@ onMounted(() => {
             :disabled="isOperating || !commitMessage.trim()"
             class="px-4 py-2 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors disabled:opacity-50"
           >
-            提交
+            {{ t('vcs.commit') }}
           </button>
         </div>
         <label class="flex items-center gap-2 cursor-pointer select-none">
@@ -222,13 +316,12 @@ onMounted(() => {
             type="checkbox"
             class="w-3.5 h-3.5 rounded border-gray-300 dark:border-surface-border text-green-600 focus:ring-green-500"
           />
-          <span class="text-xs text-gray-500 dark:text-content-muted">暂存所有更改</span>
+          <span class="text-xs text-gray-500 dark:text-content-muted">{{ t('vcs.stageAll') }}</span>
         </label>
       </div>
 
-      <!-- Diff Summary -->
       <div v-if="diffSummary && diffSummary.files.length > 0" class="space-y-1">
-        <span class="text-xs text-gray-500 dark:text-content-muted">变更文件 ({{ diffSummary.added }} 新增 / {{ diffSummary.modified }} 修改 / {{ diffSummary.deleted }} 删除)</span>
+        <span class="text-xs text-gray-500 dark:text-content-muted">{{ t('vcs.changedFiles') }} ({{ t('vcs.diffSummary', { added: diffSummary.added, modified: diffSummary.modified, deleted: diffSummary.deleted }) }})</span>
         <div class="max-h-32 overflow-y-auto space-y-0.5">
           <div
             v-for="file in diffSummary.files"
@@ -251,9 +344,8 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Recent Commits -->
       <div v-if="commits.length > 0" class="space-y-2">
-        <span class="text-xs text-gray-500 dark:text-content-muted">最近提交</span>
+        <span class="text-xs text-gray-500 dark:text-content-muted">{{ t('vcs.recentCommits') }}</span>
         <div class="space-y-1.5 max-h-40 overflow-y-auto">
           <div
             v-for="c in commits"
@@ -269,13 +361,12 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Update .gitignore -->
       <button
         @click="handleUpdateGitignore"
         class="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-secondary hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors flex items-center justify-center gap-1.5"
       >
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-        更新 .gitignore
+        {{ t('vcs.updateGitignore') }}
       </button>
     </div>
   </div>

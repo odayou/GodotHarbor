@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import type { VcsInfo, VcsStatus } from '@/types'
+
+const { t } = useI18n()
 
 defineProps<{
   vcsInfo: VcsInfo | null
@@ -37,28 +40,26 @@ const getStatusIcon = (status: VcsStatus): string => {
 
 const getStatusLabel = (status: VcsStatus): string => {
   switch (status) {
-    case 'Clean': return '干净'
-    case 'Modified': return '已修改'
-    case 'Untracked': return '未跟踪'
-    case 'Ahead': return '领先'
-    case 'Behind': return '落后'
-    case 'Diverged': return '分叉'
-    case 'NoRemote': return '无远程'
-    default: return '未知'
+    case 'Clean': return t('vcs.statusClean')
+    case 'Modified': return t('vcs.statusModified')
+    case 'Untracked': return t('vcs.statusUntracked')
+    case 'Ahead': return t('vcs.statusAhead')
+    case 'Behind': return t('vcs.statusBehind')
+    case 'Diverged': return t('vcs.statusDiverged')
+    case 'NoRemote': return t('vcs.noRemote')
+    default: return t('common.unknown')
   }
 }
 </script>
 
 <template>
-  <!-- Non-Git project hint -->
   <span
     v-if="vcsInfo && vcsInfo.vcs_type === 'None'"
     class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500"
-    title="此项目未使用 Git 版本控制"
+    :title="t('vcs.notGitProject')"
   >
-    非Git
+    {{ t('vcs.nonGit') }}
   </span>
-  <!-- Git project badge -->
   <span
     v-if="vcsInfo && vcsInfo.vcs_type === 'Git'"
     class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer transition-colors hover:opacity-80"

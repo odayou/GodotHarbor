@@ -677,6 +677,102 @@ fn update_gitignore_section(
     Ok(())
 }
 
+// ─── Branch Operations ───
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VcsBranch {
+    pub name: String,
+    pub is_current: bool,
+    pub is_remote: bool,
+    pub last_commit_date: Option<String>,
+}
+
+pub fn list_branches(project_path: &str) -> Result<Vec<VcsBranch>> {
+    let repo = git2::Repository::open(project_path)
+        .with_context(|| format!("无法打开 Git 仓库: {}", project_path))?;
+
+    let current_branch = repo.head()
+        .ok()
+        .and_then(|h| h.shorthand().map(|s| s.to_string()));
+
+    let mut branches = Vec::new();
+
+    for branch_result in repo.branches(Some(git2::BranchType::Local))? {
+        let (branch, _bt) = branch_result?;
+        let name = branch.name()?.unwrap_or("").to_string();
+        let is_current = current_branch.as_ref() == Some(&name);
+        let last_commit_date = branch.get().target().and_then(|oid| {
+            repo.find_commit(oid).ok().and_then(|c| {
+                let secs = c.time().seconds();
+                chrono::DateTime::from_timestamp(secs, 0)
+                    .map(|d| d.format("%Y-%m-%d %H:%M").to_string())
+            })
+        });
+        branches.push(VcsBranch { name, is_current, is_remote: false, last_commit_date });
+    }
+
+    for branch_result in repo.branches(Some(git2::BranchType::Remote))? {
+        let (branch, _bt) = branch_result?;
+        let full_name = branch.name()?.unwrap_or("").to_string();
+        if full_name.ends_with("/HEAD") { continue; }
+        let name = full_name.splitn(2, '/').nth(1).unwrap_or(&full_name).to_string();
+        let is_current = current_branch.as_ref() == Some(&name);
+        let last_commit_date = branch.get().target().and_then(|oid| {
+            repo.find_commit(oid).ok().and_then(|c| {
+                let secs = c.time().seconds();
+                chrono::DateTime::from_timestamp(secs, 0)
+                    .map(|d| d.format("%Y-%m-%d %H:%M").to_string())
+            })
+        });
+        branches.push(VcsBranch { name, is_current, is_remote: true, last_commit_date });
+    }
+
+    Ok(branches)
+}
+
+pub fn checkout_branch(project_path: &str, branch: &str) -> Result<()> {
+    let repo = git2::Repository::open(project_path)
+        .with_context(|| format!("无法打开 Git 仓库: {}", project_path))?;
+
+    let statuses = repo.statuses(Some(
+        git2::StatusOptions::new().include_untracked(true)
+    ))?;
+    let has_changes = statuses.iter().any(|s| {
+        let st = s.status();
+        st.intersects(git2::Status::INDEX_NEW | git2::Status::INDEX_MODIFIED |
+            git2::Status::INDEX_DELETED | git2::Status::WT_MODIFIED |
+            git2::Status::WT_DELETED | git2::Status::WT_RENAMED)
+    });
+    if has_changes {
+        bail!("工作区有未提交的更改，请先提交或暂存后再切换分支");
+    }
+
+    let refname = format!("refs/heads/{}", branch);
+    repo.set_head(&refname)
+        .with_context(|| format!("无法切换到分支: {}", branch))?;
+    repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))
+        .with_context(|| format!("无法检出分支: {}", branch))?;
+
+    invalidate_cache(project_path);
+    Ok(())
+}
+
+pub fn create_branch(project_path: &str, branch: &str) -> Result<()> {
+    let repo = git2::Repository::open(project_path)
+        .with_context(|| format!("无法打开 Git 仓库: {}", project_path))?;
+
+    let head = repo.head()
+        .with_context(|| "无法获取 HEAD 引用")?;
+    let commit = head.target()
+        .and_then(|oid| repo.find_commit(oid).ok())
+        .ok_or_else(|| anyhow::anyhow!("无法获取当前提交"))?;
+
+    repo.branch(branch, &commit, false)
+        .with_context(|| format!("无法创建分支: {}", branch))?;
+
+    Ok(())
+}
+
 fn invalidate_cache(project_path: &str) {
     if let Ok(mut cache) = VCS_CACHE.lock() {
         if let Some(map) = cache.as_mut() {

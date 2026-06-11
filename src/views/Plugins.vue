@@ -2205,7 +2205,7 @@ const retryBatchFailed = async () => {
               class="px-3 py-1 border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-secondary text-xs rounded-lg hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors flex items-center gap-1"
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" /></svg>
-              {{ t('batchOps.globalUpgrade') || '全局升级' }}
+              {{ t('batchOps.globalUpgrade') }}
             </button>
             <button @click="closePluginDetail" class="text-gray-500 dark:text-content-secondary hover:text-gray-700 dark:hover:text-content-primary text-sm">
               {{ t('common.close') }}

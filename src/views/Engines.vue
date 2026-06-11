@@ -496,6 +496,20 @@ const openRenameDialog = (engine: Engine) => {
   showRenameDialog.value = true
 }
 
+const handleRelocateEngine = async (engineId: string) => {
+  const selected = await open({ directory: true, multiple: false, title: t('engines.relocateTitle') })
+  if (!selected) return
+  const newPath = typeof selected === 'string' ? selected : (selected as string[])[0]
+  if (!newPath) return
+  try {
+    await api.relocateEngine(engineId, newPath)
+    toast.success(t('engines.relocateSuccess'))
+    await loadEngines()
+  } catch (e: any) {
+    toast.error(t('engines.relocateFailed', { error: e?.toString() || e }) || `重定位失败: ${e}`)
+  }
+}
+
 const saveRename = async () => {
   if (!renameInput.value.trim()) {
     toast.warning(t('engines.nameRequired'))
@@ -945,7 +959,11 @@ const hasMissingModules = (engineId: string): boolean => {
                     class="text-primary-600 dark:text-brand-primary hover:text-primary-800 dark:hover:text-brand-primary p-2.5 rounded-lg hover:bg-primary-50 dark:hover:bg-surface-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     :title="t('engines.launch')"
                   >
-                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg v-if="isLaunchingEngine" class="h-6 w-6 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    <svg v-else class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
@@ -957,7 +975,11 @@ const hasMissingModules = (engineId: string): boolean => {
                     class="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 p-2.5 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     :title="t('engines.launchRecentProject', { name: getRecentProjectForEngine(engine.engine_id)!.name })"
                   >
-                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg v-if="isLaunchingEngine" class="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    <svg v-else class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
                   </button>
@@ -976,19 +998,18 @@ const hasMissingModules = (engineId: string): boolean => {
                       class="absolute right-0 top-full mt-1 bg-white dark:bg-surface-hover rounded-xl shadow-lg border border-gray-200 dark:border-surface-border py-1 z-20 min-w-[140px]"
                     >
                       <button
-                        @click="launchEngine(engine.engine_id); openMenuId = ''"
-                        :disabled="isLaunchingEngine"
-                        class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-content-primary hover:bg-gray-100 dark:hover:bg-surface-layer flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        {{ t('engines.launch') }}
-                      </button>
-                      <button
                         @click="openRenameDialog(engine); openMenuId = ''"
                         class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-content-primary hover:bg-gray-100 dark:hover:bg-surface-layer flex items-center gap-2"
                       >
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                         {{ t('engines.rename') }}
+                      </button>
+                      <button
+                        @click="handleRelocateEngine(engine.engine_id); openMenuId = ''"
+                        class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-content-primary hover:bg-gray-100 dark:hover:bg-surface-layer flex items-center gap-2"
+                      >
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                        {{ t('engines.relocate') }}
                       </button>
                       <button
                         @click="openInFileManager(engine.path); openMenuId = ''"

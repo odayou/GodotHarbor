@@ -39,6 +39,7 @@ import type {
   VcsInfo,
   VcsCommit,
   VcsDiffSummary,
+  VcsBranch,
   TemplateManifest,
   ModuleType,
   EngineModulesInfo,
@@ -324,6 +325,10 @@ export const api = {
 
   async renameEngine(engineId: string, newName: string): Promise<void> {
     return await invoke('rename_engine', { engineId, newName })
+  },
+
+  async relocateEngine(engineId: string, newPath: string): Promise<void> {
+    return await invoke('relocate_engine', { engineId, newPath })
   },
 
   async launchEngine(engineId: string, projectPath?: string, projectId?: string): Promise<void> {
@@ -645,6 +650,10 @@ export const api = {
     return await invoke('build_project', { projectId, platform, presetName })
   },
 
+  async cancelBuild(): Promise<boolean> {
+    return await invoke('cancel_build')
+  },
+
   async getBuildRecords(projectId?: string): Promise<import('@/types').BuildRecord[]> {
     return await invoke('get_build_records', { projectId })
   },
@@ -733,6 +742,18 @@ export const api = {
 
   async batchGetVcsInfo(projectIds: string[]): Promise<Array<[string, VcsInfo]>> {
     return await invoke('batch_get_vcs_info', { projectIds })
+  },
+
+  async vcsListBranches(projectId: string): Promise<VcsBranch[]> {
+    return await invoke('vcs_list_branches', { projectId })
+  },
+
+  async vcsCheckout(projectId: string, branch: string): Promise<void> {
+    return await invoke('vcs_checkout', { projectId, branch })
+  },
+
+  async vcsCreateBranch(projectId: string, branch: string): Promise<void> {
+    return await invoke('vcs_create_branch', { projectId, branch })
   },
 
   // ─── Template Signer ───

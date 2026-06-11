@@ -37,12 +37,12 @@ const handleInstallModule = async (moduleType: any) => {
   if (!selectedProject.value) return
   const engineId = selectedProject.value.last_used_engine_id
   if (!engineId) {
-    toast.warning('请先为项目指定引擎')
+    toast.warning(t('projects.specifyEngineFirst'))
     return
   }
   try {
     await api.installEngineModule(engineId, moduleType)
-    toast.success(`正在安装 ${moduleType} 模块...`)
+    toast.success(t('projects.installingModule', { type: moduleType }))
   } catch (e: any) {
     toast.error(String(e))
   }
@@ -412,9 +412,9 @@ const executeSync = async () => {
     syncResult.value = await api.syncProjectEnvironment(selectedProject.value.project_id, onlyItems)
     showSyncPreview.value = false
     if (syncResult.value.failed > 0) {
-      toast.warning(t('projects.syncPartialWarning') || `同步完成，${syncResult.value.failed} 项失败`)
+      toast.warning(t('projects.syncPartialWarning'))
     } else {
-      toast.success(t('projects.syncEnvironmentSuccess') || '环境同步完成')
+      toast.success(t('projects.syncEnvironmentSuccess'))
     }
     await checkDrift(selectedProject.value.project_id)
     projectBindings.value = await api.getProjectBindings(selectedProject.value.project_id)
@@ -888,7 +888,7 @@ const openCreateGroupDialog = () => {
 
 const createGroup = async () => {
   if (!newGroupName.value.trim()) {
-    toast.warning('请输入分组名称')
+    toast.warning(t('projects.groupNameRequired'))
     return
   }
   isCreatingGroup.value = true
@@ -902,7 +902,7 @@ const createGroup = async () => {
     await loadGroups()
     selectedGroupId.value = group.group_id
     showCreateGroupDialog.value = false
-    toast.success(`分组「${group.name}」已创建`)
+    toast.success(t('projects.groupCreated', { name: group.name }))
   } catch (error) {
     toast.error(String(error))
   } finally {
@@ -913,7 +913,7 @@ const createGroup = async () => {
 const deleteGroup = async (groupId: string) => {
   const group = getGroupById(groupId)
   if (!group) return
-  confirm(t('common.confirmDelete'), `确定要删除分组「${group.name}」吗？该分组下的项目将变为未分组。`, async () => {
+  confirm(t('common.confirmDelete'), t('projects.deleteGroupConfirm', { name: group.name }), async () => {
     try {
       await api.deleteProjectGroup(groupId)
       if (selectedGroupId.value === groupId) {
@@ -921,7 +921,7 @@ const deleteGroup = async (groupId: string) => {
       }
       await loadGroups()
       await loadProjects()
-      toast.success(`分组「${group.name}」已删除`)
+      toast.success(t('projects.groupDeleted', { name: group.name }))
     } catch (error) {
       toast.error(String(error))
     }
@@ -984,7 +984,7 @@ const handleSaveAsTemplate = async () => {
     toast.success(t('templates.saveSuccess'))
     showSaveAsTemplateDialog.value = false
   } catch (e: any) {
-    toast.error(`Failed: ${e?.toString() || e}`)
+    toast.error(`${t('templates.generateFailed')}: ${e?.toString() || e}`)
   } finally {
     isSavingAsTemplate.value = false
   }
@@ -1256,8 +1256,8 @@ const toggleAddPluginPanel = () => {
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" /></svg>
               <div>
-                <div class="font-medium">{{ t('projects.createFromTemplate') || '从模板创建' }}</div>
-                <div class="text-xs text-gray-500 dark:text-content-muted">{{ t('projects.createFromTemplateDesc') || '选择模板快速创建项目' }}</div>
+                <div class="font-medium">{{ t('projects.createFromTemplate') }}</div>
+                <div class="text-xs text-gray-500 dark:text-content-muted">{{ t('projects.createFromTemplateDesc') }}</div>
               </div>
             </button>
           </div>
@@ -1368,7 +1368,7 @@ const toggleAddPluginPanel = () => {
           class="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-1.5"
         >
           <svg v-if="isBatchDeleting" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-          {{ isBatchDeleting ? (t('common.deleting') || '删除中...') : `${t('common.batchDelete')} (${selectedCount})` }}
+          {{ isBatchDeleting ? t('common.deleting') : `${t('common.batchDelete')} (${selectedCount})` }}
         </button>
       </div>
     </div>
@@ -1521,24 +1521,24 @@ const toggleAddPluginPanel = () => {
                 <span
                   v-if="driftMap.get(project.project_id)?.has_drift"
                   class="text-sm text-amber-500 flex items-center gap-1 cursor-pointer hover:text-amber-600 transition-colors"
-                  :title="t('projects.hasDrift') || '环境漂移'"
+                  :title="t('projects.hasDrift')"
                   @click.stop="showProjectDetails(project)"
                 >
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                   </svg>
-                  {{ t('projects.hasDrift') || '漂移' }}
+                  {{ t('projects.hasDrift') }}
                 </span>
                 <span
                   v-if="lockStatusMap.get(project.project_id) === 'locked_drifted'"
                   class="text-sm text-yellow-500 flex items-center gap-1 cursor-pointer hover:text-yellow-600 transition-colors"
-                  :title="'锁文件漂移'"
+                  :title="t('projects.lockfileDrift')"
                   @click.stop="showProjectDetails(project)"
                 >
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                   </svg>
-                  锁漂移
+                  {{ t('projects.lockDrift') }}
                 </span>
               </div>
             </div>
@@ -1619,7 +1619,7 @@ const toggleAddPluginPanel = () => {
                   >
                     <svg v-if="deletingProjectId === project.project_id" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
                     <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                    {{ deletingProjectId === project.project_id ? (t('common.deleting') || '删除中...') : t('projects.delete') }}
+                    {{ deletingProjectId === project.project_id ? t('common.deleting') : t('projects.delete') }}
                   </button>
                 </div>
               </div>
@@ -1707,13 +1707,13 @@ const toggleAddPluginPanel = () => {
         <!-- Drift Status -->
         <div class="mb-4">
           <div class="flex items-center justify-between mb-2">
-            <h4 class="text-sm font-medium text-gray-700 dark:text-content-secondary">{{ t('projects.environmentStatus') || '环境状态' }}</h4>
+            <h4 class="text-sm font-medium text-gray-700 dark:text-content-secondary">{{ t('projects.environmentStatus') }}</h4>
             <button
               @click="checkDrift(selectedProject!.project_id)"
               :disabled="isCheckingDrift"
               class="text-xs text-primary-600 hover:text-primary-800 dark:text-brand-primary disabled:opacity-50"
             >
-              {{ isCheckingDrift ? '...' : (t('projects.recheck') || '重新检测') }}
+              {{ isCheckingDrift ? '...' : t('projects.recheck') }}
             </button>
           </div>
           <div v-if="isCheckingDrift" class="text-sm text-gray-400">{{ t('common.loading') }}</div>
@@ -1722,7 +1722,7 @@ const toggleAddPluginPanel = () => {
               <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
               </svg>
-              <span class="text-sm text-green-700 dark:text-green-400">{{ t('projects.environmentInSync') || '环境一致，无漂移' }}</span>
+              <span class="text-sm text-green-700 dark:text-green-400">{{ t('projects.environmentInSync') }}</span>
             </div>
             <div v-else class="space-y-2">
               <div v-for="item in driftReport.items" :key="`${item.item_type}-${item.name}`"
@@ -1752,11 +1752,11 @@ const toggleAddPluginPanel = () => {
                 @click="openSyncPreview"
                 class="w-full mt-2 py-2 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors"
               >
-                {{ t('projects.syncEnvironment') || '一键同步环境' }}
+                {{ t('projects.syncEnvironment') }}
               </button>
             </div>
           </div>
-          <div v-else class="text-sm text-gray-400">{{ t('projects.noDriftData') || '未检测' }}</div>
+          <div v-else class="text-sm text-gray-400">{{ t('projects.noDriftData') }}</div>
         </div>
         <div class="mb-4">
           <div class="flex items-center justify-between mb-2">
@@ -1912,9 +1912,9 @@ const toggleAddPluginPanel = () => {
   <Teleport to="body">
     <div v-if="showSyncPreview && syncPreview" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showSyncPreview = false">
       <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('projects.syncPreviewTitle') || '同步预览' }}</h3>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('projects.syncPreviewTitle') }}</h3>
         <div v-if="syncPreview.actions.length === 0" class="text-sm text-gray-500 dark:text-content-muted mb-4">
-          {{ t('projects.noActionsNeeded') || '无需操作，环境已一致' }}
+          {{ t('projects.noActionsNeeded') }}
         </div>
         <div v-else class="space-y-2 mb-4 max-h-60 overflow-y-auto">
           <label
@@ -1946,7 +1946,7 @@ const toggleAddPluginPanel = () => {
                 'bg-orange-100 text-orange-700 dark:bg-orange-800 dark:text-orange-300': action.action_type === 'remove',
               }"
             >
-              {{ action.action_type === 'install' ? (t('projects.actionInstall') || '安装') : action.action_type === 'update' ? (t('projects.actionUpdate') || '更新') : (t('projects.actionRemove') || '移除') }}
+              {{ action.action_type === 'install' ? t('projects.actionInstall') : action.action_type === 'update' ? t('projects.actionUpdate') : t('projects.actionRemove') }}
             </span>
             <span class="text-gray-700 dark:text-content-secondary">{{ action.detail }}</span>
           </label>
@@ -1954,8 +1954,8 @@ const toggleAddPluginPanel = () => {
         <div v-if="syncResult" class="mb-4 p-3 rounded-lg text-sm"
           :class="syncResult.failed > 0 ? 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800' : 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'"
         >
-          <p class="font-medium mb-1">{{ t('projects.syncResult') || '同步结果' }}</p>
-          <p>{{ t('projects.syncedCount') || '已同步' }}: {{ syncResult.synced }} | {{ t('projects.skippedCount') || '跳过' }}: {{ syncResult.skipped }} | {{ t('projects.failedCount') || '失败' }}: {{ syncResult.failed }}</p>
+          <p class="font-medium mb-1">{{ t('projects.syncResult') }}</p>
+          <p>{{ t('projects.syncedCount') }}: {{ syncResult.synced }} | {{ t('projects.skippedCount') }}: {{ syncResult.skipped }} | {{ t('projects.failedCount') }}: {{ syncResult.failed }}</p>
           <div v-if="syncResult.details.length > 0" class="mt-1 text-xs space-y-0.5">
             <p v-for="(d, i) in syncResult.details" :key="i">{{ d }}</p>
           </div>
@@ -1969,7 +1969,7 @@ const toggleAddPluginPanel = () => {
             :disabled="isSyncing || selectedSyncItems.size === 0"
             class="flex-1 py-2.5 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
           >
-            {{ isSyncing ? '...' : (t('projects.confirmSync') || '确认同步') }}
+            {{ isSyncing ? '...' : t('projects.confirmSync') }}
           </button>
         </div>
       </div>
@@ -2059,7 +2059,7 @@ const toggleAddPluginPanel = () => {
             <button
               @click.stop="deleteGroup(group.group_id)"
               class="text-gray-400 hover:text-red-500 dark:hover:text-red-400 p-0.5 shrink-0"
-              :title="'删除分组'"
+              :title="t('projects.deleteGroup')"
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
             </button>
@@ -2070,7 +2070,7 @@ const toggleAddPluginPanel = () => {
           class="w-full mt-2 py-2 text-sm text-primary-600 dark:text-brand-primary hover:bg-primary-50 dark:hover:bg-surface-hover rounded-lg border border-dashed border-primary-300 dark:border-surface-border flex items-center justify-center gap-1.5 transition-colors"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
-          创建新分组
+          {{ t('projects.createGroup') }}
         </button>
         <div class="flex justify-end space-x-3 mt-6">
           <button
@@ -2422,21 +2422,21 @@ const toggleAddPluginPanel = () => {
   <Teleport to="body">
     <div v-if="showCreateGroupDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="!isCreatingGroup && (showCreateGroupDialog = false)">
       <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">创建新分组</h3>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('projects.createGroup') }}</h3>
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">分组名称</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('projects.groupName') }}</label>
             <input
               v-model="newGroupName"
               type="text"
-              placeholder="例如：2D项目、3D项目"
+              :placeholder="t('projects.groupNamePlaceholder')"
               class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
               @keyup.enter="createGroup"
             />
           </div>
           <div class="flex gap-4">
             <div class="flex-1">
-              <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">图标 (Emoji)</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('projects.groupIcon') }}</label>
               <input
                 v-model="newGroupIcon"
                 type="text"
@@ -2445,7 +2445,7 @@ const toggleAddPluginPanel = () => {
               />
             </div>
             <div class="flex-1">
-              <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">颜色</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('projects.groupColor') }}</label>
               <div class="flex items-center gap-2">
                 <input
                   v-model="newGroupColor"
@@ -2461,20 +2461,20 @@ const toggleAddPluginPanel = () => {
             </div>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">描述 (可选)</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('projects.groupDescription') }}</label>
             <input
               v-model="newGroupDescription"
               type="text"
-              placeholder="分组描述"
+              :placeholder="t('projects.groupDescriptionPlaceholder')"
               class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
             />
           </div>
           <div class="p-3 rounded-lg border border-gray-200 dark:border-surface-border bg-gray-50 dark:bg-surface-hover">
-            <p class="text-xs text-gray-500 dark:text-content-muted mb-1">预览</p>
+            <p class="text-xs text-gray-500 dark:text-content-muted mb-1">{{ t('projects.preview') }}</p>
             <div class="flex items-center gap-2">
               <span v-if="newGroupIcon" class="text-base">{{ newGroupIcon }}</span>
               <span class="w-3 h-3 rounded-full" :style="{ backgroundColor: newGroupColor }"></span>
-              <span class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ newGroupName || '分组名称' }}</span>
+              <span class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ newGroupName || t('projects.groupName') }}</span>
             </div>
           </div>
         </div>

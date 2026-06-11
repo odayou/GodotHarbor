@@ -282,7 +282,7 @@ function getHighlightSegments(text: string, searchQuery: string): Array<{ text: 
             @click="$router.push('/engines'); closePalette()"
             class="mt-3 px-3 py-1.5 text-xs font-medium bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
           >
-            {{ t('projects.goToEngines') || '前往引擎管理' }}
+            {{ t('projects.goToEngines') }}
           </button>
         </div>
 

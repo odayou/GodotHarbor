@@ -110,3 +110,30 @@ pub fn batch_get_vcs_info(app: AppHandle, project_ids: Vec<String>) -> Result<Ve
 
     Ok(results)
 }
+
+#[tauri::command]
+pub fn vcs_list_branches(app: AppHandle, project_id: String) -> Result<Vec<vcs::VcsBranch>, String> {
+    let project_path = find_project_path(&app, &project_id)?;
+    vcs::list_branches(&project_path)
+        .map_err(|e| format!("获取分支列表失败: {}", e))
+}
+
+#[tauri::command]
+pub async fn vcs_checkout(app: AppHandle, project_id: String, branch: String) -> Result<(), String> {
+    let project_path = find_project_path(&app, &project_id)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        vcs::checkout_branch(&project_path, &branch)
+            .map_err(|e| format!("切换分支失败: {}", e))
+    }).await
+        .map_err(|e| format!("切换分支操作异常: {}", e))?
+}
+
+#[tauri::command]
+pub async fn vcs_create_branch(app: AppHandle, project_id: String, branch: String) -> Result<(), String> {
+    let project_path = find_project_path(&app, &project_id)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        vcs::create_branch(&project_path, &branch)
+            .map_err(|e| format!("创建分支失败: {}", e))
+    }).await
+        .map_err(|e| format!("创建分支操作异常: {}", e))?
+}

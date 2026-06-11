@@ -5,6 +5,14 @@ use tauri::{AppHandle, Emitter};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
+use tokio::io::{AsyncBufReadExt, BufReader};
+
+static ACTIVE_BUILD: OnceLock<Mutex<Option<u32>>> = OnceLock::new();
+
+fn active_build() -> &'static Mutex<Option<u32>> {
+    ACTIVE_BUILD.get_or_init(|| Mutex::new(None))
+}
 
 const GODOT_EXPORT_TEMPLATES_URL: &str = "https://downloads.tuxfamily.org/godotengine";
 const GITHUB_RELEASES_API: &str = "https://api.github.com/repos/godotengine/godot-builds/releases";
@@ -485,6 +493,28 @@ pub async fn delete_export_template(_app: AppHandle, version: String, _mono: boo
 }
 
 #[tauri::command]
+pub fn cancel_build() -> Result<bool, String> {
+    let guard = active_build().lock().map_err(|e| format!("锁获取失败: {}", e))?;
+    if let Some(pid) = *guard {
+        #[cfg(target_os = "windows")]
+        {
+            use std::process::Command;
+            Command::new("taskkill")
+                .args(["/PID", &pid.to_string(), "/F"])
+                .spawn()
+                .map_err(|e| format!("终止进程失败: {}", e))?;
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            unsafe { libc::kill(pid as i32, libc::SIGTERM); }
+        }
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
+#[tauri::command]
 pub async fn list_export_presets(app: AppHandle, project_id: String) -> Result<Vec<ExportPreset>, String> {
     let app_clone = app.clone();
     tokio::task::spawn_blocking(move || {
@@ -696,15 +726,57 @@ pub async fn build_project(app: AppHandle, project_id: String, platform: ExportP
         "message": format!("正在构建 {} ({} {})...", project.name, platform, engine.version),
     }));
 
+    let mut child = tokio::process::Command::new(&godot_bin)
+        .arg("--headless")
+        .arg("--path").arg(&project.path)
+        .arg("--export-release")
+        .arg(&preset_name)
+        .arg(output_path.to_string_lossy().as_ref())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("启动构建进程失败: {}", e))?;
+
+    if let Some(pid) = child.id() {
+        if let Ok(mut guard) = active_build().lock() {
+            *guard = Some(pid);
+        }
+    }
+
+    let stdout = child.stdout.take().ok_or("无法获取标准输出")?;
+    let stderr = child.stderr.take().ok_or("无法获取标准错误")?;
+
+    let app_stdout = app.clone();
+    let build_id_stdout = build_id.clone();
+    let stdout_task = tokio::spawn(async move {
+        let reader = BufReader::new(stdout);
+        let mut lines = reader.lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            let _ = app_stdout.emit("build-log", serde_json::json!({
+                "build_id": &build_id_stdout,
+                "line": line,
+                "stream": "stdout",
+            }));
+        }
+    });
+
+    let app_stderr = app.clone();
+    let build_id_stderr = build_id.clone();
+    let stderr_task = tokio::spawn(async move {
+        let reader = BufReader::new(stderr);
+        let mut lines = reader.lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            let _ = app_stderr.emit("build-log", serde_json::json!({
+                "build_id": &build_id_stderr,
+                "line": line,
+                "stream": "stderr",
+            }));
+        }
+    });
+
     let build_result = tokio::time::timeout(
         std::time::Duration::from_secs(600),
-        tokio::process::Command::new(&godot_bin)
-            .arg("--headless")
-            .arg("--path").arg(&project.path)
-            .arg("--export-release")
-            .arg(&preset_name)
-            .arg(output_path.to_string_lossy().as_ref())
-            .output()
+        child.wait()
     )
         .await
         .map_err(|_| {
@@ -718,10 +790,15 @@ pub async fn build_project(app: AppHandle, project_id: String, platform: ExportP
         })?
         .map_err(|e| format!("执行构建命令失败: {}", e))?;
 
+    let _ = stdout_task.await;
+    let _ = stderr_task.await;
+
+    if let Ok(mut guard) = active_build().lock() {
+        *guard = None;
+    }
+
     let duration = (chrono::Utc::now() - now).num_seconds() as u64;
-    let success = build_result.status.success();
-    let stdout = String::from_utf8_lossy(&build_result.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&build_result.stderr).to_string();
+    let success = build_result.success();
 
     let (status, error_message) = if success {
         let _ = app.emit("build-progress", serde_json::json!({
@@ -732,14 +809,13 @@ pub async fn build_project(app: AppHandle, project_id: String, platform: ExportP
         }));
         (BuildStatus::Success, String::new())
     } else {
-        let err = format!("{}\n{}", stdout, stderr);
         let _ = app.emit("build-progress", serde_json::json!({
             "build_id": &build_id,
             "stage": "failed",
             "progress": 1.0,
-            "message": format!("构建失败: {}", &err[..err.len().min(200)]),
+            "message": format!("构建失败，请查看日志"),
         }));
-        (BuildStatus::Failed, err)
+        (BuildStatus::Failed, "构建失败，请查看日志".to_string())
     };
 
     let record = BuildRecord {

@@ -256,6 +256,14 @@ const checkDataDirChange = () => {
 const executeDataMigration = async () => {
   isMigratingData.value = true
   try {
+    try {
+      const backupDir = storagePaths.value?.app_data_dir
+      if (backupDir) {
+        await api.backupData(backupDir)
+      }
+    } catch {
+      // backup failure should not block migration
+    }
     await api.migrateDataDir(pendingDataDir.value)
     toast.success(t('settings.storage.migrateSuccess'))
     showDataMigrateDialog.value = false

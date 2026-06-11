@@ -750,6 +750,19 @@ export interface VcsDiffSummary {
   files: VcsDiffFile[]
 }
 
+export interface VcsBranch {
+  name: string
+  is_current: boolean
+  is_remote: boolean
+  last_commit_date: string | null
+}
+
+export interface BuildLogLine {
+  build_id: string
+  line: string
+  stream: 'stdout' | 'stderr'
+}
+
 // ─── Engine Modules Types ───
 export type ModuleType = 'DotNet' | 'Android' | 'IOS' | 'Web' | 'Linux' | 'Windows' | 'MacOS' | 'Editor'
 

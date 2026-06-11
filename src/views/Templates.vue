@@ -72,9 +72,9 @@ const validateProjectName = () => {
     return
   }
   if (/[<>:"/\\|?*]/.test(name)) {
-    projectNameError.value = t('templates.invalidChars') || '项目名包含非法字符'
+    projectNameError.value = t('templates.invalidChars')
   } else if (name.startsWith('.') || name.endsWith('.')) {
-    projectNameError.value = t('templates.invalidStartEnd') || '项目名不能以点号开头或结尾'
+    projectNameError.value = t('templates.invalidStartEnd')
   } else {
     projectNameError.value = ''
   }
@@ -254,7 +254,7 @@ const handleCreate = async () => {
 
     if (result.failed_plugins.length > 0) {
       const details = result.failed_plugins.join('\n')
-      toast.warning(`${t('templates.createSuccess')} (${result.failed_plugins.length} ${t('templates.partialFailed') || '项未完成'}):\n${details}`, 8000)
+      toast.warning(`${t('templates.createSuccess')} (${result.failed_plugins.length} ${t('templates.partialFailed')}):\n${details}`, 8000)
     } else {
       toast.success(t('templates.createSuccess'))
     }
@@ -280,7 +280,7 @@ const handleCreate = async () => {
 const handleImport = async () => {
   if (!importUrl.value.trim()) return
   if (!isOnline.value) {
-    toast.error(t('common.offlineError') || '网络不可用')
+    toast.error(t('common.offlineError'))
     return
   }
   isImporting.value = true
@@ -291,7 +291,7 @@ const handleImport = async () => {
     importUrl.value = ''
     await loadTemplates()
   } catch (e: any) {
-    toast.error(`${t('templates.importFailed') || 'Import failed'}: ${e?.toString() || e}`)
+    toast.error(`${t('templates.importFailed')}: ${e?.toString() || e}`)
   } finally {
     isImporting.value = false
   }
@@ -303,7 +303,7 @@ const handleDelete = async () => {
     toast.success(t('templates.deleteSuccess') || t('templates.saveSuccess'))
     await loadTemplates()
   } catch (e: any) {
-    toast.error(`Delete failed: ${e?.toString() || e}`)
+    toast.error(t('templates.deleteFailed', { error: e?.toString() || e }))
   }
   showDeleteConfirm.value = false
   deleteTargetId.value = ''
@@ -313,7 +313,7 @@ const handleGenerateFromProject = async () => {
   if (!generateProjectId.value || !generateTemplateName.value.trim()) return
   const nameExists = templates.value.some(t => t.name === generateTemplateName.value.trim())
   if (nameExists) {
-    toast.error(t('templates.nameExists') || '同名模板已存在，请使用其他名称')
+    toast.error(t('templates.nameExists'))
     return
   }
   isGenerating.value = true
@@ -331,14 +331,14 @@ const handleGenerateFromProject = async () => {
     }
     const backendCategory = categoryMap[generateCategory.value] || 'custom'
     await api.generateTemplateFromProject(generateProjectId.value, generateTemplateName.value.trim(), backendCategory)
-    toast.success(t('templates.generateSuccess') || '模板生成成功')
+    toast.success(t('templates.generateSuccess'))
     showGenerateFromProjectDialog.value = false
     generateProjectId.value = ''
     generateTemplateName.value = ''
     generateCategory.value = 'Custom'
     await loadTemplates()
   } catch (e: any) {
-    toast.error(`${t('templates.generateFailed') || '生成失败'}: ${e?.toString() || e}`)
+    toast.error(`${t('templates.generateFailed')}: ${e?.toString() || e}`)
   } finally {
     isGenerating.value = false
   }
@@ -353,7 +353,7 @@ const progressPercent = computed(() => {
 <template>
   <div class="h-full flex flex-col overflow-hidden">
     <div v-if="showCreateHint" class="mx-6 mt-4 px-4 py-3 bg-primary-50 dark:bg-surface-hover border border-primary-200 dark:border-surface-border rounded-lg flex items-center justify-between">
-      <span class="text-sm text-primary-700 dark:text-content-secondary">{{ t('templates.selectToCreate') || '选择一个模板创建项目' }}</span>
+      <span class="text-sm text-primary-700 dark:text-content-secondary">{{ t('templates.selectToCreate') }}</span>
       <button @click="showCreateHint = false" class="text-primary-500 hover:text-primary-700 dark:hover:text-brand-primary">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
       </button>
@@ -369,7 +369,7 @@ const progressPercent = computed(() => {
             @click="showImportFileDialog = true"
             class="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors"
           >
-            导入文件
+            {{ t('templates.importFile') }}
           </button>
           <button
             @click="showImportDialog = true"
@@ -380,12 +380,12 @@ const progressPercent = computed(() => {
           <button
             @click="showKeypairManager = true"
             class="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors"
-            title="签名密钥管理"
+            :title="t('templates.keypairManage')"
           >
             <svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
             </svg>
-            密钥
+            {{ t('templates.keypair') }}
           </button>
         </div>
       </div>
@@ -398,7 +398,7 @@ const progressPercent = computed(() => {
           <input
             v-model="searchQuery"
             type="text"
-            :placeholder="t('projects.search') || 'Search...'"
+            :placeholder="t('projects.search')"
             class="w-full pl-10 pr-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
           />
         </div>
@@ -432,7 +432,7 @@ const progressPercent = computed(() => {
           class="px-4 py-2 text-sm font-medium text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 dark:bg-surface-hover dark:text-brand-primary dark:hover:bg-surface-hover rounded-lg transition-colors"
           @click="loadTemplates(true)"
         >
-          {{ t('common.retry') || '重试' }}
+          {{ t('common.retry') }}
         </button>
       </div>
 
@@ -547,7 +547,7 @@ const progressPercent = computed(() => {
             <p class="text-sm text-gray-600 dark:text-content-secondary mb-5">{{ selectedTemplate.description }}</p>
 
             <div v-if="selectedTemplate.preview_images && selectedTemplate.preview_images.length > 0" class="mb-5">
-              <h3 class="text-sm font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('templates.previewImages') || '预览' }}</h3>
+              <h3 class="text-sm font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('templates.previewImages') }}</h3>
               <div class="grid grid-cols-2 gap-2">
                 <img
                   v-for="(img, idx) in selectedTemplate.preview_images"
@@ -624,7 +624,7 @@ const progressPercent = computed(() => {
                 @click="exportTemplate = selectedTemplate; showDetailDialog = false; showExportDialog = true"
                 class="px-4 py-2.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors"
               >
-                导出
+                {{ t('templates.export') }}
               </button>
               <button
                 v-if="!selectedTemplate.is_builtin"
@@ -651,7 +651,7 @@ const progressPercent = computed(() => {
 
             <div class="space-y-4">
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('projects.projectName') || 'Project Name' }}</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('projects.projectName') }}</label>
                 <input
                   v-model="createProjectName"
                   type="text"
@@ -663,7 +663,7 @@ const progressPercent = computed(() => {
                 <p v-if="projectNameError" class="mt-1 text-xs text-red-500">{{ projectNameError }}</p>
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('projects.targetDir') || 'Target Directory' }}</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('projects.targetDir') }}</label>
                 <div class="flex gap-2">
                   <input
                     v-model="createTargetDir"
@@ -689,7 +689,7 @@ const progressPercent = computed(() => {
                   class="w-4 h-4 rounded border-gray-300 dark:border-surface-border text-primary-600 focus:ring-primary-500"
                 />
                 <label for="create-mobile-support" class="text-sm text-gray-700 dark:text-content-secondary cursor-pointer">
-                  {{ t('templates.enableMobileSupport') || '添加移动端支持（触摸控件 + 虚拟摇杆）' }}
+                  {{ t('templates.enableMobileSupport') }}
                 </label>
               </div>
             </div>
@@ -713,7 +713,7 @@ const progressPercent = computed(() => {
                 :disabled="isCreating"
                 class="flex-1 py-2.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors disabled:opacity-50"
               >
-                {{ t('common.cancel') || 'Cancel' }}
+                {{ t('common.cancel') }}
               </button>
               <button
                 @click="handleCreate"
@@ -789,7 +789,7 @@ const progressPercent = computed(() => {
                 :disabled="isImporting || !isValidImportUrl || !isOnline"
                 class="flex-1 py-2.5 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
               >
-                {{ isImporting ? '...' : !isOnline ? (t('common.offlineImportTip') || '离线无法导入') : (t('common.import') || '导入') }}
+                {{ isImporting ? '...' : !isOnline ? t('common.offlineImportTip') : t('common.import') }}
               </button>
             </div>
           </div>
@@ -803,35 +803,35 @@ const progressPercent = computed(() => {
         <div class="absolute inset-0 bg-black/50" @click="!isGenerating && (showGenerateFromProjectDialog = false)"></div>
         <div class="relative bg-white dark:bg-surface-card rounded-2xl shadow-2xl max-w-md w-full mx-4">
           <div class="p-6">
-            <h2 class="text-lg font-bold text-gray-900 dark:text-content-primary mb-4">{{ t('templates.generateFromProject') || '从项目生成模板' }}</h2>
+            <h2 class="text-lg font-bold text-gray-900 dark:text-content-primary mb-4">{{ t('templates.generateFromProject') }}</h2>
             <div class="space-y-4">
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('templates.selectProject') || '选择项目' }}</label>
-                <ProjectSelector v-model="generateProjectId" :projects="projects" :placeholder="t('templates.selectProjectPlaceholder') || '请选择项目'" />
+                <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('templates.selectProject') }}</label>
+                <ProjectSelector v-model="generateProjectId" :projects="projects" :placeholder="t('templates.selectProjectPlaceholder')" />
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('templates.templateName') || '模板名称' }}</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('templates.templateName') }}</label>
                 <input
                   v-model="generateTemplateName"
                   type="text"
-                  :placeholder="t('templates.templateNamePlaceholder') || '输入模板名称'"
+                  :placeholder="t('templates.templateNamePlaceholder')"
                   :disabled="isGenerating"
                   class="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none disabled:opacity-50"
                 />
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('templates.category') || '分类' }}</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('templates.category') }}</label>
                 <select
                   v-model="generateCategory"
                   class="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none"
                 >
-                  <option value="Custom">{{ t('templates.category.Custom') || '自定义' }}</option>
-                  <option value="Starter2D">{{ t('templates.category.Starter2D') || '2D入门' }}</option>
-                  <option value="Starter3D">{{ t('templates.category.Starter3D') || '3D入门' }}</option>
-                  <option value="RPG">{{ t('templates.category.RPG') || 'RPG' }}</option>
-                  <option value="Platformer">{{ t('templates.category.Platformer') || '平台跳跃' }}</option>
-                  <option value="Multiplayer">{{ t('templates.category.Multiplayer') || '多人游戏' }}</option>
-                  <option value="Mobile">{{ t('templates.category.Mobile') || '移动端' }}</option>
+                  <option value="Custom">{{ t('templates.category.Custom') }}</option>
+                  <option value="Starter2D">{{ t('templates.category.Starter2D') }}</option>
+                  <option value="Starter3D">{{ t('templates.category.Starter3D') }}</option>
+                  <option value="RPG">{{ t('templates.category.RPG') }}</option>
+                  <option value="Platformer">{{ t('templates.category.Platformer') }}</option>
+                  <option value="Multiplayer">{{ t('templates.category.Multiplayer') }}</option>
+                  <option value="Mobile">{{ t('templates.category.Mobile') }}</option>
                 </select>
               </div>
             </div>
@@ -841,14 +841,14 @@ const progressPercent = computed(() => {
                 :disabled="isGenerating"
                 class="flex-1 py-2.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors disabled:opacity-50"
               >
-                {{ t('common.cancel') || '取消' }}
+                {{ t('common.cancel') }}
               </button>
               <button
                 @click="handleGenerateFromProject"
                 :disabled="isGenerating || !generateProjectId || !generateTemplateName.trim()"
                 class="flex-1 py-2.5 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
               >
-                {{ isGenerating ? '...' : (t('common.generate') || '生成') }}
+                {{ isGenerating ? '...' : t('common.generate') }}
               </button>
             </div>
           </div>

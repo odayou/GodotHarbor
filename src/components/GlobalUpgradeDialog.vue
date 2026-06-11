@@ -41,7 +41,7 @@ watch(() => props.visible, async (val) => {
       affectedProjects.value = bindings
         .map(b => projects.find(p => p.project_id === b.project_id)?.name || b.project_id)
       if (affectedProjects.value.length === 0) {
-        affectedProjects.value = ['无项目使用此插件']
+        affectedProjects.value = [t('batchOps.noProjectsUsingPlugin')]
       }
     } catch {
       affectedProjects.value = []
@@ -71,7 +71,7 @@ const failCount = computed(() => upgradeResults.value.filter(r => !r.success).le
     <div v-if="visible" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="close">
       <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
         <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">
-          {{ t('batchOps.globalUpgrade') || '全局升级插件' }}
+          {{ t('batchOps.globalUpgrade') }}
         </h3>
 
         <div class="mb-4">
@@ -84,7 +84,7 @@ const failCount = computed(() => upgradeResults.value.filter(r => !r.success).le
 
           <div class="p-3 bg-gray-50 dark:bg-surface-hover rounded-lg mb-3">
             <p class="text-sm text-gray-600 dark:text-content-secondary mb-1">
-              {{ t('batchOps.affectedProjects') || '受影响的项目' }}:
+              {{ t('batchOps.affectedProjects') }}:
             </p>
             <div v-if="isLoadingInfo" class="text-xs text-gray-400">{{ t('common.loading') }}</div>
             <div v-else class="flex flex-wrap gap-1">
@@ -102,7 +102,7 @@ const failCount = computed(() => upgradeResults.value.filter(r => !r.success).le
             <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
             </svg>
-            {{ t('batchOps.globalUpgradeWarning') || '此操作将升级所有使用此插件的项目到最新版本' }}
+            {{ t('batchOps.globalUpgradeWarning') }}
           </p>
         </div>
 
@@ -113,7 +113,7 @@ const failCount = computed(() => upgradeResults.value.filter(r => !r.success).le
           <p class="text-sm font-medium mb-2"
             :class="failCount > 0 ? 'text-yellow-700 dark:text-yellow-300' : 'text-green-700 dark:text-green-300'"
           >
-            {{ t('batchOps.upgradeResult') || '升级结果' }}: {{ successCount }} {{ t('batchOps.success') || '成功' }}, {{ failCount }} {{ t('batchOps.failed') || '失败' }}
+            {{ t('batchOps.upgradeResult') }}: {{ successCount }} {{ t('batchOps.success') }}, {{ failCount }} {{ t('batchOps.failed') }}
           </p>
           <div class="space-y-1 max-h-32 overflow-y-auto">
             <div
@@ -138,10 +138,10 @@ const failCount = computed(() => upgradeResults.value.filter(r => !r.success).le
           <button
             v-if="!hasUpgraded"
             @click="handleUpgrade"
-            :disabled="isUpgrading || affectedProjects.length === 0 || affectedProjects.includes('无项目使用此插件')"
+            :disabled="isUpgrading || affectedProjects.length === 0 || affectedProjects.includes(t('batchOps.noProjectsUsingPlugin'))"
             class="flex-1 py-2.5 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
           >
-            {{ isUpgrading ? '...' : (t('batchOps.confirmUpgrade') || '确认升级') }}
+            {{ isUpgrading ? '...' : t('batchOps.confirmUpgrade') }}
           </button>
         </div>
       </div>

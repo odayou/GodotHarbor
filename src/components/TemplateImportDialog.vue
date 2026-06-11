@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
 import { useDialogEscape } from '@/composables/useDialogEscape'
 import { open } from '@tauri-apps/plugin-dialog'
 import type { TemplateManifest, SignatureVerification } from '@/types'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   modelValue: boolean
@@ -62,7 +65,7 @@ const handleImportAndVerify = async () => {
       is_valid: false,
       signed_by: null,
       checksum_valid: false,
-      error: e?.toString() || '读取模板文件失败',
+      error: e?.toString() || t('templates.readFileFailed'),
     }
   } finally {
     isVerifying.value = false

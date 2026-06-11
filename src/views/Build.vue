@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
@@ -108,6 +108,8 @@ interface DownloadProgressPayload { version: string; stage: string; progress: nu
 const buildProgress = ref<BuildProgressPayload | null>(null)
 const downloadProgress = ref<DownloadProgressPayload | null>(null)
 const importPresetJson = ref('')
+const buildLogs = ref<Array<{ line: string; stream: string }>>([])
+const logPanelRef = ref<HTMLElement | null>(null)
 
 const mcpConfig = computed(() => {
   return JSON.stringify({
@@ -123,12 +125,13 @@ const mcpConfig = computed(() => {
 const mcpClients = computed(() => [
   { key: 'claude', title: t('mcp.claudeDesktop'), desc: t('mcp.claudeDesktopDesc'), configPath: '~/Library/Application Support/Claude/claude_desktop_config.json (macOS)\n%APPDATA%\\Claude\\claude_desktop_config.json (Windows)' },
   { key: 'cursor', title: t('mcp.cursor'), desc: t('mcp.cursorDesc'), configPath: '.cursor/mcp.json' },
-  { key: 'vscode', title: 'VS Code (Copilot)', desc: t('mcp.vscodeDesc') || 'Add to VS Code settings.json (mcp.servers section)', configPath: '.vscode/mcp.json or settings.json' },
-  { key: 'trae', title: 'Trae', desc: t('mcp.traeDesc') || 'Add to Trae MCP configuration', configPath: '.trae/mcp.json' }
+  { key: 'vscode', title: 'VS Code (Copilot)', desc: t('mcp.vscodeDesc'), configPath: '.vscode/mcp.json or settings.json' },
+  { key: 'trae', title: 'Trae', desc: t('mcp.traeDesc'), configPath: '.trae/mcp.json' }
 ])
 
 let unlistenProgress: UnlistenFn | null = null
 let unlistenDownloadProgress: UnlistenFn | null = null
+let unlistenBuildLog: UnlistenFn | null = null
 let mcpPollTimer: ReturnType<typeof setInterval> | null = null
 
 async function loadData(force = false) {
@@ -199,7 +202,7 @@ async function downloadTemplate(version: string, mono: boolean) {
 
   stalledTimer = setInterval(() => {
     if (downloadingVersion.value && Date.now() - lastProgressTime > 120_000) {
-      toast.warning(t('build.downloadStalled') || '下载似乎已停滞，请检查网络连接')
+      toast.warning(t('build.downloadStalled'))
       lastProgressTime = Date.now()
     }
   }, 30_000)
@@ -268,7 +271,7 @@ async function exportPreset(preset: BuiltinExportPreset) {
   try {
     const json = await api.exportPresetToJson(preset as unknown as Record<string, unknown>)
     await navigator.clipboard.writeText(json)
-    toast.success(t('build.presetExported') || '预设已复制到剪贴板')
+    toast.success(t('build.presetExported'))
   } catch (e) {
     toast.error(e)
   }
@@ -278,7 +281,7 @@ async function importPreset() {
   if (!presetProjectId.value || !importPresetJson.value.trim()) return
   try {
     await api.importPresetFromJson(presetProjectId.value, importPresetJson.value.trim())
-    toast.success(t('build.presetImported') || '预设导入成功')
+    toast.success(t('build.presetImported'))
     importPresetJson.value = ''
   } catch (e) {
     toast.error(e)
@@ -313,6 +316,20 @@ async function startBuild() {
     toast.error(e)
   } finally {
     building.value = false
+  }
+}
+
+async function handleCancelBuild() {
+  try {
+    const cancelled = await api.cancelBuild()
+    if (cancelled) {
+      toast.success(t('build.buildCancelled'))
+    } else {
+      toast.warning(t('build.noActiveBuild'))
+    }
+    building.value = false
+  } catch (e) {
+    toast.error(e)
   }
 }
 
@@ -410,7 +427,7 @@ async function clearAllBuildRecords() {
   try {
     await api.clearAllBuildRecords()
     buildRecords.value = []
-    toast.success(t('build.allRecordsCleared') || '构建记录已全部清除')
+    toast.success(t('build.allRecordsCleared'))
   } catch (e) {
     toast.error(e)
   }
@@ -428,7 +445,7 @@ async function downloadAllMissing() {
     }
   }
   downloadingVersion.value = null
-  toast.success(t('build.allDownloaded') || '全部下载完成')
+  toast.success(t('build.allDownloaded'))
   await loadData()
 }
 
@@ -442,7 +459,7 @@ async function deleteAllInstalled() {
       toast.error(`${tmpl.version}: ${e}`)
     }
   }
-  toast.success(t('build.allDeleted') || '全部删除完成')
+  toast.success(t('build.allDeleted'))
   await loadData()
 }
 
@@ -460,7 +477,7 @@ async function stopMcpServer() {
   try {
     await api.stopMcpServer()
     mcpServerRunning.value = false
-    toast.success(t('mcp.serverStopped') || 'MCP 服务器已停止')
+    toast.success(t('mcp.serverStopped'))
   } catch (e) {
     toast.error(e)
   }
@@ -469,7 +486,7 @@ async function stopMcpServer() {
 async function copyMcpStartCommand() {
   const cmd = mcpExePath.value.includes(' ') ? `& "${mcpExePath.value}"` : mcpExePath.value
   const ok = await copyToClipboard(cmd)
-  if (ok) toast.success(t('mcp.startCmdCopied') || '启动命令已复制')
+  if (ok) toast.success(t('mcp.startCmdCopied'))
   else toast.error('Failed')
 }
 
@@ -479,10 +496,23 @@ onMounted(async () => {
   await Promise.all([loadData(), resolveMcpExePath(), loadMcpCapabilities()])
   unlistenProgress = await listen<BuildProgressPayload>('build-progress', (event) => {
     buildProgress.value = event.payload
+    if (event.payload.stage === 'starting') {
+      buildLogs.value = []
+    }
     if (event.payload.stage === 'complete' || event.payload.stage === 'failed') {
       building.value = false
-      setTimeout(() => { buildProgress.value = null }, 3000)
     }
+  })
+  unlistenBuildLog = await listen<{ build_id: string; line: string; stream: string }>('build-log', (event) => {
+    buildLogs.value.push({ line: event.payload.line, stream: event.payload.stream })
+    if (buildLogs.value.length > 5000) {
+      buildLogs.value = buildLogs.value.slice(-3000)
+    }
+    nextTick(() => {
+      if (logPanelRef.value) {
+        logPanelRef.value.scrollTop = logPanelRef.value.scrollHeight
+      }
+    })
   })
   unlistenDownloadProgress = await listen<DownloadProgressPayload>('export-template-download-progress', (event) => {
     downloadProgress.value = event.payload
@@ -505,6 +535,7 @@ onMounted(async () => {
 onUnmounted(() => {
   unlistenProgress?.()
   unlistenDownloadProgress?.()
+  unlistenBuildLog?.()
   if (mcpPollTimer) clearInterval(mcpPollTimer)
 })
 </script>
@@ -519,9 +550,9 @@ onUnmounted(() => {
     <div class="px-6 flex gap-1 border-b border-gray-200 dark:border-surface-border mb-4">
       <button
         v-for="tab in ([
-          { key: 'export', label: t('build.exportConfig') || '导出配置' },
+          { key: 'export', label: t('build.exportConfig') },
           { key: 'build', label: t('build.buildProject') },
-          { key: 'mcp', label: t('build.mcpServer') || 'MCP Server' },
+          { key: 'mcp', label: t('build.mcpServer') },
         ] as const)"
         :key="tab.key"
         class="px-4 py-2 text-sm font-medium border-b-2 transition-colors"
@@ -549,14 +580,14 @@ onUnmounted(() => {
               class="text-xs text-primary-500 hover:text-primary-600 transition-colors"
               @click="downloadAllMissing"
             >
-              {{ t('build.downloadAll') || '下载全部' }}
+              {{ t('build.downloadAll') }}
             </button>
             <button
               v-if="exportTemplates.some(t => t.installed)"
               class="text-xs text-red-400 hover:text-red-500 transition-colors"
               @click="showDeleteTemplatesConfirm = true"
             >
-              {{ t('build.deleteAll') || '删除全部' }}
+              {{ t('build.deleteAll') }}
             </button>
           </div>
         </div>
@@ -659,19 +690,19 @@ onUnmounted(() => {
                 class="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 dark:bg-surface-layer dark:text-content-secondary dark:hover:bg-surface-border rounded-lg transition-colors"
                 @click="exportPreset(preset)"
               >
-                {{ t('build.exportPreset') || '导出' }}
+                {{ t('build.exportPreset') }}
               </button>
             </div>
           </div>
         </div>
 
         <div class="mt-6 p-4 bg-white dark:bg-surface-card rounded-xl border border-gray-200 dark:border-surface-border">
-          <h3 class="text-sm font-medium text-gray-700 dark:text-content-secondary mb-3">{{ t('build.importPresetTitle') || '导入预设' }}</h3>
+          <h3 class="text-sm font-medium text-gray-700 dark:text-content-secondary mb-3">{{ t('build.importPresetTitle') }}</h3>
           <div class="flex gap-2">
             <input
               v-model="importPresetJson"
               type="text"
-              :placeholder="t('build.importPresetPlaceholder') || '粘贴预设JSON'"
+              :placeholder="t('build.importPresetPlaceholder')"
               class="flex-1 px-3 py-2 text-sm bg-white dark:bg-surface-layer border border-gray-300 dark:border-surface-border rounded-lg text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none"
             />
             <button
@@ -679,7 +710,7 @@ onUnmounted(() => {
               :disabled="!importPresetJson.trim() || !presetProjectId"
               @click="importPreset"
             >
-              {{ t('build.importPreset') || '导入' }}
+              {{ t('build.importPreset') }}
             </button>
           </div>
         </div>
@@ -704,13 +735,20 @@ onUnmounted(() => {
                 <option v-for="opt in platformOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
               </select>
             </div>
-            <div class="flex items-end">
+            <div class="flex items-end gap-2">
               <button
-                class="w-full px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors disabled:opacity-50"
+                class="flex-1 px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors disabled:opacity-50"
                 :disabled="building || !selectedProjectId"
                 @click="startBuild"
               >
                 {{ building ? t('build.building') : t('build.startBuild') }}
+              </button>
+              <button
+                v-if="building"
+                @click="handleCancelBuild"
+                class="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+              >
+                {{ t('build.cancelBuild') }}
               </button>
             </div>
           </div>
@@ -732,13 +770,23 @@ onUnmounted(() => {
           </div>
         </div>
 
+        <div v-if="buildLogs.length > 0" class="mb-6">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-sm font-medium text-gray-700 dark:text-content-secondary">{{ t('build.buildLog') }}</h3>
+            <button @click="buildLogs = []" class="text-xs text-gray-500 dark:text-content-muted hover:text-gray-700 dark:hover:text-content-secondary">{{ t('common.clear') }}</button>
+          </div>
+          <div ref="logPanelRef" class="bg-surface-layer dark:bg-surface-base border border-surface-border rounded-lg p-3 max-h-80 overflow-y-auto font-mono text-xs leading-relaxed">
+            <div v-for="(log, i) in buildLogs" :key="i" :class="log.stream === 'stderr' ? 'text-red-400' : 'text-content-secondary'">{{ log.line }}</div>
+          </div>
+        </div>
+
         <h3 class="text-lg font-medium text-gray-900 dark:text-content-primary mb-3">{{ t('build.buildHistory') }}</h3>
         <div v-if="buildRecords.length > 0" class="flex items-center gap-3 mb-3">
           <select
             v-model="buildFilterProject"
             class="px-3 py-1.5 text-sm bg-white dark:bg-surface-layer border border-gray-300 dark:border-surface-border rounded-lg text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none"
           >
-            <option value="">{{ t('build.allProjects') || '全部项目' }}</option>
+            <option value="">{{ t('build.allProjects') }}</option>
             <option v-for="p in uniqueBuildProjects" :key="p.id" :value="p.id">{{ p.name }}</option>
           </select>
           <div class="flex-1"></div>
@@ -746,11 +794,11 @@ onUnmounted(() => {
             class="text-xs text-red-400 hover:text-red-500 transition-colors"
             @click="showClearRecordsConfirm = true"
           >
-            {{ t('build.clearAll') || '全部清除' }}
+            {{ t('build.clearAll') }}
           </button>
         </div>
         <div v-if="filteredBuildRecords.length === 0" class="text-center py-12 text-gray-400">
-          {{ buildRecords.length === 0 ? t('build.noHistory') : (t('build.noMatchingRecords') || '无匹配记录') }}
+          {{ buildRecords.length === 0 ? t('build.noHistory') : t('build.noMatchingRecords') }}
         </div>
         <div v-else class="space-y-2">
           <div
@@ -779,7 +827,7 @@ onUnmounted(() => {
                 class="text-xs text-amber-500 hover:text-amber-600"
                 @click="retryBuild(record)"
               >
-                {{ t('build.retry') || '重试' }}
+                {{ t('build.retry') }}
               </button>
               <button
                 v-if="record.status === 'Success' && record.output_path"
@@ -828,7 +876,7 @@ onUnmounted(() => {
               :class="{ 'border-red-400 dark:border-red-500': ciGodotVersion && !isValidGodotVersion }"
               placeholder="4.4.1"
             />
-            <p v-if="ciGodotVersion && !isValidGodotVersion" class="mt-1 text-xs text-red-500">{{ t('build.invalidVersion') || '版本号格式不正确，如 4.4.1' }}</p>
+            <p v-if="ciGodotVersion && !isValidGodotVersion" class="mt-1 text-xs text-red-500">{{ t('build.invalidVersion') }}</p>
           </div>
           <div class="mb-4">
             <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-2">{{ t('build.selectPlatforms') }}</label>
@@ -852,7 +900,7 @@ onUnmounted(() => {
               :disabled="!ciProjectId || ciPlatforms.length === 0 || !isValidGodotVersion || generatingCi"
               @click="generateCi"
             >
-              {{ generatingCi ? t('build.generating') || '生成中...' : t('build.generate') }}
+              {{ generatingCi ? t('build.generating') : t('build.generate') }}
             </button>
           </div>
         </div>
@@ -867,14 +915,14 @@ onUnmounted(() => {
                 class="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 dark:bg-surface-layer dark:text-content-secondary dark:hover:bg-surface-hover rounded-lg transition-colors"
                 @click="copyToClipboard(generatedConfig).then(ok => ok ? toast.success(t('mcp.configCopied')) : toast.error('Failed'))"
               >
-                {{ t('build.copyConfig') || '复制' }}
+                {{ t('build.copyConfig') }}
               </button>
               <button
                 class="px-3 py-1.5 text-sm font-medium text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/30 rounded-lg transition-colors disabled:opacity-50"
                 :disabled="writingCi"
                 @click="writeCiConfig"
               >
-                {{ writingCi ? t('build.writing') || '写入中...' : t('build.writeConfig') }}
+                {{ writingCi ? t('build.writing') : t('build.writeConfig') }}
               </button>
             </div>
           </div>
@@ -912,27 +960,27 @@ onUnmounted(() => {
                 class="px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30 rounded-lg transition-colors"
                 @click="stopMcpServer"
               >
-                {{ t('mcp.stopServer') || '停止服务' }}
+                {{ t('mcp.stopServer') }}
               </button>
             </div>
           </div>
 
           <div class="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg mb-4">
-            <p class="text-xs text-amber-700 dark:text-amber-300">{{ t('mcp.standaloneHint') || 'MCP Server 通过 stdio 协议通信，需要由 AI 编程工具（如 Claude Desktop、Cursor）独立启动。上方的启动/停止按钮仅供内部测试使用。' }}</p>
+            <p class="text-xs text-amber-700 dark:text-amber-300">{{ t('mcp.standaloneHint') }}</p>
           </div>
 
           <div v-if="mcpExeNotFound" class="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg mb-4">
-            <p class="text-xs text-red-700 dark:text-red-300">{{ t('mcp.exeNotFound') || 'MCP Server 可执行文件未找到，请先构建项目或检查安装路径。' }}</p>
+            <p class="text-xs text-red-700 dark:text-red-300">{{ t('mcp.exeNotFound') }}</p>
           </div>
 
           <div class="flex items-center gap-2 mb-3">
-            <span class="text-xs text-gray-500 dark:text-content-muted">{{ t('mcp.exePath') || '可执行文件路径' }}:</span>
+            <span class="text-xs text-gray-500 dark:text-content-muted">{{ t('mcp.exePath') }}:</span>
             <code class="text-xs bg-gray-100 dark:bg-surface-layer px-2 py-0.5 rounded break-all">{{ mcpExePath }}</code>
             <button
               class="text-xs text-primary-600 hover:text-primary-700 dark:text-brand-primary"
-              @click="copyToClipboard(mcpExePath).then(ok => ok ? toast.success(t('mcp.pathCopied') || '路径已复制') : toast.error('Failed'))"
+              @click="copyToClipboard(mcpExePath).then(ok => ok ? toast.success(t('mcp.pathCopied')) : toast.error('Failed'))"
             >
-              {{ t('mcp.copyPath') || '复制' }}
+              {{ t('mcp.copyPath') }}
             </button>
           </div>
 
@@ -940,18 +988,18 @@ onUnmounted(() => {
             class="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-content-secondary bg-gray-100 dark:bg-surface-layer hover:bg-gray-200 dark:hover:bg-surface-hover rounded-lg transition-colors"
             @click="copyMcpStartCommand"
           >
-            {{ t('mcp.copyStartCommand') || '复制终端启动命令' }}
+            {{ t('mcp.copyStartCommand') }}
           </button>
         </div>
 
         <div class="bg-white dark:bg-surface-card rounded-xl border border-gray-200 dark:border-surface-border p-6 mb-6">
-          <h3 class="text-sm font-medium text-gray-900 dark:text-content-primary mb-3">{{ t('mcp.capabilities') || '可用能力' }}</h3>
+          <h3 class="text-sm font-medium text-gray-900 dark:text-content-primary mb-3">{{ t('mcp.capabilities') }}</h3>
           <div class="flex gap-4 mb-4">
             <button
               v-for="section in [
-                { key: 'tools', label: t('mcp.tools') || 'Tools', count: mcpCapabilities?.tools_count ?? 0 },
-                { key: 'resources', label: t('mcp.resources') || 'Resources', count: mcpCapabilities?.resources_count ?? 0 },
-                { key: 'prompts', label: t('mcp.prompts') || 'Prompts', count: mcpCapabilities?.prompts_count ?? 0 }
+                { key: 'tools', label: t('mcp.tools'), count: mcpCapabilities?.tools_count ?? 0 },
+                { key: 'resources', label: t('mcp.resources'), count: mcpCapabilities?.resources_count ?? 0 },
+                { key: 'prompts', label: t('mcp.prompts'), count: mcpCapabilities?.prompts_count ?? 0 }
               ]"
               :key="section.key"
               class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors cursor-pointer"
@@ -989,7 +1037,7 @@ onUnmounted(() => {
         </div>
 
         <div class="bg-white dark:bg-surface-card rounded-xl border border-gray-200 dark:border-surface-border p-6 mb-6">
-          <h3 class="text-sm font-medium text-gray-900 dark:text-content-primary mb-3">{{ t('mcp.clientConfig') || '客户端配置' }}</h3>
+          <h3 class="text-sm font-medium text-gray-900 dark:text-content-primary mb-3">{{ t('mcp.clientConfig') }}</h3>
           <div class="flex flex-wrap gap-2 mb-4">
             <button
               v-for="client in mcpClients"
@@ -1006,7 +1054,7 @@ onUnmounted(() => {
           <div v-for="client in mcpClients" :key="client.key">
             <div v-if="mcpSelectedClient === client.key">
               <p class="text-xs text-gray-500 dark:text-content-muted mb-2">{{ client.desc }}</p>
-              <p class="text-xs text-gray-400 dark:text-content-muted mb-2">{{ t('mcp.configFilePath') || '配置文件路径' }}: <code class="text-xs">{{ client.configPath }}</code></p>
+              <p class="text-xs text-gray-400 dark:text-content-muted mb-2">{{ t('mcp.configFilePath') }}: <code class="text-xs">{{ client.configPath }}</code></p>
               <div class="relative">
                 <pre class="bg-gray-50 dark:bg-surface-layer rounded-lg p-3 text-xs text-gray-800 dark:text-content-secondary overflow-x-auto max-h-48 overflow-y-auto">{{ mcpConfig }}</pre>
                 <button
@@ -1021,13 +1069,13 @@ onUnmounted(() => {
         </div>
 
         <div class="bg-white dark:bg-surface-card rounded-xl border border-gray-200 dark:border-surface-border p-6">
-          <h3 class="text-sm font-medium text-gray-900 dark:text-content-primary mb-3">{{ t('mcp.usageGuide') || '使用指南' }}</h3>
+          <h3 class="text-sm font-medium text-gray-900 dark:text-content-primary mb-3">{{ t('mcp.usageGuide') }}</h3>
           <ol class="space-y-2 text-xs text-gray-600 dark:text-content-secondary">
-            <li class="flex gap-2"><span class="font-medium text-primary-600 dark:text-brand-primary">1.</span> {{ t('mcp.step1') || '点击上方"复制配置"按钮，复制 JSON 配置' }}</li>
-            <li class="flex gap-2"><span class="font-medium text-primary-600 dark:text-brand-primary">2.</span> {{ t('mcp.step2') || '打开 AI 编程工具的 MCP 配置文件（见上方路径）' }}</li>
-            <li class="flex gap-2"><span class="font-medium text-primary-600 dark:text-brand-primary">3.</span> {{ t('mcp.step3') || '将 JSON 配置粘贴到配置文件中并保存' }}</li>
-            <li class="flex gap-2"><span class="font-medium text-primary-600 dark:text-brand-primary">4.</span> {{ t('mcp.step4') || '重启 AI 编程工具' }}</li>
-            <li class="flex gap-2"><span class="font-medium text-primary-600 dark:text-brand-primary">5.</span> {{ t('mcp.step5') || '在对话中输入"帮我检查项目环境"测试 MCP 是否工作' }}</li>
+            <li class="flex gap-2"><span class="font-medium text-primary-600 dark:text-brand-primary">1.</span> {{ t('mcp.step1') }}</li>
+              <li class="flex gap-2"><span class="font-medium text-primary-600 dark:text-brand-primary">2.</span> {{ t('mcp.step2') }}</li>
+              <li class="flex gap-2"><span class="font-medium text-primary-600 dark:text-brand-primary">3.</span> {{ t('mcp.step3') }}</li>
+              <li class="flex gap-2"><span class="font-medium text-primary-600 dark:text-brand-primary">4.</span> {{ t('mcp.step4') }}</li>
+              <li class="flex gap-2"><span class="font-medium text-primary-600 dark:text-brand-primary">5.</span> {{ t('mcp.step5') }}</li>
           </ol>
         </div>
       </div>
@@ -1045,36 +1093,36 @@ onUnmounted(() => {
 
   <ConfirmDialog
     v-model="showClearRecordsConfirm"
-    :title="t('build.clearAll') || '全部清除'"
-    :description="t('build.clearAllConfirm') || '确定要清除所有构建记录吗？此操作不可撤销。'"
-    :confirm-text="t('build.clearAll') || '全部清除'"
+    :title="t('build.clearAll')"
+    :description="t('build.clearAllConfirm')"
+    :confirm-text="t('build.clearAll')"
     confirm-color="red"
     @confirm="clearAllBuildRecords"
   />
 
   <ConfirmDialog
     v-model="showDeleteTemplatesConfirm"
-    :title="t('build.deleteAll') || '删除全部'"
-    :description="t('build.deleteAllConfirm') || '确定要删除所有已安装的导出模板吗？此操作不可撤销。'"
-    :confirm-text="t('build.deleteAll') || '删除全部'"
+    :title="t('build.deleteAll')"
+    :description="t('build.deleteAllConfirm')"
+    :confirm-text="t('build.deleteAll')"
     confirm-color="red"
     @confirm="deleteAllInstalled"
   />
 
   <ConfirmDialog
     v-model="showWriteCiConfirm"
-    :title="t('build.confirmWriteCiTitle') || '写入 CI 配置'"
-    :description="t('build.confirmWriteCiDesc') || '将覆盖项目中已有的 CI 配置文件，确定要继续吗？'"
-    :confirm-text="t('common.confirm') || '确认'"
+    :title="t('build.confirmWriteCiTitle')"
+    :description="t('build.confirmWriteCiDesc')"
+    :confirm-text="t('common.confirm')"
     confirm-color="green"
     @confirm="confirmWriteCiConfig"
   />
 
   <ConfirmDialog
     v-model="showDeleteRecordConfirm"
-    :title="t('build.deleteRecord') || '删除记录'"
-    :description="t('build.deleteRecordConfirm') || '确定要删除这条构建记录吗？'"
-    :confirm-text="t('build.delete') || '删除'"
+    :title="t('build.deleteRecord')"
+    :description="t('build.deleteRecordConfirm')"
+    :confirm-text="t('build.delete')"
     confirm-color="red"
     @confirm="confirmDeleteRecord"
   />
