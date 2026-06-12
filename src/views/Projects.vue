@@ -14,7 +14,10 @@ import { useFileManager } from '@/composables/useFileManager'
 import { getStatusBadgeClass, getStatusInlineClass } from '@/utils/statusBadge'
 import { preloadIcons, getIconUrl, getIconDebugInfo } from '@/composables/useIconCache'
 import { useEngineLauncher } from '@/composables/useEngineLauncher'
+import { useContextMenu } from '@/composables/useContextMenu'
+import type { ContextMenuEntry } from '@/composables/useContextMenu'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import ContextMenu from '@/components/ContextMenu.vue'
 import SkeletonList from '@/components/SkeletonList.vue'
 import ErrorState from '@/components/ErrorState.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -1021,6 +1024,91 @@ const {
   getMatchLevelDesc,
 } = useEngineLauncher(() => loadProjects())
 
+const projectContextMenu = useContextMenu()
+
+const showProjectContextMenu = (event: MouseEvent, project: Project) => {
+  projectContextMenu.show(event, [
+    {
+      label: t('projects.contextMenu.openProject'),
+      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>',
+      action: () => openProjectWithEngineWrapper(project),
+      disabled: isLaunching,
+    },
+    {
+      label: t('projects.contextMenu.openInFileManager'),
+      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>',
+      action: () => openInFileManager(project.path),
+    },
+    { separator: true },
+    {
+      label: t('projects.contextMenu.editBindings'),
+      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>',
+      action: () => goToPluginBindings(project),
+    },
+    {
+      label: t('projects.contextMenu.applyChanges'),
+      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>',
+      action: async () => {
+        try {
+          const result = await api.applyChanges(project.project_id)
+          if (!result.success) {
+            toast.warning(t('linker.bindingApplyFailed', { errors: result.errors.join('; ') }))
+          } else {
+            toast.success(t('linker.pluginUnbound'))
+          }
+        } catch (error) {
+          toast.error(String(error))
+        }
+      },
+    },
+    { separator: true },
+    {
+      label: t('projects.contextMenu.createSnapshot'),
+      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>',
+      action: () => openSaveAsTemplateDialog(project),
+    },
+    { separator: true },
+    {
+      label: t('projects.contextMenu.setGroup'),
+      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>',
+      action: () => openGroupDialog(project),
+    },
+    { separator: true },
+    {
+      label: t('projects.contextMenu.refreshStatus'),
+      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>',
+      action: () => syncProject(project),
+    },
+    {
+      label: t('projects.contextMenu.removeProject'),
+      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>',
+      action: () => removeProject(project.project_id),
+      danger: true,
+    },
+  ] as ContextMenuEntry[])
+}
+
+const showProjectListContextMenu = (event: MouseEvent) => {
+  projectContextMenu.show(event, [
+    {
+      label: t('projects.contextMenu.addProject'),
+      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>',
+      action: () => openAddProjectDialog(),
+    },
+    {
+      label: t('projects.contextMenu.scanProjects'),
+      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>',
+      action: () => quickScan(),
+    },
+    { separator: true },
+    {
+      label: t('projects.contextMenu.refresh'),
+      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>',
+      action: () => loadProjects(true),
+    },
+  ] as ContextMenuEntry[])
+}
+
 useDialogEscape(showScanDialog)
 useDialogEscape(showProjectDetail)
 useDialogEscape(showGroupDialog)
@@ -1268,23 +1356,23 @@ const toggleAddPluginPanel = () => {
 <template>
   <div class="relative">
     <div v-if="isDragging" class="fixed inset-0 bg-primary-500/10 border-4 border-dashed border-primary-500 z-40 flex items-center justify-center pointer-events-none">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-8 shadow-2xl">
+      <div class="dialog-container max-w-md w-full mx-4">
         <svg class="mx-auto h-12 w-12 text-primary-500 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
         </svg>
-        <p class="text-lg font-semibold text-primary-600 dark:text-brand-primary">{{ t('projects.dragTitle') }}</p>
+        <p class="text-base font-semibold text-primary-600 dark:text-brand-primary">{{ t('projects.dragTitle') }}</p>
         <p class="text-sm text-gray-500 dark:text-content-muted mt-1">{{ t('projects.dragDesc') }}</p>
       </div>
     </div>
     <div
-      class="space-y-6"
+      class="space-y-0"
       @dragenter="onDragEnter"
       @dragleave="onDragLeave"
       @dragover="onDragOver"
       @drop="onDrop"
     >
-      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-content-primary">{{ t('projects.title') }}</h1>
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-2">
+      <h1 class="text-base font-semibold text-gray-900 dark:text-content-primary">{{ t('projects.title') }}</h1>
       <div class="flex flex-wrap gap-2">
         <button
           @click="quickScan"
@@ -1315,20 +1403,20 @@ const toggleAddPluginPanel = () => {
       </div>
     </div>
 
-    <div class="card">
-      <div class="flex flex-col lg:flex-row gap-4">
+    <div class="border-b border-gray-200 dark:border-surface-border pb-2">
+      <div class="flex flex-col lg:flex-row gap-2">
         <div class="flex-1">
           <input
             v-model="searchQuery"
             type="text"
             :placeholder="t('projects.search')"
-            class="w-full px-4 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+            class="input-field"
           />
         </div>
-        <div class="flex flex-wrap gap-2 items-center">
+        <div class="flex flex-wrap gap-1.5 items-center">
           <select
             v-model="filterGroup"
-            class="px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+            class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-md bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
           >
             <option value="all">{{ t('projects.allGroups') }}</option>
             <option value="ungrouped">{{ t('projects.ungrouped') }}</option>
@@ -1336,7 +1424,7 @@ const toggleAddPluginPanel = () => {
           </select>
           <select
             v-model="filterStatus"
-            class="px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+            class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-md bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
           >
             <option value="all">{{ t('projects.allStatus') }}</option>
             <option value="Ready">{{ t('projects.status.ready') }}</option>
@@ -1347,7 +1435,7 @@ const toggleAddPluginPanel = () => {
           </select>
           <select
             v-model="sortBy"
-            class="px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+            class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-md bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
           >
             <option value="name">{{ t('projects.sortByName') }}</option>
             <option value="path">{{ t('projects.sortByPath') }}</option>
@@ -1357,7 +1445,7 @@ const toggleAddPluginPanel = () => {
           </select>
           <button
             @click="sortOrder = sortOrder === 'asc' ? 'desc' : 'asc'"
-            class="px-2 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-700 dark:text-content-secondary hover:bg-gray-50 dark:hover:bg-surface-layer text-sm"
+            class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-md bg-white dark:bg-surface-hover text-gray-700 dark:text-content-secondary hover:bg-gray-50 dark:hover:bg-surface-layer text-sm"
             :title="sortOrder === 'asc' ? t('projects.ascending') : t('projects.descending')"
           >
             <svg v-if="sortOrder === 'asc'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1371,7 +1459,7 @@ const toggleAddPluginPanel = () => {
       </div>
     </div>
 
-    <div v-if="isBatchMode && selectedCount > 0" class="bg-primary-50 dark:bg-surface-hover border border-primary-200 dark:border-surface-border rounded-lg p-3 flex items-center justify-between">
+    <div v-if="isBatchMode && selectedCount > 0" class="bg-primary-50 dark:bg-surface-hover border border-primary-200 dark:border-surface-border rounded p-3 flex items-center justify-between">
       <div class="flex items-center gap-3">
         <span class="text-sm font-medium text-primary-700 dark:text-content-secondary">{{ t('projects.selectedCount', { count: selectedCount }) }}</span>
         <button
@@ -1390,21 +1478,21 @@ const toggleAddPluginPanel = () => {
       <div class="flex gap-2">
         <button
           @click="batchSetGroup"
-          class="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors"
+          class="px-3 py-1.5 bg-primary-600 text-white text-sm rounded hover:bg-primary-700 transition-colors"
         >
           {{ t('projects.batchSetGroup') }} ({{ selectedCount }})
         </button>
         <button
           @click="batchApplyChanges"
           :disabled="isBatchApplying"
-          class="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+          class="px-3 py-1.5 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors disabled:opacity-50"
         >
           {{ isBatchApplying ? t('common.loading') : t('projects.batchApplyChanges') }} ({{ selectedCount }})
         </button>
         <button
           @click="batchRemoveProjects"
           :disabled="isBatchDeleting"
-          class="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+          class="px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-1.5"
         >
           <svg v-if="isBatchDeleting" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
           {{ isBatchDeleting ? t('common.deleting') : `${t('common.batchDelete')} (${selectedCount})` }}
@@ -1412,7 +1500,7 @@ const toggleAddPluginPanel = () => {
       </div>
     </div>
 
-    <div v-if="isLoading" class="py-4">
+    <div v-if="isLoading" class="py-3">
       <SkeletonList :count="4" type="project" />
     </div>
 
@@ -1441,33 +1529,34 @@ const toggleAddPluginPanel = () => {
       ]"
     />
 
-    <div v-else class="space-y-6">
-      <div v-for="(groupProjects, groupName) in (filterGroup === 'all' ? groupedProjects : { all: filteredProjects })" :key="groupName" class="space-y-3">
-        <div v-if="filterGroup === 'all' && Object.keys(groupedProjects).length > 1" class="flex items-center gap-2">
+    <div v-else class="space-y-0" @contextmenu="showProjectListContextMenu($event)">
+      <div v-for="(groupProjects, groupName) in (filterGroup === 'all' ? groupedProjects : { all: filteredProjects })" :key="groupName" class="space-y-0">
+        <div v-if="filterGroup === 'all' && Object.keys(groupedProjects).length > 1" class="flex items-center gap-2 px-3 py-2 bg-gray-50/80 dark:bg-surface-hover/30 border-l-[3px] border-l-primary-500 dark:border-l-brand-primary border-b border-gray-200/80 dark:border-surface-border/60">
           <span
             v-if="getGroupIcon(groupName) || groupName !== t('projects.ungrouped')"
-            class="inline-flex items-center gap-1.5"
+            class="inline-flex items-center gap-1"
           >
-            <span v-if="getGroupIcon(groupName)" class="text-base">{{ getGroupIcon(groupName) }}</span>
+            <span v-if="getGroupIcon(groupName)" class="text-xs">{{ getGroupIcon(groupName) }}</span>
             <span
               v-if="groupName !== t('projects.ungrouped')"
-              class="w-2.5 h-2.5 rounded-full"
+              class="w-2 h-2 rounded-full"
               :style="{ backgroundColor: getGroupColor(groupName) }"
             ></span>
           </span>
-          <h2 class="text-lg font-semibold text-gray-700 dark:text-content-primary">
+          <h2 class="section-header !px-0 !py-0">
             {{ getGroupName(groupName) }}
           </h2>
-          <span class="text-sm text-gray-500 dark:text-content-secondary">({{ groupProjects.length }} {{ t('projects.projectCount') }})</span>
+          <span class="text-xs text-gray-400 dark:text-content-muted">({{ groupProjects.length }})</span>
         </div>
-        <div class="space-y-3">
+        <div class="space-y-0">
           <div
             v-for="project in (filterGroup === 'all' ? groupProjects : filteredProjects)"
             :key="project.project_id"
             :class="[
-              'bg-white dark:bg-surface-card rounded-xl shadow hover:shadow-md transition-shadow p-4 flex items-center gap-4',
-              selectedProjectIds.has(project.project_id) ? 'ring-2 ring-primary-500' : ''
+              'px-3 py-2 border-b border-gray-100 dark:border-surface-border/50 flex items-center gap-3 hover:bg-black/[0.03] dark:hover:bg-white/[0.04] transition-colors',
+              selectedProjectIds.has(project.project_id) ? 'bg-primary-50/50 dark:bg-primary-900/10' : ''
             ]"
+            @contextmenu="showProjectContextMenu($event, project)"
             >
             <input
               type="checkbox"
@@ -1475,14 +1564,14 @@ const toggleAddPluginPanel = () => {
               @click.stop="toggleProjectSelection(project, $event)"
               class="w-4 h-4 text-primary-600 rounded flex-shrink-0 cursor-pointer"
             />
-            <div class="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 dark:bg-surface-hover flex items-center justify-center flex-shrink-0">
+            <div class="w-8 h-8 rounded overflow-hidden bg-gray-100 dark:bg-surface-hover flex items-center justify-center flex-shrink-0">
               <img
                 v-if="project.icon_path && getIconUrl(project.icon_path)"
                 :src="getIconUrl(project.icon_path)"
                 :alt="project.name"
-                class="w-10 h-10 object-contain"
+                class="w-8 h-8 object-contain"
               />
-              <svg v-else class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg v-else class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
               </svg>
             </div>
@@ -1495,7 +1584,7 @@ const toggleAddPluginPanel = () => {
               @click="showProjectDetails(project)"
             >
               <div class="flex items-center gap-2">
-                <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary">
+                <h3 class="text-sm font-medium text-gray-900 dark:text-content-primary">
                   {{ project.name }}
                 </h3>
                 <span
@@ -1532,12 +1621,12 @@ const toggleAddPluginPanel = () => {
                   :lockStatus="lockStatusMap.get(project.project_id) || 'not_locked'"
                 />
               </div>
-              <div class="flex items-center gap-3 mt-1">
-                <span class="text-sm text-gray-500 dark:text-content-secondary" :title="project.path">
+              <div class="flex items-center gap-2 mt-0.5">
+                <span class="text-xs text-gray-500 dark:text-content-secondary truncate" :title="project.path">
                   {{ project.path }}
                 </span>
-                <span class="text-sm text-gray-400">|</span>
-                <span class="text-sm text-gray-500 dark:text-content-secondary">Godot {{ project.godot_version }}</span>
+                <span class="text-xs text-gray-300 dark:text-content-muted">·</span>
+                <span class="text-xs text-gray-500 dark:text-content-secondary">Godot {{ project.godot_version }}</span>
                 <span
                   v-if="projectMissingModulesMap.get(project.project_id)?.length"
                   class="text-sm text-yellow-500 flex items-center gap-1 cursor-pointer hover:text-yellow-600 transition-colors"
@@ -1576,7 +1665,7 @@ const toggleAddPluginPanel = () => {
               <button
                 @click.stop="openProjectWithEngineWrapper(project)"
                 :disabled="isLaunching"
-                class="p-2.5 rounded-lg text-gray-500 dark:text-content-muted hover:text-primary-600 dark:hover:text-brand-primary hover:bg-primary-50 dark:hover:bg-surface-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                class="p-2.5 rounded text-gray-500 dark:text-content-muted hover:text-primary-600 dark:hover:text-brand-primary hover:bg-primary-50 dark:hover:bg-surface-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 :title="t('projects.openWithEngine')"
               >
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -1584,7 +1673,7 @@ const toggleAddPluginPanel = () => {
               <button
                 v-if="project.status === 'MissingSource'"
                 @click.stop="openRelocateDialog(project)"
-                class="px-3 py-1.5 rounded-lg text-sm font-medium bg-orange-500 text-white hover:bg-orange-600 transition-colors flex items-center gap-1.5"
+                class="px-3 py-1.5 rounded text-sm font-medium bg-orange-500 text-white hover:bg-orange-600 transition-colors flex items-center gap-1.5"
                 :title="t('projects.relocate')"
               >
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1595,7 +1684,7 @@ const toggleAddPluginPanel = () => {
               <div class="project-menu-wrapper" style="position: relative; display: inline-block">
                 <button
                   @click.stop="toggleProjectMenu(project.project_id)"
-                  class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-surface-layer transition-colors"
+                  class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-2 rounded hover:bg-gray-100 dark:hover:bg-surface-layer transition-colors"
                   :title="t('projects.moreActions')"
                 >
                   <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1604,7 +1693,7 @@ const toggleAddPluginPanel = () => {
                 </button>
                 <div
                   v-if="projectMenuId === project.project_id"
-                  class="absolute right-0 top-full mt-1 bg-white dark:bg-surface-hover rounded-xl shadow-lg border border-gray-200 dark:border-surface-border py-1 z-20 whitespace-nowrap"
+                  class="absolute right-0 top-full mt-1 bg-white dark:bg-surface-hover rounded-md border border-gray-200 dark:border-surface-border py-1 z-20 whitespace-nowrap"
                 >
                   <button
                     @click.stop="showProjectDetails(project); showAddPluginPanel = true; projectMenuId = ''"
@@ -1663,10 +1752,10 @@ const toggleAddPluginPanel = () => {
 
   <Teleport to="body">
   <div v-if="showProjectDetail && selectedProject" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showProjectDetail = false; selectedProject = null; showAddPluginPanel = false">
-      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-2xl shadow-xl max-h-[90vh] overflow-y-auto" @click.stop>
-        <div class="flex items-center justify-between mb-4">
-          <div class="flex items-center gap-4">
-            <div class="flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-gray-100 dark:bg-surface-hover flex items-center justify-center">
+      <div class="dialog-container w-full max-w-2xl max-h-[90vh] overflow-y-auto" @click.stop>
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-3">
+            <div class="flex-shrink-0 w-12 h-12 rounded overflow-hidden bg-gray-100 dark:bg-surface-hover flex items-center justify-center">
               <img
                 v-if="selectedProject.icon_path && getIconUrl(selectedProject.icon_path)"
                 :src="getIconUrl(selectedProject.icon_path)"
@@ -1678,7 +1767,7 @@ const toggleAddPluginPanel = () => {
               </svg>
             </div>
             <div>
-              <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">
+              <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary">
                 {{ selectedProject.name }}
               </h3>
               <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-content-muted">
@@ -1705,7 +1794,7 @@ const toggleAddPluginPanel = () => {
           </button>
         </div>
 
-        <div class="flex items-center gap-2 mb-4 text-sm text-gray-500 dark:text-content-muted bg-gray-50 dark:bg-surface-hover rounded-lg p-2.5">
+        <div class="flex items-center gap-2 mb-4 text-sm text-gray-500 dark:text-content-muted bg-gray-50 dark:bg-surface-hover rounded p-2.5">
           <span class="break-all flex-1">{{ selectedProject.path }}</span>
           <button
             @click="openInFileManager(selectedProject.path)"
@@ -1718,7 +1807,7 @@ const toggleAddPluginPanel = () => {
           </button>
         </div>
 
-        <div v-if="selectedProject.status === 'MissingSource'" class="mb-4 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+        <div v-if="selectedProject.status === 'MissingSource'" class="mb-4 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded">
           <div class="flex items-start gap-2">
             <svg class="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
@@ -1728,7 +1817,7 @@ const toggleAddPluginPanel = () => {
               <p class="text-xs text-orange-600 dark:text-orange-400 mt-1">{{ t('projects.relocateDesc') }}</p>
               <button
                 @click="showProjectDetail = false; openRelocateDialog(selectedProject!)"
-                class="mt-2 px-3 py-1.5 bg-orange-500 text-white text-xs rounded-lg hover:bg-orange-600 transition-colors"
+                class="mt-2 px-3 py-1.5 bg-orange-500 text-white text-xs rounded hover:bg-orange-600 transition-colors"
               >
                 {{ t('projects.relocate') }}
               </button>
@@ -1782,7 +1871,7 @@ const toggleAddPluginPanel = () => {
               <div
                 v-for="binding in projectBindings"
                 :key="binding.plugin_id + binding.mount_path"
-                class="flex items-center justify-between p-2 rounded-lg"
+                class="flex items-center justify-between p-2 rounded"
                 :class="binding.is_healthy === false ? 'bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800' : 'bg-gray-50 dark:bg-surface-hover'"
               >
                 <div class="flex items-center gap-2 min-w-0 flex-1">
@@ -1829,7 +1918,7 @@ const toggleAddPluginPanel = () => {
             <div class="border-t border-gray-200 dark:border-surface-border pt-3">
               <button
                 @click="toggleAddPluginPanel"
-                :class="['w-full px-3 py-2 text-sm rounded-lg transition-all flex items-center justify-center gap-2 shadow-sm', showAddPluginPanel ? 'bg-gray-100 dark:bg-surface-hover text-gray-600 dark:text-content-secondary border border-gray-300 dark:border-surface-border' : 'bg-primary-600 text-white hover:bg-primary-700 hover:shadow-md']"
+                :class="['w-full px-3 py-2 text-sm rounded transition-all flex items-center justify-center gap-2', showAddPluginPanel ? 'bg-gray-100 dark:bg-surface-hover text-gray-600 dark:text-content-secondary border border-gray-300 dark:border-surface-border' : 'bg-primary-600 text-white hover:bg-primary-700']"
               >
                 <svg v-if="!showAddPluginPanel" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -1841,13 +1930,13 @@ const toggleAddPluginPanel = () => {
               </button>
             </div>
 
-            <div v-if="showAddPluginPanel" class="mt-2 border border-primary-200 dark:border-surface-border rounded-lg overflow-hidden">
+            <div v-if="showAddPluginPanel" class="mt-2 border border-primary-200 dark:border-surface-border rounded overflow-hidden">
               <div class="p-2 bg-primary-50 dark:bg-surface-hover border-b border-primary-200 dark:border-surface-border">
                 <input
                   v-model="addPluginSearchQuery"
                   type="text"
                   :placeholder="t('plugins.search')"
-                  class="w-full px-2.5 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-xs"
+                  class="w-full px-2.5 py-1.5 border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-xs"
                 />
               </div>
               <div class="max-h-48 overflow-y-auto">
@@ -1883,7 +1972,7 @@ const toggleAddPluginPanel = () => {
 
           <div
             v-if="driftMap.get(selectedProject.project_id)?.has_drift || lockStatusMap.get(selectedProject.project_id) === 'locked_drifted'"
-            class="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg flex items-center justify-between"
+            class="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded flex items-center justify-between"
           >
             <div class="flex items-center gap-2">
               <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1914,7 +2003,7 @@ const toggleAddPluginPanel = () => {
             </div>
             <div v-if="isCheckingDrift" class="text-sm text-gray-400">{{ t('common.loading') }}</div>
             <div v-else-if="driftReport">
-              <div v-if="!driftReport.has_drift" class="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+              <div v-if="!driftReport.has_drift" class="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded">
                 <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                 </svg>
@@ -1922,7 +2011,7 @@ const toggleAddPluginPanel = () => {
               </div>
               <div v-else class="space-y-2">
                 <div v-for="item in driftReport.items" :key="`${item.item_type}-${item.name}`"
-                  class="flex items-start gap-2 p-2.5 rounded-lg text-sm"
+                  class="flex items-start gap-2 p-2.5 rounded text-sm"
                   :class="{
                     'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800': item.status === 'VersionMismatch',
                     'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800': item.status === 'Missing',
@@ -1946,7 +2035,7 @@ const toggleAddPluginPanel = () => {
                 </div>
                 <button
                   @click="openSyncPreview"
-                  class="w-full mt-2 py-2 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors"
+                  class="w-full mt-2 py-2 text-sm font-medium rounded bg-primary-600 hover:bg-primary-700 text-white transition-colors"
                 >
                   {{ t('projects.syncEnvironment') }}
                 </button>
@@ -1990,16 +2079,16 @@ const toggleAddPluginPanel = () => {
   <!-- Sync Preview Dialog -->
   <Teleport to="body">
     <div v-if="showSyncPreview && syncPreview" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showSyncPreview = false">
-      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('projects.syncPreviewTitle') }}</h3>
-        <div v-if="syncPreview.actions.length === 0" class="text-sm text-gray-500 dark:text-content-muted mb-4">
+      <div class="dialog-container w-full max-w-md" @click.stop>
+        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-3">{{ t('projects.syncPreviewTitle') }}</h3>
+        <div v-if="syncPreview.actions.length === 0" class="text-sm text-gray-500 dark:text-content-muted mb-3">
           {{ t('projects.noActionsNeeded') }}
         </div>
         <div v-else class="space-y-2 mb-4 max-h-60 overflow-y-auto">
           <label
             v-for="(action, idx) in syncPreview.actions"
             :key="idx"
-            class="flex items-center gap-2 p-2 rounded-lg text-sm cursor-pointer"
+            class="flex items-center gap-2 p-2 rounded text-sm cursor-pointer"
             :class="{
               'bg-blue-50 dark:bg-surface-hover': action.action_type === 'install',
               'bg-yellow-50 dark:bg-yellow-900/20': action.action_type === 'update',
@@ -2030,7 +2119,7 @@ const toggleAddPluginPanel = () => {
             <span class="text-gray-700 dark:text-content-secondary">{{ action.detail }}</span>
           </label>
         </div>
-        <div v-if="syncResult" class="mb-4 p-3 rounded-lg text-sm"
+        <div v-if="syncResult" class="mb-4 p-3 rounded text-sm"
           :class="syncResult.failed > 0 ? 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800' : 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'"
         >
           <p class="font-medium mb-1">{{ t('projects.syncResult') }}</p>
@@ -2040,13 +2129,13 @@ const toggleAddPluginPanel = () => {
           </div>
         </div>
         <div class="flex gap-3">
-          <button @click="showSyncPreview = false" class="flex-1 py-2.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors">
+          <button @click="showSyncPreview = false" class="flex-1 py-2.5 text-sm font-medium rounded border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors">
             {{ t('common.cancel') }}
           </button>
           <button
             @click="executeSync"
             :disabled="isSyncing || selectedSyncItems.size === 0"
-            class="flex-1 py-2.5 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
+            class="flex-1 py-2.5 text-sm font-medium rounded bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
           >
             {{ isSyncing ? '...' : t('projects.confirmSync') }}
           </button>
@@ -2057,15 +2146,15 @@ const toggleAddPluginPanel = () => {
 
   <Teleport to="body">
     <div v-if="showScanDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showScanDialog = false">
-      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('projects.scanTitle') }}</h3>
-        <p class="text-sm text-gray-500 dark:text-content-muted mb-4">
+      <div class="dialog-container w-full max-w-md" @click.stop>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-3">{{ t('projects.scanTitle') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-muted mb-3">
           {{ t('projects.scanDesc') }}
         </p>
         <button
           v-if="hasScanDirs"
           @click="quickScanFromDialog"
-          class="w-full mb-4 px-4 py-2.5 border border-primary-300 dark:border-surface-border bg-primary-50 dark:bg-surface-hover text-primary-700 dark:text-content-secondary rounded-lg hover:bg-primary-100 dark:hover:bg-surface-hover text-sm text-left flex items-center gap-2"
+          class="w-full mb-4 px-4 py-2.5 border border-primary-300 dark:border-surface-border bg-primary-50 dark:bg-surface-hover text-primary-700 dark:text-content-secondary rounded hover:bg-primary-100 dark:hover:bg-surface-hover text-sm text-left flex items-center gap-2"
         >
           <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -2077,7 +2166,7 @@ const toggleAddPluginPanel = () => {
             v-model="scanDirInput"
             type="text"
             :placeholder="t('projects.scanPlaceholder')"
-            class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+            class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
           />
           <button
               @click="selectScanDir"
@@ -2107,8 +2196,8 @@ const toggleAddPluginPanel = () => {
 
   <Teleport to="body">
     <div v-if="showGroupDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showGroupDialog = false; selectedGroupId = ''; editingProjectId = null">
-      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('projects.groupTitle') }}</h3>
+      <div class="dialog-container w-full max-w-md" @click.stop>
+        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-3">{{ t('projects.groupTitle') }}</h3>
         <p class="text-sm text-gray-500 dark:text-content-muted mb-4">
           {{ t('projects.groupDesc') }}
         </p>
@@ -2116,7 +2205,7 @@ const toggleAddPluginPanel = () => {
           <button
             @click="selectedGroupId = ''"
             :class="[
-              'w-full flex items-center gap-2 p-2.5 rounded-lg border transition-colors text-left',
+              'w-full flex items-center gap-2 p-2.5 rounded border transition-colors text-left',
               !selectedGroupId ? 'border-primary-300 dark:border-surface-border bg-primary-50 dark:bg-surface-hover' : 'border-gray-200 dark:border-surface-border hover:border-primary-300 dark:hover:border-surface-border hover:bg-gray-50 dark:hover:bg-surface-layer'
             ]"
           >
@@ -2128,7 +2217,7 @@ const toggleAddPluginPanel = () => {
             :key="group.group_id"
             @click="selectedGroupId = group.group_id"
             :class="[
-              'w-full flex items-center gap-2 p-2.5 rounded-lg border transition-colors text-left',
+              'w-full flex items-center gap-2 p-2.5 rounded border transition-colors text-left',
               selectedGroupId === group.group_id ? 'border-primary-300 dark:border-surface-border bg-primary-50 dark:bg-surface-hover' : 'border-gray-200 dark:border-surface-border hover:border-primary-300 dark:hover:border-surface-border hover:bg-gray-50 dark:hover:bg-surface-layer'
             ]"
           >
@@ -2146,7 +2235,7 @@ const toggleAddPluginPanel = () => {
         </div>
         <button
           @click="openCreateGroupDialog"
-          class="w-full mt-2 py-2 text-sm text-primary-600 dark:text-brand-primary hover:bg-primary-50 dark:hover:bg-surface-hover rounded-lg border border-dashed border-primary-300 dark:border-surface-border flex items-center justify-center gap-1.5 transition-colors"
+          class="w-full mt-2 py-2 text-sm text-primary-600 dark:text-brand-primary hover:bg-primary-50 dark:hover:bg-surface-hover rounded border border-dashed border-primary-300 dark:border-surface-border flex items-center justify-center gap-1.5 transition-colors"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
           {{ t('projects.createGroup') }}
@@ -2171,8 +2260,8 @@ const toggleAddPluginPanel = () => {
 
   <Teleport to="body">
     <div v-if="showBatchGroupDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showBatchGroupDialog = false">
-      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('projects.batchGroupTitle') }}</h3>
+      <div class="dialog-container w-full max-w-md" @click.stop>
+        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-3">{{ t('projects.batchGroupTitle') }}</h3>
         <p class="text-sm text-gray-500 dark:text-content-muted mb-4">
           {{ t('projects.batchGroupDesc', { count: selectedCount }) }}
         </p>
@@ -2180,7 +2269,7 @@ const toggleAddPluginPanel = () => {
           <button
             @click="batchGroupId = ''"
             :class="[
-              'w-full flex items-center gap-2 p-2.5 rounded-lg border transition-colors text-left',
+              'w-full flex items-center gap-2 p-2.5 rounded border transition-colors text-left',
               !batchGroupId ? 'border-primary-300 dark:border-surface-border bg-primary-50 dark:bg-surface-hover' : 'border-gray-200 dark:border-surface-border hover:border-primary-300 dark:hover:border-surface-border hover:bg-gray-50 dark:hover:bg-surface-layer'
             ]"
           >
@@ -2192,7 +2281,7 @@ const toggleAddPluginPanel = () => {
             :key="group.group_id"
             @click="batchGroupId = group.group_id"
             :class="[
-              'w-full flex items-center gap-2 p-2.5 rounded-lg border transition-colors text-left',
+              'w-full flex items-center gap-2 p-2.5 rounded border transition-colors text-left',
               batchGroupId === group.group_id ? 'border-primary-300 dark:border-surface-border bg-primary-50 dark:bg-surface-hover' : 'border-gray-200 dark:border-surface-border hover:border-primary-300 dark:hover:border-surface-border hover:bg-gray-50 dark:hover:bg-surface-layer'
             ]"
           >
@@ -2221,8 +2310,8 @@ const toggleAddPluginPanel = () => {
 
   <Teleport to="body">
     <div v-if="showRelocateDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showRelocateDialog = false">
-      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('projects.relocateTitle') }}</h3>
+      <div class="dialog-container w-full max-w-md" @click.stop>
+        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-3">{{ t('projects.relocateTitle') }}</h3>
         <p class="text-sm text-gray-600 dark:text-content-muted mb-4">
           {{ t('projects.relocateDesc') }}
         </p>
@@ -2234,7 +2323,7 @@ const toggleAddPluginPanel = () => {
               type="text"
               readonly
               :placeholder="t('projects.scanPlaceholder')"
-              class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-gray-50 dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+              class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded bg-gray-50 dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
             />
             <button
               @click="selectRelocatePath"
@@ -2278,13 +2367,13 @@ const toggleAddPluginPanel = () => {
 
   <Teleport to="body">
     <div v-if="showMovedDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showMovedDialog = false">
-      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-lg shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('projects.detectProjectMigration') }}</h3>
+      <div class="dialog-container w-full max-w-lg" @click.stop>
+        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('projects.detectProjectMigration') }}</h3>
         <p class="text-sm text-gray-600 dark:text-content-muted mb-4">
           {{ t('projects.migrationDesc') }}
         </p>
         <div class="space-y-3 max-h-60 overflow-y-auto">
-          <div v-for="candidate in movedCandidates" :key="candidate.project_id" class="bg-gray-50 dark:bg-surface-hover rounded-lg p-4">
+          <div v-for="candidate in movedCandidates" :key="candidate.project_id" class="bg-gray-50 dark:bg-surface-hover rounded p-4">
             <div class="flex items-center justify-between">
               <div>
                 <h4 class="font-medium text-gray-900 dark:text-content-primary">{{ candidate.old_name }}</h4>
@@ -2322,7 +2411,7 @@ const toggleAddPluginPanel = () => {
 
   <Teleport to="body">
     <div v-if="showAddProjectDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="closeAddProjectDialog">
-      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-lg shadow-xl" @click.stop>
+      <div class="dialog-container w-full max-w-lg" @click.stop>
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('projects.addProjectDialog.title') }}</h3>
           <button @click="closeAddProjectDialog" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1">
@@ -2351,7 +2440,7 @@ const toggleAddPluginPanel = () => {
           </button>
         </div>
 
-        <div v-if="addProjectMode === 'local'" class="space-y-4">
+        <div v-if="addProjectMode === 'local'" class="space-y-3">
           <p class="text-sm text-gray-500 dark:text-content-muted">{{ t('projects.addLocalDesc') }}</p>
           <div class="flex justify-end">
             <button
@@ -2363,14 +2452,14 @@ const toggleAddPluginPanel = () => {
           </div>
         </div>
 
-        <div v-if="addProjectMode === 'git'" class="space-y-4">
+        <div v-if="addProjectMode === 'git'" class="space-y-3">
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('projects.gitImport.urlLabel') }}</label>
             <input
               v-model="gitUrl"
               type="text"
               :placeholder="t('projects.gitImport.urlPlaceholder')"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
               @keyup.enter="importProjectFromGit"
             />
           </div>
@@ -2381,11 +2470,11 @@ const toggleAddPluginPanel = () => {
                 v-model="gitTargetDir"
                 type="text"
                 :placeholder="t('projects.gitImport.targetDirPlaceholder')"
-                class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+                class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
               />
               <button
                 @click="browseGitTargetDir"
-                class="px-3 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-hover text-gray-700 dark:text-content-secondary rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer text-sm"
+                class="px-3 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-hover text-gray-700 dark:text-content-secondary rounded hover:bg-gray-50 dark:hover:bg-surface-layer text-sm"
               >
                 {{ t('projects.browse') }}
               </button>
@@ -2404,7 +2493,7 @@ const toggleAddPluginPanel = () => {
           </div>
         </div>
 
-        <div v-if="addProjectMode === 'template'" class="space-y-4">
+        <div v-if="addProjectMode === 'template'" class="space-y-3">
           <div v-if="templateList.length === 0 && hubTemplateList.length === 0" class="text-center py-6">
             <p class="text-sm text-gray-500 dark:text-content-muted">{{ t('projects.addProjectDialog.noTemplates') }}</p>
             <button
@@ -2414,7 +2503,7 @@ const toggleAddPluginPanel = () => {
               {{ t('projects.addProjectDialog.manageTemplates') }} →
             </button>
           </div>
-          <div v-else class="space-y-4">
+          <div v-else class="space-y-3">
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('projects.addProjectDialog.selectTemplate') }}</label>
               <div class="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
@@ -2422,7 +2511,7 @@ const toggleAddPluginPanel = () => {
                   v-for="tmpl in hubTemplateList"
                   :key="tmpl.id"
                   @click="selectedTemplateId = tmpl.id"
-                  :class="['p-2.5 rounded-lg border text-left transition-all', selectedTemplateId === tmpl.id ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/20 dark:border-brand-primary' : 'border-gray-200 dark:border-surface-border hover:border-gray-300 dark:hover:border-surface-hover']"
+                  :class="['p-2.5 rounded border text-left transition-all', selectedTemplateId === tmpl.id ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/20 dark:border-brand-primary' : 'border-gray-200 dark:border-surface-border hover:border-gray-300 dark:hover:border-surface-hover']"
                 >
                   <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate">{{ tmpl.name }}</div>
                   <div class="text-xs text-gray-500 dark:text-content-muted truncate">{{ tmpl.description || t('projects.addProjectDialog.noDesc') }}</div>
@@ -2431,7 +2520,7 @@ const toggleAddPluginPanel = () => {
                   v-for="tmpl in templateList"
                   :key="tmpl.template_id"
                   @click="selectedTemplateId = tmpl.template_id"
-                  :class="['p-2.5 rounded-lg border text-left transition-all', selectedTemplateId === tmpl.template_id ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/20 dark:border-brand-primary' : 'border-gray-200 dark:border-surface-border hover:border-gray-300 dark:hover:border-surface-hover']"
+                  :class="['p-2.5 rounded border text-left transition-all', selectedTemplateId === tmpl.template_id ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/20 dark:border-brand-primary' : 'border-gray-200 dark:border-surface-border hover:border-gray-300 dark:hover:border-surface-hover']"
                 >
                   <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate">{{ tmpl.name }}</div>
                   <div class="text-xs text-gray-500 dark:text-content-muted">{{ t('projects.addProjectDialog.localTemplate') }}</div>
@@ -2444,7 +2533,7 @@ const toggleAddPluginPanel = () => {
                 v-model="templateProjectName"
                 type="text"
                 :placeholder="t('projects.addProjectDialog.projectNamePlaceholder')"
-                class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+                class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
               />
             </div>
             <div>
@@ -2454,11 +2543,11 @@ const toggleAddPluginPanel = () => {
                   v-model="templateTargetDir"
                   type="text"
                   :placeholder="t('projects.gitImport.targetDirPlaceholder')"
-                  class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+                  class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
                 />
                 <button
                   @click="browseTemplateTargetDir"
-                  class="px-3 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-hover text-gray-700 dark:text-content-secondary rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer text-sm"
+                  class="px-3 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-hover text-gray-700 dark:text-content-secondary rounded hover:bg-gray-50 dark:hover:bg-surface-layer text-sm"
                 >
                   {{ t('projects.browse') }}
                 </button>
@@ -2490,17 +2579,17 @@ const toggleAddPluginPanel = () => {
 
   <Teleport to="body">
     <div v-if="showGitDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showGitDialog = false; gitUrl = ''; gitTargetDir = ''">
-      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('projects.gitImport.title') }}</h3>
+      <div class="dialog-container w-full max-w-md" @click.stop>
+        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-3">{{ t('projects.gitImport.title') }}</h3>
         <p class="text-sm text-gray-500 dark:text-content-muted mb-4">{{ t('projects.gitImport.desc') }}</p>
-        <div class="space-y-4">
+        <div class="space-y-3">
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('projects.gitImport.urlLabel') }}</label>
             <input
               v-model="gitUrl"
               type="text"
               :placeholder="t('projects.gitImport.urlPlaceholder')"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
               @keyup.enter="importProjectFromGit"
             />
           </div>
@@ -2511,11 +2600,11 @@ const toggleAddPluginPanel = () => {
                 v-model="gitTargetDir"
                 type="text"
                 :placeholder="t('projects.gitImport.targetDirPlaceholder')"
-                class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+                class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
               />
               <button
                 @click="browseGitTargetDir"
-                class="px-3 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-hover text-gray-700 dark:text-content-secondary rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer text-sm"
+                class="px-3 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-hover text-gray-700 dark:text-content-secondary rounded hover:bg-gray-50 dark:hover:bg-surface-layer text-sm"
               >
                 {{ t('projects.browse') }}
               </button>
@@ -2544,8 +2633,8 @@ const toggleAddPluginPanel = () => {
 
   <Teleport to="body">
     <div v-if="showEngineSelectDialog && engineSelectProject" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="closeEngineSelectDialog">
-      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl max-h-[80vh] flex flex-col" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-1">{{ engineSelectMode === 'select' ? t('projects.selectDefaultEngine') : t('projects.openWithEngine') }}</h3>
+      <div class="dialog-container w-full max-w-md max-h-[80vh] flex flex-col" @click.stop>
+        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-1">{{ engineSelectMode === 'select' ? t('projects.selectDefaultEngine') : t('projects.openWithEngine') }}</h3>
         <p class="text-sm text-gray-500 dark:text-content-muted mb-4">
           {{ engineSelectMode === 'select' ? t('projects.selectDefaultEngineDesc') : t('projects.openWithEngineDesc') }}
           <span class="font-mono text-xs bg-gray-100 dark:bg-surface-hover px-1.5 py-0.5 rounded ml-1">Godot {{ engineSelectProject.godot_version }}</span>
@@ -2564,13 +2653,13 @@ const toggleAddPluginPanel = () => {
           <div class="flex items-center justify-center gap-3 mt-4">
             <button
               @click="closeEngineSelectDialog(); $router.push('/engines')"
-              class="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors"
+              class="px-4 py-2 bg-primary-600 text-white text-sm rounded hover:bg-primary-700 transition-colors"
             >
               {{ t('projects.goToEngines') }}
             </button>
             <button
               @click="closeEngineSelectDialog(); $router.push('/engines?action=discover')"
-              class="px-4 py-2 border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-secondary text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors"
+              class="px-4 py-2 border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-secondary text-sm rounded hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors"
             >
               {{ t('projects.discoverEngines') }}
             </button>
@@ -2584,7 +2673,7 @@ const toggleAddPluginPanel = () => {
             @click="launchWithEngine(me.engine.engine_id)"
             :disabled="isLaunching"
             :class="[
-              'w-full text-left p-3 rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
+              'w-full text-left p-3 rounded border transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
               me.engine.engine_id === engineSelectProject?.last_used_engine_id
                 ? 'border-primary-300 dark:border-surface-border bg-primary-50 dark:bg-surface-hover'
                 : 'border-gray-200 dark:border-surface-border hover:border-primary-300 dark:hover:border-surface-border hover:bg-primary-50 dark:hover:bg-surface-hover'
@@ -2626,18 +2715,18 @@ const toggleAddPluginPanel = () => {
 
   <Teleport to="body">
     <div v-if="showSaveAsTemplateDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="!isSavingAsTemplate && (showSaveAsTemplateDialog = false)">
-      <div class="bg-white dark:bg-surface-card rounded-2xl shadow-2xl max-w-md w-full mx-4" @click.stop>
-        <div class="p-6">
-          <h2 class="text-lg font-bold text-gray-900 dark:text-content-primary mb-4">{{ t('templates.saveFromProject') }}</h2>
-          <p class="text-sm text-gray-500 dark:text-content-muted mb-4">{{ t('templates.saveFromProjectDesc') }}</p>
-          <div class="space-y-4">
+      <div class="dialog-container max-w-md w-full mx-4" @click.stop>
+        <div class="p-4">
+          <h2 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-3">{{ t('templates.saveFromProject') }}</h2>
+          <p class="text-sm text-gray-500 dark:text-content-muted mb-3">{{ t('templates.saveFromProjectDesc') }}</p>
+          <div class="space-y-3">
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('templates.templateName') }}</label>
               <input
                 v-model="saveAsTemplateName"
                 type="text"
                 :disabled="isSavingAsTemplate"
-                class="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none disabled:opacity-50"
+                class="w-full px-3 py-2 text-sm rounded border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none disabled:opacity-50"
               />
             </div>
             <div>
@@ -2645,7 +2734,7 @@ const toggleAddPluginPanel = () => {
               <select
                 v-model="saveAsTemplateCategory"
                 :disabled="isSavingAsTemplate"
-                class="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none disabled:opacity-50"
+                class="w-full px-3 py-2 text-sm rounded border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none disabled:opacity-50"
               >
                 <option value="Starter2D">{{ t('templates.category.Starter2D') }}</option>
                 <option value="Starter3D">{{ t('templates.category.Starter3D') }}</option>
@@ -2662,14 +2751,14 @@ const toggleAddPluginPanel = () => {
             <button
               @click="showSaveAsTemplateDialog = false"
               :disabled="isSavingAsTemplate"
-              class="flex-1 py-2.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors disabled:opacity-50"
+              class="flex-1 py-2.5 text-sm font-medium rounded border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors disabled:opacity-50"
             >
               {{ t('common.cancel') || 'Cancel' }}
             </button>
             <button
               @click="handleSaveAsTemplate"
               :disabled="isSavingAsTemplate || !saveAsTemplateName.trim()"
-              class="flex-1 py-2.5 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
+              class="flex-1 py-2.5 text-sm font-medium rounded bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
             >
               {{ isSavingAsTemplate ? '...' : t('common.save') || 'Save' }}
             </button>
@@ -2682,27 +2771,27 @@ const toggleAddPluginPanel = () => {
   <!-- Create Group Dialog -->
   <Teleport to="body">
     <div v-if="showCreateGroupDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="!isCreatingGroup && (showCreateGroupDialog = false)">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('projects.createGroup') }}</h3>
-        <div class="space-y-4">
+      <div class="dialog-container w-full max-w-md" @click.stop>
+        <h3 class="dialog-title">{{ t('projects.createGroup') }}</h3>
+        <div class="space-y-3">
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('projects.groupName') }}</label>
             <input
               v-model="newGroupName"
               type="text"
               :placeholder="t('projects.groupNamePlaceholder')"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
               @keyup.enter="createGroup"
             />
           </div>
-          <div class="flex gap-4">
+          <div class="flex gap-3">
             <div class="flex-1">
               <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('projects.groupIcon') }}</label>
               <input
                 v-model="newGroupIcon"
                 type="text"
                 placeholder="🎮"
-                class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+                class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
               />
             </div>
             <div class="flex-1">
@@ -2716,7 +2805,7 @@ const toggleAddPluginPanel = () => {
                 <input
                   v-model="newGroupColor"
                   type="text"
-                  class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm font-mono"
+                  class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm font-mono"
                 />
               </div>
             </div>
@@ -2727,10 +2816,10 @@ const toggleAddPluginPanel = () => {
               v-model="newGroupDescription"
               type="text"
               :placeholder="t('projects.groupDescriptionPlaceholder')"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
             />
           </div>
-          <div class="p-3 rounded-lg border border-gray-200 dark:border-surface-border bg-gray-50 dark:bg-surface-hover">
+          <div class="p-3 rounded border border-gray-200 dark:border-surface-border bg-gray-50 dark:bg-surface-hover">
             <p class="text-xs text-gray-500 dark:text-content-muted mb-1">{{ t('projects.preview') }}</p>
             <div class="flex items-center gap-2">
               <span v-if="newGroupIcon" class="text-base">{{ newGroupIcon }}</span>
@@ -2743,14 +2832,14 @@ const toggleAddPluginPanel = () => {
           <button
             @click="showCreateGroupDialog = false"
             :disabled="isCreatingGroup"
-            class="flex-1 py-2.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors disabled:opacity-50"
+            class="flex-1 py-2.5 text-sm font-medium rounded border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors disabled:opacity-50"
           >
             {{ t('common.cancel') }}
           </button>
           <button
             @click="createGroup"
             :disabled="isCreatingGroup || !newGroupName.trim()"
-            class="flex-1 py-2.5 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
+            class="flex-1 py-2.5 text-sm font-medium rounded bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
           >
             {{ isCreatingGroup ? '...' : t('common.confirm') }}
           </button>
@@ -2758,5 +2847,13 @@ const toggleAddPluginPanel = () => {
       </div>
     </div>
   </Teleport>
+
+  <ContextMenu
+    :visible="projectContextMenu.visible.value"
+    :x="projectContextMenu.x.value"
+    :y="projectContextMenu.y.value"
+    :items="projectContextMenu.items.value"
+    @close="projectContextMenu.close()"
+  />
 
 </template>

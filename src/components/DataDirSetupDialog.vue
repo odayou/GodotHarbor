@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref } from 'vue'
 import { api } from '@/api'
 import { useI18n } from 'vue-i18n'
@@ -56,8 +56,8 @@ const useDefault = async () => {
 <template>
   <Teleport to="body">
     <div v-if="visible" class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50">
-      <div class="bg-white dark:bg-surface-card rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
-        <div class="p-8">
+      <div class="dialog-container w-full max-w-lg mx-4 overflow-hidden">
+        <div class="p-6">
           <div class="flex justify-center mb-6">
             <div class="w-20 h-20 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
               <svg class="w-10 h-10 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -66,7 +66,7 @@ const useDefault = async () => {
             </div>
           </div>
 
-          <h2 class="text-xl font-bold text-gray-900 dark:text-content-primary text-center mb-2">
+          <h2 class="text-lg font-bold text-gray-900 dark:text-content-primary text-center mb-2">
             {{ t('dataDirSetup.title') }}
           </h2>
           <p class="text-sm text-gray-500 dark:text-content-muted text-center mb-6">
@@ -74,7 +74,7 @@ const useDefault = async () => {
           </p>
 
           <div class="space-y-4">
-            <div class="p-4 border border-gray-200 dark:border-surface-border rounded-xl hover:border-primary-300 dark:hover:border-surface-border transition-colors cursor-pointer" @click="selectDirectory">
+            <div class="p-3 border border-gray-200 dark:border-surface-border rounded-md hover:border-primary-300 dark:hover:border-surface-border transition-colors cursor-pointer" @click="selectDirectory">
               <div class="flex items-center gap-3">
                 <div class="w-10 h-10 rounded-lg bg-primary-100 dark:bg-surface-hover flex items-center justify-center shrink-0">
                   <svg class="w-5 h-5 text-primary-600 dark:text-brand-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -89,7 +89,7 @@ const useDefault = async () => {
               </div>
             </div>
 
-            <div class="p-4 border border-gray-200 dark:border-surface-border rounded-xl hover:border-amber-300 dark:hover:border-amber-700 transition-colors cursor-pointer" @click="useDefault">
+            <div class="p-3 border border-gray-200 dark:border-surface-border rounded-md hover:border-amber-300 dark:hover:border-amber-700 transition-colors cursor-pointer" @click="useDefault">
               <div class="flex items-center gap-3">
                 <div class="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
                   <svg class="w-5 h-5 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -178,7 +178,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div v-if="vcsInfo && vcsInfo.vcs_type === 'Git'" class="border border-gray-200 dark:border-surface-border rounded-lg overflow-hidden">
+  <div v-if="vcsInfo && vcsInfo.vcs_type === 'Git'" class="border border-gray-200 dark:border-surface-border rounded overflow-hidden">
     <button
       class="w-full flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-surface-hover hover:bg-gray-100 dark:hover:bg-surface-layer transition-colors"
       @click="isExpanded = !isExpanded"
@@ -200,7 +200,7 @@ onMounted(() => {
       </svg>
     </button>
 
-    <div v-if="isExpanded" class="p-4 space-y-4">
+    <div v-if="isExpanded" class="p-3 space-y-3">
       <div class="grid grid-cols-2 gap-3">
         <div>
           <span class="text-xs text-gray-500 dark:text-content-muted">{{ t('vcs.branch') }}</span>
@@ -221,7 +221,7 @@ onMounted(() => {
         </div>
       </div>
 
-      <div v-if="showBranchPanel" class="border border-gray-200 dark:border-surface-border rounded-lg p-3 space-y-2">
+      <div v-if="showBranchPanel" class="border border-gray-200 dark:border-surface-border rounded p-3 space-y-2">
         <div class="flex gap-2">
           <input
             v-model="newBranchName"
@@ -286,7 +286,7 @@ onMounted(() => {
         <button
           @click="handlePull"
           :disabled="isOperating"
-          class="flex-1 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+          class="flex-1 px-3 py-2 text-sm font-medium rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
         >
           <svg v-if="isOperating" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
           <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
@@ -295,7 +295,7 @@ onMounted(() => {
         <button
           @click="handlePush"
           :disabled="isOperating"
-          class="flex-1 px-3 py-2 text-sm font-medium rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+          class="flex-1 px-3 py-2 text-sm font-medium rounded bg-purple-600 text-white hover:bg-purple-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
         >
           <svg v-if="isOperating" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
           <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
@@ -309,13 +309,13 @@ onMounted(() => {
             v-model="commitMessage"
             type="text"
             :placeholder="t('vcs.commitMessage')"
-            class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+            class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
             @keyup.enter="handleCommit"
           />
           <button
             @click="handleCommit"
             :disabled="isOperating || !commitMessage.trim()"
-            class="px-4 py-2 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors disabled:opacity-50"
+            class="px-4 py-2 text-sm font-medium rounded bg-green-600 text-white hover:bg-green-700 transition-colors disabled:opacity-50"
           >
             {{ t('vcs.commit') }}
           </button>
@@ -373,20 +373,20 @@ onMounted(() => {
 
       <button
         @click="handleUpdateGitignore"
-        class="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-secondary hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors flex items-center justify-center gap-1.5"
+        class="w-full px-3 py-2 text-sm rounded border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-secondary hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors flex items-center justify-center gap-1.5"
       >
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
         {{ t('vcs.updateGitignore') }}
       </button>
     </div>
   </div>
-  <div v-else-if="vcsInfo" class="border border-gray-200 dark:border-surface-border rounded-lg p-4">
+  <div v-else-if="vcsInfo" class="border border-gray-200 dark:border-surface-border rounded p-3">
     <div class="flex items-center gap-2 text-gray-500 dark:text-content-muted">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
       <span class="text-sm">{{ t('vcs.notGitProject') }}</span>
     </div>
   </div>
-  <div v-else class="border border-gray-200 dark:border-surface-border rounded-lg p-4">
+  <div v-else class="border border-gray-200 dark:border-surface-border rounded p-4">
     <div class="flex items-center gap-2 text-gray-400 dark:text-content-muted">
       <div class="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-transparent"></div>
       <span class="text-sm">{{ t('common.loading') }}</span>

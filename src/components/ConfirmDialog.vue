@@ -89,15 +89,15 @@ const confirmColorClass = computed(() => {
     class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
     @click="onOverlayClick"
   >
-    <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-      <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-2">
+    <div class="dialog-container w-full max-w-md" @click.stop>
+      <h3 class="dialog-title">
         {{ resolvedTitle }}
       </h3>
       <p v-if="description" class="text-sm text-gray-600 dark:text-content-muted mb-4">
         {{ description }}
       </p>
       <slot></slot>
-      <div class="flex justify-end space-x-3 mt-6">
+      <div class="flex justify-end space-x-3 mt-4">
         <button
           @click="close"
           class="btn-secondary"

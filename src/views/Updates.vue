@@ -1,7 +1,7 @@
-﻿<template>
-  <div class="space-y-6">
+<template>
+  <div class="space-y-3">
     <div class="flex items-center justify-between">
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-content-primary">{{ t('nav.updates') }}</h1>
+      <h1 class="text-base font-semibold text-gray-900 dark:text-content-primary">{{ t('nav.updates') }}</h1>
       <button @click="store.checkAll()" :disabled="store.isChecking" class="btn-primary">
         {{ store.isChecking ? t('plugins.checkingUpdates') : t('statusbar.checkUpdates') }}
       </button>
@@ -21,7 +21,7 @@
 
     <div v-if="store.hasChecked && !store.isChecking" class="card">
       <div class="flex items-center justify-between">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('statusbar.appUpdate') }}</h3>
+        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary">{{ t('statusbar.appUpdate') }}</h3>
       </div>
       <div v-if="store.appUpdate" class="mt-3">
         <div class="flex items-center justify-between">
@@ -65,7 +65,7 @@
     <div v-if="store.hotUpdate && !store.appUpdate" class="card">
       <div class="flex items-center justify-between">
         <div>
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('statusbar.hotUpdate') }}</h3>
+          <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary">{{ t('statusbar.hotUpdate') }}</h3>
           <p class="text-sm text-gray-500 dark:text-content-secondary mt-1">
             {{ t('plugins.version') }} {{ store.hotUpdate.version }} ({{ formatBytes(store.hotUpdate.download_size) }})
           </p>
@@ -93,7 +93,7 @@
 
     <div v-if="store.hasChecked && !store.isChecking" class="card">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">
+        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary">
           {{ t('statusbar.plugins') }}
         </h3>
         <button v-if="store.pluginUpdates.length > 0" @click="store.batchUpdateAllPlugins()" :disabled="store.isUpdatingPlugins" class="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50">
@@ -123,7 +123,7 @@
 
     <div v-if="store.hasChecked && !store.isChecking" class="card">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">
+        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary">
           {{ t('statusbar.engine') }} {{ t('statusbar.update') }}
         </h3>
         <router-link v-if="store.engineUpdates.length > 0" to="/engines" class="px-3 py-1.5 text-sm border border-primary-600 text-primary-600 dark:text-brand-primary rounded-lg hover:bg-primary-50 dark:hover:bg-surface-hover">
@@ -208,7 +208,7 @@
 
     <div v-if="store.updateHistory.length > 0" class="card">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">
+        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary">
           {{ t('updates.updateHistory') }} ({{ store.updateHistory.length }})
         </h3>
         <button @click="showClearHistoryConfirm = true" class="px-3 py-1 text-xs border border-gray-300 dark:border-surface-border rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer text-gray-700 dark:text-content-secondary">

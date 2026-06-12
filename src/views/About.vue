@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, onMounted, onErrorCaptured } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -120,7 +120,7 @@ const inspirationDeps = [
     <p class="text-gray-500 dark:text-content-muted mb-3">{{ t('common.loadFailed', { error: '' }) }}</p>
     <button @click="hasError = false" class="btn-primary text-sm">{{ t('home.retry') }}</button>
   </div>
-  <div v-else class="space-y-6">
+  <div v-else class="space-y-3">
     <div class="flex gap-2 border-b border-gray-200 dark:border-surface-border pb-2">
       <button
         @click="activeTab = 'about'"
@@ -142,7 +142,7 @@ const inspirationDeps = [
       </button>
     </div>
 
-    <div v-if="activeTab === 'about'" class="space-y-6">
+    <div v-if="activeTab === 'about'" class="space-y-3">
       <div class="card p-8 text-center">
         <div class="w-20 h-20 mx-auto mb-4 flex items-center justify-center">
           <img src="../assets/StoreLogo.png" alt="Godot Harbor Logo" class="w-full h-full object-contain" />
@@ -165,9 +165,9 @@ const inspirationDeps = [
         </p>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="card p-6 text-center">
-          <div class="w-10 h-10 mx-auto mb-3 bg-blue-100 dark:bg-surface-hover rounded-lg flex items-center justify-center">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div class="card p-4 text-center">
+          <div class="w-9 h-9 mx-auto mb-2 bg-blue-100 dark:bg-surface-hover rounded flex items-center justify-center">
             <svg class="w-6 h-6 text-blue-600 dark:text-brand-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
@@ -175,8 +175,8 @@ const inspirationDeps = [
           <h3 class="font-semibold text-gray-900 dark:text-content-primary">{{ t('about.features.symlinkEngine.title') }}</h3>
           <p class="text-sm text-gray-500 dark:text-content-muted mt-2">{{ t('about.features.symlinkEngine.desc') }}</p>
         </div>
-        <div class="card p-6 text-center">
-          <div class="w-10 h-10 mx-auto mb-3 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
+        <div class="card p-4 text-center">
+          <div class="w-9 h-9 mx-auto mb-2 bg-green-100 dark:bg-green-900/30 rounded flex items-center justify-center">
             <svg class="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
             </svg>
@@ -184,8 +184,8 @@ const inspirationDeps = [
           <h3 class="font-semibold text-gray-900 dark:text-content-primary">{{ t('about.features.versionManagement.title') }}</h3>
           <p class="text-sm text-gray-500 dark:text-content-muted mt-2">{{ t('about.features.versionManagement.desc') }}</p>
         </div>
-        <div class="card p-6 text-center">
-          <div class="w-10 h-10 mx-auto mb-3 bg-purple-100 dark:bg-surface-hover rounded-lg flex items-center justify-center">
+        <div class="card p-4 text-center">
+          <div class="w-9 h-9 mx-auto mb-2 bg-purple-100 dark:bg-surface-hover rounded flex items-center justify-center">
             <svg class="w-6 h-6 text-purple-600 dark:text-content-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
@@ -195,31 +195,31 @@ const inspirationDeps = [
         </div>
       </div>
 
-      <div class="card p-6">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('about.techStack') }}</h3>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-surface-hover rounded-lg">
+      <div class="card p-4">
+        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-3">{{ t('about.techStack') }}</h3>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div class="flex items-center gap-3 p-2.5 bg-gray-50 dark:bg-surface-hover rounded">
             <span class="text-2xl">🦀</span>
             <div>
               <p class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ t('about.rust') }}</p>
               <p class="text-xs text-gray-500 dark:text-content-muted">{{ t('about.rustBackend') }}</p>
             </div>
           </div>
-          <div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-surface-hover rounded-lg">
+          <div class="flex items-center gap-3 p-2.5 bg-gray-50 dark:bg-surface-hover rounded">
             <span class="text-2xl">⚡</span>
             <div>
               <p class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ t('about.tauri') }}</p>
               <p class="text-xs text-gray-500 dark:text-content-muted">{{ t('about.tauriDesktop') }}</p>
             </div>
           </div>
-          <div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-surface-hover rounded-lg">
+          <div class="flex items-center gap-3 p-2.5 bg-gray-50 dark:bg-surface-hover rounded">
             <span class="text-2xl">💚</span>
             <div>
               <p class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ t('about.vue') }}</p>
               <p class="text-xs text-gray-500 dark:text-content-muted">{{ t('about.vueFrontend') }}</p>
             </div>
           </div>
-          <div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-surface-hover rounded-lg">
+          <div class="flex items-center gap-3 p-2.5 bg-gray-50 dark:bg-surface-hover rounded">
             <span class="text-2xl">🎨</span>
             <div>
               <p class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ t('about.tailwind') }}</p>
@@ -229,11 +229,11 @@ const inspirationDeps = [
         </div>
       </div>
 
-      <div class="card p-6 text-center">
+      <div class="card p-4 text-center">
         <p class="text-sm text-gray-500 dark:text-content-muted">
           {{ t('about.openSource') }}
         </p>
-        <div class="flex flex-wrap justify-center gap-4 mt-4">
+        <div class="flex flex-wrap justify-center gap-3 mt-3">
           <a href="https://github.com/odayou/GodotHarbor" target="_blank" class="text-primary-600 dark:text-brand-primary hover:underline text-sm">
             {{ t('about.githubRepo') }}
           </a>
@@ -262,9 +262,9 @@ const inspirationDeps = [
       </div>
     </div>
 
-    <div v-if="activeTab === 'credits'" class="space-y-6">
-      <div class="card p-6">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('about.creditsTitle') }}</h2>
+    <div v-if="activeTab === 'credits'" class="space-y-3">
+      <div class="card p-4">
+        <h2 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('about.creditsTitle') }}</h2>
         <p class="text-sm text-gray-600 dark:text-content-muted mb-6">
           {{ t('about.creditsDesc') }}
         </p>
@@ -274,7 +274,7 @@ const inspirationDeps = [
           <div
             v-for="dep in rustDeps"
             :key="dep.name"
-            class="flex items-center p-3 bg-gray-50 dark:bg-surface-hover rounded-lg"
+            class="flex items-center p-2.5 bg-gray-50 dark:bg-surface-hover rounded"
           >
             <a :href="dep.url" target="_blank" class="text-sm font-medium text-primary-600 dark:text-brand-primary hover:underline">
               {{ dep.name }}
@@ -288,7 +288,7 @@ const inspirationDeps = [
           <div
             v-for="dep in jsDeps"
             :key="dep.name"
-            class="flex items-center p-3 bg-gray-50 dark:bg-surface-hover rounded-lg"
+            class="flex items-center p-2.5 bg-gray-50 dark:bg-surface-hover rounded"
           >
             <a :href="dep.url" target="_blank" class="text-sm font-medium text-primary-600 dark:text-brand-primary hover:underline">
               {{ dep.name }}
@@ -302,7 +302,7 @@ const inspirationDeps = [
           <div
             v-for="dep in inspirationDeps"
             :key="dep.name"
-            class="p-3 bg-gray-50 dark:bg-surface-hover rounded-lg"
+            class="p-2.5 bg-gray-50 dark:bg-surface-hover rounded"
           >
             <a :href="dep.url" target="_blank" class="text-sm font-medium text-gray-900 dark:text-content-primary hover:underline">
               {{ dep.name }}
@@ -313,20 +313,20 @@ const inspirationDeps = [
       </div>
     </div>
 
-    <div v-if="activeTab === 'sponsor'" class="space-y-6">
+    <div v-if="activeTab === 'sponsor'" class="space-y-3">
       <div class="card p-8 text-center">
         <div class="w-16 h-16 mx-auto mb-4 bg-pink-100 dark:bg-pink-900/30 rounded-full flex items-center justify-center">
           <svg class="w-8 h-8 text-pink-600 dark:text-pink-400" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
           </svg>
         </div>
-        <h2 class="text-2xl font-bold text-gray-900 dark:text-content-primary mb-2">{{ t('about.sponsorTitle') }}</h2>
+        <h2 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('about.sponsorTitle') }}</h2>
         <p class="text-gray-600 dark:text-content-muted max-w-md mx-auto mb-6">
           {{ t('about.sponsorDesc') }}
         </p>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
         <!-- <div class="card p-6">
           <div class="flex items-center gap-3 mb-4">
             <div class="w-10 h-10 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg flex items-center justify-center">
@@ -359,38 +359,38 @@ const inspirationDeps = [
           </a>
         </div> -->
 
-        <div class="card p-6">
-          <div class="flex items-center gap-3 mb-4">
-            <div class="w-10 h-10 bg-blue-100 dark:bg-surface-hover rounded-lg flex items-center justify-center">
+        <div class="card p-4">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-9 h-9 bg-blue-100 dark:bg-surface-hover rounded flex items-center justify-center">
               <span class="text-xl">🌟</span>
             </div>
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('about.starGithub') }}</h3>
+            <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary">{{ t('about.starGithub') }}</h3>
           </div>
-          <p class="text-sm text-gray-600 dark:text-content-muted mb-4">
+          <p class="text-sm text-gray-600 dark:text-content-muted mb-3">
             {{ t('about.starGithubDesc') }}
           </p>
-          <a href="https://github.com/odayou/GodotHarbor" target="_blank" class="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+          <a href="https://github.com/odayou/GodotHarbor" target="_blank" class="inline-block px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">
             {{ t('about.giveStar') }}
           </a>
         </div>
 
-        <div class="card p-6">
-          <div class="flex items-center gap-3 mb-4">
-            <div class="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
+        <div class="card p-4">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-9 h-9 bg-green-100 dark:bg-green-900/30 rounded flex items-center justify-center">
               <span class="text-xl">🤝</span>
             </div>
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('about.contributeAction') }}</h3>
+            <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary">{{ t('about.contributeAction') }}</h3>
           </div>
-          <p class="text-sm text-gray-600 dark:text-content-muted mb-4">
+          <p class="text-sm text-gray-600 dark:text-content-muted mb-3">
             {{ t('about.contributeDesc') }}
           </p>
-          <a href="https://github.com/odayou/GodotHarbor/contribute" target="_blank" class="inline-block px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
+          <a href="https://github.com/odayou/GodotHarbor/contribute" target="_blank" class="inline-block px-3 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 text-sm">
             {{ t('about.contributionGuide') }}
           </a>
         </div>
       </div>
 
-      <div class="card p-6 text-center">
+      <div class="card p-4 text-center">
         <p class="text-sm text-gray-500 dark:text-content-muted">
           {{ t('about.sponsorThanks') }}
         </p>

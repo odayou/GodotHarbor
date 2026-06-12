@@ -11,7 +11,10 @@ import { useToast } from '@/composables/useToast'
 import { useDialogEscape } from '@/composables/useDialogEscape'
 import { useFileManager } from '@/composables/useFileManager'
 import { isOnline } from '@/composables/useNetworkStatus'
+import { useContextMenu } from '@/composables/useContextMenu'
+import type { ContextMenuEntry } from '@/composables/useContextMenu'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import ContextMenu from '@/components/ContextMenu.vue'
 import SkeletonList from '@/components/SkeletonList.vue'
 import ErrorState from '@/components/ErrorState.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -79,6 +82,42 @@ const engineModulesMap = ref<Map<string, EngineModulesInfo>>(new Map())
 useDialogEscape(showAddDialog)
 useDialogEscape(showRenameDialog)
 useDialogEscape(showDownloadDialog)
+
+const engineContextMenu = useContextMenu()
+
+const showEngineContextMenu = (event: MouseEvent, engine: Engine) => {
+  engineContextMenu.show(event, [
+    {
+      label: t('engines.contextMenu.launch'),
+      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>',
+      action: () => launchEngine(engine.engine_id),
+      disabled: engineHealthMap.value.get(engine.engine_id) === false || isLaunchingEngine,
+    },
+    {
+      label: t('engines.rename'),
+      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>',
+      action: () => openRenameDialog(engine),
+    },
+    { separator: true },
+    {
+      label: t('engines.contextMenu.manageModules'),
+      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>',
+      action: () => toggleModulesPanel(engine.engine_id),
+    },
+    { separator: true },
+    {
+      label: t('engines.contextMenu.openInFileManager'),
+      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>',
+      action: () => openInFileManager(engine.path),
+    },
+    {
+      label: t('engines.contextMenu.removeEngine'),
+      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>',
+      action: () => confirmRemoveEngine(engine.engine_id),
+      danger: true,
+    },
+  ] as ContextMenuEntry[])
+}
 
 onMounted(async () => {
   const [, activeListResult] = await Promise.allSettled([
@@ -744,9 +783,9 @@ const hasMissingModules = (engineId: string): boolean => {
 
 <template>
   <div class="flex flex-col h-full">
-    <div class="shrink-0 space-y-4 pb-4">
-      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-content-primary">{{ t('engines.title') }}</h1>
+    <div class="shrink-0 space-y-2 pb-2">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+      <h1 class="text-base font-semibold text-gray-900 dark:text-content-primary">{{ t('engines.title') }}</h1>
       <div class="flex flex-wrap gap-2">
         <button
           @click="discoverEngines"
@@ -757,7 +796,7 @@ const hasMissingModules = (engineId: string): boolean => {
         </button>
         <button
           @click="openDownloadDialog"
-          class="px-4 py-2 border border-primary-600 text-primary-600 dark:text-brand-primary bg-white dark:bg-surface-card rounded-lg hover:bg-primary-50 dark:hover:bg-surface-hover transition-colors text-sm inline-flex items-center gap-1.5"
+          class="px-4 py-2 border border-primary-600 text-primary-600 dark:text-brand-primary bg-white dark:bg-surface-card rounded hover:bg-primary-50 dark:hover:bg-surface-hover transition-colors text-sm inline-flex items-center gap-1.5"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -773,7 +812,7 @@ const hasMissingModules = (engineId: string): boolean => {
       </div>
     </div>
 
-    <div v-if="activeDownloads.size > 0 && !showDownloadDialog" class="fixed bottom-4 right-4 z-30 bg-white dark:bg-surface-card rounded-xl shadow-lg border border-blue-200 dark:border-surface-border p-4 w-80">
+    <div v-if="activeDownloads.size > 0 && !showDownloadDialog" class="fixed bottom-4 right-4 z-30 bg-white dark:bg-surface-card rounded-lg border border-blue-200/80 dark:border-surface-border/60 p-3 w-80 shadow-popover">
       <div class="flex items-center justify-between mb-2">
         <span class="text-sm font-medium text-blue-800 dark:text-content-secondary">
           {{ t('engines.download.downloading') }} ({{ activeDownloads.size }})
@@ -807,20 +846,20 @@ const hasMissingModules = (engineId: string): boolean => {
       </div>
     </div>
 
-    <div class="card">
-      <div class="flex flex-col lg:flex-row gap-4">
+    <div class="border-b border-gray-200 dark:border-surface-border pb-2">
+      <div class="flex flex-col lg:flex-row gap-2">
         <div class="flex-1">
           <input
             v-model="searchQuery"
             type="text"
             :placeholder="t('engines.search')"
-            class="w-full px-4 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+            class="input-field"
           />
         </div>
-        <div class="flex gap-2 items-center">
+        <div class="flex gap-1.5 items-center">
           <select
             v-model="filterType"
-            class="px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+            class="input-field py-1.5"
           >
             <option value="all">{{ t('engines.allTypes') }}</option>
             <option value="Godot4">Godot 4</option>
@@ -865,18 +904,19 @@ const hasMissingModules = (engineId: string): boolean => {
       <p class="text-sm text-gray-500 dark:text-content-muted">{{ t('engines.noMatchingEngines') }}</p>
     </div>
 
-    <div v-else class="flex-1 min-h-0 bg-white dark:bg-surface-card rounded-xl shadow overflow-hidden">
+    <div v-else class="flex-1 min-h-0 border border-gray-200/80 dark:border-surface-border/60 rounded-lg overflow-hidden">
       <div class="overflow-x-hidden h-full overflow-y-auto">
         <table class="w-full min-w-[800px]">
-          <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+          <tbody class="divide-y divide-gray-100 dark:divide-surface-border/40">
             <template v-for="engine in filteredEngines" :key="engine.engine_id">
             <tr
               class="hover:bg-gray-50 dark:hover:bg-surface-hover/50 transition-colors"
+              @contextmenu="showEngineContextMenu($event, engine)"
             >
-              <td class="px-4 py-4 whitespace-nowrap">
-                <div class="flex items-center gap-3">
-                  <div class="w-8 h-8 rounded-lg bg-primary-100 dark:bg-surface-hover flex items-center justify-center">
-                    <svg class="w-5 h-5 text-primary-600 dark:text-brand-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <td class="px-3 py-2 whitespace-nowrap">
+                <div class="flex items-center gap-2">
+                  <div class="w-7 h-7 rounded bg-primary-100 dark:bg-surface-hover flex items-center justify-center">
+                    <svg class="w-4 h-4 text-primary-600 dark:text-brand-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
                   </div>
@@ -908,12 +948,12 @@ const hasMissingModules = (engineId: string): boolean => {
                   </div>
                 </div>
               </td>
-              <td class="px-4 py-4 whitespace-nowrap">
+              <td class="px-3 py-2 whitespace-nowrap">
                 <span class="badge badge-neutral">
                   {{ engine.engine_type === 'Godot4' ? 'Godot 4' : engine.engine_type === 'Godot3' ? 'Godot 3' : t('engines.unknown') }}
                 </span>
               </td>
-              <td class="px-4 py-4 whitespace-nowrap">
+              <td class="px-3 py-2 whitespace-nowrap">
                 <span
                   v-if="engineHealthMap.get(engine.engine_id) === true"
                   class="badge badge-success"
@@ -928,7 +968,7 @@ const hasMissingModules = (engineId: string): boolean => {
                 </span>
                 <span v-else class="badge badge-neutral">{{ t('engines.checking') }}</span>
               </td>
-              <td class="px-4 py-4">
+              <td class="px-3 py-2">
                 <span
                   class="text-sm text-primary-600 dark:text-brand-primary hover:underline cursor-pointer truncate max-w-xs block"
                   :title="engine.path"
@@ -937,12 +977,12 @@ const hasMissingModules = (engineId: string): boolean => {
                   {{ engine.path }}
                 </span>
               </td>
-              <td class="px-4 py-4 whitespace-nowrap">
+              <td class="px-3 py-2 whitespace-nowrap">
                 <div class="flex items-center justify-end gap-1">
                   <button
                     @click="toggleModulesPanel(engine.engine_id)"
                     :class="[
-                      'p-2 rounded-lg transition-colors',
+                      'p-2 rounded transition-colors',
                       expandedModulesEngineId === engine.engine_id
                         ? 'bg-primary-50 dark:bg-surface-hover text-primary-600 dark:text-brand-primary'
                         : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-surface-layer'
@@ -956,7 +996,7 @@ const hasMissingModules = (engineId: string): boolean => {
                   <button
                     @click="launchEngine(engine.engine_id)"
                     :disabled="engineHealthMap.get(engine.engine_id) === false || isLaunchingEngine"
-                    class="text-primary-600 dark:text-brand-primary hover:text-primary-800 dark:hover:text-brand-primary p-2.5 rounded-lg hover:bg-primary-50 dark:hover:bg-surface-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    class="text-primary-600 dark:text-brand-primary hover:text-primary-800 dark:hover:text-brand-primary p-2.5 rounded hover:bg-primary-50 dark:hover:bg-surface-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     :title="t('engines.launch')"
                   >
                     <svg v-if="isLaunchingEngine" class="h-6 w-6 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -972,7 +1012,7 @@ const hasMissingModules = (engineId: string): boolean => {
                     v-if="getRecentProjectForEngine(engine.engine_id)"
                     @click="launchRecentProject(engine.engine_id)"
                     :disabled="isLaunchingEngine"
-                    class="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 p-2.5 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    class="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 p-2.5 rounded hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     :title="t('engines.launchRecentProject', { name: getRecentProjectForEngine(engine.engine_id)!.name })"
                   >
                     <svg v-if="isLaunchingEngine" class="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -986,7 +1026,7 @@ const hasMissingModules = (engineId: string): boolean => {
                   <div class="engine-menu-wrapper" style="position: relative; display: inline-block">
                     <button
                       @click="toggleEngineMenu(engine.engine_id)"
-                      class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-surface-layer transition-colors"
+                      class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-2 rounded hover:bg-gray-100 dark:hover:bg-surface-layer transition-colors"
                       :title="t('engines.moreActions')"
                     >
                       <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -995,7 +1035,7 @@ const hasMissingModules = (engineId: string): boolean => {
                     </button>
                     <div
                       v-if="openMenuId === engine.engine_id"
-                      class="absolute right-0 top-full mt-1 bg-white dark:bg-surface-hover rounded-xl shadow-lg border border-gray-200 dark:border-surface-border py-1 z-20 min-w-[140px]"
+                      class="absolute right-0 top-full mt-1 bg-white dark:bg-surface-hover rounded-md shadow-popover border border-gray-200/80 dark:border-surface-border/60 py-1 z-20 min-w-[140px]"
                     >
                       <button
                         @click="openRenameDialog(engine); openMenuId = ''"
@@ -1032,7 +1072,7 @@ const hasMissingModules = (engineId: string): boolean => {
               </td>
             </tr>
             <tr v-if="expandedModulesEngineId === engine.engine_id">
-              <td colspan="5" class="px-6 py-4 bg-gray-50 dark:bg-surface-hover/30">
+              <td colspan="5" class="px-3 py-2 bg-gray-50 dark:bg-surface-hover/30">
                 <EngineModulesPanel :engine-id="engine.engine_id" />
               </td>
             </tr>
@@ -1045,19 +1085,19 @@ const hasMissingModules = (engineId: string): boolean => {
 
   <Teleport to="body">
   <div v-if="showAddDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showAddDialog = false; newEnginePath = ''; newEngineName = ''">
-      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('engines.registerTitle') }}</h3>
-        <p class="text-sm text-gray-500 dark:text-content-muted mb-4">
+      <div class="dialog-container w-full max-w-md" @click.stop>
+        <h3 class="dialog-title">{{ t('engines.registerTitle') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-muted mb-3">
           {{ t('engines.registerDesc') }}
         </p>
-        <div class="space-y-4">
+        <div class="space-y-3">
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-2">{{ t('engines.engineName') }}</label>
             <input
               v-model="newEngineName"
               type="text"
               :placeholder="t('engines.engineNamePlaceholder')"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+              class="input-field"
             />
           </div>
           <div>
@@ -1068,7 +1108,7 @@ const hasMissingModules = (engineId: string): boolean => {
                 type="text"
                 readonly
                 :placeholder="t('engines.enginePathPlaceholder')"
-                class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-gray-50 dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+                class="input-field bg-gray-50 dark:bg-surface-hover"
               />
               <button
                 @click="selectEnginePath"
@@ -1079,7 +1119,7 @@ const hasMissingModules = (engineId: string): boolean => {
             </div>
           </div>
         </div>
-        <div class="flex justify-end space-x-3 mt-6">
+        <div class="flex justify-end space-x-3 mt-4">
           <button
             @click="showAddDialog = false; newEnginePath = ''; newEngineName = ''"
             class="btn-secondary"
@@ -1100,15 +1140,15 @@ const hasMissingModules = (engineId: string): boolean => {
 
   <Teleport to="body">
     <div v-if="showDownloadDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="handleDownloadDialogClose">
-      <div class="bg-white dark:bg-surface-card rounded-lg w-full max-w-3xl shadow-xl max-h-[85vh] flex flex-col" @click.stop>
-        <div class="flex justify-between items-center p-6 pb-4">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('engines.download.title') }}</h3>
+      <div class="dialog-container w-full max-w-3xl max-h-[85vh] flex flex-col" @click.stop>
+        <div class="flex justify-between items-center pb-2 mb-2 border-b border-gray-200/80 dark:border-surface-border/60">
+          <h3 class="dialog-title mb-0">{{ t('engines.download.title') }}</h3>
           <button @click="handleDownloadDialogClose" class="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
             {{ t('common.close') }}
           </button>
         </div>
 
-        <div class="px-6 pb-4 space-y-3">
+        <div class="px-3 pb-2 space-y-2">
           <div class="flex border-b border-gray-200 dark:border-surface-border mb-2">
             <button
               @click="downloadTab = 'mirror'"
@@ -1125,14 +1165,14 @@ const hasMissingModules = (engineId: string): boolean => {
           </div>
 
           <template v-if="downloadTab === 'mirror'">
-          <div class="flex gap-3 items-end">
+          <div class="flex gap-2 items-end">
             <div class="flex-1">
               <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('engines.download.mirrorTab') }}</label>
               <select
                 v-model="selectedMirrorId"
                 @change="onMirrorChange"
                 :disabled="isFetchingVersions"
-                class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+                class="input-field"
               >
                 <option v-for="mirror in mirrorConfigs" :key="mirror.id" :value="mirror.id" :disabled="!mirror.enabled">
                   {{ mirror.name }}{{ !mirror.enabled ? ` (${t('engines.download.disabled')})` : '' }}
@@ -1142,24 +1182,24 @@ const hasMissingModules = (engineId: string): boolean => {
             <button
               @click="fetchRemoteVersions(true)"
               :disabled="isFetchingVersions"
-              class="px-4 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-hover text-gray-700 dark:text-content-secondary rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer text-sm whitespace-nowrap disabled:opacity-50"
+              class="px-4 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-hover text-gray-700 dark:text-content-secondary rounded hover:bg-gray-50 dark:hover:bg-surface-layer text-sm whitespace-nowrap disabled:opacity-50"
             >
               {{ isFetchingVersions ? t('engines.download.fetching') : t('engines.download.refresh') }}
             </button>
           </div>
 
-          <div class="flex gap-3">
+          <div class="flex gap-2">
             <div class="flex-1">
               <input
                 v-model="downloadSearchQuery"
                 type="text"
                 :placeholder="t('engines.download.searchPlaceholder')"
-                class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+                class="input-field"
               />
             </div>
             <select
               v-model="downloadChannelFilter"
-              class="px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+              class="input-field"
             >
               <option value="all">{{ t('engines.download.allChannels') }}</option>
               <option value="Stable">{{ t('engines.download.channelStable') }}</option>
@@ -1170,7 +1210,7 @@ const hasMissingModules = (engineId: string): boolean => {
             </select>
             <select
               v-model="downloadVariantFilter"
-              class="px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+              class="input-field"
             >
               <option value="all">{{ t('engines.download.allVariants') }}</option>
               <option value="standard">{{ t('engines.download.variantStandard') }}</option>
@@ -1183,7 +1223,7 @@ const hasMissingModules = (engineId: string): boolean => {
           </div>
 
           <div v-if="activeDownloads.size > 0" class="space-y-2">
-            <div v-for="[key, progress] in activeDownloads" :key="key" class="bg-blue-50 dark:bg-surface-hover rounded-lg p-3">
+            <div v-for="[key, progress] in activeDownloads" :key="key" class="bg-blue-50 dark:bg-surface-hover rounded p-2">
               <div class="flex justify-between items-center mb-1">
                 <span class="text-sm font-medium text-blue-800 dark:text-content-secondary">v{{ progress.version }}{{ progress.variant === 'mono' ? ' (.NET)' : '' }} - {{ formatProgressMessage(progress) }}</span>
                 <span class="text-xs text-blue-600 dark:text-brand-primary">{{ progress.progress.toFixed(1) }}%</span>
@@ -1209,7 +1249,7 @@ const hasMissingModules = (engineId: string): boolean => {
           </template>
 
           <template v-if="downloadTab === 'url'">
-            <div class="space-y-4 py-2">
+            <div class="space-y-3 py-1">
               <p class="text-sm text-gray-500 dark:text-content-muted">{{ t('engines.urlDownload.desc') }}</p>
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-2">{{ t('engines.urlDownload.urlLabel') }}</label>
@@ -1217,7 +1257,7 @@ const hasMissingModules = (engineId: string): boolean => {
                   v-model="engineUrl"
                   type="text"
                   :placeholder="t('engines.urlDownload.urlPlaceholder')"
-                  class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+                  class="input-field"
                 />
               </div>
               <div>
@@ -1226,7 +1266,7 @@ const hasMissingModules = (engineId: string): boolean => {
                   v-model="engineUrlName"
                   type="text"
                   :placeholder="t('engines.urlDownload.namePlaceholder')"
-                  class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+                  class="input-field"
                 />
               </div>
               <div class="flex justify-end">
@@ -1243,7 +1283,7 @@ const hasMissingModules = (engineId: string): boolean => {
         </div>
 
         <template v-if="downloadTab === 'mirror'">
-        <div class="flex-1 overflow-y-auto px-6 pb-6">
+        <div class="flex-1 overflow-y-auto px-3 pb-3">
           <div v-if="isFetchingVersions" class="flex justify-center py-12">
             <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
           </div>
@@ -1256,7 +1296,7 @@ const hasMissingModules = (engineId: string): boolean => {
             <p class="text-sm text-gray-500 dark:text-content-muted">{{ t('engines.download.noMatchingVersions') }}</p>
           </div>
 
-          <div v-else class="space-y-4">
+          <div v-else class="space-y-3">
             <div v-for="[groupKey, versions] in groupedRemoteVersions" :key="groupKey">
               <div
                 class="sticky top-0 bg-white dark:bg-surface-card py-1.5 px-3 -mx-3 border-b border-gray-200 dark:border-surface-border mb-2 z-10 cursor-pointer hover:bg-gray-50 dark:hover:bg-surface-hover/50 transition-colors"
@@ -1272,7 +1312,7 @@ const hasMissingModules = (engineId: string): boolean => {
             <div v-for="[subKey, subVersions] in subGroupedVersions(versions)" :key="subKey">
               <div
                 :class="[
-                  'rounded-lg border transition-colors',
+                  'rounded border transition-colors',
                   subVersions.every(v => v.is_installed)
                     ? 'bg-gray-50 dark:bg-surface-hover/30 border-gray-200 dark:border-surface-border'
                     : 'bg-white dark:bg-surface-card border-gray-200 dark:border-surface-border'
@@ -1285,7 +1325,7 @@ const hasMissingModules = (engineId: string): boolean => {
                     vIdx > 0 ? 'border-t border-gray-100 dark:border-surface-border' : ''
                   ]"
                 >
-                  <div class="flex items-center gap-3 p-3">
+                  <div class="flex items-center gap-3 p-2.5">
                     <div class="flex-1 min-w-0">
                       <div class="flex items-center gap-2">
                         <span class="font-medium text-sm text-gray-900 dark:text-content-primary">v{{ version.version }}</span>
@@ -1340,7 +1380,7 @@ const hasMissingModules = (engineId: string): boolean => {
                     <template v-if="activeDownloads.has(`${version.version}_${version.variant}`)">
                       <button
                         disabled
-                        class="px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap bg-blue-100 text-blue-600 dark:bg-surface-hover dark:text-brand-primary"
+                        class="px-3 py-1.5 rounded text-xs font-medium whitespace-nowrap bg-blue-100 text-blue-600 dark:bg-surface-hover dark:text-brand-primary"
                       >
                         {{ t('engines.download.downloading') }}
                       </button>
@@ -1348,7 +1388,7 @@ const hasMissingModules = (engineId: string): boolean => {
                     <template v-else-if="failedDownloads.has(`${version.version}_${version.variant}`)">
                       <button
                         @click="doStartDownload(version)"
-                        class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50"
+                        class="px-3 py-1.5 rounded text-xs font-medium transition-colors whitespace-nowrap bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50"
                       >
                         {{ t('engines.download.retry') }}
                       </button>
@@ -1356,7 +1396,7 @@ const hasMissingModules = (engineId: string): boolean => {
                     <template v-else-if="version.is_installed">
                       <button
                         @click="startDownload(version)"
-                        class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap bg-gray-100 text-gray-600 dark:bg-surface-hover dark:text-content-muted hover:bg-gray-200 dark:hover:bg-surface-layer"
+                        class="px-3 py-1.5 rounded text-xs font-medium transition-colors whitespace-nowrap bg-gray-100 text-gray-600 dark:bg-surface-hover dark:text-content-muted hover:bg-gray-200 dark:hover:bg-surface-layer"
                       >
                         {{ t('engines.download.reInstall') }}
                       </button>
@@ -1364,7 +1404,7 @@ const hasMissingModules = (engineId: string): boolean => {
                     <template v-else>
                       <button
                         @click="startDownload(version)"
-                        class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap bg-primary-600 text-white hover:bg-primary-700"
+                        class="px-3 py-1.5 rounded text-xs font-medium transition-colors whitespace-nowrap bg-primary-600 text-white hover:bg-primary-700"
                       >
                         {{ t('engines.download.downloadAction') }}
                       </button>
@@ -1390,16 +1430,16 @@ const hasMissingModules = (engineId: string): boolean => {
 
   <Teleport to="body">
     <div v-if="showRenameDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showRenameDialog = false">
-      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('engines.renameTitle') }}</h3>
+      <div class="dialog-container w-full max-w-md" @click.stop>
+        <h3 class="dialog-title">{{ t('engines.renameTitle') }}</h3>
         <input
           v-model="renameInput"
           type="text"
           :placeholder="t('engines.engineNamePlaceholder')"
-          class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+          class="input-field"
           @keyup.enter="saveRename"
         />
-        <div class="flex justify-end space-x-3 mt-6">
+        <div class="flex justify-end space-x-3 mt-4">
           <button
             @click="showRenameDialog = false"
             class="btn-secondary"
@@ -1439,4 +1479,12 @@ const hasMissingModules = (engineId: string): boolean => {
       @confirm="reDownloadTarget && doStartDownload(reDownloadTarget); reDownloadTarget = null"
     />
   </Teleport>
+
+  <ContextMenu
+    :visible="engineContextMenu.visible.value"
+    :x="engineContextMenu.x.value"
+    :y="engineContextMenu.y.value"
+    :items="engineContextMenu.items.value"
+    @close="engineContextMenu.close()"
+  />
 </template>

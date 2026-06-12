@@ -65,10 +65,10 @@ const close = () => {
   <Teleport to="body">
     <div v-if="modelValue" class="fixed inset-0 z-50 flex items-center justify-center">
       <div class="absolute inset-0 bg-black/50" @click="close"></div>
-      <div class="relative bg-white dark:bg-surface-card rounded-2xl shadow-2xl max-w-lg w-full mx-4 max-h-[80vh] flex flex-col">
-        <div class="p-6 pb-4 border-b border-gray-200 dark:border-surface-border">
+      <div class="dialog-container max-w-lg w-full mx-4 max-h-[80vh] flex flex-col">
+        <div class="p-4 pb-3 border-b border-gray-200 dark:border-surface-border">
           <div class="flex items-center justify-between">
-            <h2 class="text-lg font-bold text-gray-900 dark:text-content-primary">{{ t('keypair.title') }}</h2>
+            <h2 class="text-base font-semibold text-gray-900 dark:text-content-primary">{{ t('keypair.title') }}</h2>
             <button @click="close" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-surface-layer text-gray-500">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -80,8 +80,8 @@ const close = () => {
           </p>
         </div>
 
-        <div class="flex-1 overflow-y-auto p-6 space-y-4">
-          <div class="p-4 rounded-lg bg-gray-50 dark:bg-surface-layer">
+        <div class="flex-1 overflow-y-auto p-4 space-y-3">
+          <div class="p-3 rounded bg-gray-50 dark:bg-surface-layer">
             <h3 class="text-sm font-semibold text-gray-900 dark:text-content-primary mb-3">{{ t('keypair.generateNew') }}</h3>
             <div class="flex gap-2">
               <input
@@ -89,13 +89,13 @@ const close = () => {
                 type="text"
                 :placeholder="t('keypair.signerNamePlaceholder')"
                 :disabled="isGeneratingKeypair"
-                class="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none disabled:opacity-50"
+                class="flex-1 px-3 py-2 text-sm rounded border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none disabled:opacity-50"
                 @keyup.enter="handleGenerate"
               />
               <button
                 @click="handleGenerate"
                 :disabled="isGeneratingKeypair || !newKeypairName.trim()"
-                class="px-4 py-2 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white disabled:opacity-50"
+                class="px-3 py-2 text-sm font-medium rounded bg-primary-600 hover:bg-primary-700 text-white disabled:opacity-50"
               >
                 {{ isGeneratingKeypair ? '...' : t('common.generate') }}
               </button>
@@ -117,7 +117,7 @@ const close = () => {
             <div
               v-for="kp in keypairs"
               :key="kp.public_key"
-              class="p-3 rounded-lg border border-gray-200 dark:border-surface-border"
+              class="p-2.5 rounded border border-gray-200 dark:border-surface-border"
             >
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2 min-w-0">
@@ -130,7 +130,7 @@ const close = () => {
                 <div class="flex items-center gap-1 flex-shrink-0">
                   <button
                     @click="toggleExpand(kp.public_key)"
-                    class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-surface-layer text-gray-400 hover:text-gray-600 dark:hover:text-content-secondary"
+                    class="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-surface-layer text-gray-400 hover:text-gray-600 dark:hover:text-content-secondary"
                     :title="t('keypair.viewPublicKey')"
                   >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -140,7 +140,7 @@ const close = () => {
                   </button>
                   <button
                     @click="deleteTargetPublicKey = kp.public_key; showDeleteConfirm = true"
-                    class="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                    class="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
                     :title="t('common.delete')"
                   >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -24,7 +24,7 @@ const typeIcons: Record<string, string> = {
       <div
         v-for="toast in toasts"
         :key="toast.id"
-        :class="[typeStyles[toast.type], 'flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-white text-sm']"
+        :class="[typeStyles[toast.type], 'flex items-center gap-2 px-3 py-2 rounded-md shadow text-white text-sm']"
       >
         <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="typeIcons[toast.type]" />

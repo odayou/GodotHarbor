@@ -124,7 +124,7 @@ const getRecRatingStars = (rating: number) => {
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="space-y-3">
     <!-- Recommendations Section -->
     <div v-if="recommendations.length > 0 && !hasSearched" class="mb-4">
       <h2 class="text-sm font-semibold text-gray-900 dark:text-content-primary mb-3 flex items-center gap-2">
@@ -137,10 +137,10 @@ const getRecRatingStars = (rating: number) => {
         <div
           v-for="rec in recommendations.slice(0, 6)"
           :key="rec.plugin.asset_id"
-          class="bg-white dark:bg-surface-card rounded-xl border border-gray-200 dark:border-surface-border hover:shadow-md transition-all duration-200 p-3 min-w-[220px] max-w-[260px] flex-shrink-0"
+          class="bg-white dark:bg-surface-card rounded-md border border-gray-200 dark:border-surface-border transition-all duration-200 p-3 min-w-[220px] max-w-[260px] flex-shrink-0"
         >
           <div class="flex items-center gap-2 mb-2">
-            <div class="w-9 h-9 rounded-lg bg-gray-100 dark:bg-surface-layer flex items-center justify-center flex-shrink-0 overflow-hidden">
+            <div class="w-9 h-9 rounded bg-gray-100 dark:bg-surface-layer flex items-center justify-center flex-shrink-0 overflow-hidden">
               <img
                 v-if="rec.plugin.icon_url"
                 :src="rec.plugin.icon_url"
@@ -193,7 +193,7 @@ const getRecRatingStars = (rating: number) => {
               </button>
               <div
                 v-if="openDropdownId === String(rec.plugin.asset_id)"
-                class="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-surface-card rounded-lg shadow-lg border border-gray-200 dark:border-surface-border z-50 py-1 max-h-48 overflow-y-auto"
+                class="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-surface-card rounded border border-gray-200 dark:border-surface-border z-50 py-1 max-h-48 overflow-y-auto"
               >
                 <div class="px-3 py-1.5 text-xs text-gray-500 dark:text-content-muted border-b border-gray-100 dark:border-surface-border">
                   {{ t('assetLibrary.selectProject') }}
@@ -212,7 +212,7 @@ const getRecRatingStars = (rating: number) => {
           </div>
         </div>
       </div>
-      <div v-if="isLoadingRecommendations" class="text-center py-4">
+      <div v-if="isLoadingRecommendations" class="text-center py-3">
         <div class="animate-spin w-6 h-6 border-2 border-primary-600 border-t-transparent rounded-full mx-auto"></div>
       </div>
     </div>
@@ -223,7 +223,7 @@ const getRecRatingStars = (rating: number) => {
         v-model="assetSearchQuery"
         type="text"
         :placeholder="t('assetLibrary.searchPlaceholder')"
-        class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
+        class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
         @input="searchAssets()"
         @keyup.enter="searchAssets(true)"
       />
@@ -242,28 +242,28 @@ const getRecRatingStars = (rating: number) => {
 
     <!-- Filters -->
     <div class="flex flex-wrap gap-2 mb-3">
-      <select v-model="assetFilterType" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
+      <select v-model="assetFilterType" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
         <option value="any">{{ t('assetLibrary.typeAny') }}</option>
         <option value="addon">{{ t('assetLibrary.typeAddon') }}</option>
         <option value="project">{{ t('assetLibrary.typeProject') }}</option>
       </select>
-      <select v-model="assetFilterCategory" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
+      <select v-model="assetFilterCategory" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
         <option value="">{{ t('assetLibrary.categoryAll') }}</option>
         <option v-for="cat in assetCategories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
       </select>
-      <select v-model="assetFilterGodotVersion" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
+      <select v-model="assetFilterGodotVersion" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
         <option value="any">{{ t('assetLibrary.godotVersionAny') }}</option>
         <option value="4.0">{{ t('assetLibrary.godot4x') }}</option>
         <option value="3.0">{{ t('assetLibrary.godot3x') }}</option>
       </select>
-      <select v-model="assetFilterSupport" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
+      <select v-model="assetFilterSupport" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
         <option value="">{{ t('assetLibrary.supportAll') }}</option>
         <option value="official">{{ t('assetLibrary.supportOfficial') }}</option>
         <option value="featured">{{ t('assetLibrary.supportFeatured') }}</option>
         <option value="community">{{ t('assetLibrary.supportCommunity') }}</option>
         <option value="testing">{{ t('assetLibrary.supportTesting') }}</option>
       </select>
-      <select v-model="assetSortBy" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
+      <select v-model="assetSortBy" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
         <option value="updated">{{ t('assetLibrary.sortUpdated') }}</option>
         <option value="rating">{{ t('assetLibrary.sortRating') }}</option>
         <option value="name">{{ t('assetLibrary.sortName') }}</option>
@@ -272,12 +272,12 @@ const getRecRatingStars = (rating: number) => {
     </div>
 
     <!-- Batch Import Bar -->
-    <div v-if="selectedAssetIds.size > 0" class="bg-primary-50 dark:bg-surface-hover border border-primary-200 dark:border-surface-border rounded-lg p-2 mb-3 flex items-center justify-between">
+    <div v-if="selectedAssetIds.size > 0" class="bg-primary-50 dark:bg-surface-hover border border-primary-200 dark:border-surface-border rounded p-2 mb-3 flex items-center justify-between">
       <span class="text-xs font-medium text-primary-700 dark:text-content-secondary">{{ t('assetLibrary.selectedCount', { count: selectedAssetIds.size }) }}</span>
       <button
         @click="batchImportAssets"
         :disabled="!!pluginStore.isImporting"
-        class="px-3 py-1 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700 disabled:opacity-50"
+        class="px-3 py-1 bg-primary-600 text-white text-xs rounded hover:bg-primary-700 disabled:opacity-50"
       >
         {{ t('assetLibrary.batchImport') }} ({{ selectedAssetIds.size }})
       </button>
@@ -309,7 +309,7 @@ const getRecRatingStars = (rating: number) => {
         v-for="asset in assetSearchResults"
         :key="asset.asset_id"
         :class="[
-          'bg-white dark:bg-surface-card rounded-xl shadow hover:shadow-md p-3 transition-colors',
+          'bg-white dark:bg-surface-card rounded-md border border-border p-3 transition-colors',
           selectedAssetIds.has(asset.asset_id) ? 'ring-2 ring-primary-500' : ''
         ]"
       >
@@ -375,7 +375,7 @@ const getRecRatingStars = (rating: number) => {
               </button>
               <div
                 v-if="openDropdownId === asset.asset_id"
-                class="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-surface-card rounded-lg shadow-lg border border-gray-200 dark:border-surface-border z-50 py-1 max-h-48 overflow-y-auto"
+                class="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-surface-card rounded border border-gray-200 dark:border-surface-border z-50 py-1 max-h-48 overflow-y-auto"
               >
                 <div class="px-3 py-1.5 text-xs text-gray-500 dark:text-content-muted border-b border-gray-100 dark:border-surface-border">
                   {{ t('assetLibrary.selectProject') }}
@@ -406,7 +406,7 @@ const getRecRatingStars = (rating: number) => {
         <button
           @click="assetPrevPage"
           :disabled="assetCurrentPage === 0"
-          class="px-3 py-1 text-xs border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-card disabled:opacity-50"
+          class="px-3 py-1 text-xs border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-layer text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-card disabled:opacity-50"
         >
           {{ t('assetLibrary.prevPage') }}
         </button>
@@ -416,7 +416,7 @@ const getRecRatingStars = (rating: number) => {
         <button
           @click="assetNextPage"
           :disabled="assetCurrentPage >= assetTotalPages - 1"
-          class="px-3 py-1 text-xs border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-card disabled:opacity-50"
+          class="px-3 py-1 text-xs border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-layer text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-card disabled:opacity-50"
         >
           {{ t('assetLibrary.nextPage') }}
         </button>
@@ -426,9 +426,9 @@ const getRecRatingStars = (rating: number) => {
     <!-- Asset Detail Dialog -->
     <Teleport to="body">
       <div v-if="showAssetDetailDialog && assetDetail" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showAssetDetailDialog = false; assetDetail = null">
-        <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[80vh] flex flex-col" @click.stop>
-          <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ assetDetail.title }}</h3>
+        <div class="dialog-container w-full max-w-lg max-h-[80vh] flex flex-col" @click.stop>
+          <div class="flex justify-between items-center mb-3">
+            <h3 class="dialog-title mb-0">{{ assetDetail.title }}</h3>
             <button @click="showAssetDetailDialog = false; assetDetail = null" class="text-gray-500 dark:text-content-secondary hover:text-gray-700 dark:hover:text-content-primary">
               <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -466,7 +466,7 @@ const getRecRatingStars = (rating: number) => {
 
           <div class="flex-1 overflow-y-auto mb-4">
             <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">{{ t('assetLibrary.description') }}</h4>
-            <p class="text-sm text-gray-600 dark:text-content-secondary whitespace-pre-wrap bg-gray-50 dark:bg-surface-layer rounded-lg p-3">
+            <p class="text-sm text-gray-600 dark:text-content-secondary whitespace-pre-wrap bg-gray-50 dark:bg-surface-layer rounded p-3">
               {{ assetDetail.description || t('assetLibrary.noDescription') }}
             </p>
           </div>
@@ -483,7 +483,7 @@ const getRecRatingStars = (rating: number) => {
               v-if="assetDetail.browse_url"
               :href="assetDetail.browse_url"
               target="_blank"
-              class="px-4 py-2 border border-gray-300 dark:border-surface-border rounded-lg text-gray-700 dark:text-content-primary text-sm hover:bg-gray-50 dark:hover:bg-surface-card"
+              class="px-4 py-2 border border-gray-300 dark:border-surface-border rounded text-gray-700 dark:text-content-primary text-sm hover:bg-gray-50 dark:hover:bg-surface-card"
             >
               {{ t('assetLibrary.detail') }}
             </a>

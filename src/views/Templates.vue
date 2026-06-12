@@ -11,7 +11,10 @@ import { useEngineLauncher } from '@/composables/useEngineLauncher'
 import { useFileManager } from '@/composables/useFileManager'
 import { useDialogEscape } from '@/composables/useDialogEscape'
 import { isOnline } from '@/composables/useNetworkStatus'
+import { useContextMenu } from '@/composables/useContextMenu'
+import type { ContextMenuEntry } from '@/composables/useContextMenu'
 import EmptyState from '@/components/EmptyState.vue'
+import ContextMenu from '@/components/ContextMenu.vue'
 import SkeletonList from '@/components/SkeletonList.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import ProjectSelector from '@/components/ProjectSelector.vue'
@@ -114,6 +117,33 @@ useDialogEscape(showDetailDialog)
 useDialogEscape(showCreateDialog)
 useDialogEscape(showImportDialog)
 useDialogEscape(showGenerateFromProjectDialog)
+
+const templateContextMenu = useContextMenu()
+
+const showTemplateContextMenu = (event: MouseEvent, tpl: Template) => {
+  event.stopPropagation()
+  templateContextMenu.show(event, [
+    {
+      label: t('templates.contextMenu.createProject'),
+      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>',
+      action: () => openCreateDialog(tpl),
+    },
+    { separator: true },
+    {
+      label: t('templates.contextMenu.exportTemplate'),
+      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>',
+      action: () => { exportTemplate.value = tpl; showExportDialog.value = true },
+    },
+    { separator: true },
+    {
+      label: t('templates.contextMenu.deleteTemplate'),
+      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>',
+      action: () => { deleteTargetId.value = tpl.template_id; showDeleteConfirm.value = true },
+      disabled: tpl.is_builtin,
+      danger: true,
+    },
+  ] as ContextMenuEntry[])
+}
 
 let unlistenProgress: UnlistenFn | null = null
 
@@ -352,34 +382,34 @@ const progressPercent = computed(() => {
 
 <template>
   <div class="h-full flex flex-col overflow-hidden">
-    <div v-if="showCreateHint" class="mx-6 mt-4 px-4 py-3 bg-primary-50 dark:bg-surface-hover border border-primary-200 dark:border-surface-border rounded-lg flex items-center justify-between">
+    <div v-if="showCreateHint" class="mx-3 mt-3 px-3 py-2 bg-primary-50 dark:bg-surface-hover border border-primary-200 dark:border-surface-border rounded flex items-center justify-between">
       <span class="text-sm text-primary-700 dark:text-content-secondary">{{ t('templates.selectToCreate') }}</span>
       <button @click="showCreateHint = false" class="text-primary-500 hover:text-primary-700 dark:hover:text-brand-primary">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
       </button>
     </div>
-    <div class="shrink-0 px-6 pb-4">
-      <div class="flex items-center justify-between mb-4">
+    <div class="shrink-0 px-3 pb-3">
+      <div class="flex items-center justify-between mb-3">
         <div>
-          <h1 class="text-2xl font-bold text-gray-900 dark:text-content-primary">{{ t('templates.title') }}</h1>
-          <p class="text-sm text-gray-500 dark:text-content-muted mt-1">{{ t('templates.subtitle') }}</p>
+          <h1 class="text-base font-semibold text-gray-900 dark:text-content-primary">{{ t('templates.title') }}</h1>
+          <p class="text-xs text-gray-500 dark:text-content-muted mt-0.5">{{ t('templates.subtitle') }}</p>
         </div>
         <div class="flex items-center gap-2">
           <button
             @click="showImportFileDialog = true"
-            class="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors"
+            class="px-3 py-1.5 text-sm font-medium rounded border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors"
           >
             {{ t('templates.importFile') }}
           </button>
           <button
             @click="showImportDialog = true"
-            class="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors"
+            class="px-3 py-1.5 text-sm font-medium rounded border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors"
           >
             {{ t('templates.importUrl') }}
           </button>
           <button
             @click="showKeypairManager = true"
-            class="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors"
+            class="px-3 py-1.5 text-sm font-medium rounded border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors"
             :title="t('templates.keypairManage')"
           >
             <svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -390,7 +420,7 @@ const progressPercent = computed(() => {
         </div>
       </div>
 
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2">
         <div class="flex-1 relative">
           <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -399,7 +429,7 @@ const progressPercent = computed(() => {
             v-model="searchQuery"
             type="text"
             :placeholder="t('projects.search')"
-            class="w-full pl-10 pr-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+            class="input-field pl-10"
           />
         </div>
         <div class="flex gap-1 flex-wrap">
@@ -420,7 +450,7 @@ const progressPercent = computed(() => {
       </div>
     </div>
 
-    <div class="flex-1 overflow-y-auto px-6 pb-6">
+    <div class="flex-1 overflow-y-auto px-3 pb-3">
       <SkeletonList v-if="isLoading" :count="4" />
 
       <div v-else-if="loadError" class="text-center py-12">
@@ -446,17 +476,18 @@ const progressPercent = computed(() => {
         ]"
       />
 
-      <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         <div
           v-for="tpl in filteredTemplates"
           :key="tpl.template_id"
-          class="group relative bg-white dark:bg-surface-card rounded-xl border border-gray-200 dark:border-surface-border hover:border-surface-border dark:hover:border-surface-border hover:shadow-lg transition-all duration-200 cursor-pointer overflow-hidden"
+          class="group relative bg-white dark:bg-surface-card rounded-lg border border-gray-200/80 dark:border-surface-border/60 hover:border-primary-300 dark:hover:border-primary-800/40 transition-all duration-200 cursor-pointer overflow-hidden shadow-xs hover:shadow-md"
           @click="openDetail(tpl)"
+          @contextmenu="showTemplateContextMenu($event, tpl)"
           >
-          <div class="p-5">
-            <div class="flex items-start justify-between mb-3">
-              <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-lg bg-primary-50 dark:bg-surface-hover flex items-center justify-center text-xl">
+          <div class="p-3">
+            <div class="flex items-start justify-between mb-2">
+              <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded bg-primary-50 dark:bg-surface-hover flex items-center justify-center text-lg">
                   {{ categoryIcon(tpl.category) }}
                 </div>
                 <div>
@@ -472,9 +503,9 @@ const progressPercent = computed(() => {
               </span>
             </div>
 
-            <p class="text-xs text-gray-600 dark:text-content-secondary line-clamp-2 mb-3">{{ tpl.description }}</p>
+            <p class="text-xs text-gray-600 dark:text-content-secondary line-clamp-2 mb-2">{{ tpl.description }}</p>
 
-            <div class="flex items-center gap-3 text-xs text-gray-500 dark:text-content-muted mb-4">
+            <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-content-muted mb-3">
               <span class="flex items-center gap-1">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -495,7 +526,7 @@ const progressPercent = computed(() => {
               </span>
             </div>
 
-            <div class="flex flex-wrap gap-1.5 mb-4">
+            <div class="flex flex-wrap gap-1.5 mb-3">
               <span
                 v-for="tag in tpl.tags.slice(0, 4)"
                 :key="tag"
@@ -508,7 +539,7 @@ const progressPercent = computed(() => {
             <div class="flex gap-2">
               <button
                 @click.stop="openCreateDialog(tpl)"
-                class="flex-1 py-2 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors"
+                class="flex-1 py-1.5 text-sm font-medium rounded bg-primary-600 hover:bg-primary-700 text-white transition-colors"
               >
                 {{ t('templates.createProject') }}
               </button>
@@ -522,31 +553,31 @@ const progressPercent = computed(() => {
     <Teleport to="body">
       <div v-if="showDetailDialog && selectedTemplate" class="fixed inset-0 z-50 flex items-center justify-center">
         <div class="absolute inset-0 bg-black/50" @click="showDetailDialog = false"></div>
-        <div class="relative bg-white dark:bg-surface-card rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
-          <div class="p-6">
-            <div class="flex items-center justify-between mb-4">
-              <div class="flex items-center gap-3">
-                <div class="w-12 h-12 rounded-xl bg-primary-50 dark:bg-surface-hover flex items-center justify-center text-2xl">
+        <div class="dialog-container max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+          <div class="p-4">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <div class="w-10 h-10 rounded-md bg-primary-50 dark:bg-surface-hover flex items-center justify-center text-xl">
                   {{ categoryIcon(selectedTemplate.category) }}
                 </div>
                 <div>
-                  <h2 class="text-lg font-bold text-gray-900 dark:text-content-primary">{{ selectedTemplate.name }}</h2>
+                  <h2 class="text-base font-semibold text-gray-900 dark:text-content-primary">{{ selectedTemplate.name }}</h2>
                   <p class="text-sm text-gray-500 dark:text-content-muted">
                     {{ t(`templates.category.${selectedTemplate.category}`) }}
                     <span v-if="selectedTemplate.author"> · {{ selectedTemplate.author }}</span>
                   </p>
                 </div>
               </div>
-              <button @click="showDetailDialog = false" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-surface-layer text-gray-500">
+              <button @click="showDetailDialog = false" class="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-surface-layer text-gray-500">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
 
-            <p class="text-sm text-gray-600 dark:text-content-secondary mb-5">{{ selectedTemplate.description }}</p>
+            <p class="text-sm text-gray-600 dark:text-content-secondary mb-3">{{ selectedTemplate.description }}</p>
 
-            <div v-if="selectedTemplate.preview_images && selectedTemplate.preview_images.length > 0" class="mb-5">
+            <div v-if="selectedTemplate.preview_images && selectedTemplate.preview_images.length > 0" class="mb-3">
               <h3 class="text-sm font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('templates.previewImages') }}</h3>
               <div class="grid grid-cols-2 gap-2">
                 <img
@@ -554,14 +585,14 @@ const progressPercent = computed(() => {
                   :key="idx"
                   :src="img"
                   :alt="`Preview ${idx + 1}`"
-                  class="w-full h-32 object-cover rounded-lg border border-gray-200 dark:border-surface-border"
+                  class="w-full h-32 object-cover rounded border border-gray-200 dark:border-surface-border"
                   @error="($event.target as HTMLImageElement).style.display = 'none'"
                 />
               </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-4 mb-5">
-              <div class="p-3 rounded-lg bg-gray-50 dark:bg-surface-layer">
+            <div class="grid grid-cols-2 gap-3 mb-3">
+              <div class="p-2.5 rounded bg-gray-50 dark:bg-surface-layer">
                 <p class="text-xs text-gray-500 dark:text-content-muted mb-1">{{ t('templates.godotVersion') }}</p>
                 <p class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ selectedTemplate.godot.version }}{{ selectedTemplate.godot.mono ? ' (Mono)' : '' }}</p>
               </div>
@@ -571,13 +602,13 @@ const progressPercent = computed(() => {
               </div>
             </div>
 
-            <div v-if="selectedTemplate.plugins.length > 0" class="mb-5">
+            <div v-if="selectedTemplate.plugins.length > 0" class="mb-3">
               <h3 class="text-sm font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('templates.plugins') }}</h3>
               <div class="space-y-2">
                 <div
                   v-for="plugin in selectedTemplate.plugins"
                   :key="plugin.name"
-                  class="flex items-center justify-between p-2.5 rounded-lg bg-gray-50 dark:bg-surface-layer"
+                  class="flex items-center justify-between p-2 rounded bg-gray-50 dark:bg-surface-layer"
                 >
                   <div>
                     <p class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ plugin.name }}</p>
@@ -587,49 +618,49 @@ const progressPercent = computed(() => {
               </div>
             </div>
 
-            <div v-if="selectedTemplate.directories.length > 0" class="mb-5">
+            <div v-if="selectedTemplate.directories.length > 0" class="mb-3">
               <h3 class="text-sm font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('templates.directories') }}</h3>
               <div class="flex flex-wrap gap-2">
                 <span
                   v-for="dir in selectedTemplate.directories"
                   :key="dir.path"
-                  class="px-2.5 py-1 text-xs rounded-lg bg-gray-50 dark:bg-surface-layer text-gray-700 dark:text-content-secondary font-mono"
+                  class="px-2 py-0.5 text-xs rounded bg-gray-50 dark:bg-surface-layer text-gray-700 dark:text-content-secondary font-mono"
                 >
                   {{ dir.path }}
                 </span>
               </div>
             </div>
 
-            <div v-if="selectedTemplate.export_presets.length > 0" class="mb-5">
+            <div v-if="selectedTemplate.export_presets.length > 0" class="mb-3">
               <h3 class="text-sm font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('templates.exportPresets') }}</h3>
               <div class="flex flex-wrap gap-2">
                 <span
                   v-for="preset in selectedTemplate.export_presets"
                   :key="preset.name"
-                  class="px-2.5 py-1 text-xs rounded-lg bg-gray-50 dark:bg-surface-layer text-gray-700 dark:text-content-secondary"
+                  class="px-2 py-0.5 text-xs rounded bg-gray-50 dark:bg-surface-layer text-gray-700 dark:text-content-secondary"
                 >
                   {{ preset.name }} ({{ preset.platform }})
                 </span>
               </div>
             </div>
 
-            <div class="flex gap-3">
+            <div class="flex gap-2">
               <button
                 @click="showDetailDialog = false; openCreateDialog(selectedTemplate!)"
-                class="flex-1 py-2.5 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors"
+                class="flex-1 py-2 text-sm font-medium rounded bg-primary-600 hover:bg-primary-700 text-white transition-colors"
               >
                 {{ t('templates.createProject') }}
               </button>
               <button
                 @click="exportTemplate = selectedTemplate; showDetailDialog = false; showExportDialog = true"
-                class="px-4 py-2.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors"
+                class="px-3 py-2 text-sm font-medium rounded border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors"
               >
                 {{ t('templates.export') }}
               </button>
               <button
                 v-if="!selectedTemplate.is_builtin"
                 @click="deleteTargetId = selectedTemplate.template_id; showDetailDialog = false; showDeleteConfirm = true"
-                class="px-4 py-2.5 text-sm font-medium rounded-lg border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                class="px-3 py-2 text-sm font-medium rounded border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
               >
                 {{ t('common.delete') || 'Delete' }}
               </button>
@@ -643,13 +674,13 @@ const progressPercent = computed(() => {
     <Teleport to="body">
       <div v-if="showCreateDialog && selectedTemplate" class="fixed inset-0 z-50 flex items-center justify-center">
         <div class="absolute inset-0 bg-black/50" @click="!isCreating && (showCreateDialog = false)"></div>
-        <div class="relative bg-white dark:bg-surface-card rounded-2xl shadow-2xl max-w-md w-full mx-4">
-          <div class="p-6">
-            <h2 class="text-lg font-bold text-gray-900 dark:text-content-primary mb-4">
+        <div class="dialog-container max-w-md w-full mx-4">
+          <div class="p-4">
+            <h2 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-3">
               {{ t('templates.createProject') }} — {{ selectedTemplate.name }}
             </h2>
 
-            <div class="space-y-4">
+            <div class="space-y-3">
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('projects.projectName') }}</label>
                 <input
@@ -657,7 +688,7 @@ const progressPercent = computed(() => {
                   type="text"
                   :disabled="isCreating"
                   @input="validateProjectName"
-                  class="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none disabled:opacity-50"
+                  class="w-full px-3 py-2 text-sm rounded border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none disabled:opacity-50"
                   :class="{ 'border-red-400 dark:border-red-500': projectNameError }"
                 />
                 <p v-if="projectNameError" class="mt-1 text-xs text-red-500">{{ projectNameError }}</p>
@@ -674,7 +705,7 @@ const progressPercent = computed(() => {
                   <button
                     @click="selectTargetDir"
                     :disabled="isCreating"
-                    class="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border hover:bg-gray-50 dark:hover:bg-surface-layer disabled:opacity-50"
+                    class="px-3 py-2 text-sm rounded border border-gray-300 dark:border-surface-border hover:bg-gray-50 dark:hover:bg-surface-layer disabled:opacity-50"
                   >
                     ...
                   </button>
@@ -707,18 +738,18 @@ const progressPercent = computed(() => {
               </div>
             </div>
 
-            <div class="flex gap-3 mt-6">
+            <div class="flex gap-2 mt-4">
               <button
                 @click="showCreateDialog = false"
                 :disabled="isCreating"
-                class="flex-1 py-2.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors disabled:opacity-50"
+                class="flex-1 py-2 text-sm font-medium rounded border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors disabled:opacity-50"
               >
                 {{ t('common.cancel') }}
               </button>
               <button
                 @click="handleCreate"
                 :disabled="isCreating || !isValidProjectName || !createTargetDir.trim()"
-                class="flex-1 py-2.5 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
+                class="flex-1 py-2 text-sm font-medium rounded bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
               >
                 {{ isCreating ? t('templates.creating') : t('templates.createProject') }}
               </button>
@@ -731,7 +762,7 @@ const progressPercent = computed(() => {
     <!-- Created Success Quick Access -->
     <Teleport to="body">
       <div v-if="lastCreatedProjectId" class="fixed bottom-6 right-6 z-50 animate-fade-in">
-        <div class="bg-green-600 text-white rounded-xl shadow-lg px-4 py-3 flex items-center gap-3">
+        <div class="bg-green-600 text-white rounded-md shadow-lg px-3 py-2 flex items-center gap-2">
           <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
           </svg>
@@ -739,14 +770,14 @@ const progressPercent = computed(() => {
           <button
             v-if="lastCreatedProject"
             @click="openProjectWithEngine(lastCreatedProject!)"
-            class="ml-1 px-2.5 py-1 text-xs font-medium bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
+            class="ml-1 px-2 py-0.5 text-xs font-medium bg-white/20 hover:bg-white/30 rounded transition-colors"
           >
             {{ t('projects.openWithEngine') }}
           </button>
           <button
             v-if="lastCreatedProject"
             @click="openInFileManager(lastCreatedProject!.path)"
-            class="px-2.5 py-1 text-xs font-medium bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
+            class="px-2 py-0.5 text-xs font-medium bg-white/20 hover:bg-white/30 rounded transition-colors"
           >
             {{ t('projects.openInFileManager') }}
           </button>
@@ -766,28 +797,28 @@ const progressPercent = computed(() => {
     <Teleport to="body">
       <div v-if="showImportDialog" class="fixed inset-0 z-50 flex items-center justify-center">
         <div class="absolute inset-0 bg-black/50" @click="!isImporting && (showImportDialog = false)"></div>
-        <div class="relative bg-white dark:bg-surface-card rounded-2xl shadow-2xl max-w-md w-full mx-4">
-          <div class="p-6">
-            <h2 class="text-lg font-bold text-gray-900 dark:text-content-primary mb-4">{{ t('templates.importUrl') }}</h2>
+        <div class="dialog-container max-w-md w-full mx-4">
+          <div class="p-4">
+            <h2 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-3">{{ t('templates.importUrl') }}</h2>
             <input
               v-model="importUrl"
               type="url"
               :placeholder="t('templates.importUrlPlaceholder')"
               :disabled="isImporting"
-              class="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none disabled:opacity-50"
+              class="w-full px-3 py-2 text-sm rounded border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none disabled:opacity-50"
             />
-            <div class="flex gap-3 mt-6">
+            <div class="flex gap-2 mt-4">
               <button
                 @click="showImportDialog = false"
                 :disabled="isImporting"
-                class="flex-1 py-2.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors disabled:opacity-50"
+                class="flex-1 py-2 text-sm font-medium rounded border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors disabled:opacity-50"
               >
                 {{ t('common.cancel') || 'Cancel' }}
               </button>
               <button
                 @click="handleImport"
                 :disabled="isImporting || !isValidImportUrl || !isOnline"
-                class="flex-1 py-2.5 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
+                class="flex-1 py-2 text-sm font-medium rounded bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
               >
                 {{ isImporting ? '...' : !isOnline ? t('common.offlineImportTip') : t('common.import') }}
               </button>
@@ -801,10 +832,10 @@ const progressPercent = computed(() => {
     <Teleport to="body">
       <div v-if="showGenerateFromProjectDialog" class="fixed inset-0 z-50 flex items-center justify-center">
         <div class="absolute inset-0 bg-black/50" @click="!isGenerating && (showGenerateFromProjectDialog = false)"></div>
-        <div class="relative bg-white dark:bg-surface-card rounded-2xl shadow-2xl max-w-md w-full mx-4">
-          <div class="p-6">
-            <h2 class="text-lg font-bold text-gray-900 dark:text-content-primary mb-4">{{ t('templates.generateFromProject') }}</h2>
-            <div class="space-y-4">
+        <div class="dialog-container max-w-md w-full mx-4">
+          <div class="p-4">
+            <h2 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-3">{{ t('templates.generateFromProject') }}</h2>
+            <div class="space-y-3">
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('templates.selectProject') }}</label>
                 <ProjectSelector v-model="generateProjectId" :projects="projects" :placeholder="t('templates.selectProjectPlaceholder')" />
@@ -816,14 +847,14 @@ const progressPercent = computed(() => {
                   type="text"
                   :placeholder="t('templates.templateNamePlaceholder')"
                   :disabled="isGenerating"
-                  class="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none disabled:opacity-50"
+                  class="w-full px-3 py-2 text-sm rounded border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none disabled:opacity-50"
                 />
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('templates.category') }}</label>
                 <select
                   v-model="generateCategory"
-                  class="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none"
+                  class="w-full px-3 py-2 text-sm rounded border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none"
                 >
                   <option value="Custom">{{ t('templates.category.Custom') }}</option>
                   <option value="Starter2D">{{ t('templates.category.Starter2D') }}</option>
@@ -835,18 +866,18 @@ const progressPercent = computed(() => {
                 </select>
               </div>
             </div>
-            <div class="flex gap-3 mt-6">
+            <div class="flex gap-2 mt-4">
               <button
                 @click="showGenerateFromProjectDialog = false"
                 :disabled="isGenerating"
-                class="flex-1 py-2.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors disabled:opacity-50"
+                class="flex-1 py-2 text-sm font-medium rounded border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors disabled:opacity-50"
               >
                 {{ t('common.cancel') }}
               </button>
               <button
                 @click="handleGenerateFromProject"
                 :disabled="isGenerating || !generateProjectId || !generateTemplateName.trim()"
-                class="flex-1 py-2.5 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
+                class="flex-1 py-2 text-sm font-medium rounded bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
               >
                 {{ isGenerating ? '...' : t('common.generate') }}
               </button>
@@ -868,8 +899,8 @@ const progressPercent = computed(() => {
     <!-- 引擎选择对话框 -->
     <Teleport to="body">
       <div v-if="showEngineSelectDialog && engineSelectProject" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="closeEngineSelectDialog">
-        <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl max-h-[80vh] flex flex-col" @click.stop>
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-1">{{ t('projects.openWithEngine') }}</h3>
+        <div class="dialog-container w-full max-w-md max-h-[80vh] flex flex-col" @click.stop>
+          <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-1">{{ t('projects.openWithEngine') }}</h3>
           <p class="text-sm text-gray-500 dark:text-content-muted mb-4">
             {{ t('projects.openWithEngineDesc') }}
             <span class="font-mono text-xs bg-gray-100 dark:bg-surface-hover px-1.5 py-0.5 rounded ml-1">Godot {{ engineSelectProject.godot_version }}</span>
@@ -907,7 +938,7 @@ const progressPercent = computed(() => {
               </div>
             </button>
           </div>
-          <div class="flex justify-end mt-4 pt-3 border-t border-gray-200 dark:border-surface-border">
+          <div class="flex justify-end mt-3 pt-2 border-t border-gray-200 dark:border-surface-border">
             <button @click="closeEngineSelectDialog" class="btn-secondary">{{ t('common.cancel') }}</button>
           </div>
         </div>
@@ -930,6 +961,14 @@ const progressPercent = computed(() => {
     <!-- Keypair Manager -->
     <KeypairManager
       v-model="showKeypairManager"
+    />
+
+    <ContextMenu
+      :visible="templateContextMenu.visible.value"
+      :x="templateContextMenu.x.value"
+      :y="templateContextMenu.y.value"
+      :items="templateContextMenu.items.value"
+      @close="templateContextMenu.close()"
     />
 
   </div>

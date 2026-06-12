@@ -12,7 +12,7 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  
+
   --surface-base: #1a1a1a;
   --surface-layer: #1e1e1e;
   --surface-card: #252526;
@@ -26,14 +26,9 @@
   --content-primary: #d4d4d4;
   --content-secondary: #9d9d9d;
   --content-muted: #6e6e6e;
-  --brand-primary: #3766be;
-  --brand-secondary: #4a8fe7;
+  --brand-primary: #478CBF;
+  --brand-secondary: #5A9FD4;
   --brand-accent: #33b5dc;
-  
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
 }
 
 ::-webkit-scrollbar {
@@ -92,137 +87,71 @@ body {
 
 @layer components {
   .card {
-    @apply bg-white dark:bg-surface-card rounded-xl p-5 border border-gray-200 dark:border-surface-border;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.03);
-    transition: box-shadow 0.2s ease, transform 0.15s ease;
+    @apply bg-white dark:bg-surface-card rounded-lg p-4 border border-gray-200/80 dark:border-surface-border/60;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
   }
-  
-  .card:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
+  .dark .card {
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
   }
-  
+
   .btn-primary {
-    @apply px-4 py-2 bg-brand-gradient text-white rounded-xl hover:opacity-90 transition-all duration-200;
-    box-shadow: 0 2px 8px rgba(55, 102, 190, 0.3);
+    @apply px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 active:bg-primary-800 transition-all duration-150;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.1);
   }
-  
   .btn-primary:hover {
-    box-shadow: 0 4px 12px rgba(55, 102, 190, 0.4);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.1);
   }
-  
+
   .btn-secondary {
-    @apply px-4 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-700 dark:text-content-primary rounded-xl transition-all duration-200;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    @apply px-4 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-700 dark:text-content-primary rounded-md hover:bg-gray-50 dark:hover:bg-surface-card active:bg-gray-100 dark:active:bg-surface-hover transition-all duration-150;
   }
-  
-  .btn-secondary:hover {
-    @apply bg-gray-50 dark:hover:bg-surface-card;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
-  }
-  
+
   .btn-danger {
-    @apply px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all duration-200;
-    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+    @apply px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 active:bg-red-800 transition-all duration-150;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.1);
   }
-  
-  .btn-danger:hover {
-    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
-  }
-  
+
   .badge {
-    @apply px-2 py-0.5 rounded text-xs font-medium;
+    @apply px-2 py-0.5 rounded-md text-xs font-medium;
   }
-  
+
   .badge-success {
     @apply bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400;
   }
-  
+
   .badge-warning {
     @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400;
   }
-  
+
   .badge-error {
     @apply bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400;
   }
-  
+
   .badge-neutral {
     @apply bg-gray-100 text-gray-700 dark:bg-surface-card dark:text-content-secondary;
   }
-  
+
   .desktop-focus {
     @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-surface-base;
   }
-  
-  .desktop-hover {
-    @apply hover:shadow-md transition-shadow duration-200;
-  }
-  
-  .glass {
-    background: rgba(255, 255, 255, 0.7);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-  }
-  
-  .glass-dark {
-    background: rgba(26, 27, 40, 0.85);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-  }
-  
+
   .modal-backdrop {
     background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-  }
-  
-  .shadow-fluent-sm {
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.03);
-  }
-  
-  .shadow-fluent-md {
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.04);
-  }
-  
-  .shadow-fluent-lg {
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08), 0 4px 8px rgba(0, 0, 0, 0.04);
-  }
-  
-  .shadow-fluent-xl {
-    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1), 0 6px 12px rgba(0, 0, 0, 0.05);
-  }
-
-  .sidebar-acrylic {
-    background: linear-gradient(180deg, rgba(255,255,255,0.82) 0%, rgba(240,244,255,0.78) 100%);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-  }
-
-  .dark .sidebar-acrylic {
-    background: linear-gradient(180deg, rgba(15,16,24,0.88) 0%, rgba(26,27,40,0.85) 100%);
-    backdrop-filter: blur(20px) saturate(150%);
-    -webkit-backdrop-filter: blur(20px) saturate(150%);
-  }
-
-  .header-acrylic {
-    background: linear-gradient(90deg, rgba(255,255,255,0.85) 0%, rgba(248,250,255,0.80) 100%);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-  }
-
-  .dark .header-acrylic {
-    background: linear-gradient(90deg, rgba(15,16,24,0.90) 0%, rgba(26,27,40,0.85) 100%);
-    backdrop-filter: blur(20px) saturate(150%);
-    -webkit-backdrop-filter: blur(20px) saturate(150%);
   }
 
   .stat-card {
-    @apply bg-white dark:bg-surface-card rounded-xl p-5 border border-gray-100 dark:border-surface-border cursor-pointer transition-all duration-200;
-    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+    @apply bg-white dark:bg-surface-card rounded-lg p-4 border border-gray-200/80 dark:border-surface-border/60 cursor-pointer transition-all duration-150;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
   }
-
   .stat-card:hover {
-    box-shadow: 0 8px 24px rgba(37, 99, 235, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
-    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    @apply border-primary-200 dark:border-primary-800/40;
+  }
+  .dark .stat-card {
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  }
+  .dark .stat-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
   }
 
   .info-label {
@@ -239,5 +168,44 @@ body {
 
   .storage-bar-fill {
     @apply h-full rounded-full transition-all duration-500;
+  }
+
+  /* Desktop app style list row */
+  .list-row {
+    @apply flex items-center px-3 py-2 rounded-md mx-1 hover:bg-gray-50 dark:hover:bg-white/[0.04] cursor-pointer transition-colors duration-100;
+  }
+  .list-row.selected {
+    @apply bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300;
+  }
+
+  /* Compact section header */
+  .section-header {
+    @apply text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-content-muted px-3 py-2;
+  }
+
+  /* Desktop toolbar */
+  .toolbar {
+    @apply flex items-center gap-1 px-3 py-2 border-b border-gray-200/80 dark:border-surface-border/60;
+  }
+  .toolbar button {
+    @apply p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-white/[0.06] active:bg-gray-200 dark:active:bg-white/[0.1] transition-colors duration-100;
+  }
+
+  /* Input styling */
+  .input-field {
+    @apply w-full px-3 py-2 bg-white dark:bg-surface-base border border-gray-300 dark:border-surface-border rounded-md text-sm text-gray-900 dark:text-content-primary placeholder-gray-400 dark:placeholder-content-muted focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-all duration-150;
+  }
+
+  /* Dialog/Modal styling */
+  .dialog-container {
+    @apply bg-white dark:bg-surface-card rounded-xl p-5 border border-gray-200/80 dark:border-surface-border/60;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04);
+  }
+  .dark .dialog-container {
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04);
+  }
+
+  .dialog-title {
+    @apply text-base font-semibold text-gray-900 dark:text-content-primary mb-4;
   }
 }

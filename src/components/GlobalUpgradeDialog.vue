@@ -69,8 +69,8 @@ const failCount = computed(() => upgradeResults.value.filter(r => !r.success).le
 <template>
   <Teleport to="body">
     <div v-if="visible" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="close">
-      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">
+      <div class="dialog-container w-full max-w-md" @click.stop>
+        <h3 class="dialog-title">
           {{ t('batchOps.globalUpgrade') }}
         </h3>
 

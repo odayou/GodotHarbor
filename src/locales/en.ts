@@ -83,6 +83,19 @@ export default {
     openInFileManagerFailed: 'Failed to open in file manager: {error}',
     moreActions: 'More actions',
     syncProject: 'Refresh Status',
+    contextMenu: {
+      openProject: 'Open Project',
+      openInFileManager: 'Open in File Explorer',
+      editBindings: 'Edit Bindings',
+      applyChanges: 'Apply Changes',
+      createSnapshot: 'Create Snapshot',
+      setGroup: 'Set Group',
+      refreshStatus: 'Refresh Status',
+      removeProject: 'Remove Project',
+      addProject: 'Add Project',
+      scanProjects: 'Scan Projects',
+      refresh: 'Refresh',
+    },
     syncAllHint: 'Check if project paths exist, update names, versions and statuses',
     syncAllSuccess: 'Refreshed {count} project statuses',
     syncSuccess: 'Project {name} status updated to: {status}',
@@ -557,7 +570,9 @@ export default {
       checkUpdate: 'Check for Updates',
       updatePlugin: 'Update Plugin',
       delete: 'Delete Plugin',
-      goToBindings: 'Go to Bindings'
+      goToBindings: 'Go to Bindings',
+      globalUpgrade: 'Global Upgrade',
+      openInFileManager: 'Open in File Explorer',
     },
     applyChangesFailed: 'Failed to apply changes to project files, please check manually',
     versionSwitch: {
@@ -860,6 +875,13 @@ export default {
     checkUpdatesFailed: 'Check updates failed: {error}',
     deleteEngine: 'Delete Engine',
     moreActions: 'More Actions',
+    contextMenu: {
+      launch: 'Launch',
+      setDefault: 'Set as Default',
+      manageModules: 'Manage Modules',
+      openInFileManager: 'Open in File Explorer',
+      removeEngine: 'Remove Engine',
+    },
     noMatchingEngines: 'No matching engines',
     download: {
       title: 'Download Engine',
@@ -1565,7 +1587,12 @@ export default {
     keypairManage: 'Signing Key Management',
     export: 'Export',
     deleteFailed: 'Failed to delete template: {error}',
-    readFileFailed: 'Failed to read template file'
+    readFileFailed: 'Failed to read template file',
+    contextMenu: {
+      createProject: 'Create Project',
+      exportTemplate: 'Export Template',
+      deleteTemplate: 'Delete Template',
+    },
   },
   build: {
     title: 'Build & Export',

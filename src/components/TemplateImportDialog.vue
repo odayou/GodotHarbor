@@ -118,9 +118,9 @@ const close = () => {
   <Teleport to="body">
     <div v-if="modelValue" class="fixed inset-0 z-50 flex items-center justify-center">
       <div class="absolute inset-0 bg-black/50" @click="close"></div>
-      <div class="relative bg-white dark:bg-surface-card rounded-2xl shadow-2xl max-w-lg w-full mx-4">
-        <div class="p-6">
-          <h2 class="text-lg font-bold text-gray-900 dark:text-content-primary mb-4">
+      <div class="dialog-container max-w-lg w-full mx-4">
+        <div class="p-4">
+          <h2 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-3">
             导入模板文件
           </h2>
 
@@ -213,7 +213,7 @@ const close = () => {
             </div>
           </div>
 
-          <div class="flex gap-3 mt-6">
+          <div class="flex gap-2 mt-4">
             <button
               @click="close"
               :disabled="isConfirming || isVerifying"

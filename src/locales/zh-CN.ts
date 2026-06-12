@@ -83,6 +83,19 @@ export default {
     openInFileManagerFailed: '打开文件管理器失败: {error}',
     moreActions: '更多操作',
     syncProject: '刷新状态',
+    contextMenu: {
+      openProject: '打开项目',
+      openInFileManager: '在资源管理器中打开',
+      editBindings: '编辑绑定',
+      applyChanges: '应用变更',
+      createSnapshot: '创建快照',
+      setGroup: '设置分组',
+      refreshStatus: '刷新状态',
+      removeProject: '删除项目',
+      addProject: '添加项目',
+      scanProjects: '扫描项目',
+      refresh: '刷新',
+    },
     syncAllHint: '检查项目路径是否有效，更新项目名称、版本和状态',
     syncAllSuccess: '已刷新 {count} 个项目状态',
     syncSuccess: '项目 {name} 状态已更新为: {status}',
@@ -559,7 +572,9 @@ export default {
       checkUpdate: '检查更新',
       updatePlugin: '更新插件',
       delete: '删除插件',
-      goToBindings: '前往绑定管理'
+      goToBindings: '前往绑定管理',
+      globalUpgrade: '全局升级',
+      openInFileManager: '在资源管理器中打开',
     },
     applyChangesFailed: '应用变更到项目文件失败，请手动检查',
     versionSwitch: {
@@ -862,6 +877,13 @@ export default {
     checkUpdatesFailed: '检查更新失败: {error}',
     deleteEngine: '删除引擎',
     moreActions: '更多操作',
+    contextMenu: {
+      launch: '启动',
+      setDefault: '设为默认',
+      manageModules: '管理模块',
+      openInFileManager: '在资源管理器中打开',
+      removeEngine: '删除引擎',
+    },
     noMatchingEngines: '没有匹配的引擎',
     download: {
       title: '下载引擎',
@@ -1565,7 +1587,12 @@ export default {
     keypairManage: '签名密钥管理',
     export: '导出',
     deleteFailed: '删除模板失败: {error}',
-    readFileFailed: '读取模板文件失败'
+    readFileFailed: '读取模板文件失败',
+    contextMenu: {
+      createProject: '创建项目',
+      exportTemplate: '导出模板',
+      deleteTemplate: '删除模板',
+    },
   },
   build: {
     title: '构建发布',

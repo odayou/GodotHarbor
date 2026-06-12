@@ -122,7 +122,7 @@ function getHighlightSegments(text: string, searchQuery: string): Array<{ text: 
       @click="onOverlayClick"
     >
       <div
-        class="w-full max-w-lg bg-white dark:bg-surface-card rounded-xl shadow-2xl border border-gray-200 dark:border-surface-border overflow-hidden"
+        class="w-full max-w-lg bg-white dark:bg-surface-card rounded-lg shadow-2xl border border-gray-200 dark:border-surface-border overflow-hidden"
         @keydown="onKeyDown"
       >
         <div class="flex items-center px-4 border-b border-gray-200 dark:border-surface-border">
@@ -261,8 +261,8 @@ function getHighlightSegments(text: string, searchQuery: string): Array<{ text: 
 
   <Teleport to="body">
     <div v-if="showEngineSelectDialog && engineSelectProject" class="fixed inset-0 bg-black/50 flex items-center justify-center z-[110]" @click="closeEngineSelectDialog">
-      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl max-h-[80vh] flex flex-col" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-1">{{ t('projects.openWithEngine') }}</h3>
+      <div class="dialog-container w-full max-w-md max-h-[80vh] flex flex-col" @click.stop>
+        <h3 class="dialog-title">{{ t('projects.openWithEngine') }}</h3>
         <p class="text-sm text-gray-500 dark:text-content-muted mb-4">
           {{ t('projects.openWithEngineDesc') }}
           <span class="font-mono text-xs bg-gray-100 dark:bg-surface-hover px-1.5 py-0.5 rounded ml-1">Godot {{ engineSelectProject.godot_version }}</span>
@@ -320,7 +320,7 @@ function getHighlightSegments(text: string, searchQuery: string): Array<{ text: 
           </button>
         </div>
 
-        <div class="flex justify-end mt-4 pt-3 border-t border-gray-200 dark:border-surface-border">
+        <div class="flex justify-end mt-3 pt-2 border-t border-gray-200 dark:border-surface-border">
           <button
             @click="closeEngineSelectDialog"
             class="btn-secondary"

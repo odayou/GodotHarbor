@@ -53,9 +53,9 @@ const steps = computed(() => [
 <template>
   <Teleport to="body">
     <div v-if="visible" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="!isInstalling && emit('close')">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
+      <div class="dialog-container w-full max-w-md" @click.stop>
         <div class="flex justify-between items-center mb-5">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('assetLibrary.oneClickInstallTitle') }}</h3>
+          <h3 class="dialog-title mb-0">{{ t('assetLibrary.oneClickInstallTitle') }}</h3>
           <button
             v-if="!isInstalling"
             @click="emit('close')"

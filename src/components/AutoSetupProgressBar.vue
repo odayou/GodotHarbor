@@ -25,7 +25,7 @@ const stepItems = computed(() =>
         v-if="isRunning || currentStep === 'done'"
         class="fixed bottom-8 left-1/2 -translate-x-1/2 z-[80] w-full max-w-xl"
       >
-        <div class="bg-white dark:bg-surface-card rounded-xl shadow-2xl border border-gray-200 dark:border-surface-border overflow-hidden">
+        <div class="bg-white dark:bg-surface-card rounded-lg shadow-popover border border-gray-200/80 dark:border-surface-border/60 overflow-hidden">
           <div class="px-4 py-3">
             <div class="flex items-center gap-3">
               <div v-if="isRunning" class="animate-spin rounded-full h-5 w-5 border-2 border-primary-600 border-t-transparent shrink-0"></div>

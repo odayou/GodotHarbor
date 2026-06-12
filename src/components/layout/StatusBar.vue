@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
@@ -273,7 +273,7 @@ onUnmounted(() => {
     <Teleport to="body">
       <div
         v-if="showUpdatePanel"
-        class="update-panel fixed bottom-8 right-4 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden"
+        class="update-panel fixed bottom-8 right-4 w-80 bg-white dark:bg-surface-card rounded-lg shadow-popover border border-gray-200/80 dark:border-surface-border/60 z-50 overflow-hidden"
       >
         <div class="px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800">
           <div class="flex items-center justify-between">
@@ -288,7 +288,7 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <div class="px-4 py-4 space-y-3">
+        <div class="px-3 py-3 space-y-2">
           <div v-if="updateStore.appUpdate" class="flex items-center justify-between">
             <div>
               <span class="text-sm font-medium text-gray-900 dark:text-gray-100">Godot Harbor</span>

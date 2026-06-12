@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { api } from '@/api'
 import { useOnboarding } from '@/composables/useOnboarding'
@@ -85,7 +85,7 @@ const finish = async () => {
 
 <template>
   <div v-if="isVisible" class="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4">
-    <div class="bg-white dark:bg-surface-card rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+    <div class="dialog-container w-full max-w-lg overflow-hidden">
       <div class="bg-primary-600 h-1.5">
         <div
           class="bg-primary-400 h-full transition-all duration-300"

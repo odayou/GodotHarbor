@@ -113,7 +113,7 @@ const {
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="space-y-3">
     <div v-if="isLoading" class="flex justify-center py-12">
       <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
     </div>
@@ -130,7 +130,7 @@ const {
       <!-- Dashboard Header -->
       <div class="flex items-center justify-between">
         <div>
-          <h1 class="text-2xl font-bold text-gray-900 dark:text-content-primary">
+          <h1 class="text-base font-semibold text-gray-900 dark:text-content-primary">
             {{ t('home.welcome') }}
           </h1>
           <p class="text-sm text-gray-500 dark:text-content-secondary mt-1">
@@ -140,7 +140,7 @@ const {
         <button
           v-if="hasData && !isAutoSetupRunning"
           @click="runAutoSetup()"
-          class="px-3 py-1.5 border border-primary-300 dark:border-surface-border text-primary-600 dark:text-brand-primary rounded-lg hover:bg-primary-50 dark:hover:bg-surface-hover transition-colors text-sm flex items-center gap-1.5"
+          class="px-3 py-1.5 border border-primary-300 dark:border-surface-border text-primary-600 dark:text-brand-primary rounded hover:bg-primary-50 dark:hover:bg-surface-hover transition-colors text-sm flex items-center gap-1.5"
           :title="t('home.autoSetupDesc')"
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -151,17 +151,17 @@ const {
       </div>
 
       <!-- Stat Cards Row -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
         <div class="stat-card group" @click="navigateTo('/projects')">
-          <div class="flex items-center gap-4">
-            <div class="w-12 h-12 rounded-xl bg-blue-50 dark:bg-surface-hover flex items-center justify-center shrink-0">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-md bg-blue-50 dark:bg-surface-hover flex items-center justify-center shrink-0">
               <svg class="w-6 h-6 text-blue-600 dark:text-brand-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
               </svg>
             </div>
             <div class="flex-1 min-w-0">
               <p class="info-label">{{ t('home.projects') }}</p>
-              <p class="text-2xl font-bold text-gray-900 dark:text-content-primary mt-0.5">{{ stats.project_count }}</p>
+              <p class="text-xl font-bold text-gray-900 dark:text-content-primary mt-0.5">{{ stats.project_count }}</p>
             </div>
             <svg class="w-5 h-5 text-gray-300 dark:text-gray-600 group-hover:text-primary-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
@@ -170,15 +170,15 @@ const {
         </div>
 
         <div class="stat-card group" @click="navigateTo('/plugins')">
-          <div class="flex items-center gap-4">
-            <div class="w-12 h-12 rounded-xl bg-green-50 dark:bg-green-900/20 flex items-center justify-center shrink-0">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-md bg-green-50 dark:bg-green-900/20 flex items-center justify-center shrink-0">
               <svg class="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
               </svg>
             </div>
             <div class="flex-1 min-w-0">
               <p class="info-label">{{ t('home.plugins') }}</p>
-              <p class="text-2xl font-bold text-gray-900 dark:text-content-primary mt-0.5">{{ stats.plugin_count }}</p>
+              <p class="text-xl font-bold text-gray-900 dark:text-content-primary mt-0.5">{{ stats.plugin_count }}</p>
             </div>
             <svg class="w-5 h-5 text-gray-300 dark:text-gray-600 group-hover:text-primary-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
@@ -187,15 +187,15 @@ const {
         </div>
 
         <div class="stat-card group" @click="navigateTo('/plugins?tab=bindings')">
-          <div class="flex items-center gap-4">
-            <div class="w-12 h-12 rounded-xl bg-purple-50 dark:bg-surface-hover flex items-center justify-center shrink-0">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-md bg-purple-50 dark:bg-surface-hover flex items-center justify-center shrink-0">
               <svg class="w-6 h-6 text-purple-600 dark:text-content-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
               </svg>
             </div>
             <div class="flex-1 min-w-0">
               <p class="info-label">{{ t('home.bindings') }}</p>
-              <p class="text-2xl font-bold text-gray-900 dark:text-content-primary mt-0.5">{{ stats.binding_count }}</p>
+              <p class="text-xl font-bold text-gray-900 dark:text-content-primary mt-0.5">{{ stats.binding_count }}</p>
             </div>
             <svg class="w-5 h-5 text-gray-300 dark:text-gray-600 group-hover:text-primary-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
@@ -204,15 +204,15 @@ const {
         </div>
 
         <div class="stat-card group" @click="navigateTo('/engines')">
-          <div class="flex items-center gap-4">
-            <div class="w-12 h-12 rounded-xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center shrink-0">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-md bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center shrink-0">
               <svg class="w-6 h-6 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </div>
             <div class="flex-1 min-w-0">
               <p class="info-label">{{ t('home.engines') }}</p>
-              <p class="text-2xl font-bold text-gray-900 dark:text-content-primary mt-0.5">{{ stats.engine_count }}</p>
+              <p class="text-xl font-bold text-gray-900 dark:text-content-primary mt-0.5">{{ stats.engine_count }}</p>
             </div>
             <svg class="w-5 h-5 text-gray-300 dark:text-gray-600 group-hover:text-primary-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
@@ -224,7 +224,7 @@ const {
       <!-- Drift Alert Banner -->
       <div
         v-if="(stats.drift_count ?? 0) > 0"
-        class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 flex items-center gap-3 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+        class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex items-center gap-3 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
         @click="navigateTo('/projects')"
       >
         <svg class="w-6 h-6 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -242,7 +242,7 @@ const {
       <!-- Project Health Overview -->
       <div v-if="stats.recent_projects.length > 0" class="card">
         <div class="flex items-center justify-between mb-4">
-          <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('home.recentProjects') }}</h2>
+          <h2 class="text-base font-semibold text-gray-900 dark:text-content-primary">{{ t('home.recentProjects') }}</h2>
           <div class="flex items-center gap-3">
             <div v-if="healthyCount > 0" class="flex items-center gap-1">
               <span class="w-2 h-2 rounded-full bg-status-healthy"></span>
@@ -263,12 +263,12 @@ const {
           <div
             v-for="project in stats.recent_projects"
             :key="project.project_id"
-            class="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors group"
+            class="flex items-center justify-between p-2.5 rounded hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors group"
           >
             <div
               class="flex items-center gap-3 flex-1 min-w-0"
             >
-              <div class="w-10 h-10 rounded-lg bg-gray-50 dark:bg-surface-layer flex items-center justify-center shrink-0 overflow-hidden border border-gray-100 dark:border-surface-border">
+              <div class="w-9 h-9 rounded bg-gray-50 dark:bg-surface-layer flex items-center justify-center shrink-0 overflow-hidden border border-gray-100 dark:border-surface-border">
                 <img
                   v-if="project.icon_path && getIconUrl(project.icon_path)"
                   :src="getIconUrl(project.icon_path)"
@@ -294,7 +294,7 @@ const {
               <button
                 @click.stop="openProjectWithEngine(project)"
                 :disabled="isLaunching"
-                class="p-2.5 rounded-lg text-gray-500 dark:text-content-muted hover:text-primary-600 dark:hover:text-brand-primary hover:bg-primary-50 dark:hover:bg-surface-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                class="p-2 rounded text-gray-500 dark:text-content-muted hover:text-primary-600 dark:hover:text-brand-primary hover:bg-primary-50 dark:hover:bg-surface-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 :title="t('projects.openWithEngine')"
               >
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -317,7 +317,7 @@ const {
       <!-- Empty State / Quick Start -->
       <div v-if="!hasData" class="card">
         <div class="flex items-center justify-between mb-4">
-          <h2 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('home.quickStart') }}</h2>
+          <h2 class="text-base font-semibold text-gray-900 dark:text-content-primary">{{ t('home.quickStart') }}</h2>
           <button
             v-if="!isAutoSetupRunning"
             @click="runAutoSetup()"
@@ -339,13 +339,13 @@ const {
           <div class="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent mx-auto"></div>
           <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">{{ autoSetupMessage }}</p>
         </div>
-        <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div
-            class="p-4 border border-gray-200 dark:border-surface-border rounded-xl cursor-pointer hover:border-primary-400 dark:hover:border-surface-border hover:bg-primary-50/50 dark:hover:bg-surface-hover transition-colors"
+            class="stat-card group"
             @click="navigateTo('/projects')"
           >
             <div class="flex items-center gap-3 mb-2">
-              <div class="w-8 h-8 rounded-lg bg-blue-50 dark:bg-surface-hover flex items-center justify-center">
+              <div class="w-7 h-7 rounded bg-blue-50 dark:bg-surface-hover flex items-center justify-center">
                 <svg class="w-4 h-4 text-blue-600 dark:text-brand-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                 </svg>
@@ -355,11 +355,11 @@ const {
             <p class="text-sm text-gray-600 dark:text-content-secondary pl-11">{{ t('home.step1Desc') }}</p>
           </div>
           <div
-            class="p-4 border border-gray-200 dark:border-surface-border rounded-xl cursor-pointer hover:border-primary-400 dark:hover:border-surface-border hover:bg-primary-50/50 dark:hover:bg-surface-hover transition-colors"
+            class="stat-card group"
             @click="navigateTo('/plugins')"
           >
             <div class="flex items-center gap-3 mb-2">
-              <div class="w-8 h-8 rounded-lg bg-green-50 dark:bg-green-900/20 flex items-center justify-center">
+              <div class="w-7 h-7 rounded bg-green-50 dark:bg-green-900/20 flex items-center justify-center">
                 <svg class="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
                 </svg>
@@ -369,11 +369,11 @@ const {
             <p class="text-sm text-gray-600 dark:text-content-secondary pl-11">{{ t('home.step2Desc') }}</p>
           </div>
           <div
-            class="p-4 border border-gray-200 dark:border-surface-border rounded-xl cursor-pointer hover:border-primary-400 dark:hover:border-surface-border hover:bg-primary-50/50 dark:hover:bg-surface-hover transition-colors"
+            class="stat-card group"
             @click="navigateTo('/plugins')"
           >
             <div class="flex items-center gap-3 mb-2">
-              <div class="w-8 h-8 rounded-lg bg-purple-50 dark:bg-surface-hover flex items-center justify-center">
+              <div class="w-7 h-7 rounded bg-purple-50 dark:bg-surface-hover flex items-center justify-center">
                 <svg class="w-4 h-4 text-purple-600 dark:text-content-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                 </svg>
@@ -383,11 +383,11 @@ const {
             <p class="text-sm text-gray-600 dark:text-content-secondary pl-11">{{ t('home.step3Desc') }}</p>
           </div>
           <div
-            class="p-4 border border-gray-200 dark:border-surface-border rounded-xl cursor-pointer hover:border-primary-400 dark:hover:border-surface-border hover:bg-primary-50/50 dark:hover:bg-surface-hover transition-colors"
+            class="stat-card group"
             @click="navigateTo('/engines')"
           >
             <div class="flex items-center gap-3 mb-2">
-              <div class="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">
+              <div class="w-7 h-7 rounded bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">
                 <svg class="w-4 h-4 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
@@ -408,8 +408,8 @@ const {
 
     <Teleport to="body">
       <div v-if="showEngineSelectDialog && engineSelectProject" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="closeEngineSelectDialog">
-        <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl max-h-[80vh] flex flex-col" @click.stop>
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-1">{{ t('projects.openWithEngine') }}</h3>
+        <div class="dialog-container w-full max-w-md max-h-[80vh] flex flex-col" @click.stop>
+          <h3 class="dialog-title">{{ t('projects.openWithEngine') }}</h3>
           <p class="text-sm text-gray-500 dark:text-content-muted mb-4">
             {{ t('projects.openWithEngineDesc') }}
             <span class="font-mono text-xs bg-gray-100 dark:bg-surface-hover px-1.5 py-0.5 rounded ml-1">Godot {{ engineSelectProject.godot_version }}</span>
@@ -434,7 +434,7 @@ const {
               @click="launchWithEngine(me.engine.engine_id)"
               :disabled="isLaunching"
               :class="[
-                'w-full text-left p-3 rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
+                'w-full text-left p-3 rounded border transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
                 me.engine.engine_id === engineSelectProject?.last_used_engine_id
                   ? 'border-primary-300 dark:border-surface-border bg-primary-50 dark:bg-surface-hover'
                   : 'border-gray-200 dark:border-surface-border hover:border-primary-300 dark:hover:border-surface-border hover:bg-primary-50 dark:hover:bg-surface-hover'

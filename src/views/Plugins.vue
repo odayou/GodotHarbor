@@ -15,7 +15,11 @@ import { usePluginUpdate } from '@/composables/usePluginUpdate'
 import { useAssetLibrary } from '@/composables/useAssetLibrary'
 import { isOnline as _isOnline } from '@/composables/useNetworkStatus'
 import { usePluginStore, useSettingsStore } from '@/stores'
+import { useContextMenu } from '@/composables/useContextMenu'
+import type { ContextMenuEntry } from '@/composables/useContextMenu'
+import { useFileManager } from '@/composables/useFileManager'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import ContextMenu from '@/components/ContextMenu.vue'
 import ErrorState from '@/components/ErrorState.vue'
 import AssetLibraryTab from '@/components/AssetLibraryTab.vue'
 import GlobalUpgradeDialog from '@/components/GlobalUpgradeDialog.vue'
@@ -98,6 +102,59 @@ const activeTab = ref<'repository' | 'bindings' | 'assetLibrary'>('repository')
 
 const featuredPlugins = ref<FeaturedPluginsList | null>(null)
 const showFeatured = ref(true)
+
+const pluginContextMenu = useContextMenu()
+const { openInFileManager: openPluginInFileManager } = useFileManager()
+
+const showPluginContextMenu = (event: MouseEvent, plugin: Plugin) => {
+  pluginContextMenu.show(event, [
+    {
+      label: t('plugins.contextMenu.viewDetails'),
+      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>',
+      action: () => { selectedPlugin.value = plugin; showPluginDetail.value = true },
+    },
+    { separator: true },
+    {
+      label: t('plugins.contextMenu.bindToProject'),
+      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>',
+      action: () => { quickBindPlugin.value = plugin; showQuickBindDialog.value = true },
+    },
+    {
+      label: t('plugins.contextMenu.globalUpgrade'),
+      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>',
+      action: () => openGlobalUpgradeDialog(plugin),
+    },
+    { separator: true },
+    {
+      label: t('plugins.contextMenu.openInFileManager'),
+      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>',
+      action: () => {
+        if (plugin.versions[0]?.units[0]?.install_path) {
+          openPluginInFileManager(plugin.versions[0].units[0].install_path)
+        }
+      },
+    },
+    {
+      label: t('plugins.contextMenu.delete'),
+      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>',
+      action: async () => {
+        try {
+          const bindings = await api.getPluginBindings(plugin.plugin_id)
+          for (const b of bindings) {
+            await api.unbindPlugin(b.project_id, plugin.plugin_id).catch(() => {})
+          }
+          await api.removePlugin(plugin.plugin_id)
+          toast.success(t('common.projectDeleted'))
+          await loadPlugins(true)
+          loadPluginBindingCounts()
+        } catch (error) {
+          toast.error(String(error))
+        }
+      },
+      danger: true,
+    },
+  ] as ContextMenuEntry[])
+}
 
 async function loadFeaturedPlugins() {
   try {
@@ -1768,25 +1825,25 @@ const retryBatchFailed = async () => {
 <template>
   <div class="relative" @dragenter="handleDragEnter" @dragleave="handleDragLeave" @dragover="handleDragOver" @drop="handleDrop">
     <div v-if="isDragOver" class="fixed inset-0 bg-primary-500/10 border-2 border-dashed border-primary-500 z-50 flex items-center justify-center pointer-events-none">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-8 shadow-xl text-center">
+      <div class="dialog-container text-center">
         <svg class="w-12 h-12 text-primary-500 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
         </svg>
         <p class="text-sm font-medium text-gray-700 dark:text-content-secondary">{{ t('plugins.dropToImport') }}</p>
       </div>
     </div>
-    <div class="space-y-6">
-      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-      <div class="flex items-center gap-4">
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-content-primary">{{ t('plugins.title') }}</h1>
-        <div class="flex bg-gray-100 dark:bg-surface-layer rounded-lg p-1">
+    <div class="space-y-0">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+      <div class="flex items-center gap-2">
+        <h1 class="text-base font-semibold text-gray-900 dark:text-content-primary">{{ t('plugins.title') }}</h1>
+        <div class="flex border-b border-gray-200/80 dark:border-surface-border/60">
           <button
             @click="activeTab = 'repository'"
-            :class="['px-3 py-1.5 rounded-md text-sm font-medium transition-colors', activeTab === 'repository' ? 'bg-white dark:bg-surface-card text-primary-600 dark:text-brand-primary shadow-sm' : 'text-gray-600 dark:text-content-secondary hover:text-gray-900 dark:hover:text-content-primary']"
+            :class="['px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors duration-150', activeTab === 'repository' ? 'border-primary-600 text-primary-600 dark:text-brand-primary' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300']"
           >{{ t('plugins.tabRepository') }}</button>
           <button
             @click="activeTab = 'assetLibrary'; openAssetLibraryTab()"
-            :class="['px-3 py-1.5 rounded-md text-sm font-medium transition-colors', activeTab === 'assetLibrary' ? 'bg-white dark:bg-surface-card text-primary-600 dark:text-brand-primary shadow-sm' : 'text-gray-600 dark:text-content-secondary hover:text-gray-900 dark:hover:text-content-primary']"
+            :class="['px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors duration-150', activeTab === 'assetLibrary' ? 'border-primary-600 text-primary-600 dark:text-brand-primary' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300']"
           >{{ t('assetLibrary.title') }}</button>
         </div>
       </div>
@@ -1801,7 +1858,7 @@ const retryBatchFailed = async () => {
         <button
           @click="checkPluginUpdates"
           :disabled="isCheckingUpdates || isLoading"
-          class="px-4 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-card text-gray-700 dark:text-content-secondary rounded-lg hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors disabled:opacity-50 text-sm"
+          class="px-3 py-1.5 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-card text-gray-700 dark:text-content-secondary rounded hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors disabled:opacity-50 text-sm"
         >
           {{ isCheckingUpdates ? t('plugins.checkingUpdates') : t('plugins.checkUpdates') }}
         </button>
@@ -1819,11 +1876,11 @@ const retryBatchFailed = async () => {
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
             </svg>
           </button>
-          <div v-if="showAddMenu" class="absolute right-0 mt-2 w-60 bg-white dark:bg-surface-card rounded-xl shadow-lg border border-gray-200 dark:border-surface-border z-50 py-1">
+          <div v-if="showAddMenu" class="absolute right-0 mt-2 w-60 bg-white dark:bg-surface-card rounded-md border border-gray-200 dark:border-surface-border z-50 py-1">
             <div class="px-3 py-1.5 text-xs font-medium text-gray-400 dark:text-content-muted uppercase tracking-wider">{{ t('plugins.addMenu.localLabel') }}</div>
             <button
               @click="importFromLocal(); showAddMenu = false"
-              class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-50 dark:hover:bg-surface-hover flex items-center gap-2.5"
+              class="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-50 dark:hover:bg-surface-hover flex items-center gap-2"
             >
               <svg class="w-4 h-4 text-gray-500 dark:text-content-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
@@ -1835,7 +1892,7 @@ const retryBatchFailed = async () => {
             </button>
             <button
               @click="importFromFile(); showAddMenu = false"
-              class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-50 dark:hover:bg-surface-hover flex items-center gap-2.5"
+              class="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-50 dark:hover:bg-surface-hover flex items-center gap-2"
             >
               <svg class="w-4 h-4 text-gray-500 dark:text-content-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -1849,7 +1906,7 @@ const retryBatchFailed = async () => {
             <div class="px-3 py-1.5 text-xs font-medium text-gray-400 dark:text-content-muted uppercase tracking-wider">{{ t('plugins.addMenu.remoteLabel') }}</div>
             <button
               @click="showRemoteDialog = true; showAddMenu = false"
-              class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-50 dark:hover:bg-surface-hover flex items-center gap-2.5"
+              class="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-content-secondary hover:bg-gray-50 dark:hover:bg-surface-hover flex items-center gap-2"
             >
               <svg class="w-4 h-4 text-gray-500 dark:text-content-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
@@ -1864,20 +1921,20 @@ const retryBatchFailed = async () => {
       </div>
     </div>
 
-    <div v-if="activeTab === 'repository'" class="card">
-      <div class="flex flex-col lg:flex-row gap-4">
+    <div v-if="activeTab === 'repository'" class="border-b border-gray-200 dark:border-surface-border pb-2">
+      <div class="flex flex-col lg:flex-row gap-2">
         <div class="flex-1">
           <input
             v-model="searchQuery"
             type="text"
             :placeholder="t('plugins.search')"
-            class="w-full px-4 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-sm"
+            class="input-field"
           />
         </div>
-        <div class="flex flex-wrap gap-2 items-center">
+        <div class="flex flex-wrap gap-1.5 items-center">
           <select
             v-model="filterCompatibility"
-            class="px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-sm"
+            class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-md bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-sm"
           >
             <option value="all">{{ t('plugins.allVersions') }}</option>
             <option value="Godot4">Godot 4</option>
@@ -1886,7 +1943,7 @@ const retryBatchFailed = async () => {
           </select>
           <select
             v-model="filterSource"
-            class="px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-sm"
+            class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-md bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-sm"
           >
             <option value="all">{{ t('plugins.allSource') }}</option>
             <option value="Local">{{ t('plugins.source.local') }}</option>
@@ -1896,7 +1953,7 @@ const retryBatchFailed = async () => {
           <button
             @click="showFavoritesOnly = !showFavoritesOnly"
             :class="[
-              'px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+              'px-3 py-2 rounded text-sm font-medium transition-colors',
               showFavoritesOnly
                 ? 'bg-primary-100 text-primary-800 dark:bg-surface-hover dark:text-brand-primary'
                 : 'bg-gray-100 text-gray-700 dark:bg-surface-layer dark:text-content-primary hover:bg-gray-200 dark:hover:bg-surface-layer'
@@ -1912,7 +1969,7 @@ const retryBatchFailed = async () => {
           <button
             v-if="showOnlyDuplicates"
             @click="showOnlyDuplicates = false"
-            class="px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
+            class="px-3 py-2 rounded text-sm font-medium transition-colors bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
           >
             {{ t('plugins.showDuplicates') }} ✕
           </button>
@@ -1950,8 +2007,8 @@ const retryBatchFailed = async () => {
         ]"
       />
 
-      <div v-if="featuredPlugins && featuredPlugins.plugins.length > 0 && showFeatured" class="mt-8 pt-6 border-t border-gray-200 dark:border-surface-border">
-        <div class="flex items-center justify-between mb-4">
+      <div v-if="featuredPlugins && featuredPlugins.plugins.length > 0 && showFeatured" class="mt-4 pt-3 border-t border-gray-200 dark:border-surface-border">
+        <div class="flex items-center justify-between mb-2">
           <h4 class="text-sm font-semibold text-gray-900 dark:text-content-primary flex items-center gap-1.5">
             <svg class="w-4 h-4 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
             {{ t('plugins.featured.title') }}
@@ -1960,14 +2017,14 @@ const retryBatchFailed = async () => {
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
           <div
             v-for="fp in featuredPlugins.plugins"
             :key="fp.source_url"
-            class="flex items-start gap-3 p-3 bg-white dark:bg-surface-card border border-gray-200 dark:border-surface-border rounded-lg hover:border-primary-300 dark:hover:border-surface-border transition-colors cursor-pointer group"
+            class="flex items-start gap-2 p-2 bg-white dark:bg-surface-card border border-gray-200 dark:border-surface-border rounded hover:border-primary-300 dark:hover:border-surface-border transition-colors cursor-pointer group"
             @click="importFeaturedPlugin(fp.source_url)"
           >
-            <div class="w-9 h-9 bg-primary-100 dark:bg-surface-hover rounded-lg flex items-center justify-center flex-shrink-0">
+            <div class="w-7 h-7 bg-primary-100 dark:bg-surface-hover rounded flex items-center justify-center flex-shrink-0">
               <svg class="w-4 h-4 text-primary-600 dark:text-brand-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
             </div>
             <div class="flex-1 min-w-0">
@@ -1998,9 +2055,9 @@ const retryBatchFailed = async () => {
       <button @click="searchQuery = ''" class="mt-3 text-sm text-primary-600 hover:text-primary-700 dark:text-brand-primary">{{ t('common.clearSearch') }}</button>
     </div>
 
-    <div v-else class="space-y-4">
-      <div v-if="isBatchMode && selectedPluginCount > 0" class="bg-primary-50 dark:bg-surface-hover border border-primary-200 dark:border-surface-border rounded-lg p-3 flex items-center justify-between">
-        <div class="flex items-center gap-3">
+    <div v-else class="space-y-0">
+      <div v-if="isBatchMode && selectedPluginCount > 0" class="bg-primary-50 dark:bg-surface-hover border border-primary-200 dark:border-surface-border rounded p-2 flex items-center justify-between">
+        <div class="flex items-center gap-2">
           <span class="text-sm font-medium text-primary-700 dark:text-content-secondary">{{ t('plugins.selectedCount', { count: selectedPluginCount }) }}</span>
           <button
             @click="selectAllPlugins"
@@ -2018,35 +2075,36 @@ const retryBatchFailed = async () => {
         <div class="flex gap-2">
           <button
             @click="batchRemovePlugins"
-            class="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
+            class="px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
           >
             {{ t('plugins.batchActions.batchDelete', { count: selectedPluginCount }) }}
           </button>
         </div>
       </div>
 
-      <div class="space-y-3">
+      <div class="space-y-0">
         <div
           v-for="plugin in displayedPlugins"
           :key="plugin.plugin_id"
           :class="[
-            'bg-white dark:bg-surface-card rounded-xl shadow hover:shadow-md transition-all p-4',
-            selectedPluginIds.has(plugin.plugin_id) ? 'ring-2 ring-primary-500' : ''
+            'px-3 py-2 border-b border-gray-100 dark:border-surface-border/40 hover:bg-gray-50 dark:hover:bg-white/[0.04] transition-colors duration-100',
+            selectedPluginIds.has(plugin.plugin_id) ? 'bg-primary-50/50 dark:bg-primary-900/10' : ''
           ]"
+          @contextmenu="showPluginContextMenu($event, plugin)"
           >
-          <div class="flex items-start gap-3">
+          <div class="flex items-start gap-2">
             <input
               type="checkbox"
               :checked="selectedPluginIds.has(plugin.plugin_id)"
               @click.stop="togglePluginSelection(plugin, $event)"
               class="w-4 h-4 text-primary-600 rounded flex-shrink-0 cursor-pointer mt-1"
             />
-            <div class="w-10 h-10 rounded-lg overflow-hidden bg-primary-50 dark:bg-surface-hover flex items-center justify-center flex-shrink-0">
-              <span class="text-primary-600 dark:text-brand-primary font-semibold text-sm">{{ plugin.name.charAt(0).toUpperCase() }}</span>
+            <div class="w-8 h-8 rounded overflow-hidden bg-primary-50 dark:bg-surface-hover flex items-center justify-center flex-shrink-0">
+              <span class="text-primary-600 dark:text-brand-primary font-semibold text-xs">{{ plugin.name.charAt(0).toUpperCase() }}</span>
             </div>
             <div class="min-w-0 flex-1 cursor-pointer" @click="showPluginDetails(plugin)">
               <div class="flex items-center gap-2 flex-wrap">
-                <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary">
+                <h3 class="text-sm font-medium text-gray-900 dark:text-content-primary">
                   {{ plugin.name }}
                 </h3>
                 <span :class="['badge text-xs', plugin.compatibility === 'Godot4' ? 'bg-blue-100 text-blue-700 dark:bg-surface-hover dark:text-brand-primary' : plugin.compatibility === 'Godot3' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : plugin.compatibility === 'Both' ? 'bg-purple-100 text-purple-700 dark:bg-surface-hover dark:text-content-secondary' : 'bg-gray-100 text-gray-500 dark:bg-surface-hover dark:text-content-muted']">
@@ -2063,15 +2121,15 @@ const retryBatchFailed = async () => {
                 </span>
                 <span class="text-xs text-gray-400 ml-auto flex-shrink-0">v{{ plugin.versions[0]?.version || '1.0.0' }}</span>
               </div>
-              <div class="flex items-center gap-2 mt-1">
-                <p class="text-sm text-gray-500 dark:text-content-secondary truncate" :title="plugin.description || t('plugins.noDescription')">
+              <div class="flex items-center gap-2 mt-0.5">
+                <p class="text-xs text-gray-500 dark:text-content-secondary truncate" :title="plugin.description || t('plugins.noDescription')">
                   {{ plugin.description || t('plugins.noDescription') }}
                 </p>
                 <span v-if="plugin.author" class="text-xs text-gray-400 flex-shrink-0">{{ plugin.author }}</span>
               </div>
             </div>
           </div>
-          <div class="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 dark:border-surface-border/50">
+          <div class="flex items-center justify-between mt-1 pt-1 border-t border-gray-100 dark:border-surface-border/50">
             <div class="flex items-center gap-1">
               <button
                 @click.stop="toggleFavorite(plugin)"
@@ -2088,7 +2146,7 @@ const retryBatchFailed = async () => {
               <button
                 v-if="plugin.source.source_type === 'Git'"
                 @click.stop="updateGitPlugin(plugin.plugin_id)"
-                class="text-primary-600 dark:text-brand-primary hover:text-primary-700 dark:hover:text-brand-primary p-1.5 rounded-lg hover:bg-primary-50 dark:hover:bg-surface-hover transition-colors"
+                class="text-primary-600 dark:text-brand-primary hover:text-primary-700 dark:hover:text-brand-primary p-1.5 rounded hover:bg-primary-50 dark:hover:bg-surface-hover transition-colors"
                 :title="t('plugins.contextMenu.updatePlugin')"
               >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2097,7 +2155,7 @@ const retryBatchFailed = async () => {
               </button>
               <button
                 @click.stop="quickBindFromCard(plugin)"
-                class="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-1.5"
+                class="px-3 py-1.5 bg-primary-600 text-white text-sm rounded hover:bg-primary-700 transition-colors flex items-center gap-1.5"
               >
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
@@ -2106,7 +2164,7 @@ const retryBatchFailed = async () => {
               </button>
               <button
                 @click.stop="confirmRemovePlugin(plugin.plugin_id)"
-                class="text-red-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                class="text-red-400 hover:text-red-600 p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
               >
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -2117,10 +2175,10 @@ const retryBatchFailed = async () => {
         </div>
       </div>
     </div>
-    <div v-if="hasMorePlugins" class="text-center py-4">
+    <div v-if="hasMorePlugins" class="text-center py-3">
       <button
         @click="loadMorePlugins"
-        class="px-6 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-card text-gray-700 dark:text-content-secondary rounded-lg hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors text-sm"
+        class="px-3 py-1.5 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-card text-gray-700 dark:text-content-secondary rounded hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors text-sm"
       >
         {{ t('common.loadMore') }}
       </button>
@@ -2129,9 +2187,9 @@ const retryBatchFailed = async () => {
 
   <Teleport to="body">
     <div v-if="showRemoteDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showRemoteDialog = false; remoteUrl = ''; remoteGitRef = ''; gitRefs = []; gitRefDecisionMade = false">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('plugins.importFromRemote') }}</h3>
-        <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">
+      <div class="dialog-container w-full max-w-md" @click.stop>
+        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('plugins.importFromRemote') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-secondary mb-2">
           {{ t('plugins.remoteImport.desc') }}
         </p>
         <input
@@ -2139,12 +2197,12 @@ const retryBatchFailed = async () => {
           type="text"
           :placeholder="t('plugins.remoteImport.placeholder')"
           @input="onRemoteUrlChange"
-          class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
+          class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-md bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
         />
         <div v-if="isLoadingGitRefs" class="mt-2 text-xs text-gray-400 dark:text-content-muted">{{ t('plugins.remoteImport.loadingRefs') }}</div>
         <div v-if="gitRefs.length > 0" class="mt-2">
           <div class="text-xs text-gray-500 dark:text-content-secondary mb-1">{{ t('plugins.remoteImport.selectRef') }}</div>
-          <div class="max-h-40 overflow-y-auto border border-gray-200 dark:border-surface-border rounded-lg">
+          <div class="max-h-40 overflow-y-auto border border-gray-200 dark:border-surface-border rounded">
             <button
               @click="remoteGitRef = ''; gitRefDecisionMade = true"
               :class="['w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-surface-layer flex items-center gap-2', !remoteGitRef && gitRefDecisionMade ? 'bg-primary-50 dark:bg-surface-hover text-primary-600 dark:text-brand-primary' : 'text-gray-700 dark:text-content-secondary']"
@@ -2167,9 +2225,9 @@ const retryBatchFailed = async () => {
           v-model="remoteGitRef"
           type="text"
           :placeholder="t('plugins.remoteImport.refPlaceholder')"
-          class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm mt-3"
+          class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-md bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm mt-3"
         />
-        <div class="flex justify-end space-x-3 mt-6">
+        <div class="flex justify-end space-x-2 mt-4">
           <button
             @click="showRemoteDialog = false; remoteUrl = ''; remoteGitRef = ''; gitRefs = []; gitRefDecisionMade = false"
             class="btn-secondary"
@@ -2190,15 +2248,15 @@ const retryBatchFailed = async () => {
 
   <Teleport to="body">
     <div v-if="showPluginDetail && selectedPlugin" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="closePluginDetail">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[85vh] flex flex-col" @click.stop>
+      <div class="dialog-container w-full max-w-lg max-h-[85vh] flex flex-col" @click.stop>
         <div class="flex items-center justify-between mb-2">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">
+          <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary">
             {{ selectedPlugin.name }}
           </h3>
           <div class="flex items-center gap-2">
             <button
               @click="quickBindFromCard(selectedPlugin)"
-              class="px-3 py-1 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-1"
+              class="px-3 py-1 bg-primary-600 text-white text-xs rounded hover:bg-primary-700 transition-colors flex items-center gap-1"
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
               {{ t('plugins.bindToProject') }}
@@ -2206,14 +2264,14 @@ const retryBatchFailed = async () => {
             <button
               v-if="selectedPlugin.source.source_type === 'Git'"
               @click="updateGitPlugin(selectedPlugin.plugin_id); closePluginDetail()"
-              class="px-3 py-1 border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-secondary text-xs rounded-lg hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors flex items-center gap-1"
+              class="px-3 py-1 border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-secondary text-xs rounded hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors flex items-center gap-1"
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
               {{ t('plugins.contextMenu.updatePlugin') }}
             </button>
             <button
               @click="openGlobalUpgradeDialog(selectedPlugin)"
-              class="px-3 py-1 border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-secondary text-xs rounded-lg hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors flex items-center gap-1"
+              class="px-3 py-1 border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-secondary text-xs rounded hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors flex items-center gap-1"
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" /></svg>
               {{ t('batchOps.globalUpgrade') }}
@@ -2223,7 +2281,7 @@ const retryBatchFailed = async () => {
             </button>
           </div>
         </div>
-        <div class="mb-4 flex items-center gap-3 flex-wrap text-sm text-gray-500 dark:text-content-secondary">
+        <div class="mb-2 flex items-center gap-2 flex-wrap text-sm text-gray-500 dark:text-content-secondary">
           <span>{{ t('plugins.author') }}: {{ selectedPlugin.author || t('plugins.unknownAuthor') }}</span>
           <span class="text-gray-300 dark:text-content-secondary">|</span>
           <span>{{ selectedPlugin.compatibility === 'Godot4' ? 'Godot 4' : selectedPlugin.compatibility === 'Godot3' ? 'Godot 3' : selectedPlugin.compatibility === 'Both' ? t('plugins.compat.both') : t('plugins.compat.unknown') }}</span>
@@ -2233,10 +2291,10 @@ const retryBatchFailed = async () => {
           <span v-if="pluginStorageStats">{{ pluginStorageStats.total_size_display }}</span>
         </div>
 
-        <div class="flex-1 overflow-y-auto space-y-4">
+        <div class="flex-1 overflow-y-auto space-y-2">
           <div>
             <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">{{ t('plugins.description') }}</h4>
-            <p class="text-sm text-gray-600 dark:text-content-secondary whitespace-pre-wrap bg-gray-50 dark:bg-surface-layer rounded-lg p-3">
+            <p class="text-sm text-gray-600 dark:text-content-secondary whitespace-pre-wrap bg-gray-50 dark:bg-surface-layer rounded p-3">
               {{ selectedPlugin.description || t('plugins.noDescription') }}
             </p>
           </div>
@@ -2245,7 +2303,7 @@ const retryBatchFailed = async () => {
             <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">
               {{ t('plugins.pluginDetail.versionList', { count: selectedPlugin.versions.length }) }}
             </h4>
-            <div class="space-y-2 bg-gray-50 dark:bg-surface-layer rounded-lg p-3">
+            <div class="space-y-2 bg-gray-50 dark:bg-surface-layer rounded p-3">
               <div v-for="version in selectedPlugin.versions" :key="version.version_id"
                 class="flex items-center justify-between py-1.5 border-b border-gray-200 dark:border-surface-border last:border-0">
                 <div>
@@ -2272,7 +2330,7 @@ const retryBatchFailed = async () => {
             <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">
               {{ t('plugins.pluginDetail.bindings', { count: pluginBindings.length }) }}
             </h4>
-            <div class="space-y-1 bg-gray-50 dark:bg-surface-layer rounded-lg p-3">
+            <div class="space-y-1 bg-gray-50 dark:bg-surface-layer rounded p-3">
               <div v-for="binding in pluginBindings" :key="binding.project_id + binding.mount_path"
                 class="flex items-center justify-between py-1">
                 <div class="flex items-center gap-2 min-w-0">
@@ -2327,7 +2385,7 @@ const retryBatchFailed = async () => {
                 {{ isInstallingDeps ? t('plugins.depDialog.installing') : t('plugins.depDialog.installMissing', { count: missingDepPluginIds.length }) }}
               </button>
             </div>
-            <div class="space-y-2 bg-gray-50 dark:bg-surface-layer rounded-lg p-3">
+            <div class="space-y-2 bg-gray-50 dark:bg-surface-layer rounded p-3">
               <div v-for="dep in pluginDependencies" :key="dep.plugin_id" class="flex items-center justify-between text-sm">
                 <div class="text-gray-600 dark:text-content-secondary">
                   <span class="font-medium">{{ plugins.find(p => p.plugin_id === dep.plugin_id)?.name || dep.plugin_id }}</span>
@@ -2342,7 +2400,7 @@ const retryBatchFailed = async () => {
 
           <div>
             <h4 class="text-sm font-medium text-gray-700 dark:text-content-primary mb-2">{{ t('plugins.pluginDetail.source') }}</h4>
-            <p class="text-sm text-gray-600 dark:text-content-secondary bg-gray-50 dark:bg-surface-layer rounded-lg p-3">
+            <p class="text-sm text-gray-600 dark:text-content-secondary bg-gray-50 dark:bg-surface-layer rounded p-3">
               {{ t(`plugins.pluginDetail.sourceTypes.${selectedPlugin.source.source_type}`) }}
               <span v-if="selectedPlugin.source.url" class="block text-xs mt-1 break-all font-mono">
                 <a v-if="selectedPlugin.source.url.startsWith('http')" :href="selectedPlugin.source.url" target="_blank" rel="noopener" class="text-blue-500 hover:text-blue-600 dark:text-brand-primary dark:hover:text-brand-accent underline">{{ selectedPlugin.source.url }}</a>
@@ -2351,17 +2409,17 @@ const retryBatchFailed = async () => {
             </p>
           </div>
 
-          <div v-if="pluginStorageStats" class="grid grid-cols-3 gap-3">
-            <div class="bg-gray-50 dark:bg-surface-layer rounded-lg p-3 text-center">
-              <div class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ pluginStorageStats.version_count }}</div>
+          <div v-if="pluginStorageStats" class="grid grid-cols-3 gap-2">
+            <div class="bg-gray-50 dark:bg-surface-layer rounded p-2 text-center">
+              <div class="text-base font-semibold text-gray-900 dark:text-content-primary">{{ pluginStorageStats.version_count }}</div>
               <div class="text-xs text-gray-500 dark:text-content-secondary">{{ t('plugins.pluginDetail.sections.version') }}</div>
             </div>
-            <div class="bg-gray-50 dark:bg-surface-layer rounded-lg p-3 text-center">
-              <div class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ pluginStorageStats.binding_count }}</div>
+            <div class="bg-gray-50 dark:bg-surface-layer rounded p-2 text-center">
+              <div class="text-base font-semibold text-gray-900 dark:text-content-primary">{{ pluginStorageStats.binding_count }}</div>
               <div class="text-xs text-gray-500 dark:text-content-secondary">{{ t('plugins.pluginDetail.sections.mount') }}</div>
             </div>
-            <div class="bg-gray-50 dark:bg-surface-layer rounded-lg p-3 text-center">
-              <div class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ pluginStorageStats.total_size_display }}</div>
+            <div class="bg-gray-50 dark:bg-surface-layer rounded p-2 text-center">
+              <div class="text-base font-semibold text-gray-900 dark:text-content-primary">{{ pluginStorageStats.total_size_display }}</div>
               <div class="text-xs text-gray-500 dark:text-content-secondary">{{ t('plugins.pluginDetail.sections.storage') }}</div>
             </div>
           </div>
@@ -2388,20 +2446,20 @@ const retryBatchFailed = async () => {
 
   <Teleport to="body">
     <div v-if="showUpdatesDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showUpdatesDialog = false">
-      <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-lg shadow-xl" @click.stop>
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('plugins.updateCheck.title') }}</h3>
+      <div class="dialog-container w-full max-w-lg" @click.stop>
+        <div class="flex justify-between items-center mb-2">
+          <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary">{{ t('plugins.updateCheck.title') }}</h3>
           <button @click="showUpdatesDialog = false" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
             <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
-        <div class="space-y-3 max-h-80 overflow-y-auto">
+        <div class="space-y-2 max-h-80 overflow-y-auto">
           <div v-if="pluginUpdates.length === 0" class="text-center py-8 text-gray-500 dark:text-content-muted">
             {{ t('plugins.updateCheck.noPlugins') }}
           </div>
-          <div v-for="update in pluginUpdates" :key="update.plugin_id" class="bg-gray-50 dark:bg-surface-hover rounded-lg p-4">
+          <div v-for="update in pluginUpdates" :key="update.plugin_id" class="bg-gray-50 dark:bg-surface-hover rounded p-3">
             <div class="flex items-center justify-between">
               <div>
                 <span class="font-medium text-gray-900 dark:text-content-primary">{{ update.plugin_name || update.plugin_id }}</span>
@@ -2414,7 +2472,7 @@ const retryBatchFailed = async () => {
                   v-if="update.update_available"
                   @click="updateGitPlugin(update.plugin_id)"
                   :disabled="isBatchUpdating"
-                  class="px-3 py-1 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                  class="px-3 py-1 bg-primary-600 text-white text-xs rounded hover:bg-primary-700 disabled:opacity-50"
                 >
                   {{ t('plugins.updateCheck.update') }}
                 </button>
@@ -2462,18 +2520,18 @@ const retryBatchFailed = async () => {
 
   <Teleport to="body">
     <div v-if="showScanPreviewDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showScanPreviewDialog = false">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[80vh] flex flex-col" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('plugins.importFromProject.scanTitle') }}</h3>
-        <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">{{ t('plugins.importFromProject.scanDesc', { count: scannedPlugins.length }) }}</p>
-        <div class="flex-1 overflow-y-auto space-y-2 mb-4">
-          <div v-for="(plugin, idx) in scannedPlugins" :key="idx" class="bg-gray-50 dark:bg-surface-layer rounded-lg p-3 flex items-center gap-3">
+      <div class="dialog-container w-full max-w-lg max-h-[80vh] flex flex-col" @click.stop>
+        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('plugins.importFromProject.scanTitle') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-secondary mb-2">{{ t('plugins.importFromProject.scanDesc', { count: scannedPlugins.length }) }}</p>
+        <div class="flex-1 overflow-y-auto space-y-2 mb-2">
+          <div v-for="(plugin, idx) in scannedPlugins" :key="idx" class="bg-gray-50 dark:bg-surface-layer rounded p-3 flex items-center gap-2">
             <div class="flex-1 min-w-0">
               <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate">{{ plugin.plugin_name }}</div>
               <div class="text-xs text-gray-500 dark:text-content-secondary truncate">{{ plugin.project_name }} · {{ plugin.path }}</div>
             </div>
           </div>
         </div>
-        <div class="flex justify-end gap-3">
+        <div class="flex justify-end gap-2">
           <button @click="showScanPreviewDialog = false" class="btn-secondary">{{ t('common.cancel') }}</button>
           <button @click="startImportFromPreview" class="btn-primary">{{ t('plugins.importFromProject.continueImport') }}</button>
         </div>
@@ -2483,11 +2541,11 @@ const retryBatchFailed = async () => {
 
   <Teleport to="body">
     <div v-if="showImportModeDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showImportModeDialog = false">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('plugins.importFromProject.title') }}</h3>
-        <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">{{ t('plugins.importFromProject.modeSelect') }}</p>
-        <div class="space-y-3 mb-6">
-          <label class="flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors"
+      <div class="dialog-container w-full max-w-md" @click.stop>
+        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('plugins.importFromProject.title') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-secondary mb-2">{{ t('plugins.importFromProject.modeSelect') }}</p>
+        <div class="space-y-2 mb-3">
+          <label class="flex items-start gap-2 p-3 rounded border cursor-pointer transition-colors"
             :class="importMode === 'copy' ? 'border-primary-500 bg-primary-50 dark:bg-surface-hover' : 'border-gray-200 dark:border-surface-border hover:bg-gray-50 dark:hover:bg-surface-layer'">
             <input type="radio" v-model="importMode" value="copy" class="mt-1" />
             <div>
@@ -2495,7 +2553,7 @@ const retryBatchFailed = async () => {
               <div class="text-xs text-gray-500 dark:text-content-secondary mt-0.5">{{ t('plugins.importModes.copy.desc') }}</div>
             </div>
           </label>
-          <label class="flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors"
+          <label class="flex items-start gap-2 p-3 rounded border cursor-pointer transition-colors"
             :class="importMode === 'move' ? 'border-primary-500 bg-primary-50 dark:bg-surface-hover' : 'border-gray-200 dark:border-surface-border hover:bg-gray-50 dark:hover:bg-surface-layer'">
             <input type="radio" v-model="importMode" value="move" class="mt-1" />
             <div>
@@ -2503,7 +2561,7 @@ const retryBatchFailed = async () => {
               <div class="text-xs text-gray-500 dark:text-content-secondary mt-0.5">{{ t('plugins.importModes.move.desc') }}</div>
             </div>
           </label>
-          <label class="flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors"
+          <label class="flex items-start gap-2 p-3 rounded border cursor-pointer transition-colors"
             :class="importMode === 'reference' ? 'border-primary-500 bg-primary-50 dark:bg-surface-hover' : 'border-gray-200 dark:border-surface-border hover:bg-gray-50 dark:hover:bg-surface-layer'">
             <input type="radio" v-model="importMode" value="reference" class="mt-1" />
             <div>
@@ -2512,7 +2570,7 @@ const retryBatchFailed = async () => {
             </div>
           </label>
         </div>
-        <div class="flex justify-end gap-3">
+        <div class="flex justify-end gap-2">
           <button @click="showImportModeDialog = false" class="btn-secondary">{{ t('plugins.importFromProject.cancel') }}</button>
           <button @click="doImportFromProjects" class="btn-primary">{{ t('plugins.importFromProject.startImport') }}</button>
         </div>
@@ -2520,9 +2578,9 @@ const retryBatchFailed = async () => {
     </div>
   </Teleport>
 
-    <div v-if="activeTab === 'repository' && totalStorageStats" class="card">
+    <div v-if="activeTab === 'repository' && totalStorageStats" class="border border-gray-200 dark:border-surface-border rounded-md p-3">
       <div class="flex items-center justify-between">
-        <div class="flex items-center gap-4 text-sm text-gray-600 dark:text-content-secondary">
+        <div class="flex items-center gap-2 text-sm text-gray-600 dark:text-content-secondary">
           <span>{{ t('plugins.storageStats.plugins', { count: totalStorageStats.total_plugins }) }}</span>
           <span class="text-gray-300 dark:text-content-secondary">|</span>
           <span>{{ t('plugins.storageStats.versions', { count: totalStorageStats.total_versions }) }}</span>
@@ -2541,14 +2599,14 @@ const retryBatchFailed = async () => {
           <button
             v-if="totalStorageStats.duplicate_hash_count > 0"
             @click="checkAndShowDuplicates"
-            class="px-3 py-1 text-xs border border-yellow-300 dark:border-yellow-700 text-yellow-600 dark:text-yellow-400 rounded-lg hover:bg-yellow-50 dark:hover:bg-yellow-900/20"
+            class="px-3 py-1 text-xs border border-yellow-300 dark:border-yellow-700 text-yellow-600 dark:text-yellow-400 rounded hover:bg-yellow-50 dark:hover:bg-yellow-900/20"
           >
             {{ t('plugins.storageStats.viewDuplicates') }}
           </button>
           <button
             @click="cleanupOrphaned"
             :class="[
-              'px-3 py-1 text-xs rounded-lg transition-colors',
+              'px-3 py-1 text-xs rounded transition-colors',
               totalStorageStats.orphaned_size_bytes > 0
                 ? 'border border-orange-300 dark:border-orange-700 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20'
                 : 'border border-gray-200 dark:border-surface-border text-gray-400 dark:text-content-muted cursor-default'
@@ -2561,18 +2619,18 @@ const retryBatchFailed = async () => {
       </div>
     </div>
 
-    <div v-if="activeTab === 'bindings'" class="space-y-4">
+    <div v-if="activeTab === 'bindings'" class="space-y-2">
       <div class="flex flex-wrap gap-2 items-center">
         <button
           @click="showGraphView = !showGraphView"
-          class="px-3 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-700 dark:text-content-primary text-sm hover:bg-gray-50 dark:hover:bg-surface-layer"
+          class="px-3 py-1.5 border border-gray-300 dark:border-surface-border rounded-md bg-white dark:bg-surface-card text-gray-700 dark:text-content-primary text-sm hover:bg-gray-50 dark:hover:bg-surface-layer"
         >
           {{ showGraphView ? t('linker.listView') : t('linker.graphView') }}
         </button>
         <button
           v-if="selectedLinkProjectCount > 1"
           @click="batchApplyChanges"
-          class="px-3 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-700 dark:text-content-primary text-sm hover:bg-gray-50 dark:hover:bg-surface-layer"
+          class="px-3 py-1.5 border border-gray-300 dark:border-surface-border rounded-md bg-white dark:bg-surface-card text-gray-700 dark:text-content-primary text-sm hover:bg-gray-50 dark:hover:bg-surface-layer"
         >
           {{ t('linker.batchApplyTitle') }}
         </button>
@@ -2580,7 +2638,7 @@ const retryBatchFailed = async () => {
           v-if="selectedLinkId"
           @click="exportHarborConfig"
           :disabled="isExportingConfig"
-          class="px-3 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-700 dark:text-content-primary text-sm hover:bg-gray-50 dark:hover:bg-surface-layer disabled:opacity-50"
+          class="px-3 py-1.5 border border-gray-300 dark:border-surface-border rounded-md bg-white dark:bg-surface-card text-gray-700 dark:text-content-primary text-sm hover:bg-gray-50 dark:hover:bg-surface-layer disabled:opacity-50"
         >
           {{ isExportingConfig ? t('linker.exporting') : t('linker.exportConfig') }}
         </button>
@@ -2588,12 +2646,12 @@ const retryBatchFailed = async () => {
           v-if="selectedLinkId"
           @click="syncHarborConfig"
           :disabled="isSyncingConfig"
-          class="px-3 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-700 dark:text-content-primary text-sm hover:bg-gray-50 dark:hover:bg-surface-layer disabled:opacity-50"
+          class="px-3 py-1.5 border border-gray-300 dark:border-surface-border rounded-md bg-white dark:bg-surface-card text-gray-700 dark:text-content-primary text-sm hover:bg-gray-50 dark:hover:bg-surface-layer disabled:opacity-50"
         >
           {{ isSyncingConfig ? t('linker.syncing') : t('linker.syncConfig') }}
         </button>
         <div v-if="mountStrategyDisplay" class="flex items-center gap-2 text-xs text-gray-500 dark:text-content-secondary">
-          <span class="px-2 py-1 bg-gray-100 dark:bg-surface-layer rounded-lg">
+          <span class="px-2 py-1 bg-gray-100 dark:bg-surface-layer rounded">
             {{ t('plugins.mountStrategyLabel') }}: {{ mountStrategyDisplay }}
           </span>
           <span v-if="mountStrategyDisplay === 'Symlink'" class="hidden sm:inline">{{ t('settings.symlinkDesc') }}</span>
@@ -2603,13 +2661,13 @@ const retryBatchFailed = async () => {
         </div>
       </div>
 
-      <div v-if="!showGraphView" class="grid grid-cols-12 gap-4">
-        <div class="col-span-3 card p-0">
+      <div v-if="!showGraphView" class="grid grid-cols-12 gap-2">
+        <div class="col-span-3 border border-gray-200 dark:border-surface-border rounded-md p-0">
           <div class="p-3 border-b border-gray-200 dark:border-surface-border">
             <h3 class="text-sm font-semibold text-gray-900 dark:text-content-primary">{{ t('linker.projectList') }}</h3>
           </div>
           <div class="max-h-[calc(100vh-280px)] overflow-y-auto">
-            <div v-if="linkerProjects.length === 0" class="p-4 text-center">
+            <div v-if="linkerProjects.length === 0" class="p-3 text-center">
               <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-content-primary">{{ t('linker.emptyProject') }}</h3>
               <p class="mt-1 text-sm text-gray-500 dark:text-content-secondary">{{ t('linker.emptyProjectDesc') }}</p>
             </div>
@@ -2617,7 +2675,7 @@ const retryBatchFailed = async () => {
               v-for="project in linkerProjects"
               :key="project.project_id"
               @click="selectLinkProject(project, $event)"
-              :class="['px-3 py-2.5 cursor-pointer border-b border-gray-100 dark:border-surface-border last:border-0 transition-colors group', selectedLinkProjectIds.has(project.project_id) ? 'bg-primary-50 dark:bg-surface-hover' : 'hover:bg-gray-50 dark:hover:bg-surface-layer']"
+              :class="['px-3 py-2 cursor-pointer border-b border-gray-100 dark:border-surface-border last:border-0 transition-colors group', selectedLinkProjectIds.has(project.project_id) ? 'bg-primary-50 dark:bg-surface-hover' : 'hover:bg-gray-50 dark:hover:bg-surface-layer']"
             >
               <div class="flex items-center gap-1.5">
                 <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate flex-1 min-w-0">{{ project.name }}</div>
@@ -2653,7 +2711,7 @@ const retryBatchFailed = async () => {
           </div>
         </div>
 
-        <div class="col-span-5 card p-0">
+        <div class="col-span-5 border border-gray-200 dark:border-surface-border rounded-md p-0">
           <div class="p-3 border-b border-gray-200 dark:border-surface-border">
             <div class="flex items-center justify-between mb-2">
               <h3 class="text-sm font-semibold text-gray-900 dark:text-content-primary">{{ t('linker.availablePlugins') }}</h3>
@@ -2669,21 +2727,21 @@ const retryBatchFailed = async () => {
               v-model="linkerSearchQuery"
               type="text"
               :placeholder="t('linker.searchPlugins')"
-              class="w-full px-2.5 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-xs"
+              class="w-full px-2.5 py-1.5 border border-gray-300 dark:border-surface-border rounded-md bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-xs"
             />
           </div>
           <div class="max-h-[calc(100vh-280px)] overflow-y-auto">
-            <div v-if="selectedLinkProjectCount === 0" class="p-4 text-center text-sm text-gray-500 dark:text-content-secondary">
+            <div v-if="selectedLinkProjectCount === 0" class="p-3 text-center text-sm text-gray-500 dark:text-content-secondary">
               {{ t('linker.selectProject') }}
             </div>
-            <div v-else-if="filteredUnboundPlugins.length === 0" class="p-4 text-center text-sm text-gray-500 dark:text-content-secondary">
+            <div v-else-if="filteredUnboundPlugins.length === 0" class="p-3 text-center text-sm text-gray-500 dark:text-content-secondary">
               {{ linkerSearchQuery ? t('linker.noSearchResults') : t('linker.allPluginsBound') }}
             </div>
             <div
               v-for="plugin in filteredUnboundPlugins"
               :key="plugin.plugin_id"
               @click="toggleLinkPluginSelection(plugin.plugin_id, $event)"
-              :class="['px-3 py-2.5 cursor-pointer border-b border-gray-100 dark:border-surface-border last:border-0 transition-colors', selectedLinkPluginIds.has(plugin.plugin_id) ? 'bg-primary-50 dark:bg-surface-hover' : 'hover:bg-gray-50 dark:hover:bg-surface-layer']"
+              :class="['px-3 py-2 cursor-pointer border-b border-gray-100 dark:border-surface-border last:border-0 transition-colors', selectedLinkPluginIds.has(plugin.plugin_id) ? 'bg-primary-50 dark:bg-surface-hover' : 'hover:bg-gray-50 dark:hover:bg-surface-layer']"
             >
               <div class="flex items-center justify-between">
                 <div class="min-w-0 flex-1">
@@ -2701,7 +2759,7 @@ const retryBatchFailed = async () => {
           </div>
         </div>
 
-        <div class="col-span-4 card p-0">
+        <div class="col-span-4 border border-gray-200 dark:border-surface-border rounded-md p-0">
           <div class="p-3 border-b border-gray-200 dark:border-surface-border flex items-center justify-between">
             <h3 class="text-sm font-semibold text-gray-900 dark:text-content-primary">{{ t('linker.boundPlugins') }}</h3>
             <button
@@ -2713,16 +2771,16 @@ const retryBatchFailed = async () => {
             </button>
           </div>
           <div class="max-h-[calc(100vh-280px)] overflow-y-auto">
-            <div v-if="!selectedLinkId" class="p-4 text-center text-sm text-gray-500 dark:text-content-secondary">
+            <div v-if="!selectedLinkId" class="p-3 text-center text-sm text-gray-500 dark:text-content-secondary">
               {{ t('linker.selectProject') }}
             </div>
-            <div v-else-if="boundPluginNames.length === 0" class="p-4 text-center text-sm text-gray-500 dark:text-content-secondary">
+            <div v-else-if="boundPluginNames.length === 0" class="p-3 text-center text-sm text-gray-500 dark:text-content-secondary">
               {{ t('linker.noBindings') }}
             </div>
             <div
               v-for="item in boundPluginNames"
               :key="`${item.project_id}-${item.plugin_id}`"
-              :class="['px-3 py-2.5 border-b border-gray-100 dark:border-surface-border last:border-0', item.is_healthy === false ? 'bg-red-50 dark:bg-red-900/10' : '']"
+              :class="['px-3 py-2 border-b border-gray-100 dark:border-surface-border last:border-0', item.is_healthy === false ? 'bg-red-50 dark:bg-red-900/10' : '']"
             >
               <div class="flex items-center justify-between">
                 <div class="min-w-0 flex-1">
@@ -2750,12 +2808,12 @@ const retryBatchFailed = async () => {
         </div>
       </div>
 
-      <div v-else class="card p-4">
+      <div v-else class="border border-gray-200 dark:border-surface-border rounded-md p-3">
         <h3 class="text-sm font-semibold text-gray-900 dark:text-content-primary mb-3">{{ t('linker.bindingGraph') }}</h3>
         <div v-if="graphLinks.length === 0" class="text-center py-8 text-sm text-gray-500 dark:text-content-muted">
           {{ t('linker.noBindings') }}
         </div>
-        <svg v-else width="100%" :height="graphSvgHeight" :viewBox="`0 0 800 ${graphSvgHeight}`" class="border border-gray-200 dark:border-surface-border rounded-lg">
+        <svg v-else width="100%" :height="graphSvgHeight" :viewBox="`0 0 800 ${graphSvgHeight}`" class="border border-gray-200 dark:border-surface-border rounded">
           <text x="120" y="24" text-anchor="middle" class="fill-gray-500 dark:fill-gray-400" font-size="11">{{ t('linker.projects') }}</text>
           <text x="680" y="24" text-anchor="middle" class="fill-gray-500 dark:fill-gray-400" font-size="11">{{ t('linker.plugins') }}</text>
           <g v-for="node in graphNodes.filter(n => n.type === 'project')" :key="'p-' + node.id">
@@ -2776,12 +2834,12 @@ const retryBatchFailed = async () => {
 
   <Teleport to="body">
     <div v-if="showDeletePluginConfirm" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showDeletePluginConfirm = false">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('plugins.deleteConfirm.single') }}</h3>
+      <div class="dialog-container w-full max-w-md" @click.stop>
+        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('plugins.deleteConfirm.single') }}</h3>
         <p class="text-sm text-gray-500 dark:text-content-secondary mb-3">
           {{ t('plugins.deleteConfirm.singleDesc') }}
         </p>
-        <div v-if="deletePluginBindings.length > 0" class="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-lg">
+        <div v-if="deletePluginBindings.length > 0" class="mb-2 p-3 bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded">
           <div class="flex items-center gap-2 mb-2">
             <svg class="w-5 h-5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
@@ -2797,9 +2855,9 @@ const retryBatchFailed = async () => {
             {{ t('plugins.deleteConfirm.bindingWarningDesc') }}
           </p>
         </div>
-        <div class="flex justify-end gap-3">
+        <div class="flex justify-end gap-2">
           <button @click="showDeletePluginConfirm = false" class="btn-secondary">{{ t('common.cancel') }}</button>
-          <button @click="onRemovePluginConfirm(); showDeletePluginConfirm = false" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm">{{ t('plugins.deleteConfirm.singleConfirm') }}</button>
+          <button @click="onRemovePluginConfirm(); showDeletePluginConfirm = false" class="px-3 py-1.5 bg-red-600 text-white rounded hover:bg-red-700 text-sm">{{ t('plugins.deleteConfirm.singleConfirm') }}</button>
         </div>
       </div>
     </div>
@@ -2843,16 +2901,16 @@ const retryBatchFailed = async () => {
 
   <Teleport to="body">
     <div v-if="showDuplicateConfirm && duplicateCheckResult" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showDuplicateConfirm = false; duplicateCheckResult = null; pendingImportAction = null">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('plugins.duplicate.title') }}</h3>
-        <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">
+      <div class="dialog-container w-full max-w-md" @click.stop>
+        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('plugins.duplicate.title') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-secondary mb-2">
           {{ t('plugins.duplicate.desc', { name: duplicateCheckResult.duplicate_plugin_name || duplicateCheckResult.duplicate_plugin_id || '' }) }}
         </p>
-        <div class="flex justify-end gap-3">
+        <div class="flex justify-end gap-2">
           <button @click="showDuplicateConfirm = false; duplicateCheckResult = null; pendingImportAction = null" class="btn-secondary">{{ t('plugins.duplicate.cancel') }}</button>
           <button
             @click="(() => { const dupId = duplicateCheckResult?.duplicate_plugin_id; showDuplicateConfirm = false; duplicateCheckResult = null; if (dupId) { removePluginAndReimport(dupId); } })()"
-            class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm"
+            class="px-3 py-1.5 bg-orange-600 text-white rounded hover:bg-orange-700 text-sm"
           >
             {{ t('plugins.duplicate.replaceExisting') }}
           </button>
@@ -2869,18 +2927,18 @@ const retryBatchFailed = async () => {
 
   <Teleport to="body">
     <div v-if="showLinkerVersionSelect && versionSelectPlugin" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showLinkerVersionSelect = false">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('linker.versionSelectTitle', { name: versionSelectPlugin.name }) }}</h3>
-        <div class="space-y-4">
+      <div class="dialog-container w-full max-w-md" @click.stop>
+        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('linker.versionSelectTitle', { name: versionSelectPlugin.name }) }}</h3>
+        <div class="space-y-2">
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-2">{{ t('linker.selectVersion') }}</label>
-            <select v-model="selectedVersionIdx" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-sm">
+            <select v-model="selectedVersionIdx" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-md bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-sm">
               <option v-for="(v, i) in versionSelectPlugin.versions" :key="v.version_id" :value="i">{{ v.version }}</option>
             </select>
           </div>
           <div v-if="versionSelectPlugin.versions[selectedVersionIdx]?.units.length > 1">
             <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-2">{{ t('linker.selectUnit') }}</label>
-            <select v-model="selectedUnitIdx" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-sm">
+            <select v-model="selectedUnitIdx" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-md bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-sm">
               <option v-for="(u, i) in versionSelectPlugin.versions[selectedVersionIdx]?.units" :key="u.unit_id" :value="i">{{ u.name }}</option>
             </select>
           </div>
@@ -2888,7 +2946,7 @@ const retryBatchFailed = async () => {
             {{ t('linker.mountPath') }}: {{ getMountPath(versionSelectPlugin.versions[selectedVersionIdx]?.units[selectedUnitIdx], versionSelectPlugin) }}
           </p>
         </div>
-        <div class="flex justify-end gap-3 mt-6">
+        <div class="flex justify-end gap-2 mt-4">
           <button @click="showLinkerVersionSelect = false" class="btn-secondary">{{ t('linker.cancel') }}</button>
           <button @click="confirmVersionSelect" class="btn-primary">{{ t('linker.confirmBind') }}</button>
         </div>
@@ -2898,8 +2956,8 @@ const retryBatchFailed = async () => {
 
   <Teleport to="body">
     <div v-if="showLinkerApplyResult && linkerApplyResult" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showLinkerApplyResult = false">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ linkerApplyResult.errors.length === 0 ? t('linker.applySuccess') : t('linker.applyWithErrors') }}</h3>
+      <div class="dialog-container w-full max-w-md" @click.stop>
+        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-2">{{ linkerApplyResult.errors.length === 0 ? t('linker.applySuccess') : t('linker.applyWithErrors') }}</h3>
         <div v-if="linkerApplyResult.created.length > 0" class="mb-3">
           <p class="text-sm font-medium text-green-600 dark:text-green-400 mb-1">{{ t('linker.created') }}:</p>
           <ul class="text-xs text-gray-600 dark:text-content-muted list-disc list-inside">
@@ -2918,7 +2976,7 @@ const retryBatchFailed = async () => {
             <li v-for="item in linkerApplyResult.errors" :key="item">{{ item }}</li>
           </ul>
         </div>
-        <div v-if="linkerApplyResult.errors.length === 0 && !autoApplyEnabled" class="mb-3 p-3 bg-blue-50 dark:bg-surface-hover rounded-lg">
+        <div v-if="linkerApplyResult.errors.length === 0 && !autoApplyEnabled" class="mb-3 p-3 bg-blue-50 dark:bg-surface-hover rounded">
           <p class="text-xs text-blue-700 dark:text-content-secondary mb-2">{{ t('plugins.autoApplyPrompt') }}</p>
           <button @click="goToAutoApplySettings" class="text-xs font-medium text-blue-600 dark:text-brand-primary hover:underline">{{ t('plugins.autoApplyPromptAction') }} →</button>
         </div>
@@ -2934,17 +2992,17 @@ const retryBatchFailed = async () => {
 
   <Teleport to="body">
     <div v-if="showRollbackDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showRollbackDialog = false">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('plugins.rollbackAddons') }}</h3>
-        <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">{{ t('plugins.rollbackAddonsDesc') }}</p>
-        <div v-if="addonBackups.length === 0" class="text-sm text-gray-400 dark:text-content-muted py-4 text-center">{{ t('plugins.noBackups') }}</div>
+      <div class="dialog-container w-full max-w-md" @click.stop>
+        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('plugins.rollbackAddons') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-secondary mb-2">{{ t('plugins.rollbackAddonsDesc') }}</p>
+        <div v-if="addonBackups.length === 0" class="text-sm text-gray-400 dark:text-content-muted py-3 text-center">{{ t('plugins.noBackups') }}</div>
         <div v-else class="max-h-60 overflow-y-auto space-y-2">
-          <div v-for="backup in addonBackups" :key="backup.file_name" class="flex items-center justify-between p-3 bg-gray-50 dark:bg-surface-hover/50 rounded-lg">
+          <div v-for="backup in addonBackups" :key="backup.file_name" class="flex items-center justify-between p-3 bg-gray-50 dark:bg-surface-hover/50 rounded">
             <div>
               <p class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ backup.created_at }}</p>
               <p class="text-xs text-gray-500 dark:text-content-muted">{{ (backup.file_size / 1024).toFixed(1) }} KB</p>
             </div>
-            <button @click="doRestoreAddonBackup(backup.file_path)" :disabled="isRestoringAddon" class="px-3 py-1 text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-lg hover:bg-orange-200 dark:hover:bg-orange-900/50 disabled:opacity-50">{{ t('plugins.rollbackAddons') }}</button>
+            <button @click="doRestoreAddonBackup(backup.file_path)" :disabled="isRestoringAddon" class="px-3 py-1 text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded hover:bg-orange-200 dark:hover:bg-orange-900/50 disabled:opacity-50">{{ t('plugins.rollbackAddons') }}</button>
           </div>
         </div>
         <div class="flex justify-end mt-4">
@@ -2956,12 +3014,12 @@ const retryBatchFailed = async () => {
 
   <Teleport to="body">
     <div v-if="showLinkerBatchBindDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showLinkerBatchBindDialog = false">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('linker.batchBindTitle') }}</h3>
-        <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">
+      <div class="dialog-container w-full max-w-md" @click.stop>
+        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('linker.batchBindTitle') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-secondary mb-2">
           {{ t('linker.batchBindDesc', { projectCount: selectedLinkProjectCount, pluginCount: selectedLinkPluginCount }) }}
         </p>
-        <div v-if="batchProgress" class="mb-4">
+        <div v-if="batchProgress" class="mb-2">
           <div class="flex items-center justify-between text-xs text-gray-600 dark:text-content-secondary mb-1">
             <span>{{ batchProgress.message }}</span>
             <span>{{ Math.round((batchProgress.current / batchProgress.total) * 100) }}%</span>
@@ -2970,7 +3028,7 @@ const retryBatchFailed = async () => {
             <div class="bg-primary-600 h-2 rounded-full transition-all duration-300" :style="{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }"></div>
           </div>
         </div>
-        <div class="mb-4">
+        <div class="mb-2">
           <p class="text-xs font-medium text-gray-500 dark:text-content-muted mb-1">{{ t('linker.targetProjects') }}：</p>
           <div class="flex flex-wrap gap-1">
             <span v-for="id in selectedLinkProjectIds" :key="id" class="text-xs bg-blue-100 dark:bg-surface-hover text-blue-700 dark:text-content-secondary px-2 py-0.5 rounded">
@@ -2978,7 +3036,7 @@ const retryBatchFailed = async () => {
             </span>
           </div>
         </div>
-        <div class="mb-4">
+        <div class="mb-2">
           <p class="text-xs font-medium text-gray-500 dark:text-content-muted mb-1">{{ t('linker.bindPlugins') }}：</p>
           <div class="flex flex-wrap gap-1">
             <span v-for="id in selectedLinkPluginIds" :key="id" class="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-0.5 rounded">
@@ -2986,11 +3044,11 @@ const retryBatchFailed = async () => {
             </span>
           </div>
         </div>
-        <div v-if="batchFailedItems.length > 0" class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+        <div v-if="batchFailedItems.length > 0" class="mb-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded">
           <p class="text-xs font-medium text-red-600 dark:text-red-400 mb-2">{{ batchFailedItems.length }} {{ t('plugins.retryFailed') }}</p>
           <button @click="retryBatchFailed" class="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700">{{ t('plugins.retryFailed') }}</button>
         </div>
-        <div class="flex justify-end gap-3">
+        <div class="flex justify-end gap-2">
           <button @click="showLinkerBatchBindDialog = false" class="btn-secondary">{{ t('linker.cancel') }}</button>
           <button @click="confirmBatchBind" :disabled="isLinkerBatchBinding" class="btn-primary disabled:opacity-50">
             {{ isLinkerBatchBinding ? t('linker.batchBinding') : t('common.confirm') }}
@@ -3002,21 +3060,21 @@ const retryBatchFailed = async () => {
 
   <Teleport to="body">
     <div v-if="showLinkerBatchUnbindDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showLinkerBatchUnbindDialog = false">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('linker.batchUnbindTitle') }}</h3>
-        <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">
+      <div class="dialog-container w-full max-w-md" @click.stop>
+        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('linker.batchUnbindTitle') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-secondary mb-2">
           {{ t('linker.batchUnbindDesc', { projectName: linkerProjects.find(p => p.project_id === selectedLinkId)?.name, count: linkerBindings.filter(b => selectedLinkPluginIds.has(b.plugin_id)).length }) }}
         </p>
-        <div class="mb-4">
+        <div class="mb-2">
           <div class="flex flex-wrap gap-1">
             <span v-for="id in selectedLinkPluginIds" :key="id" class="text-xs bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 px-2 py-0.5 rounded">
               {{ plugins.find(p => p.plugin_id === id)?.name || t('linker.unknownPlugin') }}
             </span>
           </div>
         </div>
-        <div class="flex justify-end gap-3">
+        <div class="flex justify-end gap-2">
           <button @click="showLinkerBatchUnbindDialog = false" class="btn-secondary">{{ t('linker.cancel') }}</button>
-          <button @click="confirmBatchUnbind" :disabled="isLinkerBatchUnbinding" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm disabled:opacity-50">
+          <button @click="confirmBatchUnbind" :disabled="isLinkerBatchUnbinding" class="px-3 py-1.5 bg-red-600 text-white rounded hover:bg-red-700 text-sm disabled:opacity-50">
             {{ isLinkerBatchUnbinding ? t('linker.batchUnbinding') : t('common.confirm') }}
           </button>
         </div>
@@ -3026,14 +3084,14 @@ const retryBatchFailed = async () => {
 
   <Teleport to="body">
     <div v-if="showLinkerUnbindConfirm && pendingUnbindBinding" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showLinkerUnbindConfirm = false; pendingUnbindBinding = null">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('linker.unbindConfirm') }}</h3>
-        <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">
+      <div class="dialog-container w-full max-w-md" @click.stop>
+        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('linker.unbindConfirm') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-secondary mb-2">
           {{ t('linker.unbindConfirmDesc', { name: plugins.find(p => p.plugin_id === pendingUnbindBinding?.plugin_id)?.name || pendingUnbindBinding?.plugin_id || '' }) }}
         </p>
-        <div class="flex justify-end gap-3">
+        <div class="flex justify-end gap-2">
           <button @click="showLinkerUnbindConfirm = false; pendingUnbindBinding = null" class="btn-secondary">{{ t('linker.cancel') }}</button>
-          <button @click="confirmUnbindPlugin" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm">
+          <button @click="confirmUnbindPlugin" class="px-3 py-1.5 bg-red-600 text-white rounded hover:bg-red-700 text-sm">
             {{ t('linker.unbind') }}
           </button>
         </div>
@@ -3043,17 +3101,17 @@ const retryBatchFailed = async () => {
 
   <Teleport to="body">
     <div v-if="showBatchVersionSelectDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showBatchVersionSelectDialog = false; batchVersionSelectMap = new Map()">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[80vh] flex flex-col" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('linker.batchVersionSelectTitle') }}</h3>
-        <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">{{ t('linker.batchVersionSelectDesc') }}</p>
-        <div class="flex-1 overflow-y-auto space-y-4">
-          <div v-for="pluginId in batchVersionSelectPluginIds" :key="pluginId" class="bg-gray-50 dark:bg-surface-layer rounded-lg p-3">
+      <div class="dialog-container w-full max-w-lg max-h-[80vh] flex flex-col" @click.stop>
+        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('linker.batchVersionSelectTitle') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-secondary mb-2">{{ t('linker.batchVersionSelectDesc') }}</p>
+        <div class="flex-1 overflow-y-auto space-y-2">
+          <div v-for="pluginId in batchVersionSelectPluginIds" :key="pluginId" class="bg-gray-50 dark:bg-surface-layer rounded p-3">
             <h4 class="text-sm font-medium text-gray-900 dark:text-content-primary mb-2">{{ plugins.find(p => p.plugin_id === pluginId)?.name || pluginId }}</h4>
-            <div class="flex gap-3">
+            <div class="flex gap-2">
               <select
                 :value="batchVersionSelectMap.get(pluginId)?.versionIdx ?? 0"
                 @change="(() => { const m = new Map(batchVersionSelectMap); m.set(pluginId, { versionIdx: Number(($event.target as HTMLSelectElement).value), unitIdx: 0 }); batchVersionSelectMap = m; })"
-                class="flex-1 px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-xs"
+                class="flex-1 px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-md bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-xs"
               >
                 <option v-for="(v, i) in plugins.find(p => p.plugin_id === pluginId)?.versions" :key="v.version_id" :value="i">v{{ v.version }}</option>
               </select>
@@ -3061,14 +3119,14 @@ const retryBatchFailed = async () => {
                 v-if="(plugins.find(p => p.plugin_id === pluginId)?.versions[batchVersionSelectMap.get(pluginId)?.versionIdx ?? 0]?.units?.length ?? 0) > 1"
                 :value="batchVersionSelectMap.get(pluginId)?.unitIdx ?? 0"
                 @change="(() => { const m = new Map(batchVersionSelectMap); const cur = m.get(pluginId) || { versionIdx: 0, unitIdx: 0 }; m.set(pluginId, { ...cur, unitIdx: Number(($event.target as HTMLSelectElement).value) }); batchVersionSelectMap = m; })"
-                class="flex-1 px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-xs"
+                class="flex-1 px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded-md bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-xs"
               >
                 <option v-for="(u, i) in plugins.find(p => p.plugin_id === pluginId)?.versions[batchVersionSelectMap.get(pluginId)?.versionIdx ?? 0]?.units" :key="u.unit_id" :value="i">{{ u.name }}</option>
               </select>
             </div>
           </div>
         </div>
-        <div class="flex justify-end gap-3 mt-4 pt-3 border-t border-gray-200 dark:border-surface-border">
+        <div class="flex justify-end gap-2 mt-4 pt-3 border-t border-gray-200 dark:border-surface-border">
           <button @click="showBatchVersionSelectDialog = false; batchVersionSelectMap = new Map()" class="btn-secondary">{{ t('linker.cancel') }}</button>
           <button @click="confirmBatchVersionSelect" class="btn-primary">{{ t('linker.confirmBind') }}</button>
         </div>
@@ -3078,16 +3136,16 @@ const retryBatchFailed = async () => {
 
   <Teleport to="body">
     <div v-if="showLinkerBatchApplyDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showLinkerBatchApplyDialog = false">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('linker.batchApplyTitle') }}</h3>
-        <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">{{ t('linker.batchApplyDesc') }}</p>
-        <div class="space-y-2 mb-4 max-h-48 overflow-y-auto">
+      <div class="dialog-container w-full max-w-lg" @click.stop>
+        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('linker.batchApplyTitle') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-secondary mb-2">{{ t('linker.batchApplyDesc') }}</p>
+        <div class="space-y-2 mb-2 max-h-48 overflow-y-auto">
           <div v-for="id in selectedLinkProjectIds" :key="id" class="flex items-center justify-between text-sm">
             <span class="text-gray-900 dark:text-content-primary">{{ linkerProjects.find(p => p.project_id === id)?.name || id }}</span>
             <span class="text-xs text-gray-500 dark:text-content-secondary">{{ t('linker.bindingCountUnit', { count: linkerBindings.filter(b => b.project_id === id).length }) }}</span>
           </div>
         </div>
-        <div class="flex justify-end gap-3">
+        <div class="flex justify-end gap-2">
           <button @click="showLinkerBatchApplyDialog = false" class="btn-secondary">{{ t('linker.cancel') }}</button>
           <button @click="confirmBatchApply" :disabled="isLinkerBatchApplying" class="btn-primary disabled:opacity-50">
             {{ isLinkerBatchApplying ? t('linker.batchApplying') : t('common.confirm') }}
@@ -3099,10 +3157,10 @@ const retryBatchFailed = async () => {
 
   <Teleport to="body">
     <div v-if="showLinkerBatchApplyResult" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showLinkerBatchApplyResult = false">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('linker.batchApplyResultTitle') }}</h3>
-        <div class="space-y-3 max-h-64 overflow-y-auto">
-          <div v-for="result in batchApplyResults" :key="result.project_id" class="p-3 rounded-lg border" :class="result.success ? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/10' : 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10'">
+      <div class="dialog-container w-full max-w-lg" @click.stop>
+        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('linker.batchApplyResultTitle') }}</h3>
+        <div class="space-y-2 max-h-64 overflow-y-auto">
+          <div v-for="result in batchApplyResults" :key="result.project_id" class="p-3 rounded border" :class="result.success ? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/10' : 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10'">
             <div class="flex items-center justify-between mb-1">
               <span class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ result.project_name }}</span>
               <span class="text-xs" :class="result.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'">{{ result.success ? t('linker.success') : t('linker.failed') }}</span>
@@ -3121,29 +3179,29 @@ const retryBatchFailed = async () => {
 
   <Teleport to="body">
     <div v-if="showQuickBindDialog && quickBindPlugin" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="closeQuickBind">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[85vh] flex flex-col" @click.stop>
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('plugins.quickBind.title') }}</h3>
+      <div class="dialog-container w-full max-w-lg max-h-[85vh] flex flex-col" @click.stop>
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary">{{ t('plugins.quickBind.title') }}</h3>
           <button @click="closeQuickBind" class="text-gray-500 dark:text-content-secondary hover:text-gray-700 dark:hover:text-content-primary">
             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
-        <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">
+        <p class="text-sm text-gray-500 dark:text-content-secondary mb-2">
           {{ t('plugins.quickBind.desc', { name: quickBindPlugin.name }) }}
         </p>
 
-        <div v-if="quickBindPlugin.versions.length > 1 || (quickBindPlugin.versions.length > 0 && quickBindPlugin.versions[0].units.length > 1)" class="mb-4 space-y-3 p-3 bg-gray-50 dark:bg-surface-layer rounded-lg">
+        <div v-if="quickBindPlugin.versions.length > 1 || (quickBindPlugin.versions.length > 0 && quickBindPlugin.versions[0].units.length > 1)" class="mb-2 space-y-2 p-3 bg-gray-50 dark:bg-surface-layer rounded">
           <div v-if="quickBindPlugin.versions.length > 1">
             <label class="block text-xs font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('linker.selectVersion') }}</label>
-            <select v-model="quickBindVersionIdx" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-sm">
+            <select v-model="quickBindVersionIdx" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-md bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-sm">
               <option v-for="(v, i) in quickBindPlugin.versions" :key="v.version_id" :value="i">v{{ v.version }}</option>
             </select>
           </div>
           <div v-if="quickBindPlugin.versions[quickBindVersionIdx]?.units.length > 1">
             <label class="block text-xs font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('linker.selectUnitLabel') }}</label>
-            <select v-model="quickBindUnitIdx" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-sm">
+            <select v-model="quickBindUnitIdx" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-md bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-sm">
               <option v-for="(u, i) in quickBindPlugin.versions[quickBindVersionIdx]?.units" :key="u.unit_id" :value="i">{{ u.name }}</option>
             </select>
           </div>
@@ -3152,13 +3210,13 @@ const retryBatchFailed = async () => {
         <div v-if="quickBindProjects.length === 0" class="text-center py-6">
           <p class="text-sm text-gray-500 dark:text-content-secondary">{{ t('plugins.quickBind.noProjects') }}</p>
         </div>
-        <div v-else class="flex-1 overflow-y-auto space-y-1 mb-4">
+        <div v-else class="flex-1 overflow-y-auto space-y-1 mb-2">
           <div class="text-xs font-medium text-gray-500 dark:text-content-secondary mb-2">{{ t('plugins.quickBind.selectProjects') }}</div>
           <div
             v-for="project in quickBindProjects"
             :key="project.project_id"
             @click="toggleQuickBindProject(project.project_id)"
-            :class="['flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-colors', quickBindSelectedProjectIds.has(project.project_id) ? 'bg-primary-50 dark:bg-surface-hover ring-1 ring-primary-300 dark:ring-brand-primary' : 'hover:bg-gray-50 dark:hover:bg-surface-layer']"
+            :class="['flex items-center gap-2 p-2 rounded cursor-pointer transition-colors', quickBindSelectedProjectIds.has(project.project_id) ? 'bg-primary-50 dark:bg-surface-hover ring-1 ring-primary-300 dark:ring-brand-primary' : 'hover:bg-gray-50 dark:hover:bg-surface-layer']"
           >
             <div class="w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center" :class="quickBindSelectedProjectIds.has(project.project_id) ? 'bg-primary-600 border-primary-600' : 'border-gray-300 dark:border-surface-border'">
               <svg v-if="quickBindSelectedProjectIds.has(project.project_id)" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3174,7 +3232,7 @@ const retryBatchFailed = async () => {
           </div>
         </div>
 
-        <div class="flex justify-end gap-3 pt-3 border-t border-gray-200 dark:border-surface-border">
+        <div class="flex justify-end gap-2 pt-3 border-t border-gray-200 dark:border-surface-border">
           <button @click="closeQuickBind" class="btn-secondary">{{ t('plugins.quickBind.bindLater') }}</button>
           <button
             @click="doQuickBind"
@@ -3190,26 +3248,26 @@ const retryBatchFailed = async () => {
 
   <Teleport to="body">
     <div v-if="showVersionSwitchDialog && versionSwitchPlugin && versionSwitchBinding" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showVersionSwitchDialog = false">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-md shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('plugins.versionSwitch.title') }}</h3>
-        <p class="text-sm text-gray-500 dark:text-content-secondary mb-4">
+      <div class="dialog-container w-full max-w-md" @click.stop>
+        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('plugins.versionSwitch.title') }}</h3>
+        <p class="text-sm text-gray-500 dark:text-content-secondary mb-2">
           {{ t('plugins.versionSwitch.desc', { plugin: versionSwitchPlugin.name, project: linkerProjects.find(p => p.project_id === versionSwitchBinding?.project_id)?.name || versionSwitchBinding?.project_id }) }}
         </p>
-        <div class="space-y-3 mb-6">
+        <div class="space-y-2 mb-3">
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('plugins.versionSwitch.selectVersion') }}</label>
-            <select v-model="versionSwitchVersionIdx" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-sm">
+            <select v-model="versionSwitchVersionIdx" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-md bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-sm">
               <option v-for="(v, i) in versionSwitchPlugin.versions" :key="v.version_id" :value="i">v{{ v.version }}</option>
             </select>
           </div>
           <div v-if="versionSwitchPlugin.versions[versionSwitchVersionIdx]?.units.length > 1">
             <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('plugins.versionSwitch.selectUnit') }}</label>
-            <select v-model="versionSwitchUnitIdx" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-lg bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-sm">
+            <select v-model="versionSwitchUnitIdx" class="w-full px-3 py-2 border border-gray-300 dark:border-surface-border rounded-md bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary text-sm">
               <option v-for="(u, i) in versionSwitchPlugin.versions[versionSwitchVersionIdx]?.units" :key="u.unit_id" :value="i">{{ u.name }}</option>
             </select>
           </div>
         </div>
-        <div class="flex justify-end gap-3">
+        <div class="flex justify-end gap-2">
           <button @click="showVersionSwitchDialog = false" class="btn-secondary">{{ t('common.cancel') }}</button>
           <button @click="doSwitchVersion" :disabled="isSwitchingVersion" class="btn-primary disabled:opacity-50">
             {{ isSwitchingVersion ? t('plugins.versionSwitch.switching') : t('plugins.versionSwitch.switchVersion') }}
@@ -3221,17 +3279,17 @@ const retryBatchFailed = async () => {
 
   <Teleport to="body">
     <div v-if="showHarborConfigDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showHarborConfigDialog = false">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('linker.configTitle') }}</h3>
+      <div class="dialog-container w-full max-w-lg" @click.stop>
+        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('linker.configTitle') }}</h3>
         <p class="text-sm text-gray-500 dark:text-content-secondary mb-3">{{ t('linker.configDesc') }}</p>
-        <div v-if="exportSkippedLocal.length > 0" class="mb-3 p-2.5 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
+        <div v-if="exportSkippedLocal.length > 0" class="mb-3 p-2 rounded bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
           <p class="text-sm font-medium text-yellow-700 dark:text-yellow-400">{{ t('linker.skippedLocalTitle') }}</p>
           <p class="text-xs text-yellow-600 dark:text-yellow-500 mt-1">{{ t('linker.skippedLocalDesc') }}</p>
           <div class="mt-1.5 flex flex-wrap gap-1">
             <span v-for="name in exportSkippedLocal" :key="name" class="inline-block px-1.5 py-0.5 text-[10px] bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded">{{ name }}</span>
           </div>
         </div>
-        <div v-if="harborConfigContent" class="bg-gray-50 dark:bg-surface-layer rounded-lg p-3 text-xs font-mono text-gray-700 dark:text-content-secondary max-h-64 overflow-y-auto whitespace-pre-wrap break-all">{{ harborConfigContent }}</div>
+        <div v-if="harborConfigContent" class="bg-gray-50 dark:bg-surface-layer rounded p-3 text-xs font-mono text-gray-700 dark:text-content-secondary max-h-64 overflow-y-auto whitespace-pre-wrap break-all">{{ harborConfigContent }}</div>
         <div v-else class="text-sm text-gray-500 dark:text-content-secondary">{{ t('linker.configEmpty') }}</div>
         <div class="flex justify-between mt-4">
           <button
@@ -3248,9 +3306,9 @@ const retryBatchFailed = async () => {
 
   <Teleport to="body">
     <div v-if="showSyncResultDialog && syncResult" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showSyncResultDialog = false">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl" @click.stop>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">{{ t('linker.syncResultTitle') }}</h3>
-        <div class="space-y-2 mb-4">
+      <div class="dialog-container w-full max-w-lg" @click.stop>
+        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('linker.syncResultTitle') }}</h3>
+        <div class="space-y-2 mb-2">
           <div v-if="syncResult.imported > 0" class="text-sm text-green-600 dark:text-green-400">{{ t('linker.syncImported', { count: syncResult.imported }) }}</div>
           <div v-if="syncResult.bound > 0" class="text-sm text-blue-600 dark:text-brand-primary">{{ t('linker.syncBound', { count: syncResult.bound }) }}</div>
           <div v-if="syncResult.skipped > 0" class="text-sm text-yellow-600 dark:text-yellow-400">{{ t('linker.syncSkipped', { count: syncResult.skipped }) }}</div>
@@ -3269,21 +3327,21 @@ const retryBatchFailed = async () => {
 
   <Teleport to="body">
     <div v-if="showUidConflictDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showUidConflictDialog = false; pendingBindAfterUidCheck = null">
-      <div class="bg-white dark:bg-surface-card rounded-xl p-6 w-full max-w-lg shadow-xl" @click.stop>
-        <div class="flex items-center gap-3 mb-4">
+      <div class="dialog-container w-full max-w-lg" @click.stop>
+        <div class="flex items-center gap-2 mb-2">
           <div class="w-10 h-10 rounded-full bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center shrink-0">
             <svg class="w-5 h-5 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
             </svg>
           </div>
           <div>
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary">{{ t('linker.uidConflictTitle') }}</h3>
+            <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary">{{ t('linker.uidConflictTitle') }}</h3>
             <p class="text-sm text-gray-500 dark:text-content-secondary mt-0.5">{{ t('linker.uidConflictDesc') }}</p>
           </div>
         </div>
 
-        <div class="space-y-2 mb-4 max-h-36 overflow-y-auto">
-          <div v-for="conflict in uidConflicts" :key="conflict.plugin_id" class="p-2.5 bg-yellow-50 dark:bg-yellow-900/10 rounded-lg border border-yellow-200 dark:border-yellow-800">
+        <div class="space-y-2 mb-2 max-h-36 overflow-y-auto">
+          <div v-for="conflict in uidConflicts" :key="conflict.plugin_id" class="p-2 bg-yellow-50 dark:bg-yellow-900/10 rounded border border-yellow-200 dark:border-yellow-800">
             <div class="flex items-center justify-between">
               <span class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ conflict.plugin_name }}</span>
               <span class="text-xs px-1.5 py-0.5 bg-yellow-200 dark:bg-yellow-800/50 text-yellow-700 dark:text-yellow-300 rounded">{{ t('linker.uidConflictCount', { count: conflict.conflicting_uids.length }) }}</span>
@@ -3294,12 +3352,12 @@ const retryBatchFailed = async () => {
           </div>
         </div>
 
-        <div class="mb-4">
+        <div class="mb-2">
           <h4 class="text-sm font-medium text-gray-700 dark:text-content-secondary mb-2">{{ t('linker.uidConflictSolution') }}</h4>
           <div class="space-y-2">
             <button
               @click="handleBindWithCopyMode"
-              class="w-full text-left p-3 rounded-lg border-2 transition-colors"
+              class="w-full text-left p-3 rounded border-2 transition-colors"
               :class="mountStrategyDisplay !== 'Copy' ? 'border-primary-300 dark:border-surface-border bg-primary-50 dark:bg-surface-hover' : 'border-gray-200 dark:border-surface-border'"
             >
               <div class="flex items-center gap-2">
@@ -3312,7 +3370,7 @@ const retryBatchFailed = async () => {
             </button>
             <button
               @click="showUidConflictDialog = false; pendingBindAfterUidCheck?.()"
-              class="w-full text-left p-3 rounded-lg border border-gray-200 dark:border-surface-border hover:border-red-300 dark:hover:border-red-700 transition-colors"
+              class="w-full text-left p-3 rounded border border-gray-200 dark:border-surface-border hover:border-red-300 dark:hover:border-red-700 transition-colors"
             >
               <div class="flex items-center gap-2">
                 <svg class="w-4 h-4 text-gray-400 dark:text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3340,5 +3398,13 @@ const retryBatchFailed = async () => {
     @update:visible="showGlobalUpgradeDialog = $event"
     @close="showGlobalUpgradeDialog = false"
     @upgraded="loadPlugins()"
+  />
+
+  <ContextMenu
+    :visible="pluginContextMenu.visible.value"
+    :x="pluginContextMenu.x.value"
+    :y="pluginContextMenu.y.value"
+    :items="pluginContextMenu.items.value"
+    @close="pluginContextMenu.close()"
   />
 </template>

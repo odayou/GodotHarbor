@@ -14,6 +14,7 @@ export interface PluginUnit {
   subdirectory: string
   plugin_cfg_path: string
   is_virtual: boolean
+  install_path?: string | null
 }
 
 export interface PluginVersion {

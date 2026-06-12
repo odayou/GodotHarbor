@@ -187,14 +187,14 @@ registerShortcut({
 </script>
 
 <template>
-  <div class="flex h-screen bg-white dark:bg-surface-layer" @contextmenu.prevent>
+  <div class="flex h-screen bg-white dark:bg-surface-layer">
     <Sidebar />
     <div class="flex-1 flex flex-col overflow-hidden">
       <div v-if="!isOnline" class="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs text-center py-1.5 px-4">
         {{ t('common.offlineNotice') }}
       </div>
       <Header />
-      <main class="flex-1 overflow-x-hidden overflow-y-auto bg-white dark:bg-surface-layer p-4 md:p-6">
+      <main class="flex-1 overflow-x-hidden overflow-y-auto bg-white dark:bg-surface-layer p-3">
         <RouterView v-slot="{ Component }">
           <component :is="Component" />
         </RouterView>
@@ -209,8 +209,8 @@ registerShortcut({
   
   <!-- 首次启动语言选择对话框 -->
   <div v-if="showLanguageDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-[110]">
-    <div class="bg-white dark:bg-surface-card rounded-lg p-6 w-full max-w-md shadow-xl" @click.stop>
-      <h3 class="text-lg font-semibold text-gray-900 dark:text-content-primary mb-4">选择语言 / Select Language</h3>
+    <div class="dialog-container w-full max-w-md" @click.stop>
+      <h3 class="dialog-title">选择语言 / Select Language</h3>
       <p class="text-sm text-gray-500 dark:text-content-muted mb-6">请选择您偏好的语言 / Please select your preferred language</p>
       <p class="text-xs text-gray-400 dark:text-content-muted mb-4">💡 可在「设置 → 外观」中切换 / Switch in Settings → Appearance</p>
       <div class="space-y-3">
