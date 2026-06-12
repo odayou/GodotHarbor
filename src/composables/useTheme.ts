@@ -72,7 +72,7 @@ export function useTheme() {
     setTheme(ALL_THEMES[nextIndex])
   }
 
-  function initTheme() {
+  async function initTheme() {
     applyTheme(currentTheme.value)
     applyDensity(currentDensity.value)
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
@@ -80,6 +80,17 @@ export function useTheme() {
         applyTheme('system')
       }
     })
+    try {
+      const settings = await api.getSettings()
+      if (['light', 'dark', 'system'].includes(settings.theme)) {
+        currentTheme.value = settings.theme as Theme
+        applyTheme(currentTheme.value)
+      }
+      if (settings.density === 'compact' || settings.density === 'default') {
+        currentDensity.value = settings.density as Density
+        applyDensity(currentDensity.value)
+      }
+    } catch {}
   }
 
   watch(currentTheme, (newTheme) => {

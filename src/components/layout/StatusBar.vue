@@ -293,7 +293,7 @@ onUnmounted(() => {
             <div>
               <span class="text-sm font-medium text-gray-900 dark:text-gray-100">Godot Harbor</span>
               <div class="text-xs text-gray-500 dark:text-gray-400">
-                {{ updateStore.appUpdate.current_version }} → <span class="font-medium text-amber-600 dark:text-amber-400">{{ updateStore.appUpdate.latest_version }}</span>
+                {{ updateStore.appUpdate.current_version }} &rarr; <span class="font-medium text-amber-600 dark:text-amber-400">{{ updateStore.appUpdate.latest_version }}</span>
               </div>
             </div>
             <span class="text-xs px-1.5 py-0.5 bg-blue-100 dark:bg-surface-hover text-blue-700 dark:text-brand-primary rounded">{{ t('statusbar.appUpdate') }}</span>
@@ -313,7 +313,7 @@ onUnmounted(() => {
             @click="closeUpdatePanel(); $router.push('/updates')"
             class="mt-2 px-2.5 py-1 text-xs font-medium text-primary-600 dark:text-brand-primary hover:text-primary-700 dark:hover:text-brand-primary transition-colors"
           >
-            {{ t('statusbar.viewUpdates') }} →
+            {{ t('statusbar.viewUpdates') }} &rarr;
           </button>
         </div>
       </div>

@@ -400,6 +400,8 @@ pub struct Settings {
     pub enable_anonymous_usage_stats: bool,
     #[serde(default)]
     pub anonymous_user_id: String,
+    #[serde(default = "default_density")]
+    pub density: String,
 }
 
 fn default_true() -> bool { true }
@@ -411,6 +413,7 @@ fn default_engine_update_channels() -> Vec<String> {
 fn default_engine_mirrors() -> Vec<EngineMirrorConfig> {
     vec![EngineMirrorConfig::official()]
 }
+fn default_density() -> String { "default".to_string() }
 
 impl Default for Settings {
     fn default() -> Self {
@@ -441,6 +444,7 @@ impl Default for Settings {
             engine_update_channels: default_engine_update_channels(),
             enable_anonymous_usage_stats: true,
             anonymous_user_id: String::new(),
+            density: default_density(),
         }
     }
 }

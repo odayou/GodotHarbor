@@ -16,7 +16,7 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 const toast = useToast()
 const { t, locale } = useI18n()
 const router = useRouter()
-const { setTheme, initTheme } = useTheme()
+const { setTheme, setDensity, initTheme } = useTheme()
 
 const keyboardShortcuts = computed(() => [
   { key: 'Ctrl+K', description: t('sidebar.openCommandPaletteShortcut') },
@@ -29,7 +29,7 @@ const keyboardShortcuts = computed(() => [
   { key: 'Ctrl+4', description: t('sidebar.navEnginesShortcut') },
 ])
 
-const settings = ref<Settings>({ scan_directories: [], mount_strategy: 'Symlink', language: 'zh-CN', theme: 'system', auto_scan_on_startup: true, auto_discover_engines: true, auto_check_plugin_updates: false, auto_check_app_updates: true, auto_check_engine_updates: true, update_check_interval_hours: 4, skipped_app_version: '', auto_apply: true, github_api_proxy: '', asset_library_mirror: '', asset_store_mirror: '', asset_api_mode: 'auto' })
+const settings = ref<Settings>({ scan_directories: [], mount_strategy: 'Symlink', language: 'zh-CN', theme: 'system', density: 'default', auto_scan_on_startup: true, auto_discover_engines: true, auto_check_plugin_updates: false, auto_check_app_updates: true, auto_check_engine_updates: true, update_check_interval_hours: 4, skipped_app_version: '', auto_apply: true, github_api_proxy: '', asset_library_mirror: '', asset_store_mirror: '', asset_api_mode: 'auto' })
 const originalSettings = ref<string>('')
 const isLoading = ref(false)
 const isDirty = computed(() => {
@@ -213,13 +213,14 @@ const loadSettings = async () => {
   isLoading.value = true
   try {
     const result = await api.getSettings()
-    settings.value = { scan_directories: result.scan_directories || [], mount_strategy: result.mount_strategy || 'Symlink', language: result.language || 'zh-CN', theme: result.theme || 'system', auto_scan_on_startup: result.auto_scan_on_startup ?? true, auto_discover_engines: result.auto_discover_engines ?? true, auto_check_plugin_updates: result.auto_check_plugin_updates ?? false, auto_check_app_updates: result.auto_check_app_updates ?? true, auto_check_engine_updates: result.auto_check_engine_updates ?? true, update_check_interval_hours: result.update_check_interval_hours ?? 4, skipped_app_version: result.skipped_app_version || '', auto_apply: result.auto_apply ?? true, github_api_proxy: result.github_api_proxy || '', asset_library_mirror: result.asset_library_mirror || '', asset_store_mirror: result.asset_store_mirror || '', asset_api_mode: result.asset_api_mode || 'auto', engine_update_channels: result.engine_update_channels || ['stable'], enable_anonymous_usage_stats: result.enable_anonymous_usage_stats ?? true }
+    settings.value = { scan_directories: result.scan_directories || [], mount_strategy: result.mount_strategy || 'Symlink', language: result.language || 'zh-CN', theme: result.theme || 'system', density: result.density || 'default', auto_scan_on_startup: result.auto_scan_on_startup ?? true, auto_discover_engines: result.auto_discover_engines ?? true, auto_check_plugin_updates: result.auto_check_plugin_updates ?? false, auto_check_app_updates: result.auto_check_app_updates ?? true, auto_check_engine_updates: result.auto_check_engine_updates ?? true, update_check_interval_hours: result.update_check_interval_hours ?? 4, skipped_app_version: result.skipped_app_version || '', auto_apply: result.auto_apply ?? true, github_api_proxy: result.github_api_proxy || '', asset_library_mirror: result.asset_library_mirror || '', asset_store_mirror: result.asset_store_mirror || '', asset_api_mode: result.asset_api_mode || 'auto', engine_update_channels: result.engine_update_channels || ['stable'], enable_anonymous_usage_stats: result.enable_anonymous_usage_stats ?? true }
     const localStorageLang = localStorage.getItem('godotharbor-language')
     if (localStorageLang && localStorageLang !== settings.value.language) {
       settings.value.language = localStorageLang
     }
     locale.value = settings.value.language
     if (['light', 'dark', 'system'].includes(settings.value.theme)) setTheme(settings.value.theme as 'light' | 'dark' | 'system')
+    if (settings.value.density === 'compact' || settings.value.density === 'default') setDensity(settings.value.density as 'default' | 'compact')
   } catch (error) { toast.error(t('settings.messages.loadFailed', { error })) }
   finally { isLoading.value = false; originalSettings.value = JSON.stringify(settings.value) }
 }
@@ -230,6 +231,7 @@ watch(() => settings.value.language, (lang) => {
   localStorage.setItem('godotharbor-language', lang)
 })
 watch(() => settings.value.theme, (theme) => { if (['light', 'dark', 'system'].includes(theme)) setTheme(theme as 'light' | 'dark' | 'system') })
+watch(() => settings.value.density, (density) => { if (density === 'compact' || density === 'default') setDensity(density as 'default' | 'compact') })
 
 const addScanDirectory = async () => {
   try {
@@ -248,7 +250,9 @@ const saveSettings = async () => {
   isLoading.value = true
   try {
     const prevChannels = originalSettings.value ? JSON.parse(originalSettings.value).engine_update_channels : null
-    await api.saveSettings(settings.value)
+    const current = await api.getSettings()
+    Object.assign(current, settings.value)
+    await api.saveSettings(current)
     await loadStoragePaths()
     originalSettings.value = JSON.stringify(settings.value)
     toast.success(t('settings.messages.saveSuccess'))
@@ -611,6 +615,34 @@ const toggleMirrorEnabled = (mirrorId: string) => {
                 <option value="dark">{{ t('settings.themeDark') }}</option>
                 <option value="system">{{ t('settings.themeSystem') }}</option>
               </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-2">{{ t('settings.density') }}</label>
+              <div class="flex gap-2 w-fit">
+                <button
+                  @click="settings.density = 'default'"
+                  :class="[
+                    'px-4 py-1.5 text-sm font-medium rounded-btn border transition-colors duration-100',
+                    settings.density !== 'compact'
+                      ? 'bg-primary-50 dark:bg-primary-500/10 border-primary-300 dark:border-primary-500/30 text-primary-700 dark:text-brand-primary'
+                      : 'border-gray-300 dark:border-surface-border text-gray-600 dark:text-content-secondary hover:bg-gray-50 dark:hover:bg-surface-hover'
+                  ]"
+                >
+                  {{ t('settings.densityDefault') }}
+                </button>
+                <button
+                  @click="settings.density = 'compact'"
+                  :class="[
+                    'px-4 py-1.5 text-sm font-medium rounded-btn border transition-colors duration-100',
+                    settings.density === 'compact'
+                      ? 'bg-primary-50 dark:bg-primary-500/10 border-primary-300 dark:border-primary-500/30 text-primary-700 dark:text-brand-primary'
+                      : 'border-gray-300 dark:border-surface-border text-gray-600 dark:text-content-secondary hover:bg-gray-50 dark:hover:bg-surface-hover'
+                  ]"
+                >
+                  {{ t('settings.densityCompact') }}
+                </button>
+              </div>
+              <p class="text-xs text-gray-500 dark:text-content-muted mt-1.5">{{ t('settings.densityDesc') }}</p>
             </div>
           </div>
         </div>

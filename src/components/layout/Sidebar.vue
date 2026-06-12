@@ -26,8 +26,8 @@ const toggleDarkMode = () => {
 
 const asideClass = computed(() => {
   return [
-    'bg-surface-light-layer dark:bg-surface-layer flex flex-col shrink-0 transition-all duration-200 ease-in-out border-r border-gray-200/60 dark:border-surface-border/40',
-    isCollapsed.value ? 'w-12' : 'w-52'
+    'sidebar-acrylic shadow-md flex flex-col shrink-0 transition-all duration-200 ease-in-out border-r border-gray-200/60 dark:border-surface-border/40',
+    isCollapsed.value ? 'w-14' : 'w-54'
   ]
 })
 
@@ -55,11 +55,11 @@ const navigateTo = (path: string) => {
     <!-- Logo area -->
     <div
       :class="[
-        'h-9 border-b border-gray-200/60 dark:border-surface-border/40 flex items-center',
-        isCollapsed ? 'justify-center px-0' : 'gap-1.5 px-3'
+        'h-10 border-b border-gray-200/60 dark:border-surface-border/40 flex items-center',
+        isCollapsed ? 'justify-center px-0' : 'gap-2 px-3'
       ]"
     >
-      <img src="/favicon.png" alt="Harbor" class="w-5 h-5 shrink-0" />
+      <img src="/favicon.png" alt="Harbor" class="w-6 h-6 shrink-0" />
       <span
         v-if="!isCollapsed"
         class="text-sm font-semibold text-primary-600 dark:text-brand-primary whitespace-nowrap overflow-hidden"
@@ -69,16 +69,16 @@ const navigateTo = (path: string) => {
     </div>
 
     <!-- Main nav -->
-    <nav class="flex-1 py-1 overflow-hidden">
-      <ul class="space-y-0.5" :class="isCollapsed ? 'px-1' : 'px-2'">
+    <nav class="flex-1 py-2 overflow-hidden">
+      <ul class="space-y-1" :class="isCollapsed ? 'px-1' : 'px-2'">
         <li v-for="item in menuItems" :key="item.path">
           <button
             @click="navigateTo(item.path)"
             :class="[
               'w-full flex items-center rounded-[4px] transition-colors duration-100',
               isCollapsed
-                ? 'justify-center p-2.5'
-                : 'px-3 py-1.5 text-[13px]',
+                ? 'justify-center p-2'
+                : 'px-3 py-2 text-[13px]',
               route.path === item.path
                 ? 'bg-primary-50/60 dark:bg-primary-500/10 text-primary-600 dark:text-brand-primary'
                 : 'text-gray-600 dark:text-content-secondary hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'
@@ -115,16 +115,16 @@ const navigateTo = (path: string) => {
     </nav>
 
     <!-- Bottom section -->
-    <div class="border-t border-gray-200/60 dark:border-surface-border/40 py-1">
-      <ul class="space-y-0.5" :class="isCollapsed ? 'px-1' : 'px-2'">
+    <div class="border-t border-gray-200/60 dark:border-surface-border/40 py-2">
+      <ul class="space-y-1" :class="isCollapsed ? 'px-1' : 'px-2'">
         <li v-for="item in bottomItems" :key="item.path">
           <button
             @click="navigateTo(item.path)"
             :class="[
               'w-full flex items-center rounded-[4px] transition-colors duration-100',
               isCollapsed
-                ? 'justify-center p-2.5'
-                : 'px-3 py-1.5 text-[13px]',
+                ? 'justify-center p-2'
+                : 'px-3 py-2 text-[13px]',
               route.path === item.path
                 ? 'bg-primary-50/60 dark:bg-primary-500/10 text-primary-600 dark:text-brand-primary'
                 : 'text-gray-600 dark:text-content-secondary hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'
@@ -149,24 +149,31 @@ const navigateTo = (path: string) => {
       </ul>
 
       <!-- Dark mode toggle + collapse toggle -->
-      <div :class="isCollapsed ? 'px-1' : 'px-2'" class="pt-1">
-        <div class="flex items-center" :class="isCollapsed ? 'flex-col gap-0.5' : 'gap-1'">
+      <div :class="isCollapsed ? 'px-1' : 'px-2'" class="pt-2">
+        <div class="space-y-1">
           <button
             @click="toggleDarkMode"
-            class="p-2.5 text-gray-500 dark:text-content-muted hover:bg-black/[0.04] dark:hover:bg-white/[0.06] rounded-[4px] transition-colors duration-100"
-            :title="isDarkMode ? t('settings.appearance.light') : t('settings.appearance.dark')"
+            :class="[
+              'w-full flex items-center rounded-[4px] transition-colors duration-100 text-gray-500 dark:text-content-muted hover:bg-black/[0.04] dark:hover:bg-white/[0.06]',
+              isCollapsed ? 'justify-center p-2' : 'px-3 py-2 text-[13px]'
+            ]"
+            :title="isCollapsed ? (isDarkMode ? t('settings.themeLight') : t('settings.themeDark')) : undefined"
           >
-            <svg v-if="isDarkMode" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg v-if="isDarkMode" class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
             </svg>
-            <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg v-else class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
             </svg>
+            <span v-if="!isCollapsed" class="ml-2 whitespace-nowrap overflow-hidden">{{ isDarkMode ? t('settings.themeLight') : t('settings.themeDark') }}</span>
           </button>
           <button
             @click="toggleSidebar"
-            class="p-2.5 text-gray-500 dark:text-content-muted hover:bg-black/[0.04] dark:hover:bg-white/[0.06] rounded-[4px] transition-colors duration-100"
-            :title="isCollapsed ? t('sidebar.expand') : t('sidebar.collapse')"
+            :class="[
+              'w-full flex items-center rounded-[4px] transition-colors duration-100 text-gray-500 dark:text-content-muted hover:bg-black/[0.04] dark:hover:bg-white/[0.06]',
+              isCollapsed ? 'justify-center p-2' : 'px-3 py-2 text-[13px]'
+            ]"
+            :title="isCollapsed ? (isCollapsed ? t('sidebar.expand') : t('sidebar.collapse')) : undefined"
           >
             <svg
               class="w-5 h-5 shrink-0 transition-transform duration-200"
@@ -175,6 +182,7 @@ const navigateTo = (path: string) => {
             >
               <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
             </svg>
+            <span v-if="!isCollapsed" class="ml-2 whitespace-nowrap overflow-hidden">{{ t('sidebar.collapse') }}</span>
           </button>
         </div>
       </div>

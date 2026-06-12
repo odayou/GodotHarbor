@@ -27,7 +27,7 @@
         <div class="flex items-center justify-between">
           <div>
             <p class="text-sm text-gray-500 dark:text-content-secondary mt-1">
-              {{ t('updates.currentVersion') }} {{ store.appUpdate.current_version }} → {{ t('updates.latestVersion') }} {{ store.appUpdate.latest_version }}
+              {{ t('updates.currentVersion') }} {{ store.appUpdate.current_version }} &rarr; {{ t('updates.latestVersion') }} {{ store.appUpdate.latest_version }}
             </p>
             <p v-if="store.appUpdate.release_notes" class="text-sm text-gray-600 dark:text-content-secondary mt-2 whitespace-pre-wrap bg-gray-50 dark:bg-surface-layer rounded p-3">
               {{ store.appUpdate.release_notes }}
@@ -42,7 +42,7 @@
             </button>
           </div>
         </div>
-        <div class="mt-3 pt-3 border-t border-gray-100 dark:border-surface-border">
+        <div class="mt-3 pt-3 border-t border-gray-200 dark:border-surface-border/40">
           <p class="text-xs text-gray-400 dark:text-content-muted">{{ t('updates.offlineUpdateTip') }}</p>
           <a :href="githubReleaseUrl" target="_blank" class="inline-flex items-center gap-1 mt-1 text-xs text-primary-600 dark:text-brand-primary hover:underline">
             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
@@ -105,7 +105,7 @@
           <div>
             <span class="font-medium text-gray-900 dark:text-content-primary">{{ update.plugin_name }}</span>
             <div class="text-sm text-gray-500 dark:text-content-secondary">
-              {{ update.current_version }} → {{ update.latest_version }}
+              {{ update.current_version }} &rarr; {{ update.latest_version }}
             </div>
           </div>
           <button @click="store.updateSinglePlugin(update.plugin_id)" class="px-3 py-1 text-sm btn-primary">
@@ -135,7 +135,7 @@
           <div>
             <span class="font-medium text-gray-900 dark:text-content-primary">{{ update.engine_name }}</span>
             <div class="text-sm text-gray-500 dark:text-content-secondary">
-              {{ update.current_version }} → {{ update.latest_version }}
+              {{ update.current_version }} &rarr; {{ update.latest_version }}
               <span v-if="update.is_major_update" class="ml-2 px-1.5 py-0.5 text-xs bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 rounded">{{ t('statusbar.majorUpdate') }}</span>
             </div>
           </div>
@@ -216,7 +216,7 @@
         </button>
       </div>
       <div class="space-y-2 max-h-80 overflow-y-auto">
-        <div v-for="entry in store.updateHistory" :key="entry.id" class="flex items-center justify-between py-2 border-b border-gray-100 dark:border-surface-border last:border-0">
+        <div v-for="entry in store.updateHistory" :key="entry.id" class="flex items-center justify-between py-2 border-b border-gray-200 dark:border-surface-border/40 last:border-0">
           <div class="flex items-center gap-2">
             <span class="shrink-0 w-5 h-5 flex items-center justify-center rounded text-xs"
               :class="updateTypeClass(entry.update_type)">
@@ -228,7 +228,7 @@
             <div>
               <span class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ entry.target_name }}</span>
               <span class="text-xs text-gray-500 dark:text-content-secondary ml-2">
-                {{ entry.from_version }} → {{ entry.to_version }}
+                {{ entry.from_version }} &rarr; {{ entry.to_version }}
               </span>
             </div>
           </div>

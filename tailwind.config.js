@@ -57,6 +57,16 @@ export default {
           error: '#ef4444',
           info: '#3b82f6',
         },
+        border: {
+          separator: '#e5e7eb',
+          card: '#e5e7eb',
+          input: '#d1d5db',
+        },
+      },
+      borderColor: {
+        separator: '#e5e7eb',
+        card: '#e5e7eb',
+        input: '#d1d5db',
       },
       backgroundImage: {
         'card-shimmer': 'linear-gradient(135deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.05) 50%, rgba(255,255,255,0) 100%)',

@@ -29,10 +29,12 @@ pub fn get_app_root_dir() -> PathBuf {
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {
             let mut dir = exe_dir.to_path_buf();
-            if dir.ends_with("target\\debug") || dir.ends_with("target/release") {
+            if dir.ends_with("target\\debug") || dir.ends_with("target/release") || dir.ends_with("target\\release") {
                 if let Some(parent) = dir.parent() {
                     if let Some(grandparent) = parent.parent() {
-                        dir = grandparent.to_path_buf();
+                        if let Some(great_grandparent) = grandparent.parent() {
+                            dir = great_grandparent.to_path_buf();
+                        }
                     }
                 }
             }

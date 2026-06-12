@@ -125,7 +125,7 @@ const failCount = computed(() => upgradeResults.value.filter(r => !r.success).le
                 {{ result.affected_projects.join(', ') || result.plugin_name }}
               </span>
               <span :class="result.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'">
-                {{ result.success ? `v${result.old_version} → v${result.new_version}` : result.error }}
+                {{ result.success ? `v${result.old_version} &rarr; v${result.new_version}` : result.error }}
               </span>
             </div>
           </div>

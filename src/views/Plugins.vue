@@ -2087,7 +2087,7 @@ const retryBatchFailed = async () => {
           v-for="plugin in displayedPlugins"
           :key="plugin.plugin_id"
           :class="[
-            'px-3 py-2 border-b border-gray-100 dark:border-surface-border/40 hover:bg-gray-50 dark:hover:bg-white/[0.04] transition-colors duration-100',
+            'px-3 py-2 border-b border-gray-200 dark:border-surface-border/40 hover:bg-gray-50 dark:hover:bg-white/[0.04] transition-colors duration-100',
             selectedPluginIds.has(plugin.plugin_id) ? 'bg-primary-50/50 dark:bg-primary-900/10' : ''
           ]"
           @contextmenu="showPluginContextMenu($event, plugin)"
@@ -2129,7 +2129,7 @@ const retryBatchFailed = async () => {
               </div>
             </div>
           </div>
-          <div class="flex items-center justify-between mt-1 pt-1 border-t border-gray-100 dark:border-surface-border/50">
+          <div class="flex items-center justify-between mt-1 pt-1 border-t border-gray-200 dark:border-surface-border/40">
             <div class="flex items-center gap-1">
               <button
                 @click.stop="toggleFavorite(plugin)"
@@ -2675,7 +2675,7 @@ const retryBatchFailed = async () => {
               v-for="project in linkerProjects"
               :key="project.project_id"
               @click="selectLinkProject(project, $event)"
-              :class="['px-3 py-2 cursor-pointer border-b border-gray-100 dark:border-surface-border last:border-0 transition-colors group', selectedLinkProjectIds.has(project.project_id) ? 'bg-primary-50 dark:bg-surface-hover' : 'hover:bg-gray-50 dark:hover:bg-surface-layer']"
+              :class="['px-3 py-2 cursor-pointer border-b border-gray-200 dark:border-surface-border/40 last:border-0 transition-colors group', selectedLinkProjectIds.has(project.project_id) ? 'bg-primary-50 dark:bg-surface-hover' : 'hover:bg-gray-50 dark:hover:bg-surface-layer']"
             >
               <div class="flex items-center gap-1.5">
                 <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate flex-1 min-w-0">{{ project.name }}</div>
@@ -2741,7 +2741,7 @@ const retryBatchFailed = async () => {
               v-for="plugin in filteredUnboundPlugins"
               :key="plugin.plugin_id"
               @click="toggleLinkPluginSelection(plugin.plugin_id, $event)"
-              :class="['px-3 py-2 cursor-pointer border-b border-gray-100 dark:border-surface-border last:border-0 transition-colors', selectedLinkPluginIds.has(plugin.plugin_id) ? 'bg-primary-50 dark:bg-surface-hover' : 'hover:bg-gray-50 dark:hover:bg-surface-layer']"
+              :class="['px-3 py-2 cursor-pointer border-b border-gray-200 dark:border-surface-border/40 last:border-0 transition-colors', selectedLinkPluginIds.has(plugin.plugin_id) ? 'bg-primary-50 dark:bg-surface-hover' : 'hover:bg-gray-50 dark:hover:bg-surface-layer']"
             >
               <div class="flex items-center justify-between">
                 <div class="min-w-0 flex-1">
@@ -2780,7 +2780,7 @@ const retryBatchFailed = async () => {
             <div
               v-for="item in boundPluginNames"
               :key="`${item.project_id}-${item.plugin_id}`"
-              :class="['px-3 py-2 border-b border-gray-100 dark:border-surface-border last:border-0', item.is_healthy === false ? 'bg-red-50 dark:bg-red-900/10' : '']"
+              :class="['px-3 py-2 border-b border-gray-200 dark:border-surface-border/40 last:border-0', item.is_healthy === false ? 'bg-red-50 dark:bg-red-900/10' : '']"
             >
               <div class="flex items-center justify-between">
                 <div class="min-w-0 flex-1">
@@ -2978,7 +2978,7 @@ const retryBatchFailed = async () => {
         </div>
         <div v-if="linkerApplyResult.errors.length === 0 && !autoApplyEnabled" class="mb-3 p-3 bg-blue-50 dark:bg-surface-hover rounded-[6px]">
           <p class="text-xs text-blue-700 dark:text-content-secondary mb-2">{{ t('plugins.autoApplyPrompt') }}</p>
-          <button @click="goToAutoApplySettings" class="text-xs font-medium text-blue-600 dark:text-brand-primary hover:underline">{{ t('plugins.autoApplyPromptAction') }} →</button>
+          <button @click="goToAutoApplySettings" class="text-xs font-medium text-blue-600 dark:text-brand-primary hover:underline">{{ t('plugins.autoApplyPromptAction') }} &rarr;</button>
         </div>
         <div v-if="linkerApplyResult.removed.length > 0 || linkerApplyResult.created.length > 0" class="mb-3">
           <button @click="loadAddonBackups" class="text-xs font-medium text-orange-600 dark:text-orange-400 hover:underline">{{ t('plugins.rollbackAddons') }}</button>

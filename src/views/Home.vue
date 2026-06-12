@@ -268,7 +268,7 @@ const {
             <div
               class="flex items-center gap-3 flex-1 min-w-0"
             >
-              <div class="w-7 h-7 rounded bg-gray-50 dark:bg-surface-layer flex items-center justify-center shrink-0 overflow-hidden border border-gray-100 dark:border-surface-border">
+              <div class="w-7 h-7 rounded bg-gray-50 dark:bg-surface-layer flex items-center justify-center shrink-0 overflow-hidden border border-gray-200 dark:border-surface-border/40">
                 <img
                   v-if="project.icon_path && getIconUrl(project.icon_path)"
                   :src="getIconUrl(project.icon_path)"

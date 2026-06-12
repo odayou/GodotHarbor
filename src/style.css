@@ -2,8 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-
 :root {
   font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif;
   line-height: 1.5;
@@ -50,21 +48,21 @@
   --density-md: 12px;
   --density-lg: 16px;
   --density-xl: 24px;
-  --sidebar-width: 208px;
-  --sidebar-collapsed-width: 48px;
-  --header-height: 36px;
+  --sidebar-width: 216px;
+  --sidebar-collapsed-width: 56px;
+  --header-height: 40px;
   --statusbar-height: 24px;
 }
 
 /* Compact density mode */
 .compact {
   --density-xs: 2px;
-  --density-sm: 6px;
-  --density-md: 10px;
+  --density-sm: 4px;
+  --density-md: 8px;
   --density-lg: 12px;
   --density-xl: 16px;
-  --sidebar-width: 48px;
-  --sidebar-collapsed-width: 48px;
+  --sidebar-width: 56px;
+  --sidebar-collapsed-width: 56px;
   --header-height: 32px;
   --statusbar-height: 20px;
 }
@@ -124,11 +122,18 @@ body {
   /* Island-style card */
   .card {
     @apply bg-white dark:bg-surface-card rounded-island p-4 border border-gray-200/60 dark:border-surface-border/40 shadow-xs;
+    transition: box-shadow 0.15s ease, transform 0.15s ease;
+  }
+  .card:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   }
 
   /* Primary button - Islands style */
   .btn-primary {
-    @apply px-4 py-1.5 bg-primary-500 text-white rounded-btn hover:bg-primary-600 active:bg-primary-700 shadow-xs hover:shadow-sm transition-all duration-100;
+    @apply px-4 py-1.5 bg-primary-500 text-white rounded-btn hover:bg-primary-600 active:bg-primary-700 shadow-xs transition-all duration-100;
+  }
+  .btn-primary:hover {
+    box-shadow: 0 2px 8px rgba(53, 116, 240, 0.25);
   }
 
   /* Secondary button */
@@ -139,6 +144,9 @@ body {
   /* Danger button */
   .btn-danger {
     @apply px-4 py-1.5 bg-red-600 text-white rounded-btn hover:bg-red-700 active:bg-red-800 shadow-xs transition-all duration-100;
+  }
+  .btn-danger:hover {
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25);
   }
 
   /* Badge */
@@ -169,10 +177,12 @@ body {
 
   /* Modal backdrop */
   .modal-backdrop {
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
   }
   .dark .modal-backdrop {
-    background: rgba(0, 0, 0, 0.6);
+    background: rgba(0, 0, 0, 0.5);
   }
 
   /* Stat card - Island style */
@@ -180,7 +190,9 @@ body {
     @apply bg-white dark:bg-surface-card rounded-island p-4 border border-gray-200/60 dark:border-surface-border/40 shadow-xs cursor-pointer transition-all duration-150;
   }
   .stat-card:hover {
-    @apply bg-gray-50 dark:bg-surface-hover border-primary-300 dark:border-primary-500/30 shadow-sm;
+    @apply border-primary-300 dark:border-primary-500/30;
+    box-shadow: 0 4px 16px rgba(53, 116, 240, 0.1);
+    transform: translateY(-1px);
   }
 
   /* Info label */
@@ -304,5 +316,28 @@ body {
 
   .dialog-title {
     @apply text-sm font-semibold text-gray-900 dark:text-content-primary mb-4;
+  }
+
+  /* Acrylic surfaces */
+  .sidebar-acrylic {
+    background: linear-gradient(180deg, rgba(255,255,255,0.82) 0%, rgba(243,245,252,0.78) 100%);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+  }
+  .dark .sidebar-acrylic {
+    background: linear-gradient(180deg, rgba(30,30,34,0.88) 0%, rgba(37,37,41,0.85) 100%);
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+  }
+
+  .header-acrylic {
+    background: linear-gradient(90deg, rgba(255,255,255,0.85) 0%, rgba(247,248,252,0.80) 100%);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+  }
+  .dark .header-acrylic {
+    background: linear-gradient(90deg, rgba(30,30,34,0.90) 0%, rgba(37,37,41,0.85) 100%);
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
   }
 }

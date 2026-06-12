@@ -85,7 +85,7 @@ const finish = async () => {
 
 <template>
   <div v-if="isVisible" class="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4">
-    <div class="dialog-container w-full max-w-lg overflow-hidden">
+    <div class="dialog-container w-full max-w-lg overflow-hidden !p-0 !border-0">
       <div class="bg-primary-600 h-1.5">
         <div
           class="bg-primary-400 h-full transition-all duration-300"

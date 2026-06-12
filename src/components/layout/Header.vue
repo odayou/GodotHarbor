@@ -28,7 +28,7 @@ const close = async () => {
 </script>
 
 <template>
-  <div class="flex items-center h-9 bg-surface-light-layer dark:bg-surface-base border-b border-gray-200/60 dark:border-surface-border/40 select-none" data-tauri-drag-region>
+  <div class="flex items-center h-10 header-acrylic shadow-sm border-b border-gray-200/60 dark:border-surface-border/40 select-none" data-tauri-drag-region>
     <!-- Left: Logo + App name + Page title -->
     <div class="flex items-center gap-2 pl-3 flex-1 min-w-0" data-tauri-drag-region>
       <img src="/favicon.png" alt="Harbor" class="w-4 h-4 shrink-0" />

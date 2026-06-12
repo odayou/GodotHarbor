@@ -195,7 +195,7 @@ const getRecRatingStars = (rating: number) => {
                 v-if="openDropdownId === String(rec.plugin.asset_id)"
                 class="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-surface-card rounded border border-gray-200/60 dark:border-surface-border/40 z-50 py-1 max-h-48 overflow-y-auto"
               >
-                <div class="px-3 py-1.5 text-xs text-gray-500 dark:text-content-muted border-b border-gray-100 dark:border-surface-border">
+                <div class="px-3 py-1.5 text-xs text-gray-500 dark:text-content-muted border-b border-gray-200 dark:border-surface-border/40">
                   {{ t('assetLibrary.selectProject') }}
                 </div>
                 <button
@@ -377,7 +377,7 @@ const getRecRatingStars = (rating: number) => {
                 v-if="openDropdownId === asset.asset_id"
                 class="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-surface-card rounded border border-gray-200/60 dark:border-surface-border/40 z-50 py-1 max-h-48 overflow-y-auto"
               >
-                <div class="px-3 py-1.5 text-xs text-gray-500 dark:text-content-muted border-b border-gray-100 dark:border-surface-border">
+                <div class="px-3 py-1.5 text-xs text-gray-500 dark:text-content-muted border-b border-gray-200 dark:border-surface-border/40">
                   {{ t('assetLibrary.selectProject') }}
                 </div>
                 <button

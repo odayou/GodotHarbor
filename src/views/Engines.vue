@@ -1322,7 +1322,7 @@ const hasMissingModules = (engineId: string): boolean => {
                   v-for="(version, vIdx) in subVersions"
                   :key="`${version.tag_name}_${version.variant}`"
                   :class="[
-                    vIdx > 0 ? 'border-t border-gray-100 dark:border-surface-border' : ''
+                    vIdx > 0 ? 'border-t border-gray-200 dark:border-surface-border/40' : ''
                   ]"
                 >
                   <div class="flex items-center gap-3 p-2.5">

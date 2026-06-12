@@ -212,7 +212,7 @@ registerShortcut({
     <div class="dialog-container w-full max-w-md" @click.stop>
       <h3 class="dialog-title">选择语言 / Select Language</h3>
       <p class="text-sm text-gray-500 dark:text-content-muted mb-6">请选择您偏好的语言 / Please select your preferred language</p>
-      <p class="text-xs text-gray-400 dark:text-content-muted mb-4">可在「设置 → 外观」中切换 / Switch in Settings → Appearance</p>
+      <p class="text-xs text-gray-400 dark:text-content-muted mb-4">可在「设置 &rarr; 外观」中切换 / Switch in Settings &rarr; Appearance</p>
       <div class="space-y-3">
         <button
           @click="selectLanguage('zh-CN')"

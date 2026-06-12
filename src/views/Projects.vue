@@ -1553,7 +1553,7 @@ const toggleAddPluginPanel = () => {
             v-for="project in (filterGroup === 'all' ? groupProjects : filteredProjects)"
             :key="project.project_id"
             :class="[
-              'px-3 py-1.5 border-b border-gray-100 dark:border-surface-border/50 flex items-center gap-3 hover:bg-black/[0.03] dark:hover:bg-white/[0.04] transition-colors',
+              'px-3 py-1.5 border-b border-gray-200 dark:border-surface-border/40 flex items-center gap-3 hover:bg-black/[0.03] dark:hover:bg-white/[0.04] transition-colors',
               selectedProjectIds.has(project.project_id) ? 'bg-primary-50/50 dark:bg-primary-900/10' : ''
             ]"
             @contextmenu="showProjectContextMenu($event, project)"
@@ -1949,7 +1949,7 @@ const toggleAddPluginPanel = () => {
                 <div
                   v-for="plugin in filteredAvailablePlugins"
                   :key="plugin.plugin_id"
-                  class="flex items-center justify-between px-3 py-2 border-b border-gray-100 dark:border-surface-border last:border-0 hover:bg-gray-50 dark:hover:bg-surface-layer"
+                  class="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-surface-border/40 last:border-0 hover:bg-gray-50 dark:hover:bg-surface-layer"
                 >
                   <div class="min-w-0 flex-1">
                     <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate flex items-center gap-1">
@@ -1984,7 +1984,7 @@ const toggleAddPluginPanel = () => {
               @click="detailTab = 'environment'"
               class="text-xs text-primary-600 hover:text-primary-800 dark:text-brand-primary font-medium"
             >
-              {{ t('projects.viewEnvironment') }} →
+              {{ t('projects.viewEnvironment') }} &rarr;
             </button>
           </div>
         </div>
@@ -2212,12 +2212,12 @@ const toggleAddPluginPanel = () => {
             <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M6 18L18 6M6 6l12 12" /></svg>
             <span class="text-sm text-gray-500 dark:text-content-muted">{{ t('projects.ungrouped') }}</span>
           </button>
-          <button
+          <div
             v-for="group in availableGroups"
             :key="group.group_id"
             @click="selectedGroupId = group.group_id"
             :class="[
-              'w-full flex items-center gap-2 p-2.5 rounded-[6px] border transition-colors text-left',
+              'w-full flex items-center gap-2 p-2.5 rounded-[6px] border transition-colors text-left cursor-pointer',
               selectedGroupId === group.group_id ? 'border-primary-300 dark:border-surface-border bg-primary-50 dark:bg-surface-hover' : 'border-gray-200/60 dark:border-surface-border/40 hover:border-primary-300 dark:hover:border-surface-border hover:bg-gray-50 dark:hover:bg-surface-layer'
             ]"
           >
@@ -2231,7 +2231,7 @@ const toggleAddPluginPanel = () => {
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
             </button>
-          </button>
+          </div>
         </div>
         <button
           @click="openCreateGroupDialog"
@@ -2500,7 +2500,7 @@ const toggleAddPluginPanel = () => {
               @click="closeAddProjectDialog(); $router.push('/templates')"
               class="mt-3 text-sm text-primary-600 hover:text-primary-800 dark:text-brand-primary"
             >
-              {{ t('projects.addProjectDialog.manageTemplates') }} →
+              {{ t('projects.addProjectDialog.manageTemplates') }} &rarr;
             </button>
           </div>
           <div v-else class="space-y-3">

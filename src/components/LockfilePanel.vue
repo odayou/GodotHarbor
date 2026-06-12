@@ -140,7 +140,7 @@ watch(() => props.projectId, () => {
           class="flex items-center gap-2 p-1.5 rounded text-xs bg-yellow-50 dark:bg-yellow-900/10"
         >
           <span class="text-yellow-600 dark:text-yellow-400 font-medium">~ {{ c.plugin_name }}</span>
-          <span class="text-gray-500 dark:text-content-muted">{{ c.field }}: {{ c.old_value }} → {{ c.new_value }}</span>
+          <span class="text-gray-500 dark:text-content-muted">{{ c.field }}: {{ c.old_value }} &rarr; {{ c.new_value }}</span>
         </div>
       </div>
 

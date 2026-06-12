@@ -2,6 +2,7 @@ node_modules
 dist
 target
 src-tauri/binaries/
+GodotHarborData/
 *.log
 .DS_Store
 Thumbs.db
