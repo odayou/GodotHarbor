@@ -89,30 +89,30 @@ const showEngineContextMenu = (event: MouseEvent, engine: Engine) => {
   engineContextMenu.show(event, [
     {
       label: t('engines.contextMenu.launch'),
-      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>',
+      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>',
       action: () => launchEngine(engine.engine_id),
       disabled: engineHealthMap.value.get(engine.engine_id) === false || isLaunchingEngine,
     },
     {
       label: t('engines.rename'),
-      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>',
+      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>',
       action: () => openRenameDialog(engine),
     },
     { separator: true },
     {
       label: t('engines.contextMenu.manageModules'),
-      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>',
+      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>',
       action: () => toggleModulesPanel(engine.engine_id),
     },
     { separator: true },
     {
       label: t('engines.contextMenu.openInFileManager'),
-      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>',
+      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>',
       action: () => openInFileManager(engine.path),
     },
     {
       label: t('engines.contextMenu.removeEngine'),
-      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>',
+      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>',
       action: () => confirmRemoveEngine(engine.engine_id),
       danger: true,
     },
@@ -785,7 +785,7 @@ const hasMissingModules = (engineId: string): boolean => {
   <div class="flex flex-col h-full">
     <div class="shrink-0 space-y-2 pb-2">
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-      <h1 class="text-base font-semibold text-gray-900 dark:text-content-primary">{{ t('engines.title') }}</h1>
+      <h1 class="text-sm font-semibold text-gray-900 dark:text-content-primary">{{ t('engines.title') }}</h1>
       <div class="flex flex-wrap gap-2">
         <button
           @click="discoverEngines"
@@ -796,10 +796,10 @@ const hasMissingModules = (engineId: string): boolean => {
         </button>
         <button
           @click="openDownloadDialog"
-          class="px-4 py-2 border border-primary-600 text-primary-600 dark:text-brand-primary bg-white dark:bg-surface-card rounded hover:bg-primary-50 dark:hover:bg-surface-hover transition-colors text-sm inline-flex items-center gap-1.5"
+          class="px-4 py-2 border border-primary-600 text-primary-600 dark:text-brand-primary bg-white dark:bg-surface-card rounded-btn hover:bg-primary-50 dark:hover:bg-surface-hover transition-colors text-sm inline-flex items-center gap-1.5"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
           {{ t('engines.download.title') }}
         </button>
@@ -812,7 +812,7 @@ const hasMissingModules = (engineId: string): boolean => {
       </div>
     </div>
 
-    <div v-if="activeDownloads.size > 0 && !showDownloadDialog" class="fixed bottom-4 right-4 z-30 bg-white dark:bg-surface-card rounded-lg border border-blue-200/80 dark:border-surface-border/60 p-3 w-80 shadow-popover">
+    <div v-if="activeDownloads.size > 0 && !showDownloadDialog" class="fixed bottom-4 right-4 z-30 bg-white dark:bg-surface-card rounded-island border border-blue-200 dark:border-surface-border/50 p-3 w-80">
       <div class="flex items-center justify-between mb-2">
         <span class="text-sm font-medium text-blue-800 dark:text-content-secondary">
           {{ t('engines.download.downloading') }} ({{ activeDownloads.size }})
@@ -846,7 +846,7 @@ const hasMissingModules = (engineId: string): boolean => {
       </div>
     </div>
 
-    <div class="border-b border-gray-200 dark:border-surface-border pb-2">
+    <div class="border-b border-gray-200/60 dark:border-surface-border/40 pb-2">
       <div class="flex flex-col lg:flex-row gap-2">
         <div class="flex-1">
           <input
@@ -859,7 +859,7 @@ const hasMissingModules = (engineId: string): boolean => {
         <div class="flex gap-1.5 items-center">
           <select
             v-model="filterType"
-            class="input-field py-1.5"
+            class="select-field"
           >
             <option value="all">{{ t('engines.allTypes') }}</option>
             <option value="Godot4">Godot 4</option>
@@ -904,7 +904,7 @@ const hasMissingModules = (engineId: string): boolean => {
       <p class="text-sm text-gray-500 dark:text-content-muted">{{ t('engines.noMatchingEngines') }}</p>
     </div>
 
-    <div v-else class="flex-1 min-h-0 border border-gray-200/80 dark:border-surface-border/60 rounded-lg overflow-hidden">
+    <div v-else class="flex-1 min-h-0 border border-gray-200 dark:border-surface-border/50 rounded overflow-hidden">
       <div class="overflow-x-hidden h-full overflow-y-auto">
         <table class="w-full min-w-[800px]">
           <tbody class="divide-y divide-gray-100 dark:divide-surface-border/40">
@@ -917,7 +917,7 @@ const hasMissingModules = (engineId: string): boolean => {
                 <div class="flex items-center gap-2">
                   <div class="w-7 h-7 rounded bg-primary-100 dark:bg-surface-hover flex items-center justify-center">
                     <svg class="w-4 h-4 text-primary-600 dark:text-brand-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
                   </div>
                   <div>
@@ -990,7 +990,7 @@ const hasMissingModules = (engineId: string): boolean => {
                     :title="t('engines.modules.title')"
                   >
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                      <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                     </svg>
                   </button>
                   <button
@@ -1004,8 +1004,8 @@ const hasMissingModules = (engineId: string): boolean => {
                       <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                     </svg>
                     <svg v-else class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                      <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </button>
                   <button
@@ -1020,7 +1020,7 @@ const hasMissingModules = (engineId: string): boolean => {
                       <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                     </svg>
                     <svg v-else class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
                   </button>
                   <div class="engine-menu-wrapper" style="position: relative; display: inline-block">
@@ -1030,40 +1030,40 @@ const hasMissingModules = (engineId: string): boolean => {
                       :title="t('engines.moreActions')"
                     >
                       <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                        <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
                       </svg>
                     </button>
                     <div
                       v-if="openMenuId === engine.engine_id"
-                      class="absolute right-0 top-full mt-1 bg-white dark:bg-surface-hover rounded-md shadow-popover border border-gray-200/80 dark:border-surface-border/60 py-1 z-20 min-w-[140px]"
+                      class="absolute right-0 top-full mt-1 bg-white dark:bg-surface-hover rounded-[6px] border border-gray-200 dark:border-surface-border/50 py-1 z-20 min-w-[140px]"
                     >
                       <button
                         @click="openRenameDialog(engine); openMenuId = ''"
                         class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-content-primary hover:bg-gray-100 dark:hover:bg-surface-layer flex items-center gap-2"
                       >
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                         {{ t('engines.rename') }}
                       </button>
                       <button
                         @click="handleRelocateEngine(engine.engine_id); openMenuId = ''"
                         class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-content-primary hover:bg-gray-100 dark:hover:bg-surface-layer flex items-center gap-2"
                       >
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
                         {{ t('engines.relocate') }}
                       </button>
                       <button
                         @click="openInFileManager(engine.path); openMenuId = ''"
                         class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-content-primary hover:bg-gray-100 dark:hover:bg-surface-layer flex items-center gap-2"
                       >
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
                         {{ t('engines.openInFileManager') }}
                       </button>
-                      <hr class="my-1 border-gray-200 dark:border-surface-border" />
+                      <hr class="my-1 border-gray-200/60 dark:border-surface-border/40" />
                       <button
                         @click="confirmRemoveEngine(engine.engine_id); openMenuId = ''"
                         class="w-full text-left px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
                       >
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                         {{ t('engines.deleteEngine') }}
                       </button>
                     </div>
@@ -1141,7 +1141,7 @@ const hasMissingModules = (engineId: string): boolean => {
   <Teleport to="body">
     <div v-if="showDownloadDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="handleDownloadDialogClose">
       <div class="dialog-container w-full max-w-3xl max-h-[85vh] flex flex-col" @click.stop>
-        <div class="flex justify-between items-center pb-2 mb-2 border-b border-gray-200/80 dark:border-surface-border/60">
+        <div class="flex justify-between items-center pb-2 mb-2 border-b border-gray-200 dark:border-surface-border/50">
           <h3 class="dialog-title mb-0">{{ t('engines.download.title') }}</h3>
           <button @click="handleDownloadDialogClose" class="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
             {{ t('common.close') }}
@@ -1149,16 +1149,16 @@ const hasMissingModules = (engineId: string): boolean => {
         </div>
 
         <div class="px-3 pb-2 space-y-2">
-          <div class="flex border-b border-gray-200 dark:border-surface-border mb-2">
+          <div class="flex border-b border-gray-200/60 dark:border-surface-border/40 mb-2">
             <button
               @click="downloadTab = 'mirror'"
-              :class="['px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors', downloadTab === 'mirror' ? 'border-primary-600 text-primary-600 dark:text-brand-primary' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300']"
+              :class="downloadTab === 'mirror' ? 'tab-item-active' : 'tab-item'"
             >
               {{ t('engines.download.mirrorTab') }}
             </button>
             <button
               @click="downloadTab = 'url'"
-              :class="['px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors', downloadTab === 'url' ? 'border-primary-600 text-primary-600 dark:text-brand-primary' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300']"
+              :class="downloadTab === 'url' ? 'tab-item-active' : 'tab-item'"
             >
               {{ t('engines.download.urlTab') }}
             </button>
@@ -1182,7 +1182,7 @@ const hasMissingModules = (engineId: string): boolean => {
             <button
               @click="fetchRemoteVersions(true)"
               :disabled="isFetchingVersions"
-              class="px-4 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-hover text-gray-700 dark:text-content-secondary rounded hover:bg-gray-50 dark:hover:bg-surface-layer text-sm whitespace-nowrap disabled:opacity-50"
+              class="px-4 py-2 border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-hover text-gray-700 dark:text-content-secondary rounded-btn hover:bg-gray-50 dark:hover:bg-surface-layer text-sm whitespace-nowrap disabled:opacity-50"
             >
               {{ isFetchingVersions ? t('engines.download.fetching') : t('engines.download.refresh') }}
             </button>
@@ -1217,7 +1217,7 @@ const hasMissingModules = (engineId: string): boolean => {
               <option value="mono">{{ t('engines.download.variantMono') }}</option>
             </select>
             <label class="flex items-center gap-1.5 text-sm text-gray-600 dark:text-content-muted cursor-pointer whitespace-nowrap">
-              <input type="checkbox" v-model="hideInstalled" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+              <input type="checkbox" v-model="hideInstalled" class="checkbox-field" />
               {{ t('engines.download.hideInstalled') }}
             </label>
           </div>
@@ -1299,11 +1299,11 @@ const hasMissingModules = (engineId: string): boolean => {
           <div v-else class="space-y-3">
             <div v-for="[groupKey, versions] in groupedRemoteVersions" :key="groupKey">
               <div
-                class="sticky top-0 bg-white dark:bg-surface-card py-1.5 px-3 -mx-3 border-b border-gray-200 dark:border-surface-border mb-2 z-10 cursor-pointer hover:bg-gray-50 dark:hover:bg-surface-hover/50 transition-colors"
+                class="sticky top-0 bg-white dark:bg-surface-card py-1.5 px-3 -mx-3 border-b border-gray-200/60 dark:border-surface-border/40 mb-2 z-10 cursor-pointer hover:bg-gray-50 dark:hover:bg-surface-hover/50 transition-colors"
                 @click="toggleGroup(groupKey)"
               >
                 <div class="flex items-center gap-2">
-                  <svg class="w-3 h-3 text-gray-400 transition-transform" :class="{ '-rotate-90': collapsedGroups.has(groupKey) }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                  <svg class="w-3 h-3 text-gray-400 transition-transform" :class="{ '-rotate-90': collapsedGroups.has(groupKey) }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M19 9l-7 7-7-7" /></svg>
                   <span class="text-sm font-semibold text-gray-700 dark:text-content-secondary">Godot {{ groupKey }}</span>
                   <span class="text-xs text-gray-400 ml-2">{{ versions.length }} {{ t('engines.download.versionCount') }}</span>
                 </div>
@@ -1312,10 +1312,10 @@ const hasMissingModules = (engineId: string): boolean => {
             <div v-for="[subKey, subVersions] in subGroupedVersions(versions)" :key="subKey">
               <div
                 :class="[
-                  'rounded border transition-colors',
+                  'rounded-[4px] border transition-colors',
                   subVersions.every(v => v.is_installed)
-                    ? 'bg-gray-50 dark:bg-surface-hover/30 border-gray-200 dark:border-surface-border'
-                    : 'bg-white dark:bg-surface-card border-gray-200 dark:border-surface-border'
+                    ? 'bg-gray-50 dark:bg-surface-hover/30 border-gray-200/60 dark:border-surface-border/40'
+                    : 'bg-white dark:bg-surface-card border-gray-200/60 dark:border-surface-border/40'
                 ]"
               >
                 <div
@@ -1366,7 +1366,7 @@ const hasMissingModules = (engineId: string): boolean => {
                           class="text-primary-600 dark:text-brand-primary hover:underline inline-flex items-center gap-0.5"
                         >
                           {{ t('engines.download.sourceLink') }}
-                          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                         </button>
                         <button
                           v-if="version.release_notes"
@@ -1404,7 +1404,7 @@ const hasMissingModules = (engineId: string): boolean => {
                     <template v-else>
                       <button
                         @click="startDownload(version)"
-                        class="px-3 py-1.5 rounded text-xs font-medium transition-colors whitespace-nowrap bg-primary-600 text-white hover:bg-primary-700"
+                        class="px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap btn-primary"
                       >
                         {{ t('engines.download.downloadAction') }}
                       </button>
@@ -1465,7 +1465,7 @@ const hasMissingModules = (engineId: string): boolean => {
       @confirm="onRemoveEngineConfirm"
     >
       <label class="flex items-center gap-2 mt-2 cursor-pointer">
-        <input type="checkbox" v-model="deleteAlsoFiles" class="rounded border-gray-300 text-red-600 focus:ring-red-500" />
+        <input type="checkbox" v-model="deleteAlsoFiles" class="w-4 h-4 rounded-[3px] border border-gray-300 dark:border-surface-border text-red-500 focus:ring-2 focus:ring-red-500/20 bg-white dark:bg-surface-input cursor-pointer" />
         <span class="text-sm text-gray-600 dark:text-content-muted">{{ t('engines.deleteAlsoFiles') }}</span>
       </label>
       <p v-if="deleteAlsoFiles" class="mt-2 text-xs text-red-600 dark:text-red-400">{{ t('engines.deleteAlsoFilesWarning') }}</p>

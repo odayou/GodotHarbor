@@ -478,21 +478,18 @@ onUnmounted(() => {
 <template>
   <div class="h-full flex flex-col">
     <div class="px-3 pb-3">
-      <h1 class="text-base font-semibold text-gray-900 dark:text-content-primary">{{ t('build.title') }}</h1>
+      <h1 class="text-sm font-semibold text-gray-900 dark:text-content-primary">{{ t('build.title') }}</h1>
       <p class="text-xs text-gray-500 dark:text-content-muted mt-0.5">{{ t('build.subtitle') }}</p>
     </div>
 
-    <div class="px-3 flex gap-1 border-b border-gray-200 dark:border-surface-border mb-3">
+    <div class="px-3 flex gap-1 border-b border-gray-200/60 dark:border-surface-border/40 mb-3">
       <button
         v-for="tab in ([
           { key: 'export', label: t('build.exportConfig') },
           { key: 'build', label: t('build.buildProject') },
         ] as const)"
         :key="tab.key"
-        class="px-4 py-2 text-sm font-medium border-b-2 transition-colors"
-        :class="activeTab === tab.key
-          ? 'border-primary-500 text-primary-600 dark:text-brand-primary'
-          : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-content-secondary dark:hover:text-content-primary'"
+        :class="activeTab === tab.key ? 'tab-item-active' : 'tab-item'"
         @click="activeTab = tab.key"
       >
         {{ tab.label }}
@@ -532,7 +529,7 @@ onUnmounted(() => {
           <div
             v-for="tmpl in exportTemplates"
             :key="tmpl.version + (tmpl.mono ? '-mono' : '')"
-            class="flex items-center justify-between p-3 bg-white dark:bg-surface-card rounded-md border border-gray-200 dark:border-surface-border"
+            class="flex items-center justify-between p-3 bg-white dark:bg-surface-card rounded border border-gray-200/60 dark:border-surface-border/40"
           >
             <div class="flex items-center gap-3">
               <span
@@ -552,7 +549,7 @@ onUnmounted(() => {
             <div class="flex items-center gap-2">
               <button
                 v-if="!tmpl.installed"
-                class="px-3 py-1.5 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors disabled:opacity-50"
+                class="px-3 py-1.5 text-sm font-medium btn-primary transition-colors disabled:opacity-50"
                 :disabled="downloadingVersion === `${tmpl.version}-${tmpl.mono}`"
                 @click="downloadTemplate(tmpl.version, tmpl.mono)"
               >
@@ -560,7 +557,7 @@ onUnmounted(() => {
               </button>
               <button
                 v-if="!tmpl.installed"
-                class="px-3 py-1.5 text-sm font-medium text-primary-600 dark:text-brand-primary hover:bg-primary-50 dark:hover:bg-surface-hover rounded-lg transition-colors disabled:opacity-50"
+                class="px-3 py-1.5 text-sm font-medium text-primary-600 dark:text-brand-primary hover:bg-primary-50 dark:hover:bg-surface-hover rounded transition-colors disabled:opacity-50"
                 :disabled="downloadingVersion === `${tmpl.version}-import`"
                 @click="importTemplateFromFile(tmpl.version, tmpl.mono)"
               >
@@ -568,7 +565,7 @@ onUnmounted(() => {
               </button>
               <button
                 v-if="tmpl.installed"
-                class="px-3 py-1.5 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                class="px-3 py-1.5 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
                 @click="deleteTarget = { version: tmpl.version, mono: tmpl.mono }"
               >
                 {{ t('build.delete') }}
@@ -577,10 +574,10 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <div v-if="downloadProgress" class="bg-primary-50 dark:bg-surface-hover border border-primary-200 dark:border-surface-border rounded-md p-3 mt-3">
+        <div v-if="downloadProgress" class="bg-primary-50 dark:bg-surface-hover border border-primary-200 dark:border-surface-border rounded p-3 mt-3">
           <div class="flex items-center gap-3">
             <div class="animate-spin rounded-full h-5 w-5 border-2 border-primary-600 border-t-transparent flex-shrink-0" v-if="downloadProgress.stage !== 'complete'"></div>
-            <svg v-else class="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+            <svg v-else class="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M5 13l4 4L19 7" /></svg>
             <div class="flex-1 min-w-0">
               <div class="flex items-center justify-between">
                 <p class="text-sm font-medium text-primary-800 dark:text-content-secondary">{{ downloadProgress.message }}</p>
@@ -594,8 +591,8 @@ onUnmounted(() => {
       </div>
 
       <!-- Export Presets Section -->
-      <div class="mt-6 pt-4 border-t border-gray-200 dark:border-surface-border">
-        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-3">{{ t('build.presets') }}</h3>
+      <div class="mt-6 pt-4 border-t border-gray-200/60 dark:border-surface-border/40">
+        <h3 class="text-sm font-semibold text-gray-900 dark:text-content-primary mb-3">{{ t('build.presets') }}</h3>
         <p class="text-sm text-gray-500 dark:text-content-muted mb-4">{{ t('build.presetsDesc') }}</p>
         <div class="mb-4">
           <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('build.selectProject') }}</label>
@@ -606,7 +603,7 @@ onUnmounted(() => {
           <div
             v-for="preset in builtinPresets"
             :key="preset.platform + preset.name"
-            class="p-3 bg-white dark:bg-surface-card rounded-md border border-gray-200 dark:border-surface-border"
+            class="p-3 bg-white dark:bg-surface-card rounded border border-gray-200/60 dark:border-surface-border/40"
           >
             <div class="flex items-center justify-between mb-2">
               <span class="font-medium text-gray-900 dark:text-content-primary">{{ preset.name }}</span>
@@ -615,13 +612,13 @@ onUnmounted(() => {
             <p class="text-sm text-gray-500 dark:text-content-muted mb-3">{{ preset.description }}</p>
             <div class="flex items-center gap-2">
               <button
-                class="px-3 py-1.5 text-sm font-medium text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 dark:bg-surface-hover dark:text-brand-primary dark:hover:bg-surface-hover rounded-lg transition-colors"
+                class="px-3 py-1.5 text-sm font-medium text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 dark:bg-surface-hover dark:text-brand-primary dark:hover:bg-surface-hover rounded transition-colors"
                 @click="applyPreset(preset)"
               >
                 {{ t('build.applyPreset') }}
               </button>
               <button
-                class="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 dark:bg-surface-layer dark:text-content-secondary dark:hover:bg-surface-border rounded-lg transition-colors"
+                class="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 dark:bg-surface-layer dark:text-content-secondary dark:hover:bg-surface-border rounded transition-colors"
                 @click="exportPreset(preset)"
               >
                 {{ t('build.exportPreset') }}
@@ -630,14 +627,14 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <div class="mt-4 p-3 bg-white dark:bg-surface-card rounded-md border border-gray-200 dark:border-surface-border">
+        <div class="mt-4 p-3 bg-white dark:bg-surface-card rounded border border-gray-200/60 dark:border-surface-border/40">
           <h3 class="text-sm font-medium text-gray-700 dark:text-content-secondary mb-3">{{ t('build.importPresetTitle') }}</h3>
           <div class="flex gap-2">
             <input
               v-model="importPresetJson"
               type="text"
               :placeholder="t('build.importPresetPlaceholder')"
-              class="flex-1 px-3 py-2 text-sm bg-white dark:bg-surface-layer border border-gray-300 dark:border-surface-border rounded text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none"
+              class="flex-1 px-3 py-2 text-sm bg-white dark:bg-surface-layer border border-gray-300 dark:border-surface-border rounded text-gray-900 dark:text-content-primary focus:ring-1 focus:ring-primary-500 outline-none"
             />
             <button
               class="px-3 py-2 text-sm font-medium text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 dark:bg-surface-hover dark:text-brand-primary dark:hover:bg-surface-hover rounded transition-colors disabled:opacity-50"
@@ -654,7 +651,7 @@ onUnmounted(() => {
       <!-- Build Tab -->
       <div v-if="activeTab === 'build'">
         <p class="text-sm text-gray-500 dark:text-content-muted mb-4">{{ t('build.buildDesc') }}</p>
-        <div class="bg-white dark:bg-surface-card rounded-md border border-gray-200 dark:border-surface-border p-4 mb-4">
+        <div class="bg-white dark:bg-surface-card rounded border border-gray-200/60 dark:border-surface-border/40 p-4 mb-4">
           <div class="grid gap-3 sm:grid-cols-3">
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('build.selectProject') }}</label>
@@ -664,14 +661,14 @@ onUnmounted(() => {
               <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('build.selectPlatform') }}</label>
               <select
                 v-model="selectedPlatform"
-                class="w-full max-w-xs px-3 py-2 bg-white dark:bg-surface-layer border border-gray-300 dark:border-surface-border rounded text-sm text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none"
+                class="w-full max-w-xs select-field"
               >
                 <option v-for="opt in platformOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
               </select>
             </div>
             <div class="flex items-end gap-2">
               <button
-                class="flex-1 px-3 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded transition-colors disabled:opacity-50"
+                class="flex-1 px-3 py-2 text-sm font-medium btn-primary transition-colors disabled:opacity-50"
                 :disabled="building || !selectedProjectId"
                 @click="startBuild"
               >
@@ -688,11 +685,11 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <div v-if="buildProgress" class="bg-primary-50 dark:bg-surface-hover border border-primary-200 dark:border-surface-border rounded-md p-3 mb-4">
+        <div v-if="buildProgress" class="bg-primary-50 dark:bg-surface-hover border border-primary-200 dark:border-surface-border rounded p-3 mb-4">
           <div class="flex items-center gap-3">
             <div class="animate-spin rounded-full h-5 w-5 border-2 border-primary-600 border-t-transparent flex-shrink-0" v-if="buildProgress.stage !== 'complete' && buildProgress.stage !== 'failed'"></div>
-            <svg v-else-if="buildProgress.stage === 'complete'" class="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-            <svg v-else class="w-5 h-5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            <svg v-else-if="buildProgress.stage === 'complete'" class="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M5 13l4 4L19 7" /></svg>
+            <svg v-else class="w-5 h-5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M6 18L18 6M6 6l12 12" /></svg>
             <div class="flex-1 min-w-0">
               <div class="flex items-center justify-between">
                 <p class="text-sm font-medium text-primary-800 dark:text-content-secondary">{{ buildProgress.message }}</p>
@@ -718,7 +715,7 @@ onUnmounted(() => {
         <div v-if="buildRecords.length > 0" class="flex items-center gap-3 mb-3">
           <select
             v-model="buildFilterProject"
-            class="px-3 py-1.5 text-sm bg-white dark:bg-surface-layer border border-gray-300 dark:border-surface-border rounded text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none"
+            class="select-field"
           >
             <option value="">{{ t('build.allProjects') }}</option>
             <option v-for="p in uniqueBuildProjects" :key="p.id" :value="p.id">{{ p.name }}</option>
@@ -738,7 +735,7 @@ onUnmounted(() => {
           <div
             v-for="record in filteredBuildRecords.slice().reverse()"
             :key="record.build_id"
-            class="flex items-center justify-between p-3 bg-white dark:bg-surface-card rounded-md border border-gray-200 dark:border-surface-border"
+            class="flex items-center justify-between p-3 bg-white dark:bg-surface-card rounded border border-gray-200/60 dark:border-surface-border/40"
           >
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 mb-1">
@@ -781,10 +778,10 @@ onUnmounted(() => {
         </div>
 
       <!-- CI/CD Section -->
-      <div class="mt-6 pt-4 border-t border-gray-200 dark:border-surface-border">
-        <h3 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-3">{{ t('build.ciConfig') }}</h3>
+      <div class="mt-6 pt-4 border-t border-gray-200/60 dark:border-surface-border/40">
+        <h3 class="text-sm font-semibold text-gray-900 dark:text-content-primary mb-3">{{ t('build.ciConfig') }}</h3>
         <p class="text-sm text-gray-500 dark:text-content-muted mb-4">{{ t('build.ciDesc') }}</p>
-        <div class="bg-white dark:bg-surface-card rounded-md border border-gray-200 dark:border-surface-border p-4 mb-4">
+        <div class="bg-white dark:bg-surface-card rounded border border-gray-200/60 dark:border-surface-border/40 p-4 mb-4">
           <div class="grid gap-3 sm:grid-cols-2 mb-3">
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('build.selectProject') }}</label>
@@ -794,7 +791,7 @@ onUnmounted(() => {
               <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('build.provider') }}</label>
               <select
                 v-model="ciProvider"
-                class="w-full max-w-xs px-3 py-2 bg-white dark:bg-surface-layer border border-gray-300 dark:border-surface-border rounded text-sm text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none"
+                class="w-full max-w-xs select-field"
               >
                 <option value="github-actions">{{ t('build.githubActions') }}</option>
                 <option value="gitlab-ci">{{ t('build.gitlabCi') }}</option>
@@ -806,7 +803,7 @@ onUnmounted(() => {
             <input
               v-model="ciGodotVersion"
               type="text"
-              class="w-full max-w-xs px-3 py-2 bg-white dark:bg-surface-layer border border-gray-300 dark:border-surface-border rounded text-sm text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none"
+              class="w-full max-w-xs px-3 py-2 bg-white dark:bg-surface-layer border border-gray-300 dark:border-surface-border rounded text-sm text-gray-900 dark:text-content-primary focus:ring-1 focus:ring-primary-500 outline-none"
               :class="{ 'border-red-400 dark:border-red-500': ciGodotVersion && !isValidGodotVersion }"
               placeholder="4.4.1"
             />
@@ -830,7 +827,7 @@ onUnmounted(() => {
           </div>
           <div class="flex gap-2">
             <button
-              class="px-3 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded transition-colors disabled:opacity-50"
+              class="px-3 py-2 text-sm font-medium btn-primary transition-colors disabled:opacity-50"
               :disabled="!ciProjectId || ciPlatforms.length === 0 || !isValidGodotVersion || generatingCi"
               @click="generateCi"
             >
@@ -839,7 +836,7 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <div v-if="generatedConfig" class="bg-white dark:bg-surface-card rounded-md border border-gray-200 dark:border-surface-border p-4">
+        <div v-if="generatedConfig" class="bg-white dark:bg-surface-card rounded border border-gray-200/60 dark:border-surface-border/40 p-4">
           <div class="flex items-center justify-between mb-3">
             <h3 class="text-sm font-medium text-gray-700 dark:text-content-secondary">
               {{ ciProvider === 'github-actions' ? '.github/workflows/build.yml' : '.gitlab-ci.yml' }}
@@ -862,7 +859,7 @@ onUnmounted(() => {
           </div>
           <textarea
             v-model="generatedConfig"
-            class="w-full bg-gray-50 dark:bg-surface-layer rounded p-3 text-xs text-gray-800 dark:text-content-secondary font-mono resize-y min-h-[200px] max-h-96 focus:ring-2 focus:ring-primary-500 outline-none"
+            class="w-full bg-gray-50 dark:bg-surface-layer rounded p-3 text-xs text-gray-800 dark:text-content-secondary font-mono resize-y min-h-[200px] max-h-96 focus:ring-1 focus:ring-primary-500 outline-none"
             spellcheck="false"
           ></textarea>
         </div>

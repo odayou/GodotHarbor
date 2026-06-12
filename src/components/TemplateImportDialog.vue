@@ -120,7 +120,7 @@ const close = () => {
       <div class="absolute inset-0 bg-black/50" @click="close"></div>
       <div class="dialog-container max-w-lg w-full mx-4">
         <div class="p-4">
-          <h2 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-3">
+          <h2 class="text-sm font-semibold text-gray-900 dark:text-content-primary mb-3">
             导入模板文件
           </h2>
 
@@ -133,12 +133,12 @@ const close = () => {
                   type="text"
                   readonly
                   placeholder="点击选择 .harbor-template 文件"
-                  class="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary outline-none"
+                  class="flex-1 px-3 py-2 text-sm rounded border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary outline-none"
                 />
                 <button
                   @click="selectFile"
                   :disabled="isVerifying || isConfirming"
-                  class="px-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border hover:bg-gray-50 dark:hover:bg-surface-layer disabled:opacity-50"
+                  class="px-4 py-2 text-sm rounded border border-gray-300 dark:border-surface-border hover:bg-gray-50 dark:hover:bg-surface-layer disabled:opacity-50"
                 >
                   浏览
                 </button>
@@ -154,7 +154,7 @@ const close = () => {
             <!-- Verification Result -->
             <div v-if="verification && manifest" class="space-y-3">
               <!-- Template Info -->
-              <div class="p-3 rounded-lg bg-gray-50 dark:bg-surface-layer">
+              <div class="p-3 rounded bg-gray-50 dark:bg-surface-layer">
                 <p class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ manifest.template.name }}</p>
                 <p class="text-xs text-gray-500 dark:text-content-muted mt-0.5">
                   {{ manifest.template.godot.version }} · {{ manifest.template.category }} · v{{ manifest.template.version }}
@@ -162,10 +162,10 @@ const close = () => {
               </div>
 
               <!-- Signed & Verified -->
-              <div v-if="isVerified" class="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+              <div v-if="isVerified" class="p-3 rounded bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
                 <div class="flex items-center gap-2">
                   <svg class="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                   </svg>
                   <div>
                     <p class="text-sm font-medium text-green-700 dark:text-green-400">签名验证通过</p>
@@ -175,10 +175,10 @@ const close = () => {
               </div>
 
               <!-- Unsigned Warning -->
-              <div v-else-if="isUnsigned" class="p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
+              <div v-else-if="isUnsigned" class="p-3 rounded bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
                 <div class="flex items-center gap-2">
                   <svg class="w-5 h-5 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                   </svg>
                   <div>
                     <p class="text-sm font-medium text-yellow-700 dark:text-yellow-400">未签名模板</p>
@@ -188,10 +188,10 @@ const close = () => {
               </div>
 
               <!-- Verification Failed -->
-              <div v-else class="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+              <div v-else class="p-3 rounded bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
                 <div class="flex items-center gap-2">
                   <svg class="w-5 h-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   <div>
                     <p class="text-sm font-medium text-red-700 dark:text-red-400">验证失败</p>
@@ -203,7 +203,7 @@ const close = () => {
               <!-- Checksum Info -->
               <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-content-muted">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4" />
+                  <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M9 12l2 2 4-4" />
                 </svg>
                 <span>校验和: {{ manifest.checksum.substring(0, 16) }}...</span>
                 <span :class="verification.checksum_valid ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'">
@@ -217,7 +217,7 @@ const close = () => {
             <button
               @click="close"
               :disabled="isConfirming || isVerifying"
-              class="flex-1 py-2.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors disabled:opacity-50"
+              class="flex-1 py-2.5 text-sm font-medium rounded border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors disabled:opacity-50"
             >
               取消
             </button>
@@ -225,7 +225,7 @@ const close = () => {
               v-if="manifest"
               @click="confirmImport"
               :disabled="!canConfirmImport"
-              class="flex-1 py-2.5 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
+              class="flex-1 py-2.5 text-sm font-medium btn-primary transition-colors disabled:opacity-50"
             >
               {{ isConfirming ? '导入中...' : '确认导入' }}
             </button>

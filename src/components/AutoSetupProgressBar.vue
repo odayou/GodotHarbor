@@ -25,12 +25,12 @@ const stepItems = computed(() =>
         v-if="isRunning || currentStep === 'done'"
         class="fixed bottom-8 left-1/2 -translate-x-1/2 z-[80] w-full max-w-xl"
       >
-        <div class="bg-white dark:bg-surface-card rounded-lg shadow-popover border border-gray-200/80 dark:border-surface-border/60 overflow-hidden">
+        <div class="bg-white dark:bg-surface-card rounded  border border-gray-200/80 dark:border-surface-border/60 overflow-hidden">
           <div class="px-4 py-3">
             <div class="flex items-center gap-3">
               <div v-if="isRunning" class="animate-spin rounded-full h-5 w-5 border-2 border-primary-600 border-t-transparent shrink-0"></div>
               <svg v-else class="h-5 w-5 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M5 13l4 4L19 7" />
               </svg>
               <div class="flex-1 min-w-0">
                 <p class="text-sm font-medium text-gray-900 dark:text-content-primary truncate">
@@ -62,7 +62,7 @@ const stepItems = computed(() =>
                     ]"
                   >
                     <svg v-if="item.completed" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                      <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="3" d="M5 13l4 4L19 7" />
                     </svg>
                     <span v-else>{{ i + 1 }}</span>
                   </div>
@@ -83,7 +83,7 @@ const stepItems = computed(() =>
                   :class="item.completed ? 'text-green-400' : 'text-gray-300 dark:text-gray-600'"
                   fill="none" stroke="currentColor" viewBox="0 0 24 24"
                 >
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M9 5l7 7-7 7" />
                 </svg>
               </template>
             </div>

@@ -187,14 +187,14 @@ registerShortcut({
 </script>
 
 <template>
-  <div class="flex h-screen bg-white dark:bg-surface-layer">
+  <div class="flex h-screen bg-surface-light-base dark:bg-surface-base border border-gray-200/60 dark:border-surface-border/40" @contextmenu.prevent>
     <Sidebar />
     <div class="flex-1 flex flex-col overflow-hidden">
       <div v-if="!isOnline" class="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs text-center py-1.5 px-4">
         {{ t('common.offlineNotice') }}
       </div>
       <Header />
-      <main class="flex-1 overflow-x-hidden overflow-y-auto bg-white dark:bg-surface-layer p-3">
+      <main class="flex-1 overflow-x-hidden overflow-y-auto bg-surface-light-base dark:bg-surface-base p-4">
         <RouterView v-slot="{ Component }">
           <component :is="Component" />
         </RouterView>
@@ -206,23 +206,23 @@ registerShortcut({
     <DataDirSetupDialog v-model:visible="showDataDirSetup" />
     <CommandPalette />
   </div>
-  
+
   <!-- 首次启动语言选择对话框 -->
   <div v-if="showLanguageDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-[110]">
     <div class="dialog-container w-full max-w-md" @click.stop>
       <h3 class="dialog-title">选择语言 / Select Language</h3>
       <p class="text-sm text-gray-500 dark:text-content-muted mb-6">请选择您偏好的语言 / Please select your preferred language</p>
-      <p class="text-xs text-gray-400 dark:text-content-muted mb-4">💡 可在「设置 → 外观」中切换 / Switch in Settings → Appearance</p>
+      <p class="text-xs text-gray-400 dark:text-content-muted mb-4">可在「设置 → 外观」中切换 / Switch in Settings → Appearance</p>
       <div class="space-y-3">
         <button
           @click="selectLanguage('zh-CN')"
-          class="w-full px-4 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+          class="btn-primary w-full px-4 py-3"
         >
           简体中文
         </button>
         <button
           @click="selectLanguage('en')"
-          class="btn-secondary w-full px-4 py-3 transition-colors"
+          class="btn-secondary w-full px-4 py-3"
         >
           English
         </button>

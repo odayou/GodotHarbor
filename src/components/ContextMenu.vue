@@ -44,7 +44,7 @@ watch(() => props.visible, async (val) => {
     <div v-if="visible" class="fixed inset-0 z-50" @click="emit('close')" @contextmenu.prevent="emit('close')">
       <div
         ref="menuRef"
-        class="fixed bg-white dark:bg-surface-layer border border-border rounded-md py-1 min-w-[180px] text-sm"
+        class="fixed bg-white dark:bg-surface-layer border border-border rounded py-1 min-w-[180px] text-sm"
         :style="{ left: adjustedX + 'px', top: adjustedY + 'px' }"
         @click.stop
       >

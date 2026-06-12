@@ -137,7 +137,7 @@ const getRecRatingStars = (rating: number) => {
         <div
           v-for="rec in recommendations.slice(0, 6)"
           :key="rec.plugin.asset_id"
-          class="bg-white dark:bg-surface-card rounded-md border border-gray-200 dark:border-surface-border transition-all duration-200 p-3 min-w-[220px] max-w-[260px] flex-shrink-0"
+          class="bg-white dark:bg-surface-card rounded border border-gray-200/60 dark:border-surface-border/40 transition-all duration-200 p-3 min-w-[220px] max-w-[260px] flex-shrink-0"
         >
           <div class="flex items-center gap-2 mb-2">
             <div class="w-9 h-9 rounded bg-gray-100 dark:bg-surface-layer flex items-center justify-center flex-shrink-0 overflow-hidden">
@@ -149,7 +149,7 @@ const getRecRatingStars = (rating: number) => {
                 @error="($event.target as HTMLImageElement).style.display = 'none'"
               />
               <svg v-else class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
               </svg>
             </div>
             <div class="flex-1 min-w-0">
@@ -178,7 +178,7 @@ const getRecRatingStars = (rating: number) => {
               v-if="!importedAssetIds.has(String(rec.plugin.asset_id))"
               @click="importAsset(String(rec.plugin.asset_id), rec.plugin.name)"
               :disabled="pluginStore.isImporting === String(rec.plugin.asset_id)"
-              class="px-2 py-1 bg-primary-600 hover:bg-primary-700 text-white rounded text-xs font-medium transition-colors disabled:opacity-50"
+              class="px-2 py-1 btn-primary text-xs font-medium transition-colors disabled:opacity-50"
             >
               {{ pluginStore.isImporting === String(rec.plugin.asset_id) ? t('assetLibrary.importing') : t('assetLibrary.import') }}
             </button>
@@ -193,7 +193,7 @@ const getRecRatingStars = (rating: number) => {
               </button>
               <div
                 v-if="openDropdownId === String(rec.plugin.asset_id)"
-                class="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-surface-card rounded border border-gray-200 dark:border-surface-border z-50 py-1 max-h-48 overflow-y-auto"
+                class="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-surface-card rounded border border-gray-200/60 dark:border-surface-border/40 z-50 py-1 max-h-48 overflow-y-auto"
               >
                 <div class="px-3 py-1.5 text-xs text-gray-500 dark:text-content-muted border-b border-gray-100 dark:border-surface-border">
                   {{ t('assetLibrary.selectProject') }}
@@ -223,7 +223,7 @@ const getRecRatingStars = (rating: number) => {
         v-model="assetSearchQuery"
         type="text"
         :placeholder="t('assetLibrary.searchPlaceholder')"
-        class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-sm"
+        class="flex-1 input-field"
         @input="searchAssets()"
         @keyup.enter="searchAssets(true)"
       />
@@ -242,28 +242,28 @@ const getRecRatingStars = (rating: number) => {
 
     <!-- Filters -->
     <div class="flex flex-wrap gap-2 mb-3">
-      <select v-model="assetFilterType" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
+      <select v-model="assetFilterType" @change="searchAssets()" class="select-field">
         <option value="any">{{ t('assetLibrary.typeAny') }}</option>
         <option value="addon">{{ t('assetLibrary.typeAddon') }}</option>
         <option value="project">{{ t('assetLibrary.typeProject') }}</option>
       </select>
-      <select v-model="assetFilterCategory" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
+      <select v-model="assetFilterCategory" @change="searchAssets()" class="select-field">
         <option value="">{{ t('assetLibrary.categoryAll') }}</option>
         <option v-for="cat in assetCategories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
       </select>
-      <select v-model="assetFilterGodotVersion" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
+      <select v-model="assetFilterGodotVersion" @change="searchAssets()" class="select-field">
         <option value="any">{{ t('assetLibrary.godotVersionAny') }}</option>
         <option value="4.0">{{ t('assetLibrary.godot4x') }}</option>
         <option value="3.0">{{ t('assetLibrary.godot3x') }}</option>
       </select>
-      <select v-model="assetFilterSupport" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
+      <select v-model="assetFilterSupport" @change="searchAssets()" class="select-field">
         <option value="">{{ t('assetLibrary.supportAll') }}</option>
         <option value="official">{{ t('assetLibrary.supportOfficial') }}</option>
         <option value="featured">{{ t('assetLibrary.supportFeatured') }}</option>
         <option value="community">{{ t('assetLibrary.supportCommunity') }}</option>
         <option value="testing">{{ t('assetLibrary.supportTesting') }}</option>
       </select>
-      <select v-model="assetSortBy" @change="searchAssets()" class="px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary text-xs">
+      <select v-model="assetSortBy" @change="searchAssets()" class="select-field">
         <option value="updated">{{ t('assetLibrary.sortUpdated') }}</option>
         <option value="rating">{{ t('assetLibrary.sortRating') }}</option>
         <option value="name">{{ t('assetLibrary.sortName') }}</option>
@@ -277,7 +277,7 @@ const getRecRatingStars = (rating: number) => {
       <button
         @click="batchImportAssets"
         :disabled="!!pluginStore.isImporting"
-        class="px-3 py-1 bg-primary-600 text-white text-xs rounded hover:bg-primary-700 disabled:opacity-50"
+        class="px-3 py-1 btn-primary text-xs disabled:opacity-50"
       >
         {{ t('assetLibrary.batchImport') }} ({{ selectedAssetIds.size }})
       </button>
@@ -309,7 +309,7 @@ const getRecRatingStars = (rating: number) => {
         v-for="asset in assetSearchResults"
         :key="asset.asset_id"
         :class="[
-          'bg-white dark:bg-surface-card rounded-md border border-border p-3 transition-colors',
+          'bg-white dark:bg-surface-card rounded border border-border p-3 transition-colors',
           selectedAssetIds.has(asset.asset_id) ? 'ring-2 ring-primary-500' : ''
         ]"
       >
@@ -318,7 +318,7 @@ const getRecRatingStars = (rating: number) => {
             type="checkbox"
             :checked="selectedAssetIds.has(asset.asset_id)"
             @change="toggleAssetSelection(asset.asset_id)"
-            class="w-4 h-4 text-primary-600 rounded flex-shrink-0 cursor-pointer"
+            class="checkbox-field"
           />
           <img
             v-if="asset.icon_url"
@@ -330,7 +330,7 @@ const getRecRatingStars = (rating: number) => {
           />
           <div v-else class="w-10 h-10 rounded bg-gray-200 dark:bg-surface-layer flex items-center justify-center flex-shrink-0">
             <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
+              <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
             </svg>
           </div>
           <div class="flex-1 min-w-0 cursor-pointer" @click="openAssetDetail(asset.asset_id)">
@@ -370,12 +370,12 @@ const getRecRatingStars = (rating: number) => {
                 :title="t('assetLibrary.oneClickInstallToProject')"
               >
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                  <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M12 4v16m8-8H4" />
                 </svg>
               </button>
               <div
                 v-if="openDropdownId === asset.asset_id"
-                class="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-surface-card rounded border border-gray-200 dark:border-surface-border z-50 py-1 max-h-48 overflow-y-auto"
+                class="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-surface-card rounded border border-gray-200/60 dark:border-surface-border/40 z-50 py-1 max-h-48 overflow-y-auto"
               >
                 <div class="px-3 py-1.5 text-xs text-gray-500 dark:text-content-muted border-b border-gray-100 dark:border-surface-border">
                   {{ t('assetLibrary.selectProject') }}
@@ -398,7 +398,7 @@ const getRecRatingStars = (rating: number) => {
     </div>
 
     <!-- Pagination -->
-    <div v-if="assetTotalPages > 0" class="flex items-center justify-between mt-4 pt-3 border-t border-gray-200 dark:border-surface-border">
+    <div v-if="assetTotalPages > 0" class="flex items-center justify-between mt-4 pt-3 border-t border-gray-200/60 dark:border-surface-border/40">
       <span class="text-xs text-gray-500 dark:text-content-secondary">
         {{ t('assetLibrary.totalItems', { count: assetTotalItems }) }}
       </span>
@@ -431,7 +431,7 @@ const getRecRatingStars = (rating: number) => {
             <h3 class="dialog-title mb-0">{{ assetDetail.title }}</h3>
             <button @click="showAssetDetailDialog = false; assetDetail = null" class="text-gray-500 dark:text-content-secondary hover:text-gray-700 dark:hover:text-content-primary">
               <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>

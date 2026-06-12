@@ -66,12 +66,12 @@ const close = () => {
     <div v-if="modelValue" class="fixed inset-0 z-50 flex items-center justify-center">
       <div class="absolute inset-0 bg-black/50" @click="close"></div>
       <div class="dialog-container max-w-lg w-full mx-4 max-h-[80vh] flex flex-col">
-        <div class="p-4 pb-3 border-b border-gray-200 dark:border-surface-border">
+        <div class="p-4 pb-3 border-b border-gray-200/60 dark:border-surface-border/40">
           <div class="flex items-center justify-between">
-            <h2 class="text-base font-semibold text-gray-900 dark:text-content-primary">{{ t('keypair.title') }}</h2>
-            <button @click="close" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-surface-layer text-gray-500">
+            <h2 class="text-sm font-semibold text-gray-900 dark:text-content-primary">{{ t('keypair.title') }}</h2>
+            <button @click="close" class="p-2 rounded hover:bg-gray-100 dark:hover:bg-surface-layer text-gray-500">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
@@ -89,13 +89,13 @@ const close = () => {
                 type="text"
                 :placeholder="t('keypair.signerNamePlaceholder')"
                 :disabled="isGeneratingKeypair"
-                class="flex-1 px-3 py-2 text-sm rounded border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none disabled:opacity-50"
+                class="flex-1 px-3 py-2 text-sm rounded border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary focus:ring-1 focus:ring-primary-500 outline-none disabled:opacity-50"
                 @keyup.enter="handleGenerate"
               />
               <button
                 @click="handleGenerate"
                 :disabled="isGeneratingKeypair || !newKeypairName.trim()"
-                class="px-3 py-2 text-sm font-medium rounded bg-primary-600 hover:bg-primary-700 text-white disabled:opacity-50"
+                class="px-3 py-2 text-sm font-medium btn-primary disabled:opacity-50"
               >
                 {{ isGeneratingKeypair ? '...' : t('common.generate') }}
               </button>
@@ -108,7 +108,7 @@ const close = () => {
 
           <div v-else-if="keypairs.length === 0" class="text-center py-8">
             <svg class="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+              <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
             </svg>
             <p class="text-sm text-gray-500 dark:text-content-muted">{{ t('keypair.noKeypairs') }}</p>
           </div>
@@ -117,12 +117,12 @@ const close = () => {
             <div
               v-for="kp in keypairs"
               :key="kp.public_key"
-              class="p-2.5 rounded border border-gray-200 dark:border-surface-border"
+              class="p-2.5 rounded border border-gray-200/60 dark:border-surface-border/40"
             >
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2 min-w-0">
                   <svg class="w-4 h-4 text-primary-600 dark:text-brand-primary flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                    <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                   </svg>
                   <span class="text-sm font-medium text-gray-900 dark:text-content-primary truncate">{{ kp.name }}</span>
                   <span class="text-xs text-gray-400 dark:text-content-muted flex-shrink-0">{{ kp.created_at.split('T')[0] }}</span>
@@ -134,8 +134,8 @@ const close = () => {
                     :title="t('keypair.viewPublicKey')"
                   >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                     </svg>
                   </button>
                   <button
@@ -144,7 +144,7 @@ const close = () => {
                     :title="t('common.delete')"
                   >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>
                   </button>
                 </div>

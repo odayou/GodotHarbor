@@ -82,6 +82,7 @@ export interface Settings {
   mount_strategy: 'Symlink' | 'Junction' | 'Copy'
   language: string
   theme: string
+  density?: 'default' | 'compact'
   auto_scan_on_startup: boolean
   sidebar_collapsed?: boolean
   auto_discover_engines?: boolean

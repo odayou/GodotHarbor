@@ -85,11 +85,11 @@ const close = () => {
       <div class="absolute inset-0 bg-black/50" @click="close"></div>
       <div class="dialog-container max-w-md w-full mx-4">
         <div class="p-4">
-          <h2 class="text-base font-semibold text-gray-900 dark:text-content-primary mb-3">
+          <h2 class="text-sm font-semibold text-gray-900 dark:text-content-primary mb-3">
             导出模板
           </h2>
 
-          <div class="p-3 rounded-lg bg-gray-50 dark:bg-surface-layer mb-4">
+          <div class="p-3 rounded bg-gray-50 dark:bg-surface-layer mb-4">
             <p class="text-sm font-medium text-gray-900 dark:text-content-primary">{{ template.name }}</p>
             <p class="text-xs text-gray-500 dark:text-content-muted mt-0.5">
               {{ template.godot.version }} · {{ template.category }} · v{{ template.version }}
@@ -103,7 +103,7 @@ const close = () => {
                 v-model="shouldSign"
                 type="checkbox"
                 :disabled="isExporting"
-                class="w-4 h-4 rounded border-gray-300 dark:border-surface-border text-primary-600 focus:ring-primary-500"
+                class="checkbox-field"
               />
               <label for="export-sign" class="text-sm text-gray-700 dark:text-content-secondary cursor-pointer">
                 签名模板（推荐）
@@ -116,7 +116,7 @@ const close = () => {
                 <select
                   v-model="selectedSignerName"
                   :disabled="isExporting"
-                  class="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none"
+                  class="select-field"
                 >
                   <option value="">-- 选择已有密钥 --</option>
                   <option v-for="kp in keypairs" :key="kp.public_key" :value="kp.name">
@@ -135,12 +135,12 @@ const close = () => {
                     type="text"
                     placeholder="签名者名称"
                     :disabled="isExporting || isCreatingKeypair"
-                    class="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary focus:ring-2 focus:ring-primary-500 outline-none disabled:opacity-50"
+                    class="flex-1 px-3 py-2 text-sm rounded border border-gray-300 dark:border-surface-border bg-white dark:bg-surface-layer text-gray-900 dark:text-content-primary focus:ring-1 focus:ring-primary-500 outline-none disabled:opacity-50"
                   />
                   <button
                     @click="handleCreateKeypair"
                     :disabled="isCreatingKeypair || !newSignerName.trim()"
-                    class="px-3 py-2 text-sm rounded-lg bg-primary-600 hover:bg-primary-700 text-white disabled:opacity-50"
+                    class="px-3 py-2 text-sm btn-primary disabled:opacity-50"
                   >
                     {{ isCreatingKeypair ? '...' : '生成' }}
                   </button>
@@ -153,7 +153,7 @@ const close = () => {
             </div>
 
             <div v-if="!shouldSign" class="pl-6">
-              <div class="p-2.5 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
+              <div class="p-2.5 rounded bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
                 <p class="text-xs text-yellow-700 dark:text-yellow-400">
                   未签名的模板在导入时会显示警告提示。建议签名以增强信任度。
                 </p>
@@ -165,14 +165,14 @@ const close = () => {
             <button
               @click="close"
               :disabled="isExporting"
-              class="flex-1 py-2.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors disabled:opacity-50"
+              class="flex-1 py-2.5 text-sm font-medium rounded border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors disabled:opacity-50"
             >
               取消
             </button>
             <button
               @click="handleExport"
               :disabled="!canExport"
-              class="flex-1 py-2.5 text-sm font-medium rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50"
+              class="flex-1 py-2.5 text-sm font-medium btn-primary transition-colors disabled:opacity-50"
             >
               {{ isExporting ? '导出中...' : '导出' }}
             </button>

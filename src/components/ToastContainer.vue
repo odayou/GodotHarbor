@@ -24,15 +24,15 @@ const typeIcons: Record<string, string> = {
       <div
         v-for="toast in toasts"
         :key="toast.id"
-        :class="[typeStyles[toast.type], 'flex items-center gap-2 px-3 py-2 rounded-md shadow text-white text-sm']"
+        :class="[typeStyles[toast.type], 'flex items-center gap-2 px-3 py-2 rounded shadow text-white text-sm']"
       >
         <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="typeIcons[toast.type]" />
+          <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" :d="typeIcons[toast.type]" />
         </svg>
         <span class="flex-1">{{ toast.message }}</span>
         <button @click="remove(toast.id)" class="shrink-0 hover:opacity-80">
           <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
       </div>

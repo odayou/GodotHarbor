@@ -61,7 +61,7 @@ const useDefault = async () => {
           <div class="flex justify-center mb-6">
             <div class="w-20 h-20 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
               <svg class="w-10 h-10 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
               </svg>
             </div>
           </div>
@@ -74,11 +74,11 @@ const useDefault = async () => {
           </p>
 
           <div class="space-y-4">
-            <div class="p-3 border border-gray-200 dark:border-surface-border rounded-md hover:border-primary-300 dark:hover:border-surface-border transition-colors cursor-pointer" @click="selectDirectory">
+            <div class="p-3 border border-gray-200/60 dark:border-surface-border/40 rounded-[6px] hover:border-primary-300 dark:hover:border-surface-border transition-colors cursor-pointer" @click="selectDirectory">
               <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-lg bg-primary-100 dark:bg-surface-hover flex items-center justify-center shrink-0">
+                <div class="w-10 h-10 rounded bg-primary-100 dark:bg-surface-hover flex items-center justify-center shrink-0">
                   <svg class="w-5 h-5 text-primary-600 dark:text-brand-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                    <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                   </svg>
                 </div>
                 <div class="flex-1 min-w-0">
@@ -89,11 +89,11 @@ const useDefault = async () => {
               </div>
             </div>
 
-            <div class="p-3 border border-gray-200 dark:border-surface-border rounded-md hover:border-amber-300 dark:hover:border-amber-700 transition-colors cursor-pointer" @click="useDefault">
+            <div class="p-3 border border-gray-200/60 dark:border-surface-border/40 rounded-[6px] hover:border-amber-300 dark:hover:border-amber-700 transition-colors cursor-pointer" @click="useDefault">
               <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
+                <div class="w-10 h-10 rounded bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
                   <svg class="w-5 h-5 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                    <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                   </svg>
                 </div>
                 <div class="flex-1 min-w-0">

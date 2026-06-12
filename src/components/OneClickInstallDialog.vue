@@ -62,7 +62,7 @@ const steps = computed(() => [
             class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
           >
             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
@@ -76,7 +76,7 @@ const steps = computed(() => [
             v-for="step in steps"
             :key="step.key"
             :class="[
-              'flex items-center gap-3 p-3 rounded-lg transition-colors',
+              'flex items-center gap-3 p-3 rounded transition-colors',
               step.active ? 'bg-primary-50 dark:bg-primary-900/20' :
               step.done ? 'bg-green-50 dark:bg-green-900/20' :
               step.error ? 'bg-red-50 dark:bg-red-900/20' :
@@ -92,13 +92,13 @@ const steps = computed(() => [
               ]"
             >
               <svg v-if="step.done" class="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M5 13l4 4L19 7" />
               </svg>
               <svg v-else-if="step.error" class="w-4 h-4 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M6 18L18 6M6 6l12 12" />
               </svg>
               <svg v-else-if="step.active" class="w-4 h-4 text-primary-600 dark:text-primary-400 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
               <span v-else class="text-gray-400 dark:text-content-muted text-xs">{{ steps.indexOf(step) + 1 }}</span>
             </div>
@@ -120,12 +120,12 @@ const steps = computed(() => [
         </div>
 
         <div v-if="result && !isInstalling" class="mt-4">
-          <div v-if="result.success" class="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+          <div v-if="result.success" class="p-3 bg-green-50 dark:bg-green-900/20 rounded">
             <p class="text-sm text-green-700 dark:text-green-400 font-medium">{{ t('assetLibrary.installSuccess') }}</p>
             <div v-if="result.binding_created" class="text-xs text-green-600 dark:text-green-400 mt-1">{{ t('assetLibrary.bindingCreated') }}</div>
             <div v-if="result.changes_applied" class="text-xs text-green-600 dark:text-green-400">{{ t('assetLibrary.changesApplied') }}</div>
           </div>
-          <div v-else class="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+          <div v-else class="p-3 bg-red-50 dark:bg-red-900/20 rounded">
             <p class="text-sm text-red-700 dark:text-red-400 font-medium">{{ t('assetLibrary.installFailed') }}</p>
             <div v-if="result.errors.length > 0" class="mt-1 space-y-0.5">
               <p v-for="(err, i) in result.errors" :key="i" class="text-xs text-red-600 dark:text-red-400">{{ err }}</p>

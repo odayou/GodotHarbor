@@ -191,13 +191,13 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <footer class="h-7 bg-white dark:bg-surface-card border-t border-gray-200 dark:border-surface-border flex items-center justify-between px-3 text-xs select-none shrink-0">
+  <footer class="h-6 bg-surface-light-layer dark:bg-surface-base border-t border-gray-200/60 dark:border-surface-border/40 flex items-center justify-between px-3 text-[11px] select-none shrink-0">
     <div class="flex items-center gap-3 overflow-hidden">
       <template v-if="isAutoSetupRunning || autoSetupStep === 'done'">
         <div class="flex items-center gap-2 flex-1 min-w-0">
           <div v-if="isAutoSetupRunning" class="animate-spin rounded-full h-3 w-3 border-2 border-primary-600 border-t-transparent shrink-0"></div>
           <svg v-else class="h-3 w-3 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M5 13l4 4L19 7" />
           </svg>
           <span class="text-gray-700 dark:text-gray-300 truncate">
             {{ isAutoSetupRunning ? autoSetupMessage : t('autoSetup.complete', { projects: autoSetupResult?.projectsScanned ?? 0, plugins: autoSetupResult?.pluginsImported ?? 0, bindings: autoSetupResult?.bindingsCreated ?? 0 }) }}
@@ -212,13 +212,13 @@ onUnmounted(() => {
         <template v-for="item in channelStatusItems" :key="item.label">
           <div class="flex items-center gap-1 shrink-0" :class="item.hasUpdate ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'">
             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
             <span>{{ item.label }}:</span>
             <span v-if="item.localVersion" class="font-medium">{{ item.localVersion }}</span>
             <span v-else class="text-gray-400 dark:text-gray-500">—</span>
             <svg v-if="item.hasUpdate" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M13 7l5 5m0 0l-5 5m5-5H6" />
             </svg>
             <span v-if="item.hasUpdate" class="font-medium">{{ item.remoteVersion }}</span>
           </div>
@@ -237,7 +237,7 @@ onUnmounted(() => {
       >
         <span v-if="showUpToDateToast" class="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
           <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M5 13l4 4L19 7" />
           </svg>
           {{ t('statusbar.upToDate') }}
         </span>
@@ -249,7 +249,7 @@ onUnmounted(() => {
         class="update-trigger flex items-center gap-1 px-2 py-0.5 rounded text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors font-medium"
       >
         <svg class="w-3.5 h-3.5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
         </svg>
         {{ t('statusbar.newVersionAvailable') }} ({{ totalUpdateCount }})
       </button>
@@ -261,7 +261,7 @@ onUnmounted(() => {
         :title="t('statusbar.checkUpdates')"
       >
         <svg class="w-3 h-3" :class="{ 'animate-spin': isChecking || updateStore.isChecking }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
         </svg>
       </button>
 
@@ -273,7 +273,7 @@ onUnmounted(() => {
     <Teleport to="body">
       <div
         v-if="showUpdatePanel"
-        class="update-panel fixed bottom-8 right-4 w-80 bg-white dark:bg-surface-card rounded-lg shadow-popover border border-gray-200/80 dark:border-surface-border/60 z-50 overflow-hidden"
+        class="update-panel fixed bottom-7 right-4 w-80 bg-white dark:bg-surface-card rounded-island border border-gray-200/60 dark:border-surface-border/40 shadow-lg z-50 overflow-hidden"
       >
         <div class="px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800">
           <div class="flex items-center justify-between">
@@ -282,7 +282,7 @@ onUnmounted(() => {
             </h3>
             <button @click="closeUpdatePanel" class="text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-200">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>

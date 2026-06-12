@@ -106,7 +106,7 @@ const confirmColorClass = computed(() => {
         </button>
         <button
           @click="onConfirm"
-          :class="['px-4 py-2 text-white rounded-lg', confirmColorClass]"
+          :class="['px-4 py-1.5 text-white rounded', confirmColorClass]"
         >
           {{ resolvedConfirmText }}
         </button>

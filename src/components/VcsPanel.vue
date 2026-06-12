@@ -178,7 +178,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div v-if="vcsInfo && vcsInfo.vcs_type === 'Git'" class="border border-gray-200 dark:border-surface-border rounded overflow-hidden">
+  <div v-if="vcsInfo && vcsInfo.vcs_type === 'Git'" class="border border-gray-200/60 dark:border-surface-border/40 rounded-[6px] overflow-hidden">
     <button
       class="w-full flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-surface-hover hover:bg-gray-100 dark:hover:bg-surface-layer transition-colors"
       @click="isExpanded = !isExpanded"
@@ -196,7 +196,7 @@ onMounted(() => {
         :class="{ 'rotate-180': isExpanded }"
         fill="none" stroke="currentColor" viewBox="0 0 24 24"
       >
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+        <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M19 9l-7 7-7-7" />
       </svg>
     </button>
 
@@ -211,7 +211,7 @@ onMounted(() => {
               class="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-surface-layer transition-colors"
               :title="t('vcs.switchBranch')"
             >
-              <svg class="w-3.5 h-3.5 text-gray-400 dark:text-content-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+              <svg class="w-3.5 h-3.5 text-gray-400 dark:text-content-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
             </button>
           </div>
         </div>
@@ -221,13 +221,13 @@ onMounted(() => {
         </div>
       </div>
 
-      <div v-if="showBranchPanel" class="border border-gray-200 dark:border-surface-border rounded p-3 space-y-2">
+      <div v-if="showBranchPanel" class="border border-gray-200/60 dark:border-surface-border/40 rounded-[6px] p-3 space-y-2">
         <div class="flex gap-2">
           <input
             v-model="newBranchName"
             type="text"
             :placeholder="t('vcs.newBranchName')"
-            class="flex-1 px-2 py-1.5 border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-xs"
+            class="flex-1 input-field"
             @keyup.enter="handleCreateBranch"
           />
           <button
@@ -289,7 +289,7 @@ onMounted(() => {
           class="flex-1 px-3 py-2 text-sm font-medium rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
         >
           <svg v-if="isOperating" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-          <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+          <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
           {{ t('vcs.pull') }}
         </button>
         <button
@@ -298,7 +298,7 @@ onMounted(() => {
           class="flex-1 px-3 py-2 text-sm font-medium rounded bg-purple-600 text-white hover:bg-purple-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
         >
           <svg v-if="isOperating" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-          <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
+          <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
           {{ t('vcs.push') }}
         </button>
       </div>
@@ -309,7 +309,7 @@ onMounted(() => {
             v-model="commitMessage"
             type="text"
             :placeholder="t('vcs.commitMessage')"
-            class="flex-1 px-3 py-2 border border-gray-300 dark:border-surface-border rounded bg-white dark:bg-surface-hover text-gray-900 dark:text-content-primary text-sm"
+            class="flex-1 input-field"
             @keyup.enter="handleCommit"
           />
           <button
@@ -375,18 +375,18 @@ onMounted(() => {
         @click="handleUpdateGitignore"
         class="w-full px-3 py-2 text-sm rounded border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-secondary hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors flex items-center justify-center gap-1.5"
       >
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
         {{ t('vcs.updateGitignore') }}
       </button>
     </div>
   </div>
-  <div v-else-if="vcsInfo" class="border border-gray-200 dark:border-surface-border rounded p-3">
+  <div v-else-if="vcsInfo" class="border border-gray-200/60 dark:border-surface-border/40 rounded-[6px] p-3">
     <div class="flex items-center gap-2 text-gray-500 dark:text-content-muted">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
       <span class="text-sm">{{ t('vcs.notGitProject') }}</span>
     </div>
   </div>
-  <div v-else class="border border-gray-200 dark:border-surface-border rounded p-4">
+  <div v-else class="border border-gray-200/60 dark:border-surface-border/40 rounded-[6px] p-4">
     <div class="flex items-center gap-2 text-gray-400 dark:text-content-muted">
       <div class="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-transparent"></div>
       <span class="text-sm">{{ t('common.loading') }}</span>

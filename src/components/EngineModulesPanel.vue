@@ -29,21 +29,21 @@ const totalCount = computed(() => nonEditorModules.value.length)
 const getModuleIconSvg = (type: ModuleType) => {
   switch (type) {
     case 'DotNet':
-      return '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />'
+      return '<path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />'
     case 'Android':
-      return '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />'
+      return '<path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />'
     case 'IOS':
-      return '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />'
+      return '<path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />'
     case 'Web':
-      return '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />'
+      return '<path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />'
     case 'Linux':
-      return '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />'
+      return '<path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />'
     case 'Windows':
-      return '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h7M3 12h7m-7 7h7M17 5l-4 7 4 7" />'
+      return '<path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M3 5h7M3 12h7m-7 7h7M17 5l-4 7 4 7" />'
     case 'MacOS':
-      return '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />'
+      return '<path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />'
     default:
-      return '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />'
+      return '<path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z" />'
   }
 }
 
@@ -96,13 +96,13 @@ const formatFileSize = (bytes: number | null) => {
       <div
         v-for="module in nonEditorModules"
         :key="module.module_type"
-        class="flex items-center gap-3 p-2.5 rounded-lg border transition-colors"
+        class="flex items-center gap-3 p-2.5 rounded border transition-colors"
         :class="module.is_installed
-          ? 'border-gray-200 dark:border-surface-border bg-white dark:bg-surface-card'
+          ? 'border-gray-200/60 dark:border-surface-border/40 bg-white dark:bg-surface-card'
           : 'border-yellow-200 dark:border-yellow-900/30 bg-yellow-50/50 dark:bg-yellow-900/10'"
       >
         <div
-          class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+          class="w-8 h-8 rounded flex items-center justify-center shrink-0"
           :class="getModuleBadgeClass(module.module_type, module.is_installed)"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" v-html="getModuleIconSvg(module.module_type)"></svg>
@@ -135,7 +135,7 @@ const formatFileSize = (bytes: number | null) => {
           v-if="!module.is_installed && module.module_type !== 'DotNet'"
           @click="handleInstall(module.module_type)"
           :disabled="isModuleInstalling(module.module_type)"
-          class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap disabled:opacity-50 bg-primary-600 text-white hover:bg-primary-700"
+          class="px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap disabled:opacity-50 btn-primary"
         >
           <span v-if="isModuleInstalling(module.module_type)" class="inline-flex items-center gap-1">
             <svg class="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">

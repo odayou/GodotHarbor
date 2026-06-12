@@ -99,7 +99,7 @@ const finish = async () => {
           <div class="flex justify-center mb-6">
             <div class="w-20 h-20 rounded-full bg-primary-100 dark:bg-surface-hover flex items-center justify-center">
               <svg class="w-10 h-10 text-primary-600 dark:text-brand-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
               </svg>
             </div>
           </div>
@@ -112,7 +112,7 @@ const finish = async () => {
           <div class="flex justify-center mb-6">
             <div class="w-20 h-20 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
               <svg class="w-10 h-10 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
+                <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
               </svg>
             </div>
           </div>
@@ -125,7 +125,7 @@ const finish = async () => {
           <div class="flex justify-center mb-6">
             <div class="w-20 h-20 rounded-full bg-blue-100 dark:bg-surface-hover flex items-center justify-center">
               <svg class="w-10 h-10 text-blue-600 dark:text-brand-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
               </svg>
             </div>
           </div>
@@ -138,32 +138,32 @@ const finish = async () => {
           <div class="flex justify-center mb-6">
             <div class="w-20 h-20 rounded-full bg-purple-100 dark:bg-surface-hover flex items-center justify-center">
               <svg class="w-10 h-10 text-purple-600 dark:text-content-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </div>
           </div>
           <h2 class="text-xl font-bold text-gray-900 dark:text-content-primary text-center mb-3">{{ t('onboarding.shortcuts.title') }}</h2>
           <p class="text-sm text-gray-600 dark:text-content-muted text-center mb-6">{{ t('onboarding.shortcuts.desc') }}</p>
           <div class="space-y-3">
-            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-surface-base/50 rounded-lg">
+            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-surface-base/50 rounded">
               <div class="flex items-center gap-3">
                 <kbd class="px-2 py-1 text-xs font-mono bg-white dark:bg-surface-card border border-gray-200 dark:border-surface-border rounded shadow-sm">{{ t('onboarding.shortcuts.ctrlK') }}</kbd>
                 <span class="text-sm text-gray-700 dark:text-content-secondary">{{ t('onboarding.shortcuts.ctrlKDesc') }}</span>
               </div>
             </div>
-            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-surface-base/50 rounded-lg">
+            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-surface-base/50 rounded">
               <div class="flex items-center gap-3">
                 <kbd class="px-2 py-1 text-xs font-mono bg-white dark:bg-surface-card border border-gray-200 dark:border-surface-border rounded shadow-sm">{{ t('onboarding.shortcuts.ctrlB') }}</kbd>
                 <span class="text-sm text-gray-700 dark:text-content-secondary">{{ t('onboarding.shortcuts.ctrlBDesc') }}</span>
               </div>
             </div>
-            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-surface-base/50 rounded-lg">
+            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-surface-base/50 rounded">
               <div class="flex items-center gap-3">
                 <kbd class="px-2 py-1 text-xs font-mono bg-white dark:bg-surface-card border border-gray-200 dark:border-surface-border rounded shadow-sm">{{ t('onboarding.shortcuts.ctrlT') }}</kbd>
                 <span class="text-sm text-gray-700 dark:text-content-secondary">{{ t('onboarding.shortcuts.ctrlTDesc') }}</span>
               </div>
             </div>
-            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-surface-base/50 rounded-lg">
+            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-surface-base/50 rounded">
               <div class="flex items-center gap-3">
                 <kbd class="px-2 py-1 text-xs font-mono bg-white dark:bg-surface-card border border-gray-200 dark:border-surface-border rounded shadow-sm">{{ t('onboarding.shortcuts.ctrlD') }}</kbd>
                 <span class="text-sm text-gray-700 dark:text-content-secondary">{{ t('onboarding.shortcuts.ctrlDDesc') }}</span>

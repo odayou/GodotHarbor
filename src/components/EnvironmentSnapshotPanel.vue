@@ -84,14 +84,14 @@ const formatDate = (dateStr: string) => {
       <button
         @click="handleCreateSnapshot"
         :disabled="isCreatingSnapshot"
-        class="px-3 py-1.5 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+        class="px-3 py-1.5 btn-primary text-xs disabled:opacity-50 flex items-center gap-1.5"
       >
         <svg v-if="isCreatingSnapshot" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
         </svg>
         <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M12 4v16m8-8H4" />
         </svg>
         {{ isCreatingSnapshot ? '...' : t('batchOps.createSnapshot') }}
       </button>
@@ -107,7 +107,7 @@ const formatDate = (dateStr: string) => {
       <div
         v-for="snapshot in snapshots"
         :key="snapshot.snapshot_id"
-        class="p-3 rounded-lg border border-gray-200 dark:border-surface-border bg-gray-50 dark:bg-surface-hover hover:bg-gray-100 dark:hover:bg-surface-layer transition-colors"
+        class="p-3 rounded-[6px] border border-gray-200/60 dark:border-surface-border/40 bg-gray-50 dark:bg-surface-hover hover:bg-gray-100 dark:hover:bg-surface-layer transition-colors"
       >
         <div class="flex items-center justify-between">
           <div class="min-w-0 flex-1">
@@ -133,8 +133,8 @@ const formatDate = (dateStr: string) => {
               :title="t('batchOps.viewDetail')"
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
               </svg>
             </button>
             <button
@@ -144,7 +144,7 @@ const formatDate = (dateStr: string) => {
               :title="t('batchOps.restore')"
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
             </button>
             <button
@@ -153,14 +153,14 @@ const formatDate = (dateStr: string) => {
               :title="t('common.delete')"
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
             </button>
           </div>
         </div>
 
         <!-- Snapshot Detail -->
-        <div v-if="showDetailSnapshot?.snapshot_id === snapshot.snapshot_id" class="mt-2 pt-2 border-t border-gray-200 dark:border-surface-border">
+        <div v-if="showDetailSnapshot?.snapshot_id === snapshot.snapshot_id" class="mt-2 pt-2 border-t border-gray-200/60 dark:border-surface-border/40">
           <div v-if="snapshot.plugins.length === 0" class="text-xs text-gray-400">
             {{ t('batchOps.noPluginsInSnapshot') }}
           </div>
