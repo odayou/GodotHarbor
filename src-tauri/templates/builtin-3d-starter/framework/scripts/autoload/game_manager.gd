@@ -2,27 +2,45 @@ extends Node
 
 signal game_paused
 signal game_resumed
+signal score_changed(new_score: int)
 
+var score: int = 0
 var is_paused: bool = false
+
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+
+
+func add_score(points: int) -> void:
+	score += points
+	score_changed.emit(score)
+
 
 func pause_game() -> void:
 	is_paused = true
 	get_tree().paused = true
 	game_paused.emit()
 
+
 func resume_game() -> void:
 	is_paused = false
 	get_tree().paused = false
 	game_resumed.emit()
+
 
 func toggle_pause() -> void:
 	if is_paused:
 		resume_game()
 	else:
 		pause_game()
+
+
+func restart_game() -> void:
+	score = 0
+	get_tree().paused = false
+	get_tree().reload_current_scene()
+
 
 func quit_game() -> void:
 	get_tree().quit()

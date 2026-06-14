@@ -464,6 +464,7 @@ export default {
       title: '插件更新检查',
       noPlugins: '没有可检查更新的插件',
       versionInfo: '当前版本: {current} → 最新版本: {latest}',
+      affectedProjects: '影响 {count} 个项目',
       update: '更新',
       hasUpdate: '有更新',
       upToDate: '已是最新',
@@ -958,6 +959,7 @@ export default {
   },
   settings: {
     title: '设置',
+    searchPlaceholder: '搜索设置...',
     general: '通用',
     scan: '项目扫描',
     scanDirs: '扫描目录',
@@ -1028,7 +1030,10 @@ export default {
       assetApiMode_auto: '自动',
       assetApiMode_legacy: '旧版 Asset Library',
       assetApiMode_new_store: '新版 Asset Store',
-      assetApiModeHint: '自动模式优先使用新版 Asset Store API，不可用时回退到旧版'
+      assetApiModeHint: '自动模式优先使用新版 Asset Store API，不可用时回退到旧版',
+      exportTemplateMirror: '导出模板镜像',
+      exportTemplateMirrorPlaceholder: '如 https://mirror.example.com/godot/export-templates',
+      exportTemplateMirrorHint: '留空则使用引擎镜像或官方源。国内用户可设置镜像地址'
     },
     networkAndUpdate: '网络与更新',
     cloud: 'Harbor Cloud',
@@ -1223,6 +1228,7 @@ export default {
     selectAll: '全选',
     deselectAll: '取消选择',
     batchDelete: '批量删除',
+    batchDeleting: '正在删除项目...',
     batchDeleteComplete: '批量删除完成: 成功 {success} 个, 失败 {failed} 个',
     batchDeleteSuccess: '已成功删除 {count} 个项目',
     batchDeleteFailed: '批量删除项目失败: {error}',
@@ -1545,6 +1551,10 @@ export default {
     plugins: '插件',
     directories: '目录',
     exportPresets: '导出预设',
+    projectConfig: '项目配置',
+    autoloads: '自动加载',
+    layerNames: '图层名称',
+    inputMappings: '输入映射',
     godotVersion: 'Godot 版本',
     category: {
       all: '全部',

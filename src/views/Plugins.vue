@@ -559,11 +559,21 @@ const handleClickOutside = (event: MouseEvent) => {
   }
 }
 
+const searchInputRef = ref<HTMLInputElement | null>(null)
+const handleCtrlF = (e: KeyboardEvent) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+    e.preventDefault()
+    searchInputRef.value?.focus()
+    searchInputRef.value?.select()
+  }
+}
+
 onMounted(async () => {
   loadPlugins()
   loadTotalStorageStats()
   loadFeaturedPlugins()
   document.addEventListener('click', handleClickOutside)
+  document.addEventListener('keydown', handleCtrlF)
 
   unlistenAutoSetup = await listen('auto-setup-complete', () => {
     loadPlugins()
@@ -606,6 +616,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
+  document.removeEventListener('keydown', handleCtrlF)
   if (unlistenAutoSetup) {
     unlistenAutoSetup()
   }
@@ -908,12 +919,10 @@ const removePluginVersion = async (pluginId: string, versionId: string) => {
       showVersionDeleteConfirm.value = true
       return
     }
-    await api.removePluginVersion(pluginId, versionId)
-    toast.success(t('plugins.versionDeleted'))
-    if (selectedPlugin.value) {
-      await showPluginDetails(selectedPlugin.value)
-    }
-    await loadPlugins()
+    versionDeletePluginId.value = pluginId
+    versionDeleteVersionId.value = versionId
+    versionDeleteWarning.value = ''
+    showVersionDeleteConfirm.value = true
   } catch (error) {
     toast.error(t('common.deleteFailed', { error }))
   }
@@ -1925,6 +1934,7 @@ const retryBatchFailed = async () => {
       <div class="flex flex-col lg:flex-row gap-2">
         <div class="flex-1">
           <input
+            ref="searchInputRef"
             v-model="searchQuery"
             type="text"
             :placeholder="t('plugins.search')"
@@ -2465,6 +2475,9 @@ const retryBatchFailed = async () => {
                 <span class="font-medium text-gray-900 dark:text-content-primary">{{ update.plugin_name || update.plugin_id }}</span>
                 <div class="text-sm text-gray-500 dark:text-content-muted mt-1">
                   {{ t('plugins.updateCheck.versionInfo', { current: update.current_version, latest: update.latest_version }) }}
+                </div>
+                <div v-if="update.affected_projects && update.affected_projects.length > 0" class="text-xs text-blue-600 dark:text-brand-primary mt-1">
+                  {{ t('plugins.updateCheck.affectedProjects', { count: update.affected_projects.length }) }}: {{ update.affected_projects.join(', ') }}
                 </div>
               </div>
               <div class="flex items-center gap-2">

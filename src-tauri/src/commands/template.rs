@@ -899,7 +899,7 @@ pub async fn instantiate_template(
     let project = Project {
         project_id: uuid::Uuid::new_v4().to_string(),
         name: project_name.clone(),
-        path: project_dir.to_string_lossy().to_string(),
+        path: super::project::normalize_path(&project_dir.to_string_lossy()),
         godot_version: template.godot.version.clone(),
         icon_path: String::new(),
         group: String::new(),
@@ -1213,6 +1213,8 @@ pub async fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, S
         ],
         export_presets: vec![
             TemplateExportPreset { platform: "windows".to_string(), name: "Windows Desktop".to_string(), config: serde_json::Value::Null },
+            TemplateExportPreset { platform: "macos".to_string(), name: "macOS".to_string(), config: serde_json::Value::Null },
+            TemplateExportPreset { platform: "linux".to_string(), name: "Linux".to_string(), config: serde_json::Value::Null },
         ],
         project_config: TemplateProjectConfig {
             input_mappings: serde_json::json!({
@@ -1246,7 +1248,7 @@ pub async fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, S
     let platformer_template = Template {
         template_id: "builtin-2d-platformer".to_string(),
         name: "2D 平台起步包".to_string(),
-        description: "2D 平台游戏起步模板，含 Phantom Camera、godot-statecharts 状态机、Coyote Time / Jump Buffer、巡逻敌人、收集品和检查点，适合横版跳跃类游戏".to_string(),
+        description: "2D 平台游戏起步模板，含 Phantom Camera、Coyote Time / Jump Buffer、巡逻敌人、收集品和检查点，适合横版跳跃类游戏".to_string(),
         author: "Godot Harbor".to_string(),
         category: TemplateCategory::Starter2D,
         tags: vec!["2d".to_string(), "platformer".to_string(), "starter".to_string()],
@@ -1259,7 +1261,6 @@ pub async fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, S
         },
         plugins: vec![
             TemplatePlugin { name: "Phantom Camera".to_string(), version: "0.9.4.2".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: "v0.9.4.2".to_string(), mount: "copy".to_string(), subdirectory: "addons/phantom_camera".to_string() },
-            TemplatePlugin { name: "Godot State Charts".to_string(), version: "0.22.4".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/derkork/godot-statecharts.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: "addons/godot_state_charts".to_string() },
         ],
         directories: vec![
             TemplateDirectory { path: "scenes/levels".to_string(), description: "关卡场景".to_string() },
@@ -1317,7 +1318,7 @@ pub async fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, S
     let rpg_template = Template {
         template_id: "builtin-2d-rpg".to_string(),
         name: "2D RPG 起步包".to_string(),
-        description: "2D RPG 游戏起步模板，含 Dialogic 对话系统、Phantom Camera、godot-statecharts 状态机、存档系统和物品背包，适合叙事驱动的RPG项目".to_string(),
+        description: "2D RPG 游戏起步模板，含 Dialogic 对话系统、Phantom Camera、存档系统和物品背包，适合叙事驱动的RPG项目".to_string(),
         author: "Godot Harbor".to_string(),
         category: TemplateCategory::RPG,
         tags: vec!["2d".to_string(), "rpg".to_string(), "dialogue".to_string(), "starter".to_string()],
@@ -1331,7 +1332,6 @@ pub async fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, S
         plugins: vec![
             TemplatePlugin { name: "Phantom Camera".to_string(), version: "0.9.4.2".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: "v0.9.4.2".to_string(), mount: "copy".to_string(), subdirectory: "addons/phantom_camera".to_string() },
             TemplatePlugin { name: "Dialogic".to_string(), version: "2.0-alpha-19".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/dialogic-godot/dialogic.git".to_string(), git_ref: "2.0-alpha-19".to_string(), mount: "copy".to_string(), subdirectory: "addons/dialogic".to_string() },
-            TemplatePlugin { name: "Godot State Charts".to_string(), version: "0.22.4".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/derkork/godot-statecharts.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: "addons/godot_state_charts".to_string() },
         ],
         directories: vec![
             TemplateDirectory { path: "scenes/maps".to_string(), description: "地图场景".to_string() },
@@ -1395,7 +1395,7 @@ pub async fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, S
     let starter_3d_template = Template {
         template_id: "builtin-3d-starter".to_string(),
         name: "3D 起步包".to_string(),
-        description: "3D 游戏起步模板，含 Phantom Camera 3D、godot-statecharts、第一人称控制器、昼夜循环、暂停菜单，适合3D游戏快速起步".to_string(),
+        description: "3D 游戏起步模板，含 Phantom Camera 3D、第一人称控制器、昼夜循环、暂停菜单，适合3D游戏快速起步".to_string(),
         author: "Godot Harbor".to_string(),
         category: TemplateCategory::Starter3D,
         tags: vec!["3d".to_string(), "starter".to_string()],
@@ -1408,7 +1408,6 @@ pub async fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, S
         },
         plugins: vec![
             TemplatePlugin { name: "Phantom Camera".to_string(), version: "0.9.4.2".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: "v0.9.4.2".to_string(), mount: "copy".to_string(), subdirectory: "addons/phantom_camera".to_string() },
-            TemplatePlugin { name: "Godot State Charts".to_string(), version: "0.22.4".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/derkork/godot-statecharts.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: "addons/godot_state_charts".to_string() },
         ],
         directories: vec![
             TemplateDirectory { path: "scenes/levels".to_string(), description: "关卡场景".to_string() },
@@ -1433,6 +1432,8 @@ pub async fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, S
         ],
         export_presets: vec![
             TemplateExportPreset { platform: "windows".to_string(), name: "Windows Desktop".to_string(), config: serde_json::Value::Null },
+            TemplateExportPreset { platform: "macos".to_string(), name: "macOS".to_string(), config: serde_json::Value::Null },
+            TemplateExportPreset { platform: "linux".to_string(), name: "Linux".to_string(), config: serde_json::Value::Null },
         ],
         project_config: TemplateProjectConfig {
             input_mappings: serde_json::json!({
@@ -1444,8 +1445,7 @@ pub async fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, S
                 "sprint": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194324}, {"type": "InputEventJoypadButton", "button": 10}] },
                 "crouch": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194322}, {"type": "InputEventJoypadButton", "button": 11}] },
                 "interact": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 69}, {"type": "InputEventJoypadButton", "button": 2}] },
-                "camera_up": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194320}] },
-                "camera_down": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194322}] },
+                "attack": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 74}, {"type": "InputEventJoypadButton", "button": 3}] },
                 "ui_accept": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194309}] },
                 "ui_cancel": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194305}] }
             }),
@@ -1511,7 +1511,6 @@ pub async fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, S
                 "move_right": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 68}, {"type": "InputEventJoypadButton", "button": 15}] },
                 "move_up": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 87}] },
                 "move_down": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 83}] },
-                "jump": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194320}, {"type": "InputEventJoypadButton", "button": 0}] },
                 "chat": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194306}] },
                 "ui_accept": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194309}] },
                 "ui_cancel": { "deadzone": 0.5, "events": [{"type": "InputEventKey", "keycode": 4194305}] }
@@ -1523,7 +1522,8 @@ pub async fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, S
             autoloads: serde_json::json!({
                 "NetworkManager": "res://scripts/autoload/network_manager.gd",
                 "GameManager": "res://scripts/autoload/game_manager.gd",
-                "AudioManager": "res://scripts/autoload/audio_manager.gd"
+                "AudioManager": "res://scripts/autoload/audio_manager.gd",
+                "ScreenManager": "res://scripts/autoload/screen_manager.gd"
             }),
             project_settings: serde_json::json!({
                 "network/limits/max_packet_size": 65536

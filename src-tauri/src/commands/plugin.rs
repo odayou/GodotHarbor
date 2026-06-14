@@ -1395,6 +1395,20 @@ pub async fn check_plugin_updates(app: AppHandle, force_refresh: Option<bool>) -
 
     let storage = get_storage(&app);
     let plugins: Vec<Plugin> = storage.load_or_default("plugins.json");
+    let bindings: Vec<crate::models::ProjectBinding> = storage.load_or_default("bindings.json");
+    let projects: Vec<crate::models::Project> = storage.load_or_default("projects.json");
+
+    let plugin_project_map: std::collections::HashMap<String, Vec<String>> = {
+        let mut map: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+        for binding in &bindings {
+            if let Some(project) = projects.iter().find(|p| p.project_id == binding.project_id) {
+                map.entry(binding.plugin_id.clone())
+                    .or_default()
+                    .push(project.name.clone());
+            }
+        }
+        map
+    };
 
     let client = create_http_client(Some(std::time::Duration::from_secs(10)))?;
     let github_base = crate::utils::get_github_api_base(&app);
@@ -1409,6 +1423,7 @@ pub async fn check_plugin_updates(app: AppHandle, force_refresh: Option<bool>) -
         let source_type = plugin.source.source_type.clone();
         let url = plugin.source.url.clone();
         let github_base = github_base.clone();
+        let affected_projects = plugin_project_map.get(&plugin_id).cloned().unwrap_or_default();
 
         async move {
             let mut latest_version = current_version.clone();
@@ -1448,6 +1463,7 @@ pub async fn check_plugin_updates(app: AppHandle, force_refresh: Option<bool>) -
                 update_available,
                 release_notes,
                 source_url: url,
+                affected_projects,
             }
         }
     });

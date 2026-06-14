@@ -189,24 +189,56 @@ const batchApplyChanges = async () => {
 const batchRemoveProjects = async () => {
   const ids = Array.from(selectedProjectIds.value)
   if (ids.length === 0) return
-  confirm(t('common.confirmDelete'), t('projects.deleteConfirm', { count: ids.length }), async () => {
-    isBatchDeleting.value = true
-    try {
-      const result = await api.batchRemoveProjects(ids, deleteWithFiles.value)
-      if (result.failed_count > 0) {
-        toast.warning(t('common.batchDeleteComplete', { success: result.success_count, failed: result.failed_count }))
-      } else {
-        toast.success(deleteWithFiles.value ? t('projects.batchDeletedWithFiles', { count: result.success_count }) : t('common.batchDeleteSuccess', { count: result.success_count }))
+  confirmAction.value = {
+    title: t('common.confirmDelete'),
+    message: t('projects.deleteConfirm', { count: ids.length }),
+    onConfirm: async () => {
+      isBatchDeleting.value = true
+      batchDeleteProgress.value = { current: 0, total: ids.length, message: t('projects.batchDeleting') }
+      try {
+        let successCount = 0
+        let failCount = 0
+        const concurrency = 3
+        const chunks: string[][] = []
+        for (let i = 0; i < ids.length; i += concurrency) {
+          chunks.push(ids.slice(i, i + concurrency))
+        }
+        for (const chunk of chunks) {
+          const results = await Promise.allSettled(
+            chunk.map(id => api.batchRemoveProjects([id], deleteWithFiles.value))
+          )
+          for (const r of results) {
+            if (r.status === 'fulfilled') {
+              successCount += r.value.success_count
+              failCount += r.value.failed_count
+            } else {
+              failCount++
+            }
+            batchDeleteProgress.value = {
+              current: successCount + failCount,
+              total: ids.length,
+              message: t('projects.batchDeleting')
+            }
+          }
+        }
+        if (failCount > 0) {
+          toast.warning(t('common.batchDeleteComplete', { success: successCount, failed: failCount }))
+        } else {
+          toast.success(deleteWithFiles.value ? t('projects.batchDeletedWithFiles', { count: successCount }) : t('common.batchDeleteSuccess', { count: successCount }))
+        }
+        clearSelection()
+        await loadProjects()
+      } catch (error) {
+        toast.error(t('common.batchDeleteFailed', { error }))
+      } finally {
+        isBatchDeleting.value = false
+        batchDeleteProgress.value = null
+        deleteWithFiles.value = false
       }
-      clearSelection()
-      await loadProjects()
-    } catch (error) {
-      toast.error(t('common.batchDeleteFailed', { error }))
-    } finally {
-      isBatchDeleting.value = false
-      deleteWithFiles.value = false
     }
-  })
+  }
+  deleteWithFiles.value = false
+  showConfirmDialog.value = true
 }
 
 const batchSetGroup = async () => {
@@ -229,12 +261,22 @@ const saveBatchGroup = async () => {
   await loadProjects()
 }
 
+const searchInputRef = ref<HTMLInputElement | null>(null)
+const handleCtrlF = (e: KeyboardEvent) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+    e.preventDefault()
+    searchInputRef.value?.focus()
+    searchInputRef.value?.select()
+  }
+}
+
 onMounted(async () => {
   loadProjects()
   loadGroups()
   loadEngines()
   document.addEventListener('click', handleGlobalClick)
   document.addEventListener('keydown', toggleDebug)
+  document.addEventListener('keydown', handleCtrlF)
   try {
     const settings = await api.getSettings()
     hasScanDirs.value = settings.scan_directories.length > 0
@@ -274,6 +316,7 @@ onUnmounted(() => {
   if (unlistenAutoSetup) {
     unlistenAutoSetup()
   }
+  document.removeEventListener('keydown', handleCtrlF)
 })
 
 const matchesSearch = (project: Project) =>
@@ -736,10 +779,15 @@ const loadTemplatesForDialog = async () => {
   } catch { /* ignore */ }
 }
 
-const openAddProjectDialog = () => {
+const openAddProjectDialog = async () => {
   showAddProjectDialog.value = true
   addProjectMode.value = 'local'
   loadTemplatesForDialog()
+  try {
+    const paths = await api.getStoragePaths()
+    if (!gitTargetDir.value) gitTargetDir.value = paths.app_data_dir
+    if (!templateTargetDir.value) templateTargetDir.value = paths.app_data_dir
+  } catch { /* ignore */ }
 }
 
 const closeAddProjectDialog = () => {
@@ -758,8 +806,9 @@ const createProjectFromTemplate = async () => {
   }
   isCreatingFromTemplate.value = true
   try {
+    const rawId = selectedTemplateId.value.startsWith('hub:') ? selectedTemplateId.value.slice(4) : selectedTemplateId.value
     await api.instantiateTemplate(
-      selectedTemplateId.value,
+      rawId,
       templateProjectName.value.trim(),
       templateTargetDir.value.trim() || '',
       false
@@ -792,12 +841,13 @@ const confirmAction = ref<{ title: string; message: string; onConfirm: () => voi
 const deleteWithFiles = ref(false)
 const deletingProjectId = ref<string | null>(null)
 const isBatchDeleting = ref(false)
+const batchDeleteProgress = ref<{ current: number; total: number; message: string } | null>(null)
 
-const confirm = (title: string, message: string, onConfirm: () => void) => {
-  confirmAction.value = { title, message, onConfirm }
-  deleteWithFiles.value = false
-  showConfirmDialog.value = true
-}
+const showSingleDeleteConfirm = ref(false)
+const singleDeleteTarget = ref<{ projectId: string; name: string } | null>(null)
+
+const showGroupDeleteConfirm = ref(false)
+const groupDeleteTarget = ref<{ groupId: string; name: string } | null>(null)
 
 const onConfirmDialogConfirm = () => {
   if (confirmAction.value) {
@@ -869,30 +919,38 @@ const onDrop = async (e: DragEvent) => {
 const removeProject = async (projectId: string) => {
   const project = projects.value.find(p => p.project_id === projectId)
   const name = project?.name || projectId
-  confirm(t('common.confirmDelete'), t('projects.deleteConfirm', { count: 1, name }), async () => {
-    deletingProjectId.value = projectId
-    try {
-      const bindings = projectBindingMap.value.get(projectId) || []
-      for (const binding of bindings) {
-        try {
-          await api.unbindPlugin(projectId, binding.plugin_id)
-        } catch { /* ignore unbind errors during removal */ }
-      }
-      await api.removeProject(projectId, deleteWithFiles.value)
-      selectedProjectIds.value.delete(projectId)
-      selectedProjectIds.value = new Set(selectedProjectIds.value)
-      if (selectedProjectIds.value.size === 0) {
-        isBatchMode.value = false
-      }
-      toast.success(deleteWithFiles.value ? t('projects.deletedWithFiles') : t('common.projectDeleted'))
-      await loadProjects()
-    } catch (error) {
-      toast.error(t('common.deleteFailed', { error }))
-    } finally {
-      deletingProjectId.value = null
-      deleteWithFiles.value = false
+  singleDeleteTarget.value = { projectId, name }
+  deleteWithFiles.value = false
+  showSingleDeleteConfirm.value = true
+}
+
+const onSingleDeleteConfirm = async () => {
+  if (!singleDeleteTarget.value) return
+  const { projectId } = singleDeleteTarget.value
+  deletingProjectId.value = projectId
+  try {
+    const bindings = projectBindingMap.value.get(projectId) || []
+    for (const binding of bindings) {
+      try {
+        await api.unbindPlugin(projectId, binding.plugin_id)
+      } catch { /* ignore unbind errors during removal */ }
     }
-  })
+    await api.removeProject(projectId, deleteWithFiles.value)
+    selectedProjectIds.value.delete(projectId)
+    selectedProjectIds.value = new Set(selectedProjectIds.value)
+    if (selectedProjectIds.value.size === 0) {
+      isBatchMode.value = false
+    }
+    toast.success(deleteWithFiles.value ? t('projects.deletedWithFiles') : t('common.projectDeleted'))
+    await loadProjects()
+  } catch (error) {
+    toast.error(t('common.deleteFailed', { error }))
+  } finally {
+    deletingProjectId.value = null
+    deleteWithFiles.value = false
+    showSingleDeleteConfirm.value = false
+    singleDeleteTarget.value = null
+  }
 }
 
 const syncProject = async (project: Project) => {
@@ -989,19 +1047,27 @@ const createGroup = async () => {
 const deleteGroup = async (groupId: string) => {
   const group = getGroupById(groupId)
   if (!group) return
-  confirm(t('common.confirmDelete'), t('projects.deleteGroupConfirm', { name: group.name }), async () => {
-    try {
-      await api.deleteProjectGroup(groupId)
-      if (selectedGroupId.value === groupId) {
-        selectedGroupId.value = ''
-      }
-      await loadGroups()
-      await loadProjects()
-      toast.success(t('projects.groupDeleted', { name: group.name }))
-    } catch (error) {
-      toast.error(String(error))
+  groupDeleteTarget.value = { groupId, name: group.name }
+  showGroupDeleteConfirm.value = true
+}
+
+const onGroupDeleteConfirm = async () => {
+  if (!groupDeleteTarget.value) return
+  const { groupId, name } = groupDeleteTarget.value
+  try {
+    await api.deleteProjectGroup(groupId)
+    if (selectedGroupId.value === groupId) {
+      selectedGroupId.value = ''
     }
-  })
+    await loadGroups()
+    await loadProjects()
+    toast.success(t('projects.groupDeleted', { name }))
+  } catch (error) {
+    toast.error(String(error))
+  } finally {
+    showGroupDeleteConfirm.value = false
+    groupDeleteTarget.value = null
+  }
 }
 
 const showRelocateDialog = ref(false)
@@ -1034,11 +1100,6 @@ const showProjectContextMenu = (event: MouseEvent, project: Project) => {
       action: () => openProjectWithEngineWrapper(project),
       disabled: isLaunching,
     },
-    {
-      label: t('projects.contextMenu.openInFileManager'),
-      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>',
-      action: () => openInFileManager(project.path),
-    },
     { separator: true },
     {
       label: t('projects.contextMenu.editBindings'),
@@ -1063,27 +1124,9 @@ const showProjectContextMenu = (event: MouseEvent, project: Project) => {
     },
     { separator: true },
     {
-      label: t('projects.contextMenu.createSnapshot'),
-      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>',
-      action: () => openSaveAsTemplateDialog(project),
-    },
-    { separator: true },
-    {
       label: t('projects.contextMenu.setGroup'),
       icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>',
       action: () => openGroupDialog(project),
-    },
-    { separator: true },
-    {
-      label: t('projects.contextMenu.refreshStatus'),
-      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>',
-      action: () => syncProject(project),
-    },
-    {
-      label: t('projects.contextMenu.removeProject'),
-      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>',
-      action: () => removeProject(project.project_id),
-      danger: true,
     },
   ] as ContextMenuEntry[])
 }
@@ -1407,6 +1450,7 @@ const toggleAddPluginPanel = () => {
       <div class="flex flex-col lg:flex-row gap-2">
         <div class="flex-1">
           <input
+            ref="searchInputRef"
             v-model="searchQuery"
             type="text"
             :placeholder="t('projects.search')"
@@ -1616,10 +1660,6 @@ const toggleAddPluginPanel = () => {
                   :vcsInfo="vcsInfoMap.get(project.project_id) || null"
                   @click="showProjectDetails(project)"
                 />
-                <LockStatusBadge
-                  v-if="lockStatusMap.get(project.project_id) === 'locked_drifted'"
-                  :lockStatus="lockStatusMap.get(project.project_id) || 'not_locked'"
-                />
               </div>
               <div class="flex items-center gap-2 mt-0.5">
                 <span class="text-[11px] text-gray-500 dark:text-content-secondary truncate" :title="project.path">
@@ -1627,16 +1667,6 @@ const toggleAddPluginPanel = () => {
                 </span>
                 <span class="text-[11px] text-gray-300 dark:text-content-muted">·</span>
                 <span class="text-[11px] text-gray-500 dark:text-content-secondary">Godot {{ project.godot_version }}</span>
-                <span
-                  v-if="projectMissingModulesMap.get(project.project_id)?.length"
-                  class="text-sm text-yellow-500 flex items-center gap-1 cursor-pointer hover:text-yellow-600 transition-colors"
-                  :title="t('engines.modules.missingWarning')"
-                  @click.stop="showProjectDetails(project)"
-                >
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                  </svg>
-                </span>
                 <span
                   v-if="projectBindingMap.get(project.project_id)?.some(b => b.is_healthy === false)"
                   class="text-sm text-red-500 flex items-center gap-1 cursor-pointer hover:text-red-600 transition-colors"
@@ -2359,11 +2389,43 @@ const toggleAddPluginPanel = () => {
     :confirm-text="t('common.confirmDelete')"
     @confirm="onConfirmDialogConfirm"
   >
+    <div v-if="batchDeleteProgress" class="mt-3">
+      <div class="flex justify-between text-xs text-gray-500 dark:text-content-muted mb-1">
+        <span>{{ batchDeleteProgress.message }}</span>
+        <span>{{ batchDeleteProgress.current }} / {{ batchDeleteProgress.total }}</span>
+      </div>
+      <div class="w-full bg-gray-200 dark:bg-surface-hover rounded-full h-1.5">
+        <div class="bg-primary-600 h-1.5 rounded-full transition-all duration-300" :style="{ width: `${(batchDeleteProgress.current / batchDeleteProgress.total) * 100}%` }"></div>
+      </div>
+    </div>
+    <label v-else class="flex items-center gap-2 mt-2 cursor-pointer select-none">
+      <input type="checkbox" v-model="deleteWithFiles" class="w-4 h-4 rounded-[3px] border border-gray-300 dark:border-surface-border text-red-500 focus:ring-2 focus:ring-red-500/20 bg-white dark:bg-surface-input cursor-pointer" />
+      <span class="text-sm text-red-600 dark:text-red-400">{{ t('projects.deleteWithFiles') }}</span>
+    </label>
+  </ConfirmDialog>
+
+  <ConfirmDialog
+    v-model="showSingleDeleteConfirm"
+    :title="t('common.confirmDelete')"
+    :description="t('projects.deleteConfirm', { count: 1, name: singleDeleteTarget?.name || '' })"
+    :confirm-text="t('common.confirmDelete')"
+    confirm-color="red"
+    @confirm="onSingleDeleteConfirm"
+  >
     <label class="flex items-center gap-2 mt-2 cursor-pointer select-none">
       <input type="checkbox" v-model="deleteWithFiles" class="w-4 h-4 rounded-[3px] border border-gray-300 dark:border-surface-border text-red-500 focus:ring-2 focus:ring-red-500/20 bg-white dark:bg-surface-input cursor-pointer" />
       <span class="text-sm text-red-600 dark:text-red-400">{{ t('projects.deleteWithFiles') }}</span>
     </label>
   </ConfirmDialog>
+
+  <ConfirmDialog
+    v-model="showGroupDeleteConfirm"
+    :title="t('common.confirmDelete')"
+    :description="t('projects.deleteGroupConfirm', { name: groupDeleteTarget?.name || '' })"
+    :confirm-text="t('common.confirmDelete')"
+    confirm-color="red"
+    @confirm="onGroupDeleteConfirm"
+  />
 
   <Teleport to="body">
     <div v-if="showMovedDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showMovedDialog = false">
@@ -2509,9 +2571,9 @@ const toggleAddPluginPanel = () => {
               <div class="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
                 <button
                   v-for="tmpl in hubTemplateList"
-                  :key="tmpl.id"
-                  @click="selectedTemplateId = tmpl.id"
-                  :class="['p-2.5 rounded-[6px] border text-left transition-all', selectedTemplateId === tmpl.id ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/20 dark:border-brand-primary' : 'border-gray-200/60 dark:border-surface-border/40 hover:border-gray-300 dark:hover:border-surface-hover']"
+                  :key="tmpl.template_id"
+                  @click="selectedTemplateId = 'hub:' + tmpl.template_id"
+                  :class="['p-2.5 rounded-[6px] border text-left transition-all', selectedTemplateId === 'hub:' + tmpl.template_id ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/20 dark:border-brand-primary' : 'border-gray-200/60 dark:border-surface-border/40 hover:border-gray-300 dark:hover:border-surface-hover']"
                 >
                   <div class="text-sm font-medium text-gray-900 dark:text-content-primary truncate">{{ tmpl.name }}</div>
                   <div class="text-xs text-gray-500 dark:text-content-muted truncate">{{ tmpl.description || t('projects.addProjectDialog.noDesc') }}</div>

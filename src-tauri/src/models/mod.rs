@@ -392,6 +392,8 @@ pub struct Settings {
     pub asset_library_mirror: String,
     #[serde(default)]
     pub asset_store_mirror: String,
+    #[serde(default)]
+    pub export_template_mirror: String,
     #[serde(default = "default_asset_api_mode")]
     pub asset_api_mode: String,
     #[serde(default = "default_engine_update_channels")]
@@ -440,6 +442,7 @@ impl Default for Settings {
             github_api_proxy: String::new(),
             asset_library_mirror: String::new(),
             asset_store_mirror: String::new(),
+            export_template_mirror: String::new(),
             asset_api_mode: default_asset_api_mode(),
             engine_update_channels: default_engine_update_channels(),
             enable_anonymous_usage_stats: true,
@@ -527,6 +530,8 @@ pub struct PluginUpdateInfo {
     pub update_available: bool,
     pub release_notes: String,
     pub source_url: String,
+    #[serde(default)]
+    pub affected_projects: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

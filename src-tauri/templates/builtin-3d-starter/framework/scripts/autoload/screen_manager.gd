@@ -20,6 +20,19 @@ func change_scene(target: String, fade_duration: float = 0.5) -> void:
     transition_finished.emit()
 
 
+func change_scene_to_packed(scene: PackedScene, fade_duration: float = 0.5) -> void:
+    if _is_transitioning:
+        return
+    _is_transitioning = true
+    transition_started.emit()
+    await _fade_out(fade_duration)
+    get_tree().change_scene_to_packed(scene)
+    await get_tree().process_frame
+    await _fade_in(fade_duration)
+    _is_transitioning = false
+    transition_finished.emit()
+
+
 func reload_current_scene(fade_duration: float = 0.3) -> void:
     if _is_transitioning:
         return

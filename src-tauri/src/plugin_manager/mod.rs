@@ -13,12 +13,15 @@ const COMPAT_SCAN_MAX_DEPTH: usize = 5;
 
 pub struct PluginManager {
     plugins_dir: PathBuf,
+    git_cache_dir: PathBuf,
 }
 
 impl PluginManager {
     pub fn new(plugins_dir: PathBuf) -> Self {
         fs::create_dir_all(&plugins_dir).ok();
-        Self { plugins_dir }
+        let git_cache_dir = plugins_dir.join(".git_cache");
+        fs::create_dir_all(&git_cache_dir).ok();
+        Self { plugins_dir, git_cache_dir }
     }
 
     pub fn plugins_dir(&self) -> &Path {
@@ -414,6 +417,13 @@ fn detect_plugin_source(plugin_dir: &Path) -> (crate::models::SourceType, String
         fs::create_dir_all(&payload_dir)
             .context("Failed to create version directory")?;
 
+        // Create cache key from URL and ref
+        let cache_key = format!("{}_{}", 
+            git_url.replace("://", "_").replace("/", "_").replace(".", "_"),
+            resolved_ref.as_deref().unwrap_or("default")
+        );
+        let cache_dir = self.git_cache_dir.join(&cache_key);
+
         let mut callbacks = git2::RemoteCallbacks::new();
         let app_handle_clone = app_handle.clone();
         callbacks.transfer_progress(move |progress| {
@@ -432,31 +442,71 @@ fn detect_plugin_source(plugin_dir: &Path) -> (crate::models::SourceType, String
             true
         });
 
-        let mut fetch_options = git2::FetchOptions::new();
-        fetch_options.remote_callbacks(callbacks);
+        // Try to clone from cache first (fast!)
+        let cloned_from_cache = if cache_dir.exists() {
+            let mut cache_callbacks = git2::RemoteCallbacks::new();
+            let app_handle_cache = app_handle.clone();
+            cache_callbacks.transfer_progress(move |progress| {
+                let received = progress.received_objects();
+                let total = progress.total_objects();
+                let percentage = if total > 0 {
+                    (received as f64 / total as f64 * 100.0) as u32
+                } else {
+                    0
+                };
+                let _ = app_handle_cache.emit("git-clone-progress", serde_json::json!({
+                    "received_objects": received,
+                    "total_objects": total,
+                    "percentage": percentage,
+                }));
+                true
+            });
+            let mut fetch_options = git2::FetchOptions::new();
+            fetch_options.remote_callbacks(cache_callbacks);
+            let mut builder = git2::build::RepoBuilder::new();
+            builder.fetch_options(fetch_options);
+            if let Some(git_ref) = git_ref {
+                builder.branch(git_ref);
+            }
+            builder.clone(&cache_dir.to_string_lossy(), &payload_dir).is_ok()
+        } else {
+            false
+        };
 
-        let mut builder = git2::build::RepoBuilder::new();
-        builder.fetch_options(fetch_options);
+        if !cloned_from_cache {
+            // Clone from remote
+            let mut fetch_options = git2::FetchOptions::new();
+            fetch_options.remote_callbacks(callbacks);
 
-        if let Some(git_ref) = git_ref {
-            builder.branch(git_ref);
-        }
+            let mut builder = git2::build::RepoBuilder::new();
+            builder.fetch_options(fetch_options);
 
-        if let Err(e) = builder.clone(git_url, &payload_dir) {
-            let _ = fs::remove_dir_all(&version_dir);
-            let err_msg = format!("{}", e);
-            let user_msg = if err_msg.contains("401") || err_msg.contains("status code: 401") {
-                "仓库需要认证或为私有仓库，无法访问".to_string()
-            } else if err_msg.contains("path too long") || err_msg.contains("Filesystem (30)") {
-                "文件路径过长（Windows 路径限制），请将数据目录移至更短路径".to_string()
-            } else if err_msg.contains("404") || err_msg.contains("status code: 404") {
-                "仓库不存在或地址错误".to_string()
-            } else if err_msg.contains("timed out") || err_msg.contains("connection") || err_msg.contains("超时") || err_msg.contains("timeout") {
-                "网络连接失败，请检查网络".to_string()
-            } else {
-                format!("克隆仓库失败: {}", e)
-            };
-            return Err(anyhow::anyhow!("{}", user_msg));
+            if let Some(git_ref) = git_ref {
+                builder.branch(git_ref);
+            }
+
+            if let Err(e) = builder.clone(git_url, &payload_dir) {
+                let _ = fs::remove_dir_all(&version_dir);
+                let err_msg = format!("{}", e);
+                let user_msg = if err_msg.contains("401") || err_msg.contains("status code: 401") {
+                    "仓库需要认证或为私有仓库，无法访问".to_string()
+                } else if err_msg.contains("path too long") || err_msg.contains("Filesystem (30)") {
+                    "文件路径过长（Windows 路径限制），请将数据目录移至更短路径".to_string()
+                } else if err_msg.contains("404") || err_msg.contains("status code: 404") {
+                    "仓库不存在或地址错误".to_string()
+                } else if err_msg.contains("timed out") || err_msg.contains("connection") || err_msg.contains("超时") || err_msg.contains("timeout") {
+                    "网络连接失败，请检查网络".to_string()
+                } else {
+                    format!("克隆仓库失败: {}", e)
+                };
+                return Err(anyhow::anyhow!("{}", user_msg));
+            }
+
+            // Update cache: bare-clone the freshly downloaded repo into cache
+            if !cache_dir.exists() {
+                fs::create_dir_all(&cache_dir).ok();
+                let _ = git2::Repository::clone(&payload_dir.to_string_lossy(), &cache_dir);
+            }
         }
 
         let git_dir = payload_dir.join(".git");

@@ -94,6 +94,32 @@ pub enum Commands {
         #[arg(long)]
         project: Option<String>,
     },
+
+    /// 从 .harbor.yml 安装插件依赖并应用到项目
+    Install {
+        /// 项目名称（支持模糊匹配）
+        project: String,
+    },
+
+    /// 锁文件管理
+    Lock {
+        #[command(subcommand)]
+        command: LockCommands,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum LockCommands {
+    /// 生成锁文件（写入 harbor.lock）
+    Generate {
+        /// 项目名称（支持模糊匹配）
+        project: String,
+    },
+    /// 验证锁文件与实际环境是否一致
+    Verify {
+        /// 项目名称（支持模糊匹配）
+        project: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -344,6 +370,11 @@ pub fn run(cli: Cli) -> Result<()> {
             EngineCommands::Install { version, mirror, variant } => cmd_engines_install(&ctx, &version, mirror, &variant),
         },
         Commands::Sync { project } => cmd_sync(&ctx, project.as_deref()),
+        Commands::Install { project } => cmd_install(&ctx, &project),
+        Commands::Lock { command } => match command {
+            LockCommands::Generate { project } => cmd_lock_generate(&ctx, &project),
+            LockCommands::Verify { project } => cmd_lock_verify(&ctx, &project),
+        },
     }
 }
 
@@ -1581,6 +1612,285 @@ fn cmd_sync(ctx: &CliContext, project_name: Option<&str>) -> Result<()> {
     } else {
         println!();
         println!("同步完成: {} 个项目已更新, {} 个项目跳过（无 .harbor.yml）", synced, skipped);
+    }
+
+    Ok(())
+}
+
+// ----------------------------------------------------------------------------
+// harbor install
+// ----------------------------------------------------------------------------
+
+#[derive(Serialize)]
+struct InstallOutput {
+    project: String,
+    imported: u32,
+    bound: u32,
+    skipped: u32,
+    errors: Vec<String>,
+}
+
+fn cmd_install(ctx: &CliContext, project_name: &str) -> Result<()> {
+    let _lock = ctx.acquire_lock()?;
+
+    let projects = ctx.load_projects();
+    let mut plugins = ctx.load_plugins();
+    let mut bindings = ctx.load_bindings();
+    let manager = ctx.get_plugin_manager();
+
+    // 查找项目
+    let project = find_by_name(&projects, project_name, |p| &p.name, "项目")?;
+
+    // 读取 .harbor.yml
+    let config = harbor_config::read_harbor_config_from_project(&project.path)
+        .map_err(|e| anyhow!("读取 .harbor.yml 失败: {}", e))?
+        .ok_or_else(|| anyhow!("项目 {} 下未找到 .harbor.yml 文件", project.name))?;
+
+    let config = if config.version < 2 {
+        config.upgrade_to_v2()
+    } else {
+        config
+    };
+
+    let mut imported = 0u32;
+    let mut bound = 0u32;
+    let mut skipped = 0u32;
+    let mut errors: Vec<String> = Vec::new();
+
+    // 遍历插件列表
+    for plugin_config in &config.plugins {
+        // 跳过本地插件
+        if plugin_config.source == "local" {
+            errors.push(format!("插件 \"{}\" 为本地导入类型，跳过", plugin_config.name));
+            skipped += 1;
+            continue;
+        }
+
+        // 跳过无URL的插件
+        if plugin_config.url.is_empty() {
+            match plugin_config.source.as_str() {
+                "git" | "url" => {
+                    errors.push(format!("插件 \"{}\" 缺少URL，跳过", plugin_config.name));
+                    skipped += 1;
+                    continue;
+                }
+                _ => continue,
+            }
+        }
+
+        // 查找已存在的插件
+        let existing_plugin = plugins.iter().find(|p| {
+            let source_match = match p.source.source_type {
+                crate::models::SourceType::Git => p.source.url == plugin_config.url,
+                crate::models::SourceType::Url => p.source.url == plugin_config.url,
+                _ => false,
+            };
+            source_match || p.name.to_lowercase() == plugin_config.name.to_lowercase()
+        });
+
+        let plugin_id = if let Some(plugin) = existing_plugin {
+            if !ctx.is_json_output() {
+                println!("  {} {} (已存在)", style("✓").green(), plugin_config.name);
+            }
+            plugin.plugin_id.clone()
+        } else {
+            // 根据 source_type 导入
+            let plugin = match plugin_config.source.as_str() {
+                "git" => {
+                    let git_ref = if plugin_config.r#ref.is_empty() {
+                        None
+                    } else {
+                        Some(plugin_config.r#ref.as_str())
+                    };
+                    if !ctx.is_json_output() {
+                        println!("  {} 正在导入 {}...", style("↓").cyan(), plugin_config.name);
+                    }
+                    import_plugin_from_git_cli(&manager, &plugin_config.url, git_ref)?
+                }
+                "url" => {
+                    if !ctx.is_json_output() {
+                        println!("  {} 正在下载 {}...", style("↓").cyan(), plugin_config.name);
+                    }
+                    import_plugin_from_url_cli(&manager, &plugin_config.url)?
+                }
+                _ => {
+                    errors.push(format!(
+                        "插件 \"{}\" 的来源类型 \"{}\" 不支持CLI导入",
+                        plugin_config.name, plugin_config.source
+                    ));
+                    skipped += 1;
+                    continue;
+                }
+            };
+            let pid = plugin.plugin_id.clone();
+            plugins.push(plugin);
+            imported += 1;
+            if !ctx.is_json_output() {
+                println!("  {} {} (已导入)", style("✓").green(), plugin_config.name);
+            }
+            pid
+        };
+
+        // 创建 binding
+        let already_bound = bindings.iter().any(|b| {
+            b.project_id == project.project_id && b.plugin_id == plugin_id
+        });
+
+        if !already_bound {
+            // 获取插件的 unit 信息
+            let plugin_data = plugins.iter().find(|p| p.plugin_id == plugin_id).unwrap();
+            let version = plugin_data.versions.last().unwrap();
+            let unit = version.units.first().unwrap();
+            let mount_path = format!("res://addons/{}", unit.name);
+
+            bindings.push(crate::models::ProjectBinding {
+                project_id: project.project_id.clone(),
+                plugin_id: plugin_id.clone(),
+                version_id: version.version_id.clone(),
+                unit_id: unit.unit_id.clone(),
+                mount_path,
+                created_at: chrono::Utc::now(),
+                is_healthy: None,
+                subdirectory: String::new(),
+            });
+            bound += 1;
+            if !ctx.is_json_output() {
+                println!("  {} {} (已绑定)", style("✓").green(), plugin_config.name);
+            }
+        }
+    }
+
+    // 保存数据
+    ctx.save_plugins(&plugins)?;
+    ctx.save_bindings(&bindings)?;
+
+    // 应用到文件系统
+    let linker = ctx.get_linker();
+    let plugins_base = ctx.data_dir.join("plugins");
+    let project_bindings: Vec<crate::models::ProjectBinding> = bindings
+        .iter()
+        .filter(|b| b.project_id == project.project_id)
+        .cloned()
+        .collect();
+
+    if !project_bindings.is_empty() {
+        if !ctx.is_json_output() {
+            println!();
+            println!("正在应用绑定到项目...");
+        }
+        linker
+            .apply_bindings(
+                &project.path,
+                &[],
+                &project_bindings,
+                plugins_base.to_string_lossy().as_ref(),
+            )
+            .map_err(|e| anyhow!("应用绑定失败: {}", e))?;
+    }
+
+    // 输出结果
+    if ctx.is_json_output() {
+        print_json(&serde_json::json!({
+            "project": project.name,
+            "imported": imported,
+            "bound": bound,
+            "skipped": skipped,
+            "errors": errors,
+        }))?;
+    } else {
+        println!();
+        println!(
+            "{} 安装完成: {}",
+            style("✓").green(),
+            project.name
+        );
+        println!(
+            "  导入插件: {}, 绑定: {}, 跳过: {}",
+            imported, bound, skipped
+        );
+        if !errors.is_empty() {
+            for err in &errors {
+                println!("  {} {}", style("⚠").yellow(), err);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+// ----------------------------------------------------------------------------
+// harbor lock generate
+// ----------------------------------------------------------------------------
+
+fn cmd_lock_generate(ctx: &CliContext, project_name: &str) -> Result<()> {
+    let _lock = ctx.acquire_lock()?;
+    let projects = ctx.load_projects();
+    let project = find_by_name(&projects, project_name, |p| &p.name, "项目")?;
+
+    let plugins = ctx.load_plugins();
+    let bindings = ctx.load_bindings();
+    let engines = ctx.load_engines();
+
+    let engine_bindings = if let Some(ref engine_id) = project.last_used_engine_id {
+        vec![(project.project_id.clone(), engine_id.clone())]
+    } else {
+        vec![]
+    };
+
+    let lock = crate::lockfile::generate_lock(project, &bindings, &plugins, &engines, &engine_bindings);
+    crate::lockfile::write_lock(&project.path, &lock)
+        .map_err(|e| anyhow!("写入 harbor.lock 失败: {}", e))?;
+
+    if ctx.is_json_output() {
+        print_json(&lock)?;
+    } else {
+        println!("{} 已生成 harbor.lock（{} 个插件）",
+            style("✓").green(),
+            lock.plugins.len()
+        );
+    }
+
+    Ok(())
+}
+
+// ----------------------------------------------------------------------------
+// harbor lock verify
+// ----------------------------------------------------------------------------
+
+fn cmd_lock_verify(ctx: &CliContext, project_name: &str) -> Result<()> {
+    let projects = ctx.load_projects();
+    let project = find_by_name(&projects, project_name, |p| &p.name, "项目")?;
+
+    let lock = crate::lockfile::read_lock(&project.path)
+        .map_err(|e| anyhow!("读取 harbor.lock 失败: {}", e))?
+        .ok_or_else(|| anyhow!("项目 '{}' 未找到 harbor.lock 文件，请先运行 harbor lock generate", project.name))?;
+
+    let plugins = ctx.load_plugins();
+    let result = crate::lockfile::verify_lock(&project.path, &lock, &plugins);
+
+    if ctx.is_json_output() {
+        print_json(&result)?;
+    } else {
+        if result.is_valid {
+            println!("{} 锁文件验证通过（{} 个插件）",
+                style("✓").green(),
+                lock.plugins.len()
+            );
+        } else {
+            println!("{} 锁文件验证失败（{} 个不匹配）",
+                style("✗").red(),
+                result.mismatches.len()
+            );
+            for m in &result.mismatches {
+                println!("\n  {} {}", style("→").red(), style(&m.plugin_name).bold());
+                println!("    期望版本: {}", m.expected_version);
+                println!("    实际版本: {}", m.actual_version);
+                if let Some(ref issue) = m.mount_path_issue {
+                    println!("    挂载问题: {}", style(issue).yellow());
+                }
+            }
+            std::process::exit(1);
+        }
     }
 
     Ok(())

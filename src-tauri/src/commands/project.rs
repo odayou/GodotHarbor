@@ -18,7 +18,7 @@ fn save_groups(app: &AppHandle, groups: &Vec<ProjectGroup>) -> Result<(), String
         .map_err(|e| format!("保存分组失败: {}", e))
 }
 
-fn normalize_path(path: &str) -> String {
+pub fn normalize_path(path: &str) -> String {
     let p = std::path::Path::new(path);
     match std::fs::canonicalize(p) {
         Ok(canonical) => {
@@ -73,13 +73,16 @@ pub async fn scan_projects(app: AppHandle, root_dirs: Vec<String>) -> Result<Vec
     let mut existing_projects: Vec<Project> = storage.load_or_default("projects.json");
 
     for project in &all_projects {
-        if let Some(index) = existing_projects.iter().position(|p| path_matches(&p.path, &project.path)) {
+        let normalized_path = normalize_path(&project.path);
+        if let Some(index) = existing_projects.iter().position(|p| path_matches(&p.path, &normalized_path)) {
             let mut existing = existing_projects[index].clone();
             existing.name = project.name.clone();
             existing.godot_version = project.godot_version.clone();
             existing_projects[index] = existing;
         } else {
-            existing_projects.push(project.clone());
+            let mut normalized = project.clone();
+            normalized.path = normalized_path;
+            existing_projects.push(normalized);
         }
     }
 
@@ -137,8 +140,10 @@ pub fn add_project(app: AppHandle, path: String) -> Result<Project, String> {
 
     validate_project_path(&app, project_path)?;
 
-    let project = ProjectScanner::parse_project(&project_godot)
+    let mut project = ProjectScanner::parse_project(&project_godot)
         .map_err(|e| format!("解析项目失败: {}", e))?;
+
+    project.path = normalize_path(&project.path);
 
     let storage = get_storage(&app);
     let mut projects: Vec<Project> = storage.load_or_default("projects.json");
@@ -202,7 +207,9 @@ pub async fn import_project_from_git(
                 .map_err(|e| format!("解析项目失败: {}", e))?;
             let project_name = project.name.clone();
             let mut all_projects: Vec<Project> = storage.load_or_default("projects.json");
-            all_projects.push(project.clone());
+            let mut normalized_project = project.clone();
+            normalized_project.path = normalize_path(&project.path);
+            all_projects.push(normalized_project);
             storage.save("projects.json", &all_projects)
                 .map_err(|e| format!("保存项目失败: {}", e))?;
             log_operation(&app, "import_project_from_git", &git_url,
@@ -260,12 +267,15 @@ pub async fn import_project_from_git(
     let storage = get_storage(&app);
     let mut all_projects: Vec<Project> = storage.load_or_default("projects.json");
 
-    if all_projects.iter().any(|p| path_matches(&p.path, &project.path)) {
+    let mut normalized_project = project.clone();
+    normalized_project.path = normalize_path(&project.path);
+
+    if all_projects.iter().any(|p| path_matches(&p.path, &normalized_project.path)) {
         let _ = std::fs::remove_dir_all(&clone_target);
         return Err("该项目已存在，请勿重复添加".to_string());
     }
 
-    all_projects.push(project.clone());
+    all_projects.push(normalized_project);
     storage.save("projects.json", &all_projects)
         .map_err(|e| format!("保存项目失败: {}", e))?;
 
@@ -589,8 +599,10 @@ pub async fn auto_scan_projects(app: AppHandle) -> Result<Vec<Project>, String> 
         match ProjectScanner::scan_directory(dir) {
             Ok(scanned) => {
                 for project in scanned {
-                    if !existing_projects.iter().any(|p| path_matches(&p.path, &project.path)) {
-                        existing_projects.push(project.clone());
+                    let mut normalized = project.clone();
+                    normalized.path = normalize_path(&project.path);
+                    if !existing_projects.iter().any(|p| path_matches(&p.path, &normalized.path)) {
+                        existing_projects.push(normalized);
                         all_new_projects.push(project);
                     }
                 }

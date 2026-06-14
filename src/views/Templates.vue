@@ -521,6 +521,12 @@ const progressPercent = computed(() => {
               </span>
             </div>
 
+            <div v-if="tpl.plugins.length > 0" class="mb-2">
+              <span class="text-[11px] text-gray-500 dark:text-content-muted">
+                {{ tpl.plugins.slice(0, 3).map(p => p.name).join(', ') }}<span v-if="tpl.plugins.length > 3"> +{{ tpl.plugins.length - 3 }}</span>
+              </span>
+            </div>
+
             <div class="flex flex-wrap gap-1.5 mb-3">
               <span
                 v-for="tag in tpl.tags.slice(0, 4)"
@@ -546,9 +552,9 @@ const progressPercent = computed(() => {
 
     <!-- Detail Dialog -->
     <Teleport to="body">
-      <div v-if="showDetailDialog && selectedTemplate" class="fixed inset-0 z-50 flex items-center justify-center">
+      <div v-if="showDetailDialog && selectedTemplate" class="fixed inset-0 z-[60] flex items-center justify-center">
         <div class="absolute inset-0 bg-black/50" @click="showDetailDialog = false"></div>
-        <div class="dialog-container max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+        <div class="dialog-container relative z-10 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
           <div class="p-4">
             <div class="flex items-center justify-between mb-3">
               <div class="flex items-center gap-2">
@@ -639,6 +645,51 @@ const progressPercent = computed(() => {
               </div>
             </div>
 
+            <div v-if="selectedTemplate.project_config" class="mb-3">
+              <h3 class="text-sm font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('templates.projectConfig') }}</h3>
+              <div class="space-y-2">
+                <div v-if="selectedTemplate.project_config.autoloads && Object.keys(selectedTemplate.project_config.autoloads).length > 0">
+                  <p class="text-xs text-gray-500 dark:text-content-muted mb-1">{{ t('templates.autoloads') }}</p>
+                  <div class="flex flex-wrap gap-1.5">
+                    <span
+                      v-for="(path, name) in selectedTemplate.project_config.autoloads"
+                      :key="String(name)"
+                      class="px-1.5 py-0.5 text-[11px] rounded bg-gray-50 dark:bg-surface-layer text-gray-700 dark:text-content-secondary font-mono"
+                    >
+                      {{ name }}
+                    </span>
+                  </div>
+                </div>
+                <div v-if="selectedTemplate.project_config.layer_names">
+                  <p class="text-xs text-gray-500 dark:text-content-muted mb-1">{{ t('templates.layerNames') }}</p>
+                  <div class="space-y-1">
+                    <div v-for="(layers, domain) in selectedTemplate.project_config.layer_names" :key="String(domain)" class="flex flex-wrap gap-1.5 items-center">
+                      <span class="text-[11px] text-gray-400 dark:text-content-muted min-w-[60px]">{{ domain }}:</span>
+                      <span
+                        v-for="(layer, i) in (Array.isArray(layers) ? layers : [])"
+                        :key="i"
+                        class="px-1.5 py-0.5 text-[11px] rounded bg-gray-50 dark:bg-surface-layer text-gray-700 dark:text-content-secondary"
+                      >
+                        {{ layer }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div v-if="selectedTemplate.project_config.input_mappings && Object.keys(selectedTemplate.project_config.input_mappings).length > 0">
+                  <p class="text-xs text-gray-500 dark:text-content-muted mb-1">{{ t('templates.inputMappings') }}</p>
+                  <div class="flex flex-wrap gap-1.5">
+                    <span
+                      v-for="(mapping, name) in selectedTemplate.project_config.input_mappings"
+                      :key="String(name)"
+                      class="px-1.5 py-0.5 text-[11px] rounded bg-gray-50 dark:bg-surface-layer text-gray-700 dark:text-content-secondary"
+                    >
+                      {{ name }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div class="flex gap-2">
               <button
                 @click="showDetailDialog = false; openCreateDialog(selectedTemplate!)"
@@ -667,9 +718,9 @@ const progressPercent = computed(() => {
 
     <!-- Create Project Dialog -->
     <Teleport to="body">
-      <div v-if="showCreateDialog && selectedTemplate" class="fixed inset-0 z-50 flex items-center justify-center">
+      <div v-if="showCreateDialog && selectedTemplate" class="fixed inset-0 z-[70] flex items-center justify-center">
         <div class="absolute inset-0 bg-black/50" @click="!isCreating && (showCreateDialog = false)"></div>
-        <div class="dialog-container max-w-md w-full mx-4">
+        <div class="dialog-container relative z-10 max-w-md w-full mx-4">
           <div class="p-4">
             <h2 class="text-sm font-semibold text-gray-900 dark:text-content-primary mb-3">
               {{ t('templates.createProject') }} — {{ selectedTemplate.name }}
@@ -756,7 +807,7 @@ const progressPercent = computed(() => {
 
     <!-- Created Success Quick Access -->
     <Teleport to="body">
-      <div v-if="lastCreatedProjectId" class="fixed bottom-6 right-6 z-50 animate-fade-in">
+      <div v-if="lastCreatedProjectId" class="fixed bottom-6 right-6 z-[80] animate-fade-in">
         <div class="bg-green-600 text-white rounded shadow-sm px-3 py-2 flex items-center gap-2">
           <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M5 13l4 4L19 7" />
@@ -790,9 +841,9 @@ const progressPercent = computed(() => {
 
     <!-- Import URL Dialog -->
     <Teleport to="body">
-      <div v-if="showImportDialog" class="fixed inset-0 z-50 flex items-center justify-center">
+      <div v-if="showImportDialog" class="fixed inset-0 z-[60] flex items-center justify-center">
         <div class="absolute inset-0 bg-black/50" @click="!isImporting && (showImportDialog = false)"></div>
-        <div class="dialog-container max-w-md w-full mx-4">
+        <div class="dialog-container relative z-10 max-w-md w-full mx-4">
           <div class="p-4">
             <h2 class="text-sm font-semibold text-gray-900 dark:text-content-primary mb-3">{{ t('templates.importUrl') }}</h2>
             <input
@@ -825,9 +876,9 @@ const progressPercent = computed(() => {
 
     <!-- Generate From Project Dialog -->
     <Teleport to="body">
-      <div v-if="showGenerateFromProjectDialog" class="fixed inset-0 z-50 flex items-center justify-center">
+      <div v-if="showGenerateFromProjectDialog" class="fixed inset-0 z-[60] flex items-center justify-center">
         <div class="absolute inset-0 bg-black/50" @click="!isGenerating && (showGenerateFromProjectDialog = false)"></div>
-        <div class="dialog-container max-w-md w-full mx-4">
+        <div class="dialog-container relative z-10 max-w-md w-full mx-4">
           <div class="p-4">
             <h2 class="text-sm font-semibold text-gray-900 dark:text-content-primary mb-3">{{ t('templates.generateFromProject') }}</h2>
             <div class="space-y-3">
@@ -893,7 +944,7 @@ const progressPercent = computed(() => {
 
     <!-- 引擎选择对话框 -->
     <Teleport to="body">
-      <div v-if="showEngineSelectDialog && engineSelectProject" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="closeEngineSelectDialog">
+      <div v-if="showEngineSelectDialog && engineSelectProject" class="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" @click="closeEngineSelectDialog">
         <div class="dialog-container w-full max-w-md max-h-[80vh] flex flex-col" @click.stop>
           <h3 class="text-sm font-semibold text-gray-900 dark:text-content-primary mb-1">{{ t('projects.openWithEngine') }}</h3>
           <p class="text-sm text-gray-500 dark:text-content-muted mb-4">

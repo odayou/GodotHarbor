@@ -9,6 +9,9 @@ signal died
 @export var jump_velocity: float = 4.5
 @export var mouse_sensitivity: float = 0.002
 @export var interact_range: float = 3.0
+@export var attack_range: float = 2.0
+@export var attack_damage: int = 25
+@export var attack_cooldown: float = 0.5
 @export var max_health: int = 100
 @export var crouch_height: float = 1.0
 @export var stand_height: float = 2.0
@@ -19,6 +22,7 @@ var _is_sprinting: bool = false
 var _is_crouching: bool = false
 var _current_speed: float = walk_speed
 var _is_dead: bool = false
+var _attack_timer: float = 0.0
 
 @onready var camera_pivot: Node3D = $CameraPivot
 @onready var camera: Camera3D = $CameraPivot/Camera3D
@@ -27,41 +31,44 @@ var _is_dead: bool = false
 
 
 func _ready() -> void:
-    Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-    add_to_group("player")
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	add_to_group("player")
 
 
 func _unhandled_input(event: InputEvent) -> void:
-    if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-        rotate_y(-event.relative.x * mouse_sensitivity)
-        camera_pivot.rotate_x(-event.relative.y * mouse_sensitivity)
-        camera_pivot.rotation.x = clampf(camera_pivot.rotation.x, -PI / 2.0, PI / 2.0)
-    if event.is_action_pressed("ui_cancel"):
-        if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-            Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-        else:
-            Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-    if event.is_action_pressed("interact"):
-        _try_interact()
+	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		rotate_y(-event.relative.x * mouse_sensitivity)
+		camera_pivot.rotate_x(-event.relative.y * mouse_sensitivity)
+		camera_pivot.rotation.x = clampf(camera_pivot.rotation.x, -PI / 2.0, PI / 2.0)
+	if event.is_action_pressed("ui_cancel"):
+		if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		else:
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	if event.is_action_pressed("interact"):
+		_try_interact()
+	if event.is_action_pressed("attack"):
+		_try_attack()
 
 
 func _physics_process(delta: float) -> void:
-    if _is_dead:
-        return
-    _handle_movement_state()
-    if not is_on_floor():
-        velocity.y -= gravity * delta
-    if Input.is_action_just_pressed("jump") and is_on_floor() and not _is_crouching:
-        velocity.y = jump_velocity
-    var input_dir = Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
-    var direction = (transform.basis * Vector3(input_dir.x, 0.0, input_dir.y)).normalized()
-    if direction:
-        velocity.x = direction.x * _current_speed
-        velocity.z = direction.z * _current_speed
-    else:
-        velocity.x = move_toward(velocity.x, 0.0, _current_speed)
-        velocity.z = move_toward(velocity.z, 0.0, _current_speed)
-    move_and_slide()
+	if _is_dead:
+		return
+	_attack_timer -= delta
+	_handle_movement_state()
+	if not is_on_floor():
+		velocity.y -= gravity * delta
+	if Input.is_action_just_pressed("jump") and is_on_floor() and not _is_crouching:
+		velocity.y = jump_velocity
+	var input_dir = Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
+	var direction = (transform.basis * Vector3(input_dir.x, 0.0, input_dir.y)).normalized()
+	if direction:
+		velocity.x = direction.x * _current_speed
+		velocity.z = direction.z * _current_speed
+	else:
+		velocity.x = move_toward(velocity.x, 0.0, _current_speed)
+		velocity.z = move_toward(velocity.z, 0.0, _current_speed)
+	move_and_slide()
 
 
 func take_damage(amount: int) -> void:
@@ -109,3 +116,17 @@ func _try_interact() -> void:
         var collider = interact_ray.get_collider()
         if collider and collider.has_method("interact"):
             collider.interact(self)
+
+
+func _try_attack() -> void:
+    if _attack_timer > 0.0:
+        return
+    _attack_timer = attack_cooldown
+    var space_state = get_world_3d().direct_space_state
+    var origin = global_position
+    var forward = -global_transform.basis.z
+    var end = origin + forward * attack_range
+    var query = PhysicsRayQueryParameters3D.create(origin, end, 0b101)
+    var result = space_state.intersect_ray(query)
+    if result and result.collider and result.collider.has_method("take_damage"):
+        result.collider.take_damage(attack_damage)

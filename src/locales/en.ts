@@ -462,6 +462,7 @@ export default {
       title: 'Plugin Update Check',
       noPlugins: 'No plugins available for update check',
       versionInfo: 'Current version: {current} → Latest version: {latest}',
+      affectedProjects: 'Affects {count} project(s)',
       update: 'Update',
       hasUpdate: 'Update available',
       upToDate: 'Up to date',
@@ -956,6 +957,7 @@ export default {
   },
   settings: {
     title: 'Settings',
+    searchPlaceholder: 'Search settings...',
     general: 'General',
     scan: 'Project Scan',
     scanDirs: 'Scan Directories',
@@ -1026,7 +1028,10 @@ export default {
       assetApiMode_auto: 'Auto',
       assetApiMode_legacy: 'Legacy Asset Library',
       assetApiMode_new_store: 'New Asset Store',
-      assetApiModeHint: 'Auto mode prefers new Asset Store API, falls back to legacy if unavailable'
+      assetApiModeHint: 'Auto mode prefers new Asset Store API, falls back to legacy if unavailable',
+      exportTemplateMirror: 'Export Template Mirror',
+      exportTemplateMirrorPlaceholder: 'e.g. https://mirror.example.com/godot/export-templates',
+      exportTemplateMirrorHint: 'Leave empty to use engine mirror or official source. Users in China can set a mirror URL'
     },
     networkAndUpdate: 'Network & Updates',
     cloud: 'Harbor Cloud',
@@ -1221,6 +1226,7 @@ export default {
     selectAll: 'Select All',
     deselectAll: 'Deselect All',
     batchDelete: 'Batch Delete',
+    batchDeleting: 'Deleting projects...',
     batchDeleteComplete: 'Batch delete complete: {success} succeeded, {failed} failed',
     batchDeleteSuccess: 'Successfully deleted {count} projects',
     batchDeleteFailed: 'Batch delete failed: {error}',
@@ -1545,6 +1551,10 @@ export default {
     plugins: 'Plugins',
     directories: 'Directories',
     exportPresets: 'Export Presets',
+    projectConfig: 'Project Config',
+    autoloads: 'Autoloads',
+    layerNames: 'Layer Names',
+    inputMappings: 'Input Mappings',
     godotVersion: 'Godot Version',
     category: {
       all: 'All',

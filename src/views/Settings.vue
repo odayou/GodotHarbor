@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useSubscription } from '@/composables/useSubscription'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
@@ -29,7 +29,7 @@ const keyboardShortcuts = computed(() => [
   { key: 'Ctrl+4', description: t('sidebar.navEnginesShortcut') },
 ])
 
-const settings = ref<Settings>({ scan_directories: [], mount_strategy: 'Symlink', language: 'zh-CN', theme: 'system', density: 'default', auto_scan_on_startup: true, auto_discover_engines: true, auto_check_plugin_updates: false, auto_check_app_updates: true, auto_check_engine_updates: true, update_check_interval_hours: 4, skipped_app_version: '', auto_apply: true, github_api_proxy: '', asset_library_mirror: '', asset_store_mirror: '', asset_api_mode: 'auto' })
+const settings = ref<Settings>({ scan_directories: [], mount_strategy: 'Symlink', language: 'zh-CN', theme: 'system', density: 'default', auto_scan_on_startup: true, auto_discover_engines: true, auto_check_plugin_updates: false, auto_check_app_updates: true, auto_check_engine_updates: true, update_check_interval_hours: 4, skipped_app_version: '', auto_apply: true, github_api_proxy: '', asset_library_mirror: '', asset_store_mirror: '', export_template_mirror: '', asset_api_mode: 'auto' })
 const originalSettings = ref<string>('')
 const isLoading = ref(false)
 const isDirty = computed(() => {
@@ -76,6 +76,7 @@ const isRestoring = ref(false)
 const projects = ref<Project[]>([])
 
 const activeSection = ref('general')
+const settingsSearchQuery = ref('')
 const { hasCloud, hasMarketplace } = useSubscription()
 
 const mcpExePath = ref('harbor-mcp-server')
@@ -84,7 +85,6 @@ const mcpServerRunning = ref(false)
 const mcpCapabilities = ref<{ tools: any[]; tools_count: number; resources: any[]; resources_count: number; prompts: any[]; prompts_count: number } | null>(null)
 const mcpExpandedSection = ref<'tools' | 'resources' | 'prompts' | null>(null)
 const mcpSelectedClient = ref('claude')
-let mcpPollTimer: ReturnType<typeof setInterval> | null = null
 
 async function resolveMcpExePath() {
   try {
@@ -168,6 +168,30 @@ const settingsSections = computed(() => {
   return sections
 })
 
+const sectionKeywords: Record<string, string[]> = {
+  general: ['language', 'theme', 'density', 'scan', 'mount', 'symlink', 'junction', 'copy', 'auto', 'onboarding', 'keyboard', 'shortcut', 'appearance', 'start', 'startup', 'language', 'zh', 'en', '语言', '主题', '密度', '扫描', '挂载', '符号链接', 'junction', '复制', '自动', '引导', '快捷键', '外观'],
+  data: ['storage', 'data', 'backup', 'restore', 'reset', 'path', 'dir', 'directory', '存储', '数据', '备份', '恢复', '重置', '路径', '目录', '导出'],
+  updates: ['mirror', 'proxy', 'github', 'asset', 'engine', 'update', 'check', 'interval', 'network', 'plugin', 'template', 'export', '镜像', '代理', 'github', '资产', '引擎', '更新', '检查', '间隔', '网络', '插件', '模板', '导出'],
+  mcp: ['mcp', 'server', 'ai', 'tool', 'claude', 'cursor', 'ide', 'vscode', 'trae', 'model', 'protocol', '服务器', '工具', '人工智能'],
+}
+
+watch(settingsSearchQuery, (query) => {
+  if (!query.trim()) return
+  const lower = query.toLowerCase()
+  for (const section of settingsSections.value) {
+    if (section.label.toLowerCase().includes(lower)) {
+      activeSection.value = section.id
+      return
+    }
+  }
+  for (const [sectionId, keywords] of Object.entries(sectionKeywords)) {
+    if (keywords.some(kw => kw.toLowerCase().includes(lower))) {
+      activeSection.value = sectionId
+      break
+    }
+  }
+})
+
 onMounted(() => {
   initTheme(); loadSettings(); loadProjects(); loadStoragePaths()
   resolveMcpExePath(); loadMcpCapabilities()
@@ -175,11 +199,6 @@ onMounted(() => {
     try { mcpServerRunning.value = await api.isMcpServerRunning() } catch { /* ignore */ }
   }
   syncMcpState()
-  mcpPollTimer = setInterval(syncMcpState, 5000)
-})
-
-onUnmounted(() => {
-  if (mcpPollTimer) clearInterval(mcpPollTimer)
 })
 
 onBeforeRouteLeave((_to, _from, next) => {
@@ -213,7 +232,7 @@ const loadSettings = async () => {
   isLoading.value = true
   try {
     const result = await api.getSettings()
-    settings.value = { scan_directories: result.scan_directories || [], mount_strategy: result.mount_strategy || 'Symlink', language: result.language || 'zh-CN', theme: result.theme || 'system', density: result.density || 'default', auto_scan_on_startup: result.auto_scan_on_startup ?? true, auto_discover_engines: result.auto_discover_engines ?? true, auto_check_plugin_updates: result.auto_check_plugin_updates ?? false, auto_check_app_updates: result.auto_check_app_updates ?? true, auto_check_engine_updates: result.auto_check_engine_updates ?? true, update_check_interval_hours: result.update_check_interval_hours ?? 4, skipped_app_version: result.skipped_app_version || '', auto_apply: result.auto_apply ?? true, github_api_proxy: result.github_api_proxy || '', asset_library_mirror: result.asset_library_mirror || '', asset_store_mirror: result.asset_store_mirror || '', asset_api_mode: result.asset_api_mode || 'auto', engine_update_channels: result.engine_update_channels || ['stable'], enable_anonymous_usage_stats: result.enable_anonymous_usage_stats ?? true }
+    settings.value = { scan_directories: result.scan_directories || [], mount_strategy: result.mount_strategy || 'Symlink', language: result.language || 'zh-CN', theme: result.theme || 'system', density: result.density || 'default', auto_scan_on_startup: result.auto_scan_on_startup ?? true, auto_discover_engines: result.auto_discover_engines ?? true, auto_check_plugin_updates: result.auto_check_plugin_updates ?? false, auto_check_app_updates: result.auto_check_app_updates ?? true, auto_check_engine_updates: result.auto_check_engine_updates ?? true, update_check_interval_hours: result.update_check_interval_hours ?? 4, skipped_app_version: result.skipped_app_version || '', auto_apply: result.auto_apply ?? true, github_api_proxy: result.github_api_proxy || '', asset_library_mirror: result.asset_library_mirror || '', asset_store_mirror: result.asset_store_mirror || '', export_template_mirror: result.export_template_mirror || '', asset_api_mode: result.asset_api_mode || 'auto', engine_update_channels: result.engine_update_channels || ['stable'], enable_anonymous_usage_stats: result.enable_anonymous_usage_stats ?? true }
     const localStorageLang = localStorage.getItem('godotharbor-language')
     if (localStorageLang && localStorageLang !== settings.value.language) {
       settings.value.language = localStorageLang
@@ -569,6 +588,17 @@ const toggleMirrorEnabled = (mirrorId: string) => {
     <div v-else class="flex gap-4 items-start">
       <nav class="w-44 shrink-0 hidden lg:block">
         <div class="sticky top-6 space-y-1">
+          <div class="relative mb-2">
+            <input
+              v-model="settingsSearchQuery"
+              type="text"
+              :placeholder="t('settings.searchPlaceholder')"
+              class="w-full pl-8 pr-3 py-1.5 text-sm rounded-[4px] border border-gray-200 dark:border-surface-border bg-white dark:bg-surface-card text-gray-900 dark:text-content-primary placeholder-gray-400 dark:placeholder-content-muted focus:outline-none focus:ring-1 focus:ring-primary-500"
+            />
+            <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 dark:text-content-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
           <button v-for="section in settingsSections" :key="section.id" @click="activeSection = section.id"
             :class="[
               'flex items-center gap-2.5 px-3 py-1.5 text-sm rounded-[4px] transition-colors w-full text-left',
@@ -848,6 +878,17 @@ const toggleMirrorEnabled = (mirrorId: string) => {
               class="w-full input-field"
             />
             <p class="text-xs text-gray-500 dark:text-content-muted mt-1">{{ t('settings.networkProxy.assetLibraryMirrorHint') }}</p>
+          </div>
+
+          <div class="mb-5 p-4 rounded-[6px] border border-gray-200/60 dark:border-surface-border/40">
+            <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-2">{{ t('settings.networkProxy.exportTemplateMirror') }}</label>
+            <input
+              v-model="settings.export_template_mirror"
+              type="text"
+              :placeholder="t('settings.networkProxy.exportTemplateMirrorPlaceholder')"
+              class="w-full input-field"
+            />
+            <p class="text-xs text-gray-500 dark:text-content-muted mt-1">{{ t('settings.networkProxy.exportTemplateMirrorHint') }}</p>
           </div>
 
           <div class="mb-5 p-4 rounded-[6px] border border-gray-200/60 dark:border-surface-border/40">

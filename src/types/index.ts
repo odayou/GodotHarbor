@@ -101,6 +101,7 @@ export interface Settings {
   github_api_proxy?: string
   asset_library_mirror?: string
   asset_store_mirror?: string
+  export_template_mirror?: string
   asset_api_mode?: 'auto' | 'legacy' | 'new_store'
   engine_update_channels?: string[]
   enable_anonymous_usage_stats?: boolean
@@ -153,6 +154,7 @@ export interface PluginUpdateInfo {
   update_available: boolean
   release_notes: string
   source_url: string
+  affected_projects?: string[]
 }
 
 export interface DashboardStats {

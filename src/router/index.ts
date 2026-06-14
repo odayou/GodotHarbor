@@ -1,21 +1,24 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
+import Home from '@/views/Home.vue'
+import Projects from '@/views/Projects.vue'
+import Plugins from '@/views/Plugins.vue'
 
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
     name: 'home',
-    component: () => import('@/views/Home.vue')
+    component: Home
   },
   {
     path: '/projects',
     name: 'projects',
-    component: () => import('@/views/Projects.vue')
+    component: Projects
   },
   {
     path: '/plugins',
     name: 'plugins',
-    component: () => import('@/views/Plugins.vue')
+    component: Plugins
   },
   {
     path: '/engines',

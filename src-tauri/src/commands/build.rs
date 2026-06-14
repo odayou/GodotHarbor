@@ -266,6 +266,24 @@ fn dir_size_recursive(path: &Path) -> u64 {
 
 async fn resolve_template_download_url(app: &AppHandle, version: &str, mono: bool) -> Result<String, String> {
     let settings = load_settings(app);
+
+    if !settings.export_template_mirror.is_empty() {
+        let tpz_name = if mono {
+            format!("Godot_v{}_mono_export_templates.tpz", version)
+        } else {
+            format!("Godot_v{}_export_templates.tpz", version)
+        };
+        let mirror_url = format!("{}/{}/{}",
+            settings.export_template_mirror.trim_end_matches('/'),
+            version,
+            tpz_name
+        );
+        let client = create_http_client(Some(std::time::Duration::from_secs(10)))?;
+        if client.head(&mirror_url).send().await.is_ok() {
+            return Ok(mirror_url);
+        }
+    }
+
     let mirror = settings.engine_mirrors.iter().find(|m| m.enabled);
 
     if let Some(mirror) = mirror {
@@ -924,6 +942,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Harbor CLI
+        run: |
+          curl -L -o harbor https://github.com/odayou/GodotHarbor/releases/latest/download/harbor-linux-x64
+          chmod +x harbor
+          sudo mv harbor /usr/local/bin/
+
+      - name: Install project dependencies
+        run: harbor install --project .
+
+      - name: Verify lockfile
+        run: harbor lock verify --project . || echo "::warning::Lockfile verification failed - dependencies may have changed"
+
       - name: Cache Godot
         uses: actions/cache@v4
         with:
@@ -1016,7 +1046,22 @@ pub async fn generate_gitlab_ci(app: AppHandle, project_id: String, platforms: V
         let ci = format!(r#"image: barichello/godot-ci:{godot_version}
 
 stages:
+  - setup
   - build
+
+setup:
+  stage: setup
+  image: ubuntu:22.04
+  script:
+    - apt-get update && apt-get install -y curl git
+    - curl -L -o harbor https://github.com/odayou/GodotHarbor/releases/latest/download/harbor-linux-x64
+    - chmod +x harbor && mv harbor /usr/local/bin/
+    - harbor install --project .
+    - harbor lock verify --project . || echo "WARNING: Lockfile verification failed"
+  artifacts:
+    paths:
+      - addons/
+    expire_in: 1 hour
 
 {build_jobs}
 "#, godot_version = godot_version, build_jobs = build_jobs);
