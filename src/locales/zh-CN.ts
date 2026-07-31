@@ -1111,6 +1111,7 @@ export default {
       placeholder: '留空使用默认路径',
       autoCheckPluginUpdates: '自动检查插件更新',
       autoCheckAppUpdates: '自动检查应用更新',
+      useOfficialUpdater: '使用官方更新器（ed25519 签名）',
       autoCheckEngineUpdates: '自动检查引擎更新',
       updateChannels: '更新通道',
       channelStable: '正式版',

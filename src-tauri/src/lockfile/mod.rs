@@ -38,6 +38,10 @@ pub struct LockedPlugin {
     pub content_hash: String,
     pub source_type: String,
     pub source_url: String,
+    /// P4-4: Git 源插件的 commit SHA pin。空表示旧版 lockfile 或非 Git 源。
+    /// restore 时若非空，强制 checkout 到此 commit；本地 HEAD 不一致则计入 mismatch。
+    #[serde(default)]
+    pub commit_sha: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,6 +74,9 @@ pub struct LockMismatch {
     pub actual_version: String,
     #[serde(default)]
     pub mount_path_issue: Option<String>,
+    /// P4-4: commit SHA pin 不匹配的提示（restore 后 HEAD 与 lockfile 声明不一致）。
+    #[serde(default)]
+    pub commit_sha_issue: Option<String>,
 }
 
 /// 「还原项目环境」命令的返回结果。
@@ -142,6 +149,29 @@ pub fn generate_lock(
                 plugin.content_hash.clone()
             };
 
+            // P4-4: 提取 Git 源插件的 commit SHA pin。
+            // 优先读 version path 同级的 git_store_dir/HEAD（import_from_git 已备份）；
+            // 失败则 fallback 到 plugin.source.git_ref（若已是 40 位 SHA）。
+            let commit_sha = if matches!(plugin.source.source_type, SourceType::Git) {
+                if let Some(ver) = version {
+                    let payload_dir = Path::new(&ver.path);
+                    let git_store_dir = payload_dir.parent().map(|p| p.join("git"));
+                    let from_store = git_store_dir
+                        .and_then(|gsd| if gsd.exists() { read_git_commit_sha(&gsd) } else { None });
+                    from_store.unwrap_or_else(|| {
+                        if is_commit_sha(&plugin.source.git_ref) {
+                            plugin.source.git_ref.clone()
+                        } else {
+                            String::new()
+                        }
+                    })
+                } else {
+                    String::new()
+                }
+            } else {
+                String::new()
+            };
+
             let source_type = match plugin.source.source_type {
                 SourceType::Git => "Git".to_string(),
                 SourceType::Local => "Local".to_string(),
@@ -161,6 +191,7 @@ pub fn generate_lock(
                 content_hash,
                 source_type,
                 source_url: plugin.source.url.clone(),
+                commit_sha,
             });
         }
     }
@@ -262,11 +293,19 @@ pub fn verify_lock(
                             ));
                         }
                     } else if mount_full_path.is_dir() {
-                        // Copy mode: always verify hash (managed by bindings)
-                        let actual_hash = compute_dir_hash(&mount_full_path).unwrap_or_default();
-                        if !actual_hash.is_empty() && actual_hash != locked.content_hash {
+                        // Copy mode: verify hash (managed by bindings)
+                        // 仅 SHA256 格式（64 位）强制校验；旧版 SipHash（16 位）跳过并提示升级
+                        if is_sha256_hash(&locked.content_hash) {
+                            let actual_hash = compute_dir_hash(&mount_full_path).unwrap_or_default();
+                            if !actual_hash.is_empty() && actual_hash != locked.content_hash {
+                                mount_path_issue = Some(format!(
+                                    "复制模式目录 '{}' 内容哈希不匹配", locked.mount_path
+                                ));
+                            }
+                        } else if !locked.content_hash.is_empty() {
                             mount_path_issue = Some(format!(
-                                "复制模式目录 '{}' 内容哈希不匹配", locked.mount_path
+                                "插件 {} 使用旧版哈希格式，建议重新生成锁文件以启用完整性校验",
+                                locked.plugin_name
                             ));
                         }
                     }
@@ -284,10 +323,41 @@ pub fn verify_lock(
                 .find(|v| v.version_id == locked.version_id);
 
             if let Some(ver) = version {
-                let actual_hash = compute_dir_hash(Path::new(&ver.path))
-                    .unwrap_or_default();
+                // 仅 SHA256 格式强制校验源路径哈希；旧版 SipHash 跳过 hash 比对
+                let (hash_mismatch, actual_hash) = if is_sha256_hash(&locked.content_hash) {
+                    let actual = compute_dir_hash(Path::new(&ver.path))
+                        .unwrap_or_default();
+                    (!actual.is_empty() && actual != locked.content_hash, actual)
+                } else {
+                    (false, String::new())
+                };
 
-                if actual_hash != locked.content_hash || mount_path_issue.is_some() {
+                // P4-4: commit SHA pin 校验。
+                // 若 lockfile 声明了 commit_sha，校验本地 git_store_dir 的 HEAD OID 是否一致。
+                // 不一致意味着本地 clone 与 lockfile 声明的供应链状态偏离，计入 mismatch。
+                let commit_sha_issue = if !locked.commit_sha.is_empty() {
+                    let payload_dir = Path::new(&ver.path);
+                    let git_store_dir = payload_dir.parent().map(|p| p.join("git"));
+                    match git_store_dir {
+                        Some(gsd) if gsd.exists() => {
+                            match read_git_commit_sha(&gsd) {
+                                Some(actual_oid) if actual_oid == locked.commit_sha => None,
+                                Some(actual_oid) => Some(format!(
+                                    "commit SHA 不匹配: 锁文件声明 {}，本地实际 {}",
+                                    locked.commit_sha, actual_oid
+                                )),
+                                None => Some(format!(
+                                    "无法读取本地 git HEAD（git_store_dir 损坏）"
+                                )),
+                            }
+                        }
+                        _ => Some("本地缺少 git_store_dir，无法校验 commit SHA".to_string()),
+                    }
+                } else {
+                    None
+                };
+
+                if hash_mismatch || mount_path_issue.is_some() || commit_sha_issue.is_some() {
                     let actual_version = ver.version.clone();
                     mismatches.push(LockMismatch {
                         plugin_name: locked.plugin_name.clone(),
@@ -296,6 +366,7 @@ pub fn verify_lock(
                         expected_version: locked.version.clone(),
                         actual_version,
                         mount_path_issue,
+                        commit_sha_issue,
                     });
                 }
             } else {
@@ -306,6 +377,7 @@ pub fn verify_lock(
                     expected_version: locked.version.clone(),
                     actual_version: "未找到版本".to_string(),
                     mount_path_issue,
+                    commit_sha_issue: None,
                 });
             }
         } else {
@@ -316,6 +388,7 @@ pub fn verify_lock(
                 expected_version: locked.version.clone(),
                 actual_version: "未安装".to_string(),
                 mount_path_issue,
+                commit_sha_issue: None,
             });
         }
     }
@@ -337,6 +410,200 @@ fn is_junction_path(path: &Path) -> bool {
     }
     let _ = path;
     false
+}
+
+/// 判断 content_hash 是否为 SHA256 格式（64 位十六进制）。
+/// 旧版 SipHash64 输出 16 位十六进制，无法与 SHA256 比对，
+/// verify 时应跳过强校验并提示用户重新生成锁文件。
+fn is_sha256_hash(h: &str) -> bool {
+    h.len() == 64 && h.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// 判断字符串是否为 Git commit SHA（40 位十六进制，git2 OID 标准长度）。
+/// 用于区分 plugin.source.git_ref 存的是 commit SHA 还是 branch/tag 名。
+pub fn is_commit_sha(s: &str) -> bool {
+    s.len() == 40 && s.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// 从 git_store_dir 读取 HEAD 的 commit SHA。
+/// import_from_git 在 clone 后会把 .git 备份到 git_store_dir，
+/// 此函数复用该备份以避免 payload_dir 中 .git 被删除后无法读取 OID。
+pub fn read_git_commit_sha(git_store_dir: &Path) -> Option<String> {
+    let repo = git2::Repository::open(git_store_dir).ok()?;
+    let head = repo.head().ok()?;
+    let oid = head.target()?;
+    Some(oid.to_string())
+}
+
+/// P4-4: 校验 URL 是否在 allowlist 内。
+/// allowlist 条目为 host glob（如 `github.com`、`*.github.com`、`gitlab.com`）。
+/// allowlist 为空 → 允许所有（向后兼容）。
+/// URL 解析失败 → 不允许（保守策略，阻止畸形 URL 绕过）。
+/// 支持 SSH（git@github.com:org/repo）与 HTTPS 两种形式。
+pub fn is_url_allowed(url: &str, allowlist: &[String]) -> bool {
+    if allowlist.is_empty() {
+        return true;
+    }
+    let host = extract_host(url);
+    match host {
+        Some(h) => allowlist.iter().any(|pattern| host_matches(&h, pattern)),
+        None => false,
+    }
+}
+
+/// 从 git URL 提取 host（不依赖 url crate，避免新增依赖）。
+/// 支持形式：
+///   - `https://github.com/org/repo.git` → `github.com`
+///   - `http://github.com/org/repo.git` → `github.com`
+///   - `git@github.com:org/repo.git` → `github.com`
+///   - `ssh://git@github.com:22/org/repo.git` → `github.com`
+///   - `ssh://git@github.com/org/repo.git` → `github.com`
+///   - `github.com/org/repo`（无 scheme）→ `github.com`
+fn extract_host(url: &str) -> Option<String> {
+    let url = url.trim();
+    if url.is_empty() {
+        return None;
+    }
+    // 1) SCP 风格 SSH：git@host:path（无 scheme，含 @ 和 :）
+    if let Some(at_idx) = url.find('@') {
+        let after_at = &url[at_idx + 1..];
+        if let Some(colon_idx) = after_at.find(':') {
+            let host = &after_at[..colon_idx];
+            if !host.is_empty() && !host.contains('/') {
+                return Some(host.to_lowercase());
+            }
+        }
+    }
+    // 2) 带 scheme：scheme://[user@]host[:port]/path
+    let after_scheme = if let Some(scheme_end) = url.find("://") {
+        &url[scheme_end + 3..]
+    } else {
+        // 3) 无 scheme：当作 host/path 处理
+        url
+    };
+    // 去掉 user@ 前缀
+    let after_user = if let Some(at_idx) = after_scheme.find('@') {
+        &after_scheme[at_idx + 1..]
+    } else {
+        after_scheme
+    };
+    // 取第一个 / 或结尾之前的部分作为 host[:port]
+    let authority = after_user
+        .split('/')
+        .next()
+        .unwrap_or("");
+    // 去掉 :port
+    let host = authority.split(':').next().unwrap_or("");
+    if host.is_empty() {
+        None
+    } else {
+        Some(host.to_lowercase())
+    }
+}
+
+/// 判断 host 是否匹配 glob 模式。
+/// `*.github.com` 匹配 `api.github.com`、`a.b.github.com`（任意子域），不匹配裸域 `github.com`。
+/// `github.com` 精确匹配 `github.com`。
+/// 严格 glob 语义（与 CSP/CORS 一致）：`*` 不匹配空字符串，裸域需单独列出。
+fn host_matches(host: &str, pattern: &str) -> bool {
+    let pattern = pattern.trim().to_lowercase();
+    if pattern.is_empty() {
+        return false;
+    }
+    if let Some(suffix) = pattern.strip_prefix("*.") {
+        // `*.github.com` 仅匹配以 `.github.com` 结尾的 host（含多级子域）
+        return host.ends_with(&format!(".{}", suffix));
+    }
+    host == pattern
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_commit_sha_valid() {
+        assert!(is_commit_sha("0123456789abcdef0123456789abcdef01234567"));
+        assert!(is_commit_sha("abcdef0123456789abcdef0123456789abcdef01"));
+    }
+
+    #[test]
+    fn test_is_commit_sha_invalid() {
+        assert!(!is_commit_sha(""));
+        assert!(!is_commit_sha("main"));
+        assert!(!is_commit_sha("v1.0.0"));
+        assert!(!is_commit_sha("0123456789abcdef")); // 16 位，太短
+        assert!(!is_commit_sha("0123456789abcdef0123456789abcdef0123456789")); // 40 位但非十六进制
+        assert!(!is_commit_sha("z123456789abcdef0123456789abcdef0123456")); // 含非十六进制字符
+    }
+
+    #[test]
+    fn test_is_url_allowed_empty_allowlist_allows_all() {
+        assert!(is_url_allowed("https://github.com/any/repo", &[]));
+        assert!(is_url_allowed("https://example.com/x", &[]));
+        assert!(is_url_allowed("git@github.com:org/repo", &[]));
+    }
+
+    #[test]
+    fn test_is_url_allowed_exact_match() {
+        let allowlist = vec!["github.com".to_string(), "gitlab.com".to_string()];
+        assert!(is_url_allowed("https://github.com/org/repo.git", &allowlist));
+        assert!(is_url_allowed("https://gitlab.com/org/repo.git", &allowlist));
+        assert!(!is_url_allowed("https://evil.com/org/repo.git", &allowlist));
+    }
+
+    #[test]
+    fn test_is_url_allowed_glob_match() {
+        let allowlist = vec!["*.github.com".to_string()];
+        assert!(is_url_allowed("https://api.github.com/org/repo", &allowlist));
+        assert!(is_url_allowed("https://raw.github.com/x", &allowlist)); // 一级子域
+        assert!(!is_url_allowed("https://raw.githubusercontent.com/x", &allowlist)); // 后缀是 usercontent.com，不匹配
+        assert!(!is_url_allowed("https://github.com/org/repo", &allowlist)); // glob 不匹配裸域
+        assert!(!is_url_allowed("https://evil.com/x", &allowlist));
+    }
+
+    #[test]
+    fn test_is_url_allowed_ssh_form() {
+        let allowlist = vec!["github.com".to_string()];
+        assert!(is_url_allowed("git@github.com:org/repo.git", &allowlist));
+        assert!(is_url_allowed("ssh://git@github.com:22/org/repo.git", &allowlist));
+        assert!(!is_url_allowed("git@evil.com:org/repo.git", &allowlist));
+    }
+
+    #[test]
+    fn test_is_url_allowed_malformed_url_blocked() {
+        let allowlist = vec!["github.com".to_string()];
+        // 畸形 URL 在 allowlist 非空时应被保守阻断
+        assert!(!is_url_allowed("not a url at all", &allowlist));
+        assert!(!is_url_allowed("", &allowlist));
+    }
+
+    #[test]
+    fn test_is_url_allowed_case_insensitive() {
+        let allowlist = vec!["GitHub.com".to_string()];
+        assert!(is_url_allowed("https://GITHUB.COM/org/repo", &allowlist));
+        assert!(is_url_allowed("git@Github.Com:org/repo.git", &allowlist));
+    }
+
+    #[test]
+    fn test_extract_host_various_forms() {
+        assert_eq!(extract_host("https://github.com/org/repo.git").as_deref(), Some("github.com"));
+        assert_eq!(extract_host("git@github.com:org/repo.git").as_deref(), Some("github.com"));
+        assert_eq!(extract_host("ssh://git@github.com:22/org/repo.git").as_deref(), Some("github.com"));
+        assert_eq!(extract_host("https://api.github.com/x").as_deref(), Some("api.github.com"));
+    }
+
+    #[test]
+    fn test_host_matches_glob() {
+        assert!(host_matches("api.github.com", "*.github.com"));
+        assert!(host_matches("raw.github.com", "*.github.com"));
+        assert!(host_matches("a.b.github.com", "*.github.com")); // 多级子域也匹配（宽松 ends_with 语义）
+        assert!(!host_matches("raw.githubusercontent.com", "*.github.com")); // 后缀不同
+        assert!(!host_matches("github.com", "*.github.com")); // glob 不匹配裸域
+        assert!(host_matches("github.com", "github.com"));
+        assert!(!host_matches("evil.com", "github.com"));
+        assert!(!host_matches("github.com", "")); // 空 pattern 拒绝
+    }
 }
 
 pub fn diff_locks(old: &HarborLock, new: &HarborLock) -> LockDiff {
@@ -403,7 +670,7 @@ pub fn sync_from_lock(
                 .find(|v| v.version_id == locked.version_id);
 
             if let Some(ver) = version {
-                if strict {
+                if strict && is_sha256_hash(&locked.content_hash) {
                     let actual_hash = compute_dir_hash(Path::new(&ver.path))
                         .unwrap_or_default();
                     if actual_hash != locked.content_hash {

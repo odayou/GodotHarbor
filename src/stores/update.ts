@@ -153,6 +153,21 @@ export const useUpdateStore = defineStore('updates', () => {
     installProgress.value = 0
     installMessage.value = t('updates.preparingDownload')
     try {
+      // P4-2: 根据 settings.use_official_updater 路由到官方 updater 链路；
+      // 失败时自动回退到旧自实现链路（install_app_update）
+      const settings = await api.getSettings()
+      const useOfficial = (settings as any)?.use_official_updater === true
+      if (useOfficial) {
+        try {
+          await api.installAppUpdateOfficial()
+          installMessage.value = t('updates.installCompleteRestarting')
+          return
+        } catch (officialErr) {
+          console.warn('Official updater failed, falling back to legacy installer:', officialErr)
+          installMessage.value = t('updates.preparingDownload')
+          // 继续走 fallback
+        }
+      }
       await api.installAppUpdate()
       installMessage.value = t('updates.installCompleteRestarting')
     } catch (error) {

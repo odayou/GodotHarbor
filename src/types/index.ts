@@ -105,6 +105,8 @@ export interface Settings {
   engine_update_channels?: string[]
   enable_anonymous_usage_stats?: boolean
   anonymous_user_id?: string
+  plugin_source_allowlist?: string[]
+  use_official_updater?: boolean
 }
 
 export interface ApplyResult {

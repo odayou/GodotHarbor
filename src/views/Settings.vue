@@ -17,7 +17,7 @@ const { t, locale } = useI18n()
 const router = useRouter()
 const { setTheme, setDensity, initTheme } = useTheme()
 
-const settings = ref<Settings>({ scan_directories: [], language: 'zh-CN', theme: 'system', density: 'default', auto_scan_on_startup: true, auto_discover_engines: true, auto_check_plugin_updates: false, auto_check_app_updates: true, auto_check_engine_updates: true, update_check_interval_hours: 4, skipped_app_version: '', auto_apply: true, github_api_proxy: '', asset_library_mirror: '', asset_store_mirror: '', export_template_mirror: '', asset_api_mode: 'auto' })
+const settings = ref<Settings>({ scan_directories: [], language: 'zh-CN', theme: 'system', density: 'default', auto_scan_on_startup: true, auto_discover_engines: true, auto_check_plugin_updates: false, auto_check_app_updates: true, auto_check_engine_updates: true, update_check_interval_hours: 4, skipped_app_version: '', auto_apply: true, github_api_proxy: '', asset_library_mirror: '', asset_store_mirror: '', export_template_mirror: '', asset_api_mode: 'auto', use_official_updater: false })
 const originalSettings = ref<string>('')
 const isLoading = ref(false)
 const isDirty = computed(() => {
@@ -783,6 +783,11 @@ const toggleMirrorEnabled = (mirrorId: string) => {
             <label class="flex items-center gap-3 cursor-pointer">
               <input type="checkbox" v-model="settings.auto_check_app_updates" class="checkbox-field" />
               <span class="text-sm text-gray-700 dark:text-content-secondary">{{ t('settings.pluginRepo.autoCheckAppUpdates') }}</span>
+            </label>
+            <label class="flex items-center gap-3 cursor-pointer">
+              <input type="checkbox" v-model="settings.use_official_updater" class="checkbox-field" />
+              <span class="text-sm text-gray-700 dark:text-content-secondary">{{ t('settings.pluginRepo.useOfficialUpdater') }}</span>
+              <span class="text-xs text-gray-400 dark:text-content-muted">(P4-2 ed25519 签名链路，需配置密钥后启用)</span>
             </label>
             <label class="flex items-center gap-3 cursor-pointer">
               <input type="checkbox" v-model="settings.auto_check_plugin_updates" class="checkbox-field" />

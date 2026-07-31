@@ -101,6 +101,11 @@ pub fn run() {
                         });
                     }
                 }))?;
+
+                // P4-2: Tauri 官方 updater（ed25519 签名链路）
+                // 默认通过 Settings.use_official_updater 控制是否走此链路；
+                // 配置不全（pubkey 为空）时插件初始化仍成功，运行时 check 才会返回错误。
+                app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
             }
 
             let app_handle = app.handle();
@@ -477,6 +482,7 @@ pub fn run() {
             commands::skip_app_version,
             commands::check_app_update,
             commands::install_app_update,
+            commands::install_app_update_official,
             commands::check_all_updates,
             commands::get_app_version,
             commands::check_hot_update,

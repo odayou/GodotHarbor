@@ -1,5 +1,5 @@
 use crate::lockfile::{self, HarborLock, LockDiff, LockVerifyResult, RestoreEnvResult};
-use crate::commands::utils::{get_storage, log_operation, get_data_dir, get_plugin_manager, upsert_plugin};
+use crate::commands::utils::{get_storage, log_operation, get_data_dir, get_plugin_manager, upsert_plugin, load_settings};
 use crate::storage::Storage;
 use crate::linker::Linker;
 use tauri::AppHandle;
@@ -257,6 +257,10 @@ pub async fn restore_project_environment(app: AppHandle, project_id: String) -> 
         let mut bindings: Vec<crate::models::ProjectBinding> = storage.load_or_default("bindings.json");
         let manager = get_plugin_manager(&app_clone);
 
+        // P4-4: 加载 allowlist。空列表表示不限制（向后兼容）；非空时对 lockfile 带入的外部 URL 强制校验。
+        let settings = load_settings(&app_clone);
+        let allowlist = settings.plugin_source_allowlist.clone();
+
         let mut ready = Vec::new();
         let mut imported = Vec::new();
         let mut failed = Vec::new();
@@ -264,6 +268,18 @@ pub async fn restore_project_environment(app: AppHandle, project_id: String) -> 
         let mut desired_new_bindings: Vec<crate::models::ProjectBinding> = Vec::new();
 
         for locked in &lock.plugins {
+            // P4-4: allowlist 门控。对 lockfile 带入的外部 URL（Git/Url 源）强制校验 host。
+            // AssetLibrary/Local 源无 URL，allowlist 不适用（这些源在本地已就绪）。
+            let source_type = locked.source_type.as_str();
+            let needs_url_check = (source_type == "Git" || source_type == "Url") && !locked.source_url.is_empty();
+            if needs_url_check && !lockfile::is_url_allowed(&locked.source_url, &allowlist) {
+                failed.push(format!(
+                    "{}: 源 URL {} 不在 allowlist 内，已阻断（在设置中配置 plugin_source_allowlist）",
+                    locked.plugin_name, locked.source_url
+                ));
+                continue;
+            }
+
             // 优先按 source_url 匹配（跨机器可移植，lockfile 的 plugin_id/version_id 是本地 UUID 不可用）
             let matched_plugin = if !locked.source_url.is_empty() {
                 plugins.iter().find(|p| p.source.url == locked.source_url).cloned()
@@ -275,10 +291,15 @@ pub async fn restore_project_environment(app: AppHandle, project_id: String) -> 
             let matched_plugin = match matched_plugin {
                 Some(p) => Some(p),
                 None => {
-                    let source_type = locked.source_type.as_str();
                     if (source_type == "Git" || source_type == "Url") && !locked.source_url.is_empty() {
                         let import_result = if source_type == "Git" {
-                            manager.import_from_git(&locked.source_url, None, &app_clone)
+                            // P4-4: 若 lockfile 声明了 commit_sha，使用 pinned 导入锁定供应链状态；
+                            // 否则保持原行为（clone 默认分支），但提示用户重新生成 lockfile 以启用 pin。
+                            if !locked.commit_sha.is_empty() {
+                                manager.import_from_git_pinned(&locked.source_url, &locked.commit_sha, &app_clone)
+                            } else {
+                                manager.import_from_git(&locked.source_url, None, &app_clone)
+                            }
                         } else {
                             manager.import_from_url(&locked.source_url, &app_clone)
                         };
@@ -389,8 +410,27 @@ pub async fn restore_project_environment(app: AppHandle, project_id: String) -> 
                         if let Err(e) = applied_storage.save(&format!("{}.json", project_id), &desired_bindings) {
                             eprintln!("Failed to save applied bindings: {}", e);
                         }
-                        if let Err(e) = refresh_project_lock(&app_clone, &project_id) {
-                            eprintln!("Failed to write harbor.lock: {}", e);
+                        match refresh_project_lock(&app_clone, &project_id) {
+                            Ok(()) => {
+                                // P4-1: restore 后强制校验，检测 apply 结果与锁文件声明的一致性
+                                // P4-4: 同时校验 commit_sha pin 是否与本地 HEAD 一致
+                                if let Ok(Some(refreshed_lock)) = lockfile::read_lock(&project.path) {
+                                    let verify_result = lockfile::verify_lock(&project.path, &refreshed_lock, &plugins);
+                                    for m in &verify_result.mismatches {
+                                        if let Some(issue) = &m.mount_path_issue {
+                                            // 旧版哈希格式提示是信息性的，不计入失败
+                                            if issue.contains("旧版哈希格式") {
+                                                continue;
+                                            }
+                                            failed.push(format!("{}: 还原后校验失败 - {}", m.plugin_name, issue));
+                                        }
+                                        if let Some(issue) = &m.commit_sha_issue {
+                                            failed.push(format!("{}: 供应链校验失败 - {}", m.plugin_name, issue));
+                                        }
+                                    }
+                                }
+                            }
+                            Err(e) => eprintln!("Failed to write harbor.lock: {}", e),
                         }
                     } else {
                         for err in &result.errors {

@@ -390,6 +390,29 @@ fn detect_plugin_source(plugin_dir: &Path) -> (crate::models::SourceType, String
     }
 
     pub fn import_from_git(&self, git_url: &str, git_ref: Option<&str>, app_handle: &AppHandle) -> Result<Plugin> {
+        self.import_from_git_inner(git_url, git_ref, None, app_handle)
+    }
+
+    /// P4-4: 带 commit SHA pin 的 git 导入。
+    /// 流程与 import_from_git 一致，但 clone 后强制 checkout 到指定 commit_sha，
+    /// 用于从 harbor.lock 还原时锁定供应链状态。
+    /// `commit_sha` 必须是 40 位十六进制 OID；与 `git_ref` 互斥（同时给则忽略 git_ref）。
+    pub fn import_from_git_pinned(
+        &self,
+        git_url: &str,
+        commit_sha: &str,
+        app_handle: &AppHandle,
+    ) -> Result<Plugin> {
+        self.import_from_git_inner(git_url, None, Some(commit_sha), app_handle)
+    }
+
+    fn import_from_git_inner(
+        &self,
+        git_url: &str,
+        git_ref: Option<&str>,
+        commit_sha: Option<&str>,
+        app_handle: &AppHandle,
+    ) -> Result<Plugin> {
         let plugin_name = git_url
             .split('/')
             .last()
@@ -397,7 +420,13 @@ fn detect_plugin_source(plugin_dir: &Path) -> (crate::models::SourceType, String
             .trim_end_matches(".git")
             .to_string();
 
-        let resolved_ref = git_ref.map(|r| r.to_string());
+        // P4-4: 若指定 commit_sha，则优先以 commit_sha 作为 resolved_ref 写入 PluginSource，
+        // 避免 git_ref（branch/tag 名）被记录后无法跨机器复现。
+        let resolved_ref = if let Some(sha) = commit_sha {
+            Some(sha.to_string())
+        } else {
+            git_ref.map(|r| r.to_string())
+        };
 
         let plugin_source = PluginSource {
             source_type: SourceType::Git,
@@ -475,9 +504,12 @@ fn detect_plugin_source(plugin_dir: &Path) -> (crate::models::SourceType, String
         }
 
         // Local clone from cache (fast, no network).
+        // P4-4: 若指定 commit_sha，不传 branch（clone 默认分支后再 checkout 到 commit）。
         let mut builder = git2::build::RepoBuilder::new();
-        if let Some(git_ref) = git_ref {
-            builder.branch(git_ref);
+        if commit_sha.is_none() {
+            if let Some(git_ref) = git_ref {
+                builder.branch(git_ref);
+            }
         }
         if let Err(e) = builder.clone(&cache_dir.to_string_lossy(), &payload_dir) {
             let _ = fs::remove_dir_all(&version_dir);
@@ -496,6 +528,22 @@ fn detect_plugin_source(plugin_dir: &Path) -> (crate::models::SourceType, String
                 format!("克隆仓库失败: {}", e)
             };
             return Err(anyhow::anyhow!("{}", user_msg));
+        }
+
+        // P4-4: 强制 checkout 到 commit_sha，确保供应链状态与 lockfile 声明一致。
+        if let Some(sha) = commit_sha {
+            let repo = git2::Repository::open(&payload_dir)
+                .with_context(|| "clone 后打开仓库失败")?;
+            let oid = git2::Oid::from_str(sha)
+                .with_context(|| format!("无效的 commit SHA: {}", sha))?;
+            let commit = repo.find_commit(oid)
+                .with_context(|| format!("仓库中找不到 commit {}，可能仓库历史不包含此提交", sha))?;
+            let tree = commit.tree()
+                .with_context(|| "读取 commit tree 失败")?;
+            repo.checkout_tree(&tree.as_object(), None)
+                .with_context(|| format!("checkout 到 commit {} 失败", sha))?;
+            repo.set_head_detached(oid)
+                .with_context(|| "设置 detached HEAD 失败")?;
         }
 
         let git_dir = payload_dir.join(".git");

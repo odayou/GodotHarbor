@@ -112,15 +112,15 @@ jobs:
           - name: macos-universal
             os: macos-latest
             target: universal-apple-darwin
-            bundle: dmg
+            bundle: dmg,app
           - name: linux-x86_64
             os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
-            bundle: deb
+            bundle: deb,appimage
           - name: linux-aarch64
             os: ubuntu-22.04
             target: aarch64-unknown-linux-gnu
-            bundle: deb
+            bundle: deb,appimage
 
     steps:
       - name: Checkout repository
@@ -226,6 +226,11 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # P4-2: Tauri 官方 updater ed25519 签名密钥
+          # secrets 不存在时为空字符串，tauri-action 会跳过签名（不破坏当前 CI）
+          # 启用步骤：1) 配置这两个 secrets  2) tauri.conf.json > createUpdaterArtifacts: true
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PASSWORD: ${{ secrets.TAURI_SIGNING_PASSWORD }}
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: ${{ matrix.platform.name == 'linux-aarch64' && 'aarch64-linux-gnu-gcc' || '' }}
           PKG_CONFIG_ALLOW_CROSS: ${{ matrix.platform.name == 'linux-aarch64' && '1' || '' }}
           PKG_CONFIG_PATH: ${{ matrix.platform.name == 'linux-aarch64' && '/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig' || '' }}
@@ -234,6 +239,8 @@ jobs:
           tagName: ${{ needs.resolve-version.outputs.tag }}
           releaseDraft: true
           prerelease: false
+          # updaterJsonPreferNsis: 让生成的 latest.json 在 Windows 上优先返回 nsis.zip
+          updaterJsonPreferNsis: true
           args: '--target ${{ matrix.platform.target }} --bundles ${{ matrix.platform.bundle }}'
 
       - name: Code sign Windows installer

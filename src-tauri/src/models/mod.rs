@@ -1,19 +1,21 @@
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
+use sha2::{Sha256, Digest};
 use std::path::Path;
 use std::fs;
 use crate::utils::should_skip_dir;
 
+/// 计算目录内容的密码学哈希（SHA256）。
+/// 输出 64 位十六进制字符串（256 bit），用于 harbor.lock 的 content_hash 字段。
+/// 替代旧版 SipHash64（DefaultHasher，仅 16 位十六进制、非密码学、不防伪造）。
 pub fn compute_dir_hash(dir: &Path) -> Result<String, String> {
-    let mut hasher = DefaultHasher::new();
+    let mut hasher = Sha256::new();
     compute_dir_hash_recursive(dir, &mut hasher)?;
-    Ok(format!("{:016x}", hasher.finish()))
+    Ok(format!("{:x}", hasher.finalize()))
 }
 
-fn compute_dir_hash_recursive(dir: &Path, hasher: &mut DefaultHasher) -> Result<(), String> {
+fn compute_dir_hash_recursive(dir: &Path, hasher: &mut Sha256) -> Result<(), String> {
     if !dir.exists() {
         return Ok(());
     }
@@ -32,7 +34,8 @@ fn compute_dir_hash_recursive(dir: &Path, hasher: &mut DefaultHasher) -> Result<
             if should_skip_dir(&file_name_str) {
                 continue;
             }
-            file_name_str.hash(hasher);
+            hasher.update(file_name_str.as_bytes());
+            hasher.update(b"/");
             compute_dir_hash_recursive(&path, hasher)?;
         } else {
             // Skip Godot auto-generated per-resource sidecar files:
@@ -43,18 +46,12 @@ fn compute_dir_hash_recursive(dir: &Path, hasher: &mut DefaultHasher) -> Result<
             if lower.ends_with(".import") || lower.ends_with(".uid") {
                 continue;
             }
-            file_name_str.hash(hasher);
+            hasher.update(file_name_str.as_bytes());
+            hasher.update(b"\0");
             if let Ok(content) = fs::read(&path) {
-                content.len().hash(hasher);
-                if content.len() <= 65536 {
-                    content.hash(hasher);
-                } else {
-                    content[..65536].hash(hasher);
-                    let mid = content.len() / 2;
-                    content[mid..mid.min(mid + 65536)].hash(hasher);
-                    let start = content.len().saturating_sub(65536);
-                    content[start..].hash(hasher);
-                }
+                // 完整内容参与哈希（密码学完整性要求），不再采样头/中/尾
+                hasher.update(&(content.len() as u64).to_le_bytes());
+                hasher.update(&content);
             }
         }
     }
@@ -401,6 +398,15 @@ pub struct Settings {
     pub anonymous_user_id: String,
     #[serde(default = "default_density")]
     pub density: String,
+    /// P4-4: 插件源 allowlist（host glob，如 `github.com`、`*.github.com`、`gitlab.com`）。
+    /// 为空时允许所有源（向后兼容）；非空时 restore/import 仅允许 host 匹配的 URL。
+    #[serde(default)]
+    pub plugin_source_allowlist: Vec<String>,
+    /// P4-2: 是否使用 Tauri 官方 updater（ed25519 签名链路）。
+    /// 默认 false（走旧 install_app_update 自实现链路作 fallback）；
+    /// 用户配置好 TAURI_SIGNING_PRIVATE_KEY + pubkey 后可改 true。
+    #[serde(default)]
+    pub use_official_updater: bool,
 }
 
 fn default_true() -> bool { true }
@@ -444,6 +450,8 @@ impl Default for Settings {
             enable_anonymous_usage_stats: true,
             anonymous_user_id: String::new(),
             density: default_density(),
+            plugin_source_allowlist: Vec::new(),
+            use_official_updater: false,
         }
     }
 }

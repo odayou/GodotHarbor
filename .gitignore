@@ -8,4 +8,11 @@ GodotHarborData/
 Thumbs.db
 nul
 
+# P4-2: Tauri updater signing keys — never commit
+keys/
+*.key
+*.pem
+*.p12
+*.pfx
+
 docs/planning/*

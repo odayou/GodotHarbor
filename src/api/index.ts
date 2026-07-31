@@ -472,6 +472,10 @@ export const api = {
     return await invoke('install_app_update')
   },
 
+  async installAppUpdateOfficial(): Promise<void> {
+    return await invoke('install_app_update_official')
+  },
+
   async skipAppVersion(version: string): Promise<void> {
     return await invoke('skip_app_version', { version })
   },

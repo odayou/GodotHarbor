@@ -1109,6 +1109,7 @@ export default {
       placeholder: 'Leave blank to use default path',
       autoCheckPluginUpdates: 'Auto check plugin updates',
       autoCheckAppUpdates: 'Auto check app updates',
+      useOfficialUpdater: 'Use official updater (ed25519 signed)',
       autoCheckEngineUpdates: 'Auto check engine updates',
       updateChannels: 'Update channels',
       channelStable: 'Stable',

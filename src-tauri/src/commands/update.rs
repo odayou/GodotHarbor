@@ -2,6 +2,7 @@ use std::path::{PathBuf, Path};
 use std::fs;
 use std::io::Write;
 use tauri::{AppHandle, Emitter};
+use tauri_plugin_updater::UpdaterExt;
 use crate::models::*;
 use crate::utils::{create_http_client, no_window_cmd};
 use super::utils::*;
@@ -637,7 +638,7 @@ pub fn clear_update_history(app: AppHandle) -> Result<(), String> {
 pub fn record_update_history(app: &AppHandle, update_type: &str, target_name: &str, from_version: &str, to_version: &str, status: &str, notes: &str) {
     let storage = get_storage(app);
     let mut history: Vec<crate::models::UpdateHistoryEntry> = storage.load_or_default("update_history.json");
-    
+
     history.insert(0, crate::models::UpdateHistoryEntry {
         id: uuid::Uuid::new_v4().to_string(),
         update_type: update_type.to_string(),
@@ -654,6 +655,94 @@ pub fn record_update_history(app: &AppHandle, update_type: &str, target_name: &s
     }
 
     let _ = storage.save("update_history.json", &history);
+}
+
+/// P4-2: 使用 Tauri 官方 updater 链路安装应用更新（ed25519 签名校验）。
+///
+/// 与 `install_app_update`（自实现下载+启动安装程序）的区别：
+/// - 客户端从 `tauri.conf.json > plugins.updater.endpoints` 拉取 manifest
+/// - 自动校验下载包的 ed25519 签名（公钥写在 tauri.conf.json）
+/// - Windows 走 NSIS passive 模式（静默替换二进制，无需 UAC 二次确认）
+/// - macOS/Linux 走 tar.gz 解压替换
+///
+/// 启用前置条件：
+/// 1. tauri.conf.json > plugins.updater.pubkey 已填入公钥
+/// 2. tauri.conf.json > bundle.createUpdaterArtifacts = true
+/// 3. CI 注入了 TAURI_SIGNING_PRIVATE_KEY + TAURI_SIGNING_PASSWORD
+/// 4. Release 中存在 {asset}.sig 文件
+///
+/// 任一条件不满足时返回错误，前端应回退到 `install_app_update`。
+#[tauri::command]
+pub async fn install_app_update_official(app: AppHandle) -> Result<(), String> {
+    let current_version = app.config().version.clone().unwrap_or_default();
+
+    let _ = app.emit("app-update-progress", serde_json::json!({
+        "stage": "checking",
+        "progress": 0,
+        "message": "正在通过官方更新器检查更新..."
+    }));
+
+    let updater = app.updater()
+        .map_err(|e| format!("初始化官方更新器失败: {}", e))?;
+
+    let update = match updater.check().await {
+        Ok(Some(u)) => u,
+        Ok(None) => return Err("没有可用的更新".to_string()),
+        Err(e) => return Err(format!("检查更新失败: {}", e)),
+    };
+
+    let latest_version = update.version.clone();
+    let notes = format!("官方 updater 链路: {} → {}", current_version, latest_version);
+
+    let _ = app.emit("app-update-progress", serde_json::json!({
+        "stage": "downloading",
+        "progress": 0,
+        "message": format!("正在下载 v{}...", latest_version)
+    }));
+
+    let app_clone = app.clone();
+    let result = update.download_and_install(
+        move |downloaded, total| {
+            let progress = match total {
+                Some(total) if total > 0 => {
+                    ((downloaded as f64 / total as f64) * 100.0) as u32
+                }
+                _ => 0,
+            };
+            let _ = app_clone.emit("app-update-progress", serde_json::json!({
+                "stage": "downloading",
+                "progress": progress.min(100),
+                "message": format!("下载中... {}%", progress.min(100))
+            }));
+        },
+        || {},
+    ).await;
+
+    match result {
+        Ok(()) => {
+            let _ = app.emit("app-update-progress", serde_json::json!({
+                "stage": "complete",
+                "progress": 100,
+                "message": "更新安装完成，即将重启..."
+            }));
+
+            record_update_history(&app, "app", "Godot Harbor", &current_version, &latest_version, "success", &notes);
+
+            // 官方 updater 在 Windows 上会自动重启；macOS/Linux 需手动退出
+            app.exit(0);
+            Ok(())
+        }
+        Err(e) => {
+            let err_msg = format!("{}", e);
+            let _ = app.emit("app-update-progress", serde_json::json!({
+                "stage": "error",
+                "progress": 0,
+                "message": format!("更新失败: {}", err_msg)
+            }));
+            record_update_history(&app, "app", "Godot Harbor", &current_version, &latest_version, "failed", &err_msg);
+            Err(format!("官方更新器安装失败: {}", err_msg))
+        }
+    }
 }
 
 
