@@ -59,7 +59,6 @@ futures = "=0.3.32"
 fs2 = "=0.4.3"
 sha2 = "=0.10.9"
 base64 = "=0.22.1"
-ed25519-dalek = { version = "2", features = ["rand_core"] }
 rand = "0.8"
 clap = { version = "4", features = ["derive"] }
 indicatif = "0.17"

@@ -1,4 +1,5 @@
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
 import { useToast } from '@/composables/useToast'
 import type { HarborLock, LockVerifyResult, LockDiff } from '@/types'
@@ -7,6 +8,7 @@ export type LockStatus = 'locked_verified' | 'locked_drifted' | 'not_locked' | '
 
 export function useLockfile(projectId: string) {
   const toast = useToast()
+  const { t } = useI18n()
 
   const lock = ref<HarborLock | null>(null)
   const verifyResult = ref<LockVerifyResult | null>(null)
@@ -15,6 +17,7 @@ export function useLockfile(projectId: string) {
   const isWriting = ref(false)
   const isSyncing = ref(false)
   const isVerifying = ref(false)
+  const isRestoring = ref(false)
 
   const status = computed<LockStatus>(() => {
     if (isLoading.value) return 'loading'
@@ -111,6 +114,25 @@ export function useLockfile(projectId: string) {
     }
   }
 
+  const restore = async () => {
+    isRestoring.value = true
+    try {
+      const r = await api.restoreProjectEnvironment(projectId)
+      if (r.failed.length === 0 && r.missing.length === 0) {
+        toast.success(t('lockfile.restoreSuccess', { ready: r.ready.length, imported: r.imported.length }))
+      } else {
+        toast.warning(t('lockfile.restorePartial', { ready: r.ready.length, imported: r.imported.length, failed: r.failed.length, missing: r.missing.length }))
+      }
+      await readLock()
+      verifyResult.value = null
+      diff.value = null
+    } catch (e: any) {
+      toast.error(t('lockfile.restoreFailed', { error: e?.toString() || e }))
+    } finally {
+      isRestoring.value = false
+    }
+  }
+
   return {
     lock,
     verifyResult,
@@ -123,10 +145,12 @@ export function useLockfile(projectId: string) {
     isWriting,
     isSyncing,
     isVerifying,
+    isRestoring,
     readLock,
     generateAndWriteLock,
     verify,
     computeDiff,
     syncLock,
+    restore,
   }
 }

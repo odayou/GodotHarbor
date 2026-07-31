@@ -24,7 +24,6 @@ import EmptyState from '@/components/EmptyState.vue'
 import VcsStatusBadge from '@/components/VcsStatusBadge.vue'
 import VcsPanel from '@/components/VcsPanel.vue'
 import MissingModulesWarning from '@/components/MissingModulesWarning.vue'
-import LockStatusBadge from '@/components/LockStatusBadge.vue'
 import LockfilePanel from '@/components/LockfilePanel.vue'
 import EnvironmentSnapshotPanel from '@/components/EnvironmentSnapshotPanel.vue'
 

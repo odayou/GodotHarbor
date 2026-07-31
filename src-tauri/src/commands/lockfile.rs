@@ -1,5 +1,5 @@
-use crate::lockfile::{self, HarborLock, LockDiff, LockVerifyResult};
-use crate::commands::utils::{get_storage, log_operation, get_data_dir, load_settings};
+use crate::lockfile::{self, HarborLock, LockDiff, LockVerifyResult, RestoreEnvResult};
+use crate::commands::utils::{get_storage, log_operation, get_data_dir, get_plugin_manager, upsert_plugin};
 use crate::storage::Storage;
 use crate::linker::Linker;
 use tauri::AppHandle;
@@ -50,6 +50,20 @@ pub fn write_project_lock(app: AppHandle, project_id: String) -> Result<(), Stri
         &format!("已生成 harbor.lock（{} 个插件）", lock.plugins.len()));
 
     Ok(())
+}
+
+/// 刷新指定项目的 harbor.lock：从 storage 读取最新数据并写入项目目录。
+/// 供 commands 层在 apply_bindings 成功后调用，使 lockfile 与实际绑定保持同步。
+pub fn refresh_project_lock(app: &AppHandle, project_id: &str) -> Result<(), String> {
+    let storage = get_storage(app);
+    let projects: Vec<crate::models::Project> = storage.load_or_default("projects.json");
+    let project = projects.iter().find(|p| p.project_id == project_id)
+        .ok_or("项目不存在".to_string())?;
+    let plugins: Vec<crate::models::Plugin> = storage.load_or_default("plugins.json");
+    let bindings: Vec<crate::models::ProjectBinding> = storage.load_or_default("bindings.json");
+    let engines: Vec<crate::models::Engine> = storage.load_or_default("engines.json");
+    lockfile::write_lock_for_project(project, &bindings, &plugins, &engines)
+        .map_err(|e| format!("写入 harbor.lock 失败: {}", e))
 }
 
 #[tauri::command]
@@ -142,8 +156,7 @@ pub fn sync_from_lock(app: AppHandle, project_id: String, strict: Option<bool>) 
         .collect();
 
     if !desired_bindings.is_empty() {
-        let settings = load_settings(&app);
-        let linker = Linker::new(settings.mount_strategy);
+        let linker = Linker::new();
         let data_dir = get_data_dir(&app);
         let plugin_base_path = data_dir.join("plugins");
 
@@ -160,7 +173,8 @@ pub fn sync_from_lock(app: AppHandle, project_id: String, strict: Option<bool>) 
             &project.path,
             &current_bindings,
             &desired_bindings,
-            &plugin_base_path.to_string_lossy()
+            &plugin_base_path.to_string_lossy(),
+            &data_dir.to_string_lossy()
         ) {
             Ok(result) => {
                 if result.success {
@@ -170,6 +184,9 @@ pub fn sync_from_lock(app: AppHandle, project_id: String, strict: Option<bool>) 
                     let applied_storage = Storage::new(applied_dir);
                     if let Err(e) = applied_storage.save(&format!("{}.json", project_id), &desired_bindings) {
                         eprintln!("Failed to save applied bindings: {}", e);
+                    }
+                    if let Err(e) = refresh_project_lock(&app, &project_id) {
+                        eprintln!("Failed to write harbor.lock: {}", e);
                     }
                     messages.push(format!(
                         "已应用变更到项目目录: 创建 {} 项, 移除 {} 项",
@@ -216,4 +233,181 @@ pub fn batch_check_locks(app: AppHandle, project_ids: Vec<String>) -> Result<Vec
     }
 
     Ok(results)
+}
+
+/// 「还原项目环境」：打开带 harbor.lock 的项目时一键还原。
+/// 读 lockfile → 对每个 locked plugin 在本地 plugins.json 找匹配（按 source_url 优先）→
+/// 未找到但 source_type 为 Git/Url 且 source_url 非空则自动导入 → AssetLibrary/Local 标记 missing →
+/// 用本地实际 plugin_id/version_id/unit_id 重建绑定（mount_path/subdirectory 取自 lockfile）→
+/// apply_bindings → 返回 {ready, imported, failed, missing}。
+#[tauri::command]
+pub async fn restore_project_environment(app: AppHandle, project_id: String) -> Result<RestoreEnvResult, String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || -> Result<RestoreEnvResult, String> {
+        let storage = get_storage(&app_clone);
+        let projects: Vec<crate::models::Project> = storage.load_or_default("projects.json");
+        let project = projects.iter().find(|p| p.project_id == project_id)
+            .ok_or("项目不存在".to_string())?;
+
+        let lock = lockfile::read_lock(&project.path)
+            .map_err(|e| format!("读取 harbor.lock 失败: {}", e))?
+            .ok_or("项目未找到 harbor.lock 文件".to_string())?;
+
+        let mut plugins: Vec<crate::models::Plugin> = storage.load_or_default("plugins.json");
+        let mut bindings: Vec<crate::models::ProjectBinding> = storage.load_or_default("bindings.json");
+        let manager = get_plugin_manager(&app_clone);
+
+        let mut ready = Vec::new();
+        let mut imported = Vec::new();
+        let mut failed = Vec::new();
+        let mut missing = Vec::new();
+        let mut desired_new_bindings: Vec<crate::models::ProjectBinding> = Vec::new();
+
+        for locked in &lock.plugins {
+            // 优先按 source_url 匹配（跨机器可移植，lockfile 的 plugin_id/version_id 是本地 UUID 不可用）
+            let matched_plugin = if !locked.source_url.is_empty() {
+                plugins.iter().find(|p| p.source.url == locked.source_url).cloned()
+            } else {
+                None
+            };
+
+            let mut was_imported = false;
+            let matched_plugin = match matched_plugin {
+                Some(p) => Some(p),
+                None => {
+                    let source_type = locked.source_type.as_str();
+                    if (source_type == "Git" || source_type == "Url") && !locked.source_url.is_empty() {
+                        let import_result = if source_type == "Git" {
+                            manager.import_from_git(&locked.source_url, None, &app_clone)
+                        } else {
+                            manager.import_from_url(&locked.source_url, &app_clone)
+                        };
+                        match import_result {
+                            Ok(new_plugin) => {
+                                let upserted = upsert_plugin(
+                                    &app_clone, &new_plugin,
+                                    "restore_env_import", &locked.source_url,
+                                )?;
+                                // upsert 已写盘，重新加载以保证后续循环匹配到最新列表
+                                plugins = storage.load_or_default("plugins.json");
+                                was_imported = true;
+                                Some(upserted)
+                            }
+                            Err(e) => {
+                                failed.push(format!("{}: {}", locked.plugin_name, e));
+                                None
+                            }
+                        }
+                    } else {
+                        // AssetLibrary / Local 无 URL，跨机器无法还原
+                        missing.push(locked.plugin_name.clone());
+                        None
+                    }
+                }
+            };
+
+            let Some(plugin) = matched_plugin else { continue; };
+
+            // 选版本：优先 content_hash 相同，其次 version 字符串相同，最后取最新
+            let version = plugin.versions.iter()
+                .find(|v| {
+                    let h = crate::models::compute_dir_hash(std::path::Path::new(&v.path)).unwrap_or_default();
+                    !h.is_empty() && h == locked.content_hash
+                })
+                .or_else(|| plugin.versions.iter().find(|v| v.version == locked.version))
+                .or_else(|| plugin.versions.last())
+                .cloned();
+
+            let Some(version) = version else {
+                failed.push(format!("{}: 无可用版本", locked.plugin_name));
+                continue;
+            };
+
+            // 选 unit：优先 unit_name 相同，否则取第一个（lockfile 的 unit_id 是本地 UUID 不可用）
+            let unit_id = version.units.iter()
+                .find(|u| u.name == locked.unit_name)
+                .or_else(|| version.units.first())
+                .map(|u| u.unit_id.clone())
+                .unwrap_or_default();
+
+            desired_new_bindings.push(crate::models::ProjectBinding::new(
+                project_id.clone(),
+                plugin.plugin_id.clone(),
+                version.version_id.clone(),
+                unit_id,
+                locked.mount_path.clone(),
+                locked.subdirectory.clone(),
+            ));
+
+            if was_imported {
+                imported.push(locked.plugin_name.clone());
+            } else {
+                ready.push(locked.plugin_name.clone());
+            }
+        }
+
+        // 用 lockfile 中的绑定覆盖项目下同 plugin_id 的旧绑定（不动用户其他绑定）
+        let plugin_ids_in_lock: std::collections::HashSet<String> = desired_new_bindings.iter()
+            .map(|b| b.plugin_id.clone()).collect();
+        bindings.retain(|b| !(b.project_id == project_id && plugin_ids_in_lock.contains(&b.plugin_id)));
+        bindings.extend(desired_new_bindings);
+        storage.save("bindings.json", &bindings)
+            .map_err(|e| format!("保存绑定列表失败: {}", e))?;
+
+        // apply 到项目目录
+        let desired_bindings: Vec<crate::models::ProjectBinding> = bindings.iter()
+            .filter(|b| b.project_id == project_id)
+            .cloned()
+            .collect();
+
+        if !desired_bindings.is_empty() {
+            let linker = Linker::new();
+            let data_dir = get_data_dir(&app_clone);
+            let plugin_base_path = data_dir.join("plugins");
+            let applied_dir = data_dir.join("applied_bindings");
+            let applied_file = applied_dir.join(format!("{}.json", project_id));
+            let current_bindings: Vec<crate::models::ProjectBinding> = if applied_file.exists() {
+                let applied_storage = Storage::new(applied_dir.clone());
+                applied_storage.load_or_default::<Vec<crate::models::ProjectBinding>>(&format!("{}.json", project_id))
+            } else {
+                Vec::new()
+            };
+
+            match linker.apply_bindings(
+                &project.path,
+                &current_bindings,
+                &desired_bindings,
+                &plugin_base_path.to_string_lossy(),
+                &data_dir.to_string_lossy()
+            ) {
+                Ok(result) => {
+                    if result.success {
+                        if let Err(e) = std::fs::create_dir_all(&applied_dir) {
+                            eprintln!("Failed to create applied_bindings dir: {}", e);
+                        }
+                        let applied_storage = Storage::new(applied_dir);
+                        if let Err(e) = applied_storage.save(&format!("{}.json", project_id), &desired_bindings) {
+                            eprintln!("Failed to save applied bindings: {}", e);
+                        }
+                        if let Err(e) = refresh_project_lock(&app_clone, &project_id) {
+                            eprintln!("Failed to write harbor.lock: {}", e);
+                        }
+                    } else {
+                        for err in &result.errors {
+                            failed.push(format!("应用错误: {}", err));
+                        }
+                    }
+                }
+                Err(e) => {
+                    return Err(format!("应用绑定失败: {}", e));
+                }
+            }
+        }
+
+        log_operation(&app_clone, "restore_project_environment", &project_id,
+            &format!("还原环境: 就绪 {}, 导入 {}, 失败 {}, 缺失 {}",
+                ready.len(), imported.len(), failed.len(), missing.len()));
+
+        Ok(RestoreEnvResult { ready, imported, failed, missing })
+    }).await.map_err(|e| format!("任务执行失败: {}", e))?
 }

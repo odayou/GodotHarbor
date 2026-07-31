@@ -1,13 +1,11 @@
 use std::fs;
 use std::path::Path;
 use anyhow::{Result, Context};
-use crate::models::{ProjectBinding, MountStrategy, ApplyResult, ConflictInfo};
+use crate::models::{ProjectBinding, ApplyResult, ConflictInfo};
 use crate::utils::copy_dir_all;
 
 #[derive(Clone)]
-pub struct Linker {
-    mount_strategy: MountStrategy,
-}
+pub struct Linker {}
 
 pub struct DiffResult {
     pub to_add: Vec<ProjectBinding>,
@@ -22,8 +20,8 @@ pub struct PreCheckResult {
 }
 
 impl Linker {
-    pub fn new(mount_strategy: MountStrategy) -> Self {
-        Self { mount_strategy }
+    pub fn new() -> Self {
+        Self {}
     }
 
     pub fn pre_check(
@@ -140,6 +138,7 @@ impl Linker {
         current_bindings: &[ProjectBinding],
         desired_bindings: &[ProjectBinding],
         plugin_base_path: &str,
+        app_data_dir: &str,
     ) -> Result<ApplyResult> {
         let mut result = ApplyResult {
             success: true,
@@ -163,7 +162,7 @@ impl Linker {
 
         let diff = self.compute_diff(current_bindings, desired_bindings);
 
-        let conflicts = self.check_conflicts(project_path, &diff.to_add, &diff.to_keep)?;
+        let conflicts = self.check_conflicts(project_path, &diff.to_add, &diff.to_keep, current_bindings)?;
         let blocking_conflicts: Vec<&ConflictInfo> = conflicts.iter()
             .filter(|c| c.conflict_type != "existing_plugin" && c.conflict_type != "path_exists")
             .collect();
@@ -184,7 +183,8 @@ impl Linker {
 
         for binding in &diff.to_remove {
             let target_path = project.join(&binding.mount_path);
-            match self.safe_remove_link(&target_path) {
+            // to_remove 来自 current_bindings，必定为 Harbor 管理
+            match self.safe_remove_link(&target_path, true) {
                 Ok(op) => {
                     result.removed.push(target_path.to_string_lossy().to_string());
                     applied_ops.push(op);
@@ -192,14 +192,14 @@ impl Linker {
                 Err(e) => {
                     result.errors.push(format!("移除失败 {}: {}", binding.mount_path, e));
                     result.success = false;
-                    self.rollback_ops(&applied_ops);
+                    self.rollback_ops(&applied_ops, project_path);
                     return Ok(result);
                 }
             }
         }
 
         for binding in &diff.to_add {
-            match self.apply_binding(binding, project, plugin_base_path) {
+            match self.apply_binding(binding, project, plugin_base_path, app_data_dir) {
                 Ok(mount_path) => {
                     result.created.push(mount_path.clone());
                     applied_ops.push(AppliedOp::Create {
@@ -209,7 +209,7 @@ impl Linker {
                 Err(e) => {
                     result.errors.push(format!("应用绑定失败: {}", e));
                     result.success = false;
-                    self.rollback_ops(&applied_ops);
+                    self.rollback_ops(&applied_ops, project_path);
                     return Ok(result);
                 }
             }
@@ -223,6 +223,7 @@ impl Linker {
         project_path: &str,
         to_add: &[ProjectBinding],
         to_keep: &[ProjectBinding],
+        current_bindings: &[ProjectBinding],
     ) -> Result<Vec<ConflictInfo>> {
         let mut conflicts = Vec::new();
 
@@ -239,7 +240,7 @@ impl Linker {
 
             let target_path = project.join(&binding.mount_path);
 
-            if target_path.exists() && !self.is_managed_link(&target_path)? {
+            if target_path.exists() && !self.is_managed_link(&target_path, project, current_bindings)? {
                 let has_plugin_cfg = target_path.join("plugin.cfg").exists();
                 let message = if has_plugin_cfg {
                     format!(
@@ -267,7 +268,7 @@ impl Linker {
                     let path = entry.path();
                     if path.is_dir() && path.join("plugin.cfg").exists() {
                         let mount_path = format!("addons/{}", path.file_name().unwrap_or_default().to_string_lossy());
-                        let is_managed = self.is_managed_link(&path).unwrap_or(false);
+                        let is_managed = self.is_managed_link(&path, project, current_bindings).unwrap_or(false);
                         let is_in_bindings = to_add.iter().any(|b| b.mount_path == mount_path)
                             || to_keep.iter().any(|b| b.mount_path == mount_path);
                         if !is_managed && !is_in_bindings {
@@ -293,6 +294,7 @@ impl Linker {
         binding: &ProjectBinding,
         project: &Path,
         plugin_base_path: &str,
+        app_data_dir: &str,
     ) -> Result<String> {
         let plugin_path = Path::new(plugin_base_path)
             .join(&binding.plugin_id)
@@ -315,8 +317,13 @@ impl Linker {
 
         let target_path = project.join(&binding.mount_path);
 
+        // 备份到 <app_data>/backups/<project_id>/<sanitized_mount_path>，避免污染项目目录
         let backup_path = if target_path.exists() {
-            let bak = target_path.with_extension("harbor-bak");
+            let sanitized = binding.mount_path.replace(['/', '\\'], "_");
+            let bak_dir = Path::new(app_data_dir).join("backups").join(&binding.project_id);
+            fs::create_dir_all(&bak_dir)
+                .with_context(|| format!("Failed to create backup dir: {}", bak_dir.to_string_lossy()))?;
+            let bak = bak_dir.join(&sanitized);
             if bak.exists() {
                 let _ = fs::remove_dir_all(&bak);
             }
@@ -334,35 +341,12 @@ impl Linker {
             }
         }
 
-        let mount_result = match self.mount_strategy {
-            MountStrategy::Symlink => {
-                self.create_symlink_with_fallback(&source_path, &target_path)
-                    .context("Failed to create symlink (and junction fallback)")
-            }
-            MountStrategy::Junction => {
-                #[cfg(windows)]
-                {
-                    self.create_junction(&source_path, &target_path)
-                        .context("Failed to create junction")
-                }
-                #[cfg(not(windows))]
-                {
-                    std::os::unix::fs::symlink(&source_path, &target_path)
-                        .context("Failed to create symlink")
-                }
-            }
-            MountStrategy::Copy => {
-                copy_dir_all(&source_path, &target_path)
-                    .map_err(|e| anyhow::anyhow!(e))
-                    .with_context(|| format!("Failed to copy plugin from {} to {}", source_path.to_string_lossy(), target_path.to_string_lossy()))?;
-
-                let harbor_marker = target_path.join(".harbor-managed");
-                std::fs::write(&harbor_marker, "managed_by_godot_harbor")
-                    .with_context(|| format!("Failed to write harbor marker at {}", harbor_marker.to_string_lossy()))?;
-
-                Ok(())
-            }
-        };
+        let mount_result: Result<()> = (|| {
+            copy_dir_all(&source_path, &target_path)
+                .map_err(|e| anyhow::anyhow!(e))
+                .with_context(|| format!("Failed to copy plugin from {} to {}", source_path.to_string_lossy(), target_path.to_string_lossy()))?;
+            Ok(())
+        })();
 
         match mount_result {
             Ok(()) => {
@@ -380,74 +364,17 @@ impl Linker {
         }
     }
 
-    fn create_symlink_with_fallback(&self, source: &Path, target: &Path) -> Result<()> {
-        #[cfg(unix)]
-        {
-            std::os::unix::fs::symlink(source, target)
-                .context("Failed to create symlink")?;
-        }
-
-        #[cfg(windows)]
-        {
-            match std::os::windows::fs::symlink_dir(source, target) {
-                Ok(_) => {}
-                Err(_) => {
-                    match self.create_junction_silent(source, target) {
-                        Ok(_) => {}
-                        Err(_) => {
-                            self.copy_dir_fallback(source, target)
-                                .context("Symlink and junction both failed, copy fallback also failed. Try changing mount strategy to Copy in settings.")?;
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    fn create_junction_silent(&self, source: &Path, target: &Path) -> Result<()> {
-        use std::process::Command;
-        #[cfg(windows)]
-        use std::os::windows::process::CommandExt;
-
-        #[cfg(windows)]
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-
-        #[cfg(windows)]
-        {
-            let source_str = source.to_string_lossy();
-            let target_str = target.to_string_lossy();
-            let mklink_cmd = format!("mklink /J \"{}\" \"{}\"", target_str, source_str);
-            let mut cmd = Command::new("cmd");
-            cmd.creation_flags(CREATE_NO_WINDOW);
-            let output = cmd
-                .args(&["/C", &mklink_cmd])
-                .output()
-                .context("Failed to execute mklink command")?;
-
-            if !output.status.success() {
-                anyhow::bail!("junction failed");
-            }
-        }
-
-        Ok(())
-    }
-
-    fn copy_dir_fallback(&self, source: &Path, target: &Path) -> Result<()> {
-        copy_dir_all(source, target)
-            .map_err(|e| anyhow::anyhow!(e))
-            .with_context(|| format!("Failed to copy plugin from {} to {}", source.to_string_lossy(), target.to_string_lossy()))?;
-
-        let harbor_marker = target.join(".harbor-managed");
-        std::fs::write(&harbor_marker, "managed_by_godot_harbor")
-            .with_context(|| format!("Failed to write harbor marker at {}", harbor_marker.to_string_lossy()))?;
-
-        Ok(())
-    }
-
-    fn is_managed_link(&self, path: &Path) -> Result<bool> {
-        if !path.exists() {
+    /// 判断路径是否由 Harbor 管理：
+    /// - symlink/junction（旧链接遗留）→ 是
+    /// - 路径在 current_bindings 的 mount_path 中 → 是
+    /// - 否则 → 否
+    fn is_managed_link(
+        &self,
+        path: &Path,
+        project_path: &Path,
+        current_bindings: &[ProjectBinding],
+    ) -> Result<bool> {
+        if !path.exists() && path.symlink_metadata().is_err() {
             return Ok(false);
         }
 
@@ -461,8 +388,12 @@ impl Linker {
             return Ok(true);
         }
 
-        if path.is_dir() && path.join(".harbor-managed").exists() {
-            return Ok(true);
+        // 比对 bindings：路径相对项目根的 mount_path 是否在当前绑定中
+        if let Ok(rel) = path.strip_prefix(project_path) {
+            let mount_path = rel.to_string_lossy().replace('\\', "/");
+            if current_bindings.iter().any(|b| b.mount_path == mount_path) {
+                return Ok(true);
+            }
         }
 
         Ok(false)
@@ -483,7 +414,10 @@ impl Linker {
         false
     }
 
-    fn safe_remove_link(&self, path: &Path) -> Result<AppliedOp> {
+    /// 安全移除挂载路径。
+    /// - `managed=true`: 路径确认由 Harbor 管理（在 bindings 中或刚由 apply_binding 创建），目录会被 remove_dir_all
+    /// - `managed=false`: 目录保留（防止误删用户数据）；普通文件仍可移除
+    fn safe_remove_link(&self, path: &Path, managed: bool) -> Result<AppliedOp> {
         if !path.exists() && !path.symlink_metadata().is_ok() {
             return Ok(AppliedOp::None);
         }
@@ -516,8 +450,7 @@ impl Linker {
         }
 
         if path.is_dir() {
-            let harbor_marker = path.join(".harbor-managed");
-            if harbor_marker.exists() {
+            if managed {
                 fs::remove_dir_all(path)
                     .with_context(|| format!("Failed to remove directory: {}", path.to_string_lossy()))?;
                 return Ok(AppliedOp::Remove {
@@ -536,13 +469,14 @@ impl Linker {
         })
     }
 
-    fn rollback_ops(&self, ops: &[AppliedOp]) {
+    fn rollback_ops(&self, ops: &[AppliedOp], _project_path: &str) {
         for op in ops.iter().rev() {
             match op {
                 AppliedOp::Create { path } => {
                     let p = Path::new(path);
                     if p.exists() {
-                        if let Err(e) = self.safe_remove_link(p) {
+                        // 回滚刚创建的路径，必定是 Harbor 管理的
+                        if let Err(e) = self.safe_remove_link(p, true) {
                             eprintln!("Rollback: failed to remove created path {}: {}", path, e);
                         }
                     }
@@ -557,43 +491,6 @@ impl Linker {
                 AppliedOp::None => {}
             }
         }
-    }
-
-    #[cfg(windows)]
-    fn create_junction(&self, source: &Path, target: &Path) -> Result<()> {
-        use std::process::Command;
-        #[cfg(windows)]
-        use std::os::windows::process::CommandExt;
-
-        #[cfg(windows)]
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-
-        #[cfg(windows)]
-        {
-            let source_str = source.to_string_lossy();
-            let target_str = target.to_string_lossy();
-            let mklink_cmd = format!("mklink /J \"{}\" \"{}\"", target_str, source_str);
-            let mut cmd = Command::new("cmd");
-            cmd.creation_flags(CREATE_NO_WINDOW);
-            let output = cmd
-                .args(&["/C", &mklink_cmd])
-                .output()
-                .context("Failed to execute mklink command")?;
-
-            if !output.status.success() {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                anyhow::bail!("Failed to create junction: {} (stdout: {})", stderr, stdout);
-            }
-        }
-
-        #[cfg(not(windows))]
-        {
-            std::os::unix::fs::symlink(source, target)
-                .context("Failed to create symlink")?;
-        }
-
-        Ok(())
     }
 }
 
@@ -623,7 +520,7 @@ mod tests {
 
     #[test]
     fn test_compute_diff_add_new() {
-        let linker = Linker::new(MountStrategy::Symlink);
+        let linker = Linker::new();
         let current = vec![];
         let desired = vec![make_binding("p1", "pl1", "v1", "addons/foo")];
 
@@ -635,7 +532,7 @@ mod tests {
 
     #[test]
     fn test_compute_diff_remove_binding() {
-        let linker = Linker::new(MountStrategy::Symlink);
+        let linker = Linker::new();
         let current = vec![make_binding("p1", "pl1", "v1", "addons/foo")];
         let desired = vec![];
 
@@ -647,7 +544,7 @@ mod tests {
 
     #[test]
     fn test_compute_diff_keep_unchanged() {
-        let linker = Linker::new(MountStrategy::Symlink);
+        let linker = Linker::new();
         let binding = make_binding("p1", "pl1", "v1", "addons/foo");
         let current = vec![binding.clone()];
         let desired = vec![binding];
@@ -660,7 +557,7 @@ mod tests {
 
     #[test]
     fn test_compute_diff_version_change() {
-        let linker = Linker::new(MountStrategy::Symlink);
+        let linker = Linker::new();
         let current = vec![make_binding("p1", "pl1", "v1", "addons/foo")];
         let desired = vec![make_binding("p1", "pl1", "v2", "addons/foo")];
 
@@ -672,7 +569,7 @@ mod tests {
 
     #[test]
     fn test_compute_diff_mount_path_change() {
-        let linker = Linker::new(MountStrategy::Symlink);
+        let linker = Linker::new();
         let current = vec![make_binding("p1", "pl1", "v1", "addons/foo")];
         let desired = vec![make_binding("p1", "pl1", "v1", "addons/bar")];
 
@@ -683,7 +580,7 @@ mod tests {
 
     #[test]
     fn test_compute_diff_mixed_operations() {
-        let linker = Linker::new(MountStrategy::Symlink);
+        let linker = Linker::new();
         let current = vec![
             make_binding("p1", "pl1", "v1", "addons/foo"),
             make_binding("p1", "pl2", "v1", "addons/bar"),
@@ -701,7 +598,7 @@ mod tests {
 
     #[test]
     fn test_pre_check_nonexistent_project() {
-        let linker = Linker::new(MountStrategy::Symlink);
+        let linker = Linker::new();
         let result = linker.pre_check("/nonexistent/path", &[], "/plugins");
         assert!(!result.is_valid);
         assert!(result.errors.iter().any(|e| e.contains("项目路径不存在")));
@@ -710,7 +607,7 @@ mod tests {
     #[test]
     fn test_pre_check_missing_project_godot() {
         let dir = tempfile::TempDir::new().unwrap();
-        let linker = Linker::new(MountStrategy::Symlink);
+        let linker = Linker::new();
         let result = linker.pre_check(dir.path().to_str().unwrap(), &[], "/plugins");
         assert!(!result.is_valid);
         assert!(result.errors.iter().any(|e| e.contains("project.godot")));
@@ -720,7 +617,7 @@ mod tests {
     fn test_pre_check_valid_project() {
         let dir = tempfile::TempDir::new().unwrap();
         std::fs::write(dir.path().join("project.godot"), "[application]\n").unwrap();
-        let linker = Linker::new(MountStrategy::Symlink);
+        let linker = Linker::new();
         let result = linker.pre_check(dir.path().to_str().unwrap(), &[], "/plugins");
         assert!(result.is_valid);
     }
@@ -729,7 +626,7 @@ mod tests {
     fn test_pre_check_missing_plugin_source() {
         let dir = tempfile::TempDir::new().unwrap();
         std::fs::write(dir.path().join("project.godot"), "[application]\n").unwrap();
-        let linker = Linker::new(MountStrategy::Symlink);
+        let linker = Linker::new();
         let bindings = vec![make_binding("p1", "pl1", "v1", "addons/foo")];
         let result = linker.pre_check(dir.path().to_str().unwrap(), &bindings, "/nonexistent/plugins");
         assert!(!result.is_valid);
@@ -738,19 +635,18 @@ mod tests {
 
     #[test]
     fn test_is_newer_logic() {
-        assert!(Linker::new(MountStrategy::Symlink).compute_diff(&[], &[]).to_add.is_empty());
+        assert!(Linker::new().compute_diff(&[], &[]).to_add.is_empty());
     }
 
     #[test]
-    fn test_safe_remove_link_harbor_managed_dir() {
+    fn test_safe_remove_link_managed_dir() {
         let dir = tempfile::TempDir::new().unwrap();
         let managed_dir = dir.path().join("addons/my_plugin");
         fs::create_dir_all(&managed_dir).unwrap();
-        fs::write(managed_dir.join(".harbor-managed"), "managed_by_godot_harbor").unwrap();
         fs::write(managed_dir.join("plugin.cfg"), "name=\"test\"").unwrap();
 
-        let linker = Linker::new(MountStrategy::Copy);
-        let result = linker.safe_remove_link(&managed_dir);
+        let linker = Linker::new();
+        let result = linker.safe_remove_link(&managed_dir, true);
         assert!(result.is_ok());
         assert!(!managed_dir.exists());
     }
@@ -762,8 +658,8 @@ mod tests {
         fs::create_dir_all(&original_dir).unwrap();
         fs::write(original_dir.join("plugin.cfg"), "name=\"original\"").unwrap();
 
-        let linker = Linker::new(MountStrategy::Copy);
-        let result = linker.safe_remove_link(&original_dir);
+        let linker = Linker::new();
+        let result = linker.safe_remove_link(&original_dir, false);
         assert!(result.is_ok());
         assert!(original_dir.exists());
         assert!(original_dir.join("plugin.cfg").exists());
@@ -771,8 +667,8 @@ mod tests {
 
     #[test]
     fn test_safe_remove_link_nonexistent_path() {
-        let linker = Linker::new(MountStrategy::Copy);
-        let result = linker.safe_remove_link(Path::new("/nonexistent/path/xyz"));
+        let linker = Linker::new();
+        let result = linker.safe_remove_link(Path::new("/nonexistent/path/xyz"), true);
         assert!(result.is_ok());
     }
 
@@ -782,78 +678,86 @@ mod tests {
         let file_path = dir.path().join("some_file.txt");
         fs::write(&file_path, "content").unwrap();
 
-        let linker = Linker::new(MountStrategy::Copy);
-        let result = linker.safe_remove_link(&file_path);
+        let linker = Linker::new();
+        // 普通文件无论 managed 与否都可移除
+        let result = linker.safe_remove_link(&file_path, false);
         assert!(result.is_ok());
         assert!(!file_path.exists());
     }
 
     #[test]
-    fn test_is_managed_link_with_marker() {
-        let dir = tempfile::TempDir::new().unwrap();
-        let managed_dir = dir.path().join("plugin_dir");
+    fn test_is_managed_link_in_bindings() {
+        let project_dir = tempfile::TempDir::new().unwrap();
+        let managed_dir = project_dir.path().join("addons/my_plugin");
         fs::create_dir_all(&managed_dir).unwrap();
-        fs::write(managed_dir.join(".harbor-managed"), "managed").unwrap();
+        fs::write(managed_dir.join("plugin.cfg"), "name=\"test\"").unwrap();
 
-        let linker = Linker::new(MountStrategy::Copy);
-        assert!(linker.is_managed_link(&managed_dir).unwrap());
+        let linker = Linker::new();
+        let bindings = vec![make_binding("p1", "pl1", "v1", "addons/my_plugin")];
+        assert!(linker.is_managed_link(&managed_dir, project_dir.path(), &bindings).unwrap());
     }
 
     #[test]
-    fn test_is_managed_link_without_marker() {
-        let dir = tempfile::TempDir::new().unwrap();
-        let plain_dir = dir.path().join("plugin_dir");
+    fn test_is_managed_link_not_in_bindings() {
+        let project_dir = tempfile::TempDir::new().unwrap();
+        let plain_dir = project_dir.path().join("addons/other_plugin");
         fs::create_dir_all(&plain_dir).unwrap();
         fs::write(plain_dir.join("plugin.cfg"), "name=\"test\"").unwrap();
 
-        let linker = Linker::new(MountStrategy::Copy);
-        assert!(!linker.is_managed_link(&plain_dir).unwrap());
+        let linker = Linker::new();
+        let bindings = vec![make_binding("p1", "pl1", "v1", "addons/my_plugin")];
+        assert!(!linker.is_managed_link(&plain_dir, project_dir.path(), &bindings).unwrap());
     }
 
     #[test]
     fn test_is_managed_link_nonexistent() {
-        let linker = Linker::new(MountStrategy::Copy);
-        assert!(!linker.is_managed_link(Path::new("/nonexistent")).unwrap());
+        let project_dir = tempfile::TempDir::new().unwrap();
+        let linker = Linker::new();
+        assert!(!linker.is_managed_link(Path::new("/nonexistent"), project_dir.path(), &[]).unwrap());
     }
 
     #[test]
-    fn test_apply_bindings_copy_mode_creates_marker() {
+    fn test_apply_bindings_no_marker_written() {
         let project_dir = tempfile::TempDir::new().unwrap();
         fs::write(project_dir.path().join("project.godot"), "[application]\n").unwrap();
 
+        let app_data_dir = tempfile::TempDir::new().unwrap();
         let plugin_base = tempfile::TempDir::new().unwrap();
         let plugin_payload = plugin_base.path().join("pl1").join("v1").join("payload");
         fs::create_dir_all(&plugin_payload).unwrap();
         fs::write(plugin_payload.join("plugin.cfg"), "name=\"test_plugin\"").unwrap();
         fs::write(plugin_payload.join("script.gd"), "extends Node").unwrap();
 
-        let linker = Linker::new(MountStrategy::Copy);
+        let linker = Linker::new();
         let binding = make_binding("p1", "pl1", "v1", "addons/test_plugin");
         let result = linker.apply_bindings(
             project_dir.path().to_str().unwrap(),
             &[],
             &[binding],
             plugin_base.path().to_str().unwrap(),
+            app_data_dir.path().to_str().unwrap(),
         ).unwrap();
 
         assert!(result.success);
         let installed = project_dir.path().join("addons/test_plugin");
         assert!(installed.exists());
-        assert!(installed.join(".harbor-managed").exists());
+        // 不再写 .harbor-managed 标记
+        assert!(!installed.join(".harbor-managed").exists());
         assert!(installed.join("plugin.cfg").exists());
     }
 
     #[test]
-    fn test_apply_bindings_copy_mode_then_remove_preserves_original() {
+    fn test_apply_bindings_then_safe_remove() {
         let project_dir = tempfile::TempDir::new().unwrap();
         fs::write(project_dir.path().join("project.godot"), "[application]\n").unwrap();
 
+        let app_data_dir = tempfile::TempDir::new().unwrap();
         let plugin_base = tempfile::TempDir::new().unwrap();
         let plugin_payload = plugin_base.path().join("pl1").join("v1").join("payload");
         fs::create_dir_all(&plugin_payload).unwrap();
         fs::write(plugin_payload.join("plugin.cfg"), "name=\"managed\"").unwrap();
 
-        let linker = Linker::new(MountStrategy::Copy);
+        let linker = Linker::new();
 
         let binding = make_binding("p1", "pl1", "v1", "addons/managed_plugin");
         let result = linker.apply_bindings(
@@ -861,12 +765,13 @@ mod tests {
             &[],
             &[binding.clone()],
             plugin_base.path().to_str().unwrap(),
+            app_data_dir.path().to_str().unwrap(),
         ).unwrap();
         assert!(result.success);
-        assert!(project_dir.path().join("addons/managed_plugin").join(".harbor-managed").exists());
 
         let managed_path = project_dir.path().join("addons/managed_plugin");
-        let result = linker.safe_remove_link(&managed_path);
+        // 已知由 Harbor 管理 → managed=true
+        let result = linker.safe_remove_link(&managed_path, true);
         assert!(result.is_ok());
 
         assert!(!managed_path.exists());
@@ -880,15 +785,14 @@ mod tests {
 
         let managed = addons.join("managed_plugin");
         fs::create_dir_all(&managed).unwrap();
-        fs::write(managed.join(".harbor-managed"), "managed").unwrap();
         fs::write(managed.join("plugin.cfg"), "name=\"managed\"").unwrap();
 
         let original = addons.join("original_plugin");
         fs::create_dir_all(&original).unwrap();
         fs::write(original.join("plugin.cfg"), "name=\"original\"").unwrap();
 
-        let linker = Linker::new(MountStrategy::Copy);
-        let result = linker.safe_remove_link(&managed);
+        let linker = Linker::new();
+        let result = linker.safe_remove_link(&managed, true);
         assert!(result.is_ok());
 
         assert!(!managed.exists());
@@ -905,10 +809,9 @@ mod tests {
         fs::create_dir_all(&non_managed).unwrap();
         fs::write(non_managed.join("plugin.cfg"), "name=\"non_managed\"").unwrap();
 
-        let linker = Linker::new(MountStrategy::Copy);
-        let _binding = make_binding("p1", "pl1", "v1", "addons/non_managed");
-
-        let result = linker.safe_remove_link(&project_dir.path().join("addons/non_managed"));
+        let linker = Linker::new();
+        // 未在 bindings 中 → managed=false → 保留
+        let result = linker.safe_remove_link(&project_dir.path().join("addons/non_managed"), false);
         assert!(result.is_ok());
         assert!(non_managed.exists());
         assert!(non_managed.join("plugin.cfg").exists());
@@ -919,6 +822,7 @@ mod tests {
         let project_dir = tempfile::TempDir::new().unwrap();
         fs::write(project_dir.path().join("project.godot"), "[application]\n").unwrap();
 
+        let app_data_dir = tempfile::TempDir::new().unwrap();
         let plugin_base = tempfile::TempDir::new().unwrap();
 
         let v1_payload = plugin_base.path().join("pl1").join("v1").join("payload");
@@ -929,7 +833,7 @@ mod tests {
         fs::create_dir_all(&v2_payload).unwrap();
         fs::write(v2_payload.join("plugin.cfg"), "name=\"test\"\nversion=\"2.0.0\"").unwrap();
 
-        let linker = Linker::new(MountStrategy::Copy);
+        let linker = Linker::new();
 
         let binding_v1 = make_binding("p1", "pl1", "v1", "addons/test");
         let result = linker.apply_bindings(
@@ -937,6 +841,7 @@ mod tests {
             &[],
             &[binding_v1.clone()],
             plugin_base.path().to_str().unwrap(),
+            app_data_dir.path().to_str().unwrap(),
         ).unwrap();
         assert!(result.success);
         assert!(result.created.len() == 1);
@@ -947,6 +852,7 @@ mod tests {
             &[binding_v1],
             &[binding_v2],
             plugin_base.path().to_str().unwrap(),
+            app_data_dir.path().to_str().unwrap(),
         ).unwrap();
         assert!(result.success);
         assert!(result.removed.len() == 1);
@@ -967,12 +873,13 @@ mod tests {
         fs::create_dir_all(&existing).unwrap();
         fs::write(existing.join("plugin.cfg"), "name=\"existing\"").unwrap();
 
-        let linker = Linker::new(MountStrategy::Copy);
+        let linker = Linker::new();
         let binding = make_binding("p1", "pl1", "v1", "addons/existing_plugin");
 
         let conflicts = linker.check_conflicts(
             project_dir.path().to_str().unwrap(),
             &[binding],
+            &[],
             &[],
         ).unwrap();
 
@@ -987,16 +894,18 @@ mod tests {
 
         let managed = project_dir.path().join("addons/managed_plugin");
         fs::create_dir_all(&managed).unwrap();
-        fs::write(managed.join(".harbor-managed"), "managed").unwrap();
         fs::write(managed.join("plugin.cfg"), "name=\"managed\"").unwrap();
 
-        let linker = Linker::new(MountStrategy::Copy);
+        let linker = Linker::new();
         let binding = make_binding("p1", "pl1", "v1", "addons/managed_plugin");
+        // current_bindings 包含该 mount_path → Harbor 管理 → 无冲突
+        let current = vec![binding.clone()];
 
         let conflicts = linker.check_conflicts(
             project_dir.path().to_str().unwrap(),
             &[binding],
             &[],
+            &current,
         ).unwrap();
 
         assert!(conflicts.is_empty());
@@ -1007,6 +916,7 @@ mod tests {
         let project_dir = tempfile::TempDir::new().unwrap();
         fs::write(project_dir.path().join("project.godot"), "[application]\n").unwrap();
 
+        let app_data_dir = tempfile::TempDir::new().unwrap();
         let plugin_base = tempfile::TempDir::new().unwrap();
 
         for (pl_id, ver_id) in [("pl1", "v1"), ("pl2", "v1")] {
@@ -1015,7 +925,7 @@ mod tests {
             fs::write(payload.join("plugin.cfg"), format!("name=\"{}\"", pl_id)).unwrap();
         }
 
-        let linker = Linker::new(MountStrategy::Copy);
+        let linker = Linker::new();
         let bindings = vec![
             make_binding("p1", "pl1", "v1", "addons/pl1"),
             make_binding("p1", "pl2", "v1", "addons/pl2"),
@@ -1026,12 +936,15 @@ mod tests {
             &[],
             &bindings,
             plugin_base.path().to_str().unwrap(),
+            app_data_dir.path().to_str().unwrap(),
         ).unwrap();
 
         assert!(result.success);
         assert_eq!(result.created.len(), 2);
-        assert!(project_dir.path().join("addons/pl1").join(".harbor-managed").exists());
-        assert!(project_dir.path().join("addons/pl2").join(".harbor-managed").exists());
+        assert!(project_dir.path().join("addons/pl1").exists());
+        assert!(project_dir.path().join("addons/pl2").exists());
+        // 不应有标记文件
+        assert!(!project_dir.path().join("addons/pl1").join(".harbor-managed").exists());
     }
 
     #[test]
@@ -1039,13 +952,14 @@ mod tests {
         let project_dir = tempfile::TempDir::new().unwrap();
         fs::write(project_dir.path().join("project.godot"), "[application]\n").unwrap();
 
+        let app_data_dir = tempfile::TempDir::new().unwrap();
         let plugin_base = tempfile::TempDir::new().unwrap();
         let payload = plugin_base.path().join("pl1").join("v1").join("payload");
         let subdir = payload.join("addons").join("my_plugin");
         fs::create_dir_all(&subdir).unwrap();
         fs::write(subdir.join("plugin.cfg"), "name=\"sub_plugin\"").unwrap();
 
-        let linker = Linker::new(MountStrategy::Copy);
+        let linker = Linker::new();
         let mut binding = make_binding("p1", "pl1", "v1", "addons/my_plugin");
         binding.subdirectory = "addons/my_plugin".to_string();
 
@@ -1054,25 +968,26 @@ mod tests {
             &[],
             &[binding],
             plugin_base.path().to_str().unwrap(),
+            app_data_dir.path().to_str().unwrap(),
         ).unwrap();
 
         assert!(result.success);
         let installed = project_dir.path().join("addons/my_plugin");
         assert!(installed.exists());
         assert!(installed.join("plugin.cfg").exists());
-        assert!(installed.join(".harbor-managed").exists());
+        assert!(!installed.join(".harbor-managed").exists());
     }
 
     #[test]
-    fn test_apply_bindings_existing_non_managed_merge_install() {
+    fn test_apply_bindings_existing_non_managed_replaced() {
         let project_dir = tempfile::TempDir::new().unwrap();
         fs::write(project_dir.path().join("project.godot"), "[application]\n").unwrap();
 
+        let app_data_dir = tempfile::TempDir::new().unwrap();
         let existing = project_dir.path().join("addons/godot_mcp");
         fs::create_dir_all(&existing).unwrap();
         fs::write(existing.join("plugin.cfg"), "name=\"Godot MCP\"").unwrap();
         fs::write(existing.join("user_custom.gd"), "extends Node2D").unwrap();
-        assert!(!existing.join(".harbor-managed").exists());
 
         let plugin_base = tempfile::TempDir::new().unwrap();
         let plugin_payload = plugin_base.path().join("pl1").join("v1").join("payload");
@@ -1080,7 +995,7 @@ mod tests {
         fs::write(plugin_payload.join("plugin.cfg"), "name=\"Godot MCP\"").unwrap();
         fs::write(plugin_payload.join("new_script.gd"), "extends Node").unwrap();
 
-        let linker = Linker::new(MountStrategy::Copy);
+        let linker = Linker::new();
         let binding = make_binding("p1", "pl1", "v1", "addons/godot_mcp");
 
         let result = linker.apply_bindings(
@@ -1088,14 +1003,19 @@ mod tests {
             &[],
             &[binding],
             plugin_base.path().to_str().unwrap(),
+            app_data_dir.path().to_str().unwrap(),
         ).unwrap();
 
         assert!(result.success);
-        assert!(existing.join(".harbor-managed").exists());
         assert!(existing.join("plugin.cfg").exists());
         assert!(existing.join("new_script.gd").exists());
-        let backup = project_dir.path().join("addons/godot_mcp.harbor-bak");
-        assert!(!backup.exists());
+        // 旧 user_custom.gd 被覆盖（copy 模式为替换语义）
+        assert!(!existing.join("user_custom.gd").exists());
+        // 不再写标记
+        assert!(!existing.join(".harbor-managed").exists());
+        // 备份不在项目目录
+        let backup_in_project = project_dir.path().join("addons/godot_mcp.harbor-bak");
+        assert!(!backup_in_project.exists());
     }
 
     #[test]
@@ -1103,24 +1023,32 @@ mod tests {
         let project_dir = tempfile::TempDir::new().unwrap();
         fs::write(project_dir.path().join("project.godot"), "[application]\n").unwrap();
 
+        let app_data_dir = tempfile::TempDir::new().unwrap();
         let managed = project_dir.path().join("addons/old_plugin");
         fs::create_dir_all(&managed).unwrap();
-        fs::write(managed.join(".harbor-managed"), "managed").unwrap();
         fs::write(managed.join("plugin.cfg"), "name=\"Old\"").unwrap();
 
         let plugin_base = tempfile::TempDir::new().unwrap();
-        let plugin_payload = plugin_base.path().join("pl1").join("v1").join("payload");
-        fs::create_dir_all(&plugin_payload).unwrap();
-        fs::write(plugin_payload.join("plugin.cfg"), "name=\"New\"").unwrap();
+        // 旧版本 v1 payload（current）
+        let payload_v1 = plugin_base.path().join("pl1").join("v1").join("payload");
+        fs::create_dir_all(&payload_v1).unwrap();
+        fs::write(payload_v1.join("plugin.cfg"), "name=\"Old\"").unwrap();
+        // 新版本 v2 payload（desired）
+        let payload_v2 = plugin_base.path().join("pl1").join("v2").join("payload");
+        fs::create_dir_all(&payload_v2).unwrap();
+        fs::write(payload_v2.join("plugin.cfg"), "name=\"New\"").unwrap();
 
-        let linker = Linker::new(MountStrategy::Copy);
-        let binding = make_binding("p1", "pl1", "v1", "addons/old_plugin");
+        let linker = Linker::new();
+        // 版本升级 v1→v2：to_remove v1（managed，删除旧目录）+ to_add v2（拷贝新内容）
+        let current = vec![make_binding("p1", "pl1", "v1", "addons/old_plugin")];
+        let desired = vec![make_binding("p1", "pl1", "v2", "addons/old_plugin")];
 
         let result = linker.apply_bindings(
             project_dir.path().to_str().unwrap(),
-            &[],
-            &[binding],
+            &current,
+            &desired,
             plugin_base.path().to_str().unwrap(),
+            app_data_dir.path().to_str().unwrap(),
         ).unwrap();
 
         assert!(result.success);
@@ -1130,43 +1058,11 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_bindings_non_managed_merge_preserves_custom_files() {
+    fn test_apply_bindings_existing_replaced_no_project_backup() {
         let project_dir = tempfile::TempDir::new().unwrap();
         fs::write(project_dir.path().join("project.godot"), "[application]\n").unwrap();
 
-        let existing = project_dir.path().join("addons/existing");
-        fs::create_dir_all(&existing).unwrap();
-        fs::write(existing.join("plugin.cfg"), "name=\"Original\"").unwrap();
-        fs::write(existing.join("custom_script.gd"), "extends Node2D").unwrap();
-
-        let plugin_base = tempfile::TempDir::new().unwrap();
-        let plugin_payload = plugin_base.path().join("pl1").join("v1").join("payload");
-        fs::create_dir_all(&plugin_payload).unwrap();
-        fs::write(plugin_payload.join("plugin.cfg"), "name=\"Different\"").unwrap();
-        fs::write(plugin_payload.join("new_feature.gd"), "extends Node3D").unwrap();
-
-        let linker = Linker::new(MountStrategy::Copy);
-        let binding = make_binding("p1", "pl1", "v1", "addons/existing");
-
-        let result = linker.apply_bindings(
-            project_dir.path().to_str().unwrap(),
-            &[],
-            &[binding],
-            plugin_base.path().to_str().unwrap(),
-        ).unwrap();
-
-        assert!(result.success);
-        assert!(existing.join("new_feature.gd").exists());
-        assert!(existing.join(".harbor-managed").exists());
-        let backup = project_dir.path().join("addons/existing.harbor-bak");
-        assert!(!backup.exists());
-    }
-
-    #[test]
-    fn test_apply_bindings_symlink_strategy_non_managed_gets_marker() {
-        let project_dir = tempfile::TempDir::new().unwrap();
-        fs::write(project_dir.path().join("project.godot"), "[application]\n").unwrap();
-
+        let app_data_dir = tempfile::TempDir::new().unwrap();
         let target = project_dir.path().join("addons/existing");
         fs::create_dir_all(&target).unwrap();
         fs::write(target.join("plugin.cfg"), "name=\"Original\"").unwrap();
@@ -1176,7 +1072,7 @@ mod tests {
         fs::create_dir_all(&plugin_payload).unwrap();
         fs::write(plugin_payload.join("plugin.cfg"), "name=\"Different\"").unwrap();
 
-        let linker = Linker::new(MountStrategy::Symlink);
+        let linker = Linker::new();
         let binding = make_binding("p1", "pl1", "v1", "addons/existing");
 
         let result = linker.apply_bindings(
@@ -1184,10 +1080,12 @@ mod tests {
             &[],
             &[binding],
             plugin_base.path().to_str().unwrap(),
+            app_data_dir.path().to_str().unwrap(),
         ).unwrap();
 
         assert!(result.success);
         assert!(target.exists());
+        // 项目目录内不应残留 .harbor-bak
         let backup = project_dir.path().join("addons/existing.harbor-bak");
         assert!(!backup.exists());
     }

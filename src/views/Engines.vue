@@ -119,6 +119,15 @@ const showEngineContextMenu = (event: MouseEvent, engine: Engine) => {
   ] as ContextMenuEntry[])
 }
 
+const searchInputRef = ref<HTMLInputElement | null>(null)
+const handleCtrlF = (e: KeyboardEvent) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+    e.preventDefault()
+    searchInputRef.value?.focus()
+    searchInputRef.value?.select()
+  }
+}
+
 onMounted(async () => {
   const [, activeListResult] = await Promise.allSettled([
     loadEngines(),
@@ -156,6 +165,7 @@ onMounted(async () => {
     activeDownloads.value = newMap
   })
   document.addEventListener('click', handleGlobalClick)
+  document.addEventListener('keydown', handleCtrlF)
   if (route.query.action === 'register') {
     await nextTick()
     showAddDialog.value = true
@@ -174,6 +184,7 @@ onUnmounted(() => {
     unlistenAutoSetup()
   }
   document.removeEventListener('click', handleGlobalClick)
+  document.removeEventListener('keydown', handleCtrlF)
 })
 
 const filteredEngines = computed(() => {
@@ -850,6 +861,7 @@ const hasMissingModules = (engineId: string): boolean => {
       <div class="flex flex-col lg:flex-row gap-2">
         <div class="flex-1">
           <input
+            ref="searchInputRef"
             v-model="searchQuery"
             type="text"
             :placeholder="t('engines.search')"

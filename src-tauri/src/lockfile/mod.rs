@@ -12,7 +12,6 @@ pub struct HarborLock {
     pub version: String,
     pub locked_at: String,
     pub project_name: String,
-    pub project_path: String,
     pub godot_version: String,
     pub engine: Option<LockedEngine>,
     pub plugins: Vec<LockedPlugin>,
@@ -71,6 +70,19 @@ pub struct LockMismatch {
     pub actual_version: String,
     #[serde(default)]
     pub mount_path_issue: Option<String>,
+}
+
+/// 「还原项目环境」命令的返回结果。
+/// ready: 本地已存在直接复用的插件名；
+/// imported: 通过 Git/Url 自动导入成功的插件名；
+/// failed: 导入或应用失败的条目（含原因）；
+/// missing: source_type 为 AssetLibrary/Local 无 URL，无法跨机器还原的插件名。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RestoreEnvResult {
+    pub ready: Vec<String>,
+    pub imported: Vec<String>,
+    pub failed: Vec<String>,
+    pub missing: Vec<String>,
 }
 
 // ─── Core Functions ───
@@ -157,7 +169,6 @@ pub fn generate_lock(
         version: "1".to_string(),
         locked_at: chrono::Utc::now().to_rfc3339(),
         project_name: project.name.clone(),
-        project_path: project.path.clone(),
         godot_version: project.godot_version.clone(),
         engine: locked_engine,
         plugins: locked_plugins,
@@ -171,6 +182,24 @@ pub fn write_lock(project_path: &str, lock: &HarborLock) -> Result<()> {
     std::fs::write(&lock_path, content)
         .with_context(|| format!("写入 harbor.lock 失败: {}", lock_path.to_string_lossy()))?;
     Ok(())
+}
+
+/// 根据 project 与全部 bindings（含 plugins/engines）生成并写入 harbor.lock。
+/// 绑定变更应用成功后应调用此函数刷新 lockfile，使项目目录与持久化锁文件保持一致。
+/// `all_bindings` 应传 storage 中完整的 bindings 列表（内部按 project_id 过滤）。
+pub fn write_lock_for_project(
+    project: &Project,
+    all_bindings: &[ProjectBinding],
+    plugins: &[Plugin],
+    engines: &[Engine],
+) -> Result<()> {
+    let engine_bindings = if let Some(ref engine_id) = project.last_used_engine_id {
+        vec![(project.project_id.clone(), engine_id.clone())]
+    } else {
+        vec![]
+    };
+    let lock = generate_lock(project, all_bindings, plugins, engines, &engine_bindings);
+    write_lock(&project.path, &lock)
 }
 
 pub fn read_lock(project_path: &str) -> Result<Option<HarborLock>> {
@@ -233,14 +262,12 @@ pub fn verify_lock(
                             ));
                         }
                     } else if mount_full_path.is_dir() {
-                        // Copy mode: optionally check hash of key files
-                        if mount_full_path.join(".harbor-managed").exists() {
-                            let actual_hash = compute_dir_hash(&mount_full_path).unwrap_or_default();
-                            if !actual_hash.is_empty() && actual_hash != locked.content_hash {
-                                mount_path_issue = Some(format!(
-                                    "复制模式目录 '{}' 内容哈希不匹配", locked.mount_path
-                                ));
-                            }
+                        // Copy mode: always verify hash (managed by bindings)
+                        let actual_hash = compute_dir_hash(&mount_full_path).unwrap_or_default();
+                        if !actual_hash.is_empty() && actual_hash != locked.content_hash {
+                            mount_path_issue = Some(format!(
+                                "复制模式目录 '{}' 内容哈希不匹配", locked.mount_path
+                            ));
                         }
                     }
                 }

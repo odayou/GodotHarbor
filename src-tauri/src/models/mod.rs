@@ -35,7 +35,12 @@ fn compute_dir_hash_recursive(dir: &Path, hasher: &mut DefaultHasher) -> Result<
             file_name_str.hash(hasher);
             compute_dir_hash_recursive(&path, hasher)?;
         } else {
-            if file_name_str == ".harbor-managed" {
+            // Skip Godot auto-generated per-resource sidecar files:
+            // - *.import: import config (Godot 3 & 4), varies across environments/import runs
+            // - *.uid: stable resource IDs (Godot 4), assigned on first import
+            // The .godot/ and .import/ cache directories are already skipped above.
+            let lower = file_name_str.to_lowercase();
+            if lower.ends_with(".import") || lower.ends_with(".uid") {
                 continue;
             }
             file_name_str.hash(hasher);
@@ -302,13 +307,6 @@ impl ProjectBinding {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum MountStrategy {
-    Symlink,
-    Junction,
-    Copy,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EngineMirrorConfig {
     pub id: String,
@@ -353,7 +351,6 @@ impl EngineMirrorConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
     pub scan_directories: Vec<String>,
-    pub mount_strategy: MountStrategy,
     pub language: String,
     pub theme: String,
     #[serde(default = "default_true")]
@@ -421,7 +418,6 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             scan_directories: Vec::new(),
-            mount_strategy: MountStrategy::Copy,
             language: "zh-CN".to_string(),
             theme: "light".to_string(),
             auto_scan_on_startup: true,
@@ -878,8 +874,6 @@ pub struct TemplatePlugin {
     #[serde(default)]
     pub git_ref: String,
     #[serde(default)]
-    pub mount: String,
-    #[serde(default)]
     pub subdirectory: String,
 }
 
@@ -1119,16 +1113,6 @@ mod tests {
     }
 
     #[test]
-    fn test_mount_strategy_serialization() {
-        let strategies = vec![MountStrategy::Symlink, MountStrategy::Junction, MountStrategy::Copy];
-        for strategy in strategies {
-            let json = serde_json::to_string(&strategy).unwrap();
-            let parsed: MountStrategy = serde_json::from_str(&json).unwrap();
-            assert_eq!(parsed, strategy);
-        }
-    }
-
-    #[test]
     fn test_source_type_serialization() {
         let types = vec![SourceType::Git, SourceType::Local, SourceType::AssetLibrary, SourceType::Url];
         for st in types {
@@ -1181,16 +1165,6 @@ mod tests {
     }
 
     #[test]
-    fn test_compute_dir_hash_skips_harbor_managed() {
-        let dir = TempDir::new().unwrap();
-        std::fs::write(dir.path().join("test.txt"), b"hello").unwrap();
-        std::fs::write(dir.path().join(".harbor-managed"), b"managed").unwrap();
-        let hash1 = compute_dir_hash(dir.path()).unwrap();
-        let hash2 = compute_dir_hash(dir.path()).unwrap();
-        assert_eq!(hash1, hash2);
-    }
-
-    #[test]
     fn test_compute_dir_hash_nonexistent() {
         let hash = compute_dir_hash(std::path::Path::new("/nonexistent/path/12345"));
         assert!(hash.is_ok());
@@ -1231,21 +1205,6 @@ mod tests {
     }
 
     #[test]
-    fn test_compute_dir_hash_ignores_harbor_managed_cross() {
-        let dir1 = tempfile::TempDir::new().unwrap();
-        let dir2 = tempfile::TempDir::new().unwrap();
-
-        fs::write(dir1.path().join("file.txt"), "content").unwrap();
-        fs::write(dir1.path().join(".harbor-managed"), "managed").unwrap();
-
-        fs::write(dir2.path().join("file.txt"), "content").unwrap();
-
-        let hash1 = compute_dir_hash(dir1.path()).unwrap();
-        let hash2 = compute_dir_hash(dir2.path()).unwrap();
-        assert_eq!(hash1, hash2);
-    }
-
-    #[test]
     fn test_compute_dir_hash_ignores_git_dir_cross() {
         let dir1 = tempfile::TempDir::new().unwrap();
         let dir2 = tempfile::TempDir::new().unwrap();
@@ -1255,6 +1214,24 @@ mod tests {
         fs::write(dir1.path().join(".git").join("HEAD"), "ref: refs/heads/main").unwrap();
 
         fs::write(dir2.path().join("file.txt"), "content").unwrap();
+
+        let hash1 = compute_dir_hash(dir1.path()).unwrap();
+        let hash2 = compute_dir_hash(dir2.path()).unwrap();
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_compute_dir_hash_ignores_godot_sidecar_files() {
+        let dir1 = tempfile::TempDir::new().unwrap();
+        let dir2 = tempfile::TempDir::new().unwrap();
+
+        // Both have the same real content
+        fs::write(dir1.path().join("icon.png"), "png-bytes").unwrap();
+        fs::write(dir2.path().join("icon.png"), "png-bytes").unwrap();
+
+        // dir1 has Godot auto-generated sidecar files, dir2 does not
+        fs::write(dir1.path().join("icon.png.import"), "auto-generated import config").unwrap();
+        fs::write(dir1.path().join("icon.png.uid"), "uid://abc123").unwrap();
 
         let hash1 = compute_dir_hash(dir1.path()).unwrap();
         let hash2 = compute_dir_hash(dir2.path()).unwrap();

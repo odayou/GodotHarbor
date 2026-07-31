@@ -642,9 +642,6 @@ fn generate_harbor_yml(template: &Template) -> String {
             if !plugin.git_ref.is_empty() {
                 yaml.push_str(&format!("    ref: \"{}\"\n", plugin.git_ref));
             }
-            if !plugin.mount.is_empty() {
-                yaml.push_str(&format!("    mount: {}\n", plugin.mount));
-            }
         }
         yaml.push('\n');
     }
@@ -658,7 +655,7 @@ fn generate_harbor_yml(template: &Template) -> String {
         yaml.push('\n');
     }
 
-    yaml.push_str("settings:\n  mount_strategy: copy\n  auto_sync: true\n");
+    yaml.push_str("settings:\n  auto_sync: true\n");
     yaml
 }
 
@@ -764,6 +761,38 @@ pub async fn instantiate_template(
     let mut installed_plugins = Vec::new();
     let mut failed_plugins = Vec::new();
 
+    let storage = get_storage(&app);
+
+    // 先注册项目，确保即使插件安装超时项目依然可见
+    let _ = app.emit("template-instantiation-progress", TemplateInstantiationProgress {
+        template_id: template.template_id.clone(),
+        stage: "registering".to_string(),
+        progress: 0.16,
+        message: "正在注册项目...".to_string(),
+        detail: String::new(),
+    });
+
+    let project = Project {
+        project_id: uuid::Uuid::new_v4().to_string(),
+        name: project_name.clone(),
+        path: super::project::normalize_path(&project_dir.to_string_lossy()),
+        godot_version: template.godot.version.clone(),
+        icon_path: String::new(),
+        group: String::new(),
+        status: ProjectStatus::Ready,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+        last_synced_at: None,
+        last_opened_at: None,
+        last_used_engine_id: None,
+    };
+
+    let project_id = project.project_id.clone();
+    let mut projects: Vec<Project> = storage.load_or_default("projects.json");
+    projects.push(project.clone());
+    storage.save("projects.json", &projects)
+        .map_err(|e| format!("保存项目列表失败: {}", e))?;
+
     if !template.plugins.is_empty() {
         let total = template.plugins.len();
         for (i, plugin_spec) in template.plugins.iter().enumerate() {
@@ -806,7 +835,6 @@ pub async fn instantiate_template(
         detail: String::new(),
     });
 
-    let storage = get_storage(&app);
     let engines: Vec<Engine> = storage.load_or_default("engines.json");
     let engine_exists = engines.iter().any(|e| {
         let ev: Vec<&str> = e.version.split('.').collect();
@@ -888,35 +916,6 @@ pub async fn instantiate_template(
         }
     }
 
-    let _ = app.emit("template-instantiation-progress", TemplateInstantiationProgress {
-        template_id: template.template_id.clone(),
-        stage: "registering".to_string(),
-        progress: 0.9,
-        message: "正在注册项目...".to_string(),
-        detail: String::new(),
-    });
-
-    let project = Project {
-        project_id: uuid::Uuid::new_v4().to_string(),
-        name: project_name.clone(),
-        path: super::project::normalize_path(&project_dir.to_string_lossy()),
-        godot_version: template.godot.version.clone(),
-        icon_path: String::new(),
-        group: String::new(),
-        status: ProjectStatus::Ready,
-        created_at: chrono::Utc::now(),
-        updated_at: chrono::Utc::now(),
-        last_synced_at: None,
-        last_opened_at: None,
-        last_used_engine_id: None,
-    };
-
-    let project_id = project.project_id.clone();
-    let mut projects: Vec<Project> = storage.load_or_default("projects.json");
-    projects.push(project.clone());
-    storage.save("projects.json", &projects)
-        .map_err(|e| format!("保存项目列表失败: {}", e))?;
-
     let mut bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
     let new_binding_indices: Vec<usize> = bindings.iter().enumerate()
         .filter(|(_, b)| b.project_id.is_empty())
@@ -928,8 +927,7 @@ pub async fn instantiate_template(
     storage.save("bindings.json", &bindings)
         .map_err(|e| format!("保存绑定关系失败: {}", e))?;
 
-    let settings = load_settings(&app);
-    let linker = Linker::new(settings.mount_strategy);
+    let linker = Linker::new();
     let data_dir = get_data_dir(&app);
     let plugin_base_path = data_dir.join("plugins");
     let project_bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
@@ -939,12 +937,19 @@ pub async fn instantiate_template(
         .collect();
 
     if !desired_bindings.is_empty() {
-        let _ = linker.apply_bindings(
+        if let Ok(apply_result) = linker.apply_bindings(
             &project_dir.to_string_lossy(),
             &[],
             &desired_bindings,
             &plugin_base_path.to_string_lossy(),
-        );
+            &data_dir.to_string_lossy(),
+        ) {
+            if apply_result.success {
+                if let Err(e) = crate::commands::lockfile::refresh_project_lock(&app, &project_id) {
+                    eprintln!("Failed to write harbor.lock: {}", e);
+                }
+            }
+        }
     }
 
     let duration = start.elapsed().as_secs();
@@ -1131,7 +1136,6 @@ pub async fn generate_template_from_project(
                     source,
                     url: if plugin.source.source_type == SourceType::Git { plugin.source.url.clone() } else { String::new() },
                     git_ref: plugin.source.git_ref.clone(),
-                    mount: String::new(),
                     subdirectory: binding.subdirectory.clone(),
                 });
             }
@@ -1151,7 +1155,6 @@ pub async fn generate_template_from_project(
                                 source: TemplatePluginSource::Local,
                                 url: String::new(),
                                 git_ref: String::new(),
-                                mount: String::new(),
                                 subdirectory: String::new(),
                             });
                         }
@@ -1198,8 +1201,8 @@ pub async fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, S
             rendering: String::new(),
         },
         plugins: vec![
-            TemplatePlugin { name: "Phantom Camera".to_string(), version: "0.9.4.2".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: "v0.9.4.2".to_string(), mount: "copy".to_string(), subdirectory: "addons/phantom_camera".to_string() },
-            TemplatePlugin { name: "GdUnit4".to_string(), version: "6.1.3".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/godot-gdunit-labs/gdUnit4.git".to_string(), git_ref: String::new(), mount: "copy".to_string(), subdirectory: "addons/gdunit4".to_string() },
+            TemplatePlugin { name: "Phantom Camera".to_string(), version: "0.9.4.2".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: "v0.9.4.2".to_string(), subdirectory: "addons/phantom_camera".to_string() },
+            TemplatePlugin { name: "GdUnit4".to_string(), version: "6.1.3".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/godot-gdunit-labs/gdUnit4.git".to_string(), git_ref: String::new(), subdirectory: "addons/gdunit4".to_string() },
         ],
         directories: vec![
             TemplateDirectory { path: "scenes".to_string(), description: "场景文件".to_string() },
@@ -1260,7 +1263,7 @@ pub async fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, S
             rendering: "forward_plus".to_string(),
         },
         plugins: vec![
-            TemplatePlugin { name: "Phantom Camera".to_string(), version: "0.9.4.2".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: "v0.9.4.2".to_string(), mount: "copy".to_string(), subdirectory: "addons/phantom_camera".to_string() },
+            TemplatePlugin { name: "Phantom Camera".to_string(), version: "0.9.4.2".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: "v0.9.4.2".to_string(), subdirectory: "addons/phantom_camera".to_string() },
         ],
         directories: vec![
             TemplateDirectory { path: "scenes/levels".to_string(), description: "关卡场景".to_string() },
@@ -1330,8 +1333,8 @@ pub async fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, S
             rendering: "forward_plus".to_string(),
         },
         plugins: vec![
-            TemplatePlugin { name: "Phantom Camera".to_string(), version: "0.9.4.2".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: "v0.9.4.2".to_string(), mount: "copy".to_string(), subdirectory: "addons/phantom_camera".to_string() },
-            TemplatePlugin { name: "Dialogic".to_string(), version: "2.0-alpha-19".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/dialogic-godot/dialogic.git".to_string(), git_ref: "2.0-alpha-19".to_string(), mount: "copy".to_string(), subdirectory: "addons/dialogic".to_string() },
+            TemplatePlugin { name: "Phantom Camera".to_string(), version: "0.9.4.2".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: "v0.9.4.2".to_string(), subdirectory: "addons/phantom_camera".to_string() },
+            TemplatePlugin { name: "Dialogic".to_string(), version: "2.0-alpha-19".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/dialogic-godot/dialogic.git".to_string(), git_ref: "2.0-alpha-19".to_string(), subdirectory: "addons/dialogic".to_string() },
         ],
         directories: vec![
             TemplateDirectory { path: "scenes/maps".to_string(), description: "地图场景".to_string() },
@@ -1407,7 +1410,7 @@ pub async fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, S
             rendering: "forward_plus".to_string(),
         },
         plugins: vec![
-            TemplatePlugin { name: "Phantom Camera".to_string(), version: "0.9.4.2".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: "v0.9.4.2".to_string(), mount: "copy".to_string(), subdirectory: "addons/phantom_camera".to_string() },
+            TemplatePlugin { name: "Phantom Camera".to_string(), version: "0.9.4.2".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: "v0.9.4.2".to_string(), subdirectory: "addons/phantom_camera".to_string() },
         ],
         directories: vec![
             TemplateDirectory { path: "scenes/levels".to_string(), description: "关卡场景".to_string() },
@@ -1484,7 +1487,7 @@ pub async fn ensure_builtin_templates(app: AppHandle) -> Result<Vec<Template>, S
             rendering: "forward_plus".to_string(),
         },
         plugins: vec![
-            TemplatePlugin { name: "Phantom Camera".to_string(), version: "0.9.4.2".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: "v0.9.4.2".to_string(), mount: "copy".to_string(), subdirectory: "addons/phantom_camera".to_string() },
+            TemplatePlugin { name: "Phantom Camera".to_string(), version: "0.9.4.2".to_string(), source: TemplatePluginSource::Git, url: "https://github.com/ramokz/phantom-camera.git".to_string(), git_ref: "v0.9.4.2".to_string(), subdirectory: "addons/phantom_camera".to_string() },
         ],
         directories: vec![
             TemplateDirectory { path: "scenes/lobby".to_string(), description: "大厅场景".to_string() },

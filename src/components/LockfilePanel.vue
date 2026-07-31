@@ -20,11 +20,13 @@ const {
   isWriting,
   isSyncing,
   isVerifying,
+  isRestoring,
   readLock,
   generateAndWriteLock,
   verify,
   computeDiff,
   syncLock,
+  restore,
 } = useLockfile(props.projectId)
 
 onMounted(() => {
@@ -46,6 +48,14 @@ watch(() => props.projectId, () => {
           class="px-2.5 py-1 text-xs btn-primary disabled:opacity-50 transition-colors"
         >
           {{ isWriting ? '...' : t('lockfile.generate') }}
+        </button>
+        <button
+          v-if="lock"
+          @click="restore"
+          :disabled="isRestoring"
+          class="px-2.5 py-1 text-xs rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+        >
+          {{ isRestoring ? '...' : t('lockfile.restore') }}
         </button>
         <button
           v-if="lock"

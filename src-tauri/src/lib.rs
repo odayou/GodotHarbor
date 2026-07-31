@@ -21,7 +21,6 @@ pub mod mcp;
 pub mod cli;
 pub mod vcs;
 pub mod engine_modules;
-pub mod template_signer;
 pub mod batch_ops;
 pub mod lockfile;
 
@@ -461,6 +460,7 @@ pub fn run() {
             commands::batch_bind_plugins,
             commands::batch_unbind_plugins,
             commands::batch_apply_changes,
+            commands::sync_all_bindings,
             commands::enable_plugin_in_project,
             commands::disable_plugin_in_project,
             commands::get_enabled_plugins,
@@ -546,15 +546,6 @@ pub fn run() {
             commands::get_plugin_store_recommendations,
             commands::get_plugin_store_categories_with_counts,
             commands::one_click_install_plugin,
-            commands::generate_signing_keypair,
-            commands::export_template_signed,
-            commands::write_template_export,
-            commands::import_template_from_file,
-            commands::confirm_import_template,
-            commands::verify_template_signature,
-            commands::get_stored_keypairs,
-            commands::save_keypair,
-            commands::delete_keypair,
             commands::get_engine_modules,
             commands::get_all_engines_modules,
             commands::check_project_missing_modules,
@@ -572,6 +563,7 @@ pub fn run() {
             commands::diff_project_lock,
             commands::sync_from_lock,
             commands::batch_check_locks,
+            commands::restore_project_environment,
         ))
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

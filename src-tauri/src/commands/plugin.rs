@@ -5,8 +5,7 @@ use tauri::{AppHandle, Emitter};
 use crate::models::*;
 use crate::storage::Storage;
 use crate::linker::Linker;
-use uuid::Uuid;
-use crate::utils::{create_http_client, no_window_cmd};
+use crate::utils::create_http_client;
 use super::utils::*;
 use super::update::record_update_history;
 
@@ -173,7 +172,7 @@ pub async fn remove_plugin(app: AppHandle, plugin_id: String) -> Result<(), Stri
 
                     if is_link || is_junction {
                         let _ = std::fs::remove_dir(&plugin_path);
-                    } else if plugin_path.is_dir() && plugin_path.join(".harbor-managed").exists() {
+                    } else if plugin_path.is_dir() {
                         let _ = std::fs::remove_dir_all(&plugin_path);
                     }
                 }
@@ -289,7 +288,7 @@ pub fn unbind_plugin(app: AppHandle, project_id: String, plugin_id: String) -> R
                 if let Err(e) = std::fs::remove_dir(&plugin_path) {
                     return Err(format!("删除符号链接/目录联接失败: {}", e));
                 }
-            } else if plugin_path.is_dir() && plugin_path.join(".harbor-managed").exists() {
+            } else if plugin_path.is_dir() {
                 if let Err(e) = std::fs::remove_dir_all(&plugin_path) {
                     return Err(format!("删除 Harbor 管理的插件目录失败: {}", e));
                 }
@@ -342,8 +341,7 @@ pub async fn apply_changes(app: AppHandle, project_id: String) -> Result<ApplyRe
             return Ok(result);
         }
 
-        let settings = load_settings(&app_clone);
-        let linker = Linker::new(settings.mount_strategy);
+        let linker = Linker::new();
 
         let data_dir = get_data_dir(&app_clone);
         let plugin_base_path = data_dir.join("plugins");
@@ -377,7 +375,8 @@ pub async fn apply_changes(app: AppHandle, project_id: String) -> Result<ApplyRe
             &project.path,
             &current_bindings,
             &desired_bindings,
-            &plugin_base_path.to_string_lossy()
+            &plugin_base_path.to_string_lossy(),
+            &data_dir.to_string_lossy()
         ).map_err(|e| format!("应用变更失败: {}", e))?;
 
         if result.success {
@@ -400,15 +399,7 @@ pub async fn apply_changes(app: AppHandle, project_id: String) -> Result<ApplyRe
             }
 
             // Auto-generate harbor.lock after successful apply
-            let plugins: Vec<crate::models::Plugin> = storage.load_or_default("plugins.json");
-            let engines: Vec<crate::models::Engine> = storage.load_or_default("engines.json");
-            let engine_bindings = if let Some(ref engine_id) = project.last_used_engine_id {
-                vec![(project.project_id.clone(), engine_id.clone())]
-            } else {
-                vec![]
-            };
-            let lock = crate::lockfile::generate_lock(project, &desired_bindings, &plugins, &engines, &engine_bindings);
-            if let Err(e) = crate::lockfile::write_lock(&project.path, &lock) {
+            if let Err(e) = crate::commands::lockfile::refresh_project_lock(&app_clone, &project_id) {
                 eprintln!("Failed to write harbor.lock: {}", e);
             }
         }
@@ -466,12 +457,7 @@ pub async fn scan_project_plugins(app: AppHandle) -> Result<Vec<crate::models::S
 }
 
 #[tauri::command]
-pub async fn import_plugins_from_projects(app: AppHandle, mode: Option<String>) -> Result<Vec<Plugin>, String> {
-    let import_mode = mode.unwrap_or_else(|| "copy".to_string());
-    if !["copy", "move", "reference"].contains(&import_mode.as_str()) {
-        return Err("无效的导入模式，支持: copy, move, reference".to_string());
-    }
-
+pub async fn import_plugins_from_projects(app: AppHandle) -> Result<Vec<Plugin>, String> {
     let storage = get_storage(&app);
     let projects: Vec<Project> = storage.load_or_default("projects.json");
 
@@ -514,7 +500,6 @@ pub async fn import_plugins_from_projects(app: AppHandle, mode: Option<String>) 
 
     let existing_version_hashes: std::collections::HashSet<String> = existing_hash_map.keys().cloned().collect();
 
-    let import_mode_clone = import_mode.clone();
     let scanned_plugins_clone = scanned_plugins.clone();
     let plugins_clone = plugins.clone();
     let projects_clone = projects.clone();
@@ -541,6 +526,7 @@ pub async fn import_plugins_from_projects(app: AppHandle, mode: Option<String>) 
             let source_path = Path::new(&path_str);
             let content_hash = compute_dir_hash(source_path).unwrap_or_default();
 
+            // 内容已存在于仓库 → 仅记录绑定，不重复导入
             if !content_hash.is_empty() && new_version_hashes.contains(&content_hash) {
                 if let Some((existing_plugin_id, existing_version_id)) = existing_hash_map.get(&content_hash) {
                     if let Some(proj) = find_project_by_id_or_path(&projects_clone, &scanned.project_id, &path_str) {
@@ -565,249 +551,72 @@ pub async fn import_plugins_from_projects(app: AppHandle, mode: Option<String>) 
                 }
             }
 
+            // 插件名已存在 → 添加新版本
             if let Some(existing_plugin_id) = new_name_map.get(&scanned.plugin_name.to_lowercase()).cloned() {
                 if let Some(proj) = find_project_by_id_or_path(&projects_clone, &scanned.project_id, &path_str) {
                     let mount_path = compute_mount_path(&path_str, &proj.path);
 
-                    match import_mode_clone.as_str() {
-                        "copy" | "move" => {
-                            match manager_clone.import_from_local(&path_str) {
-                                Ok(new_version_plugin) => {
-                                    if let Some(existing) = local_plugins.iter_mut().find(|p| p.plugin_id == existing_plugin_id) {
-                                        if scanned.detected_source_type == SourceType::Git && !scanned.detected_source_url.is_empty() {
-                                            existing.source.source_type = SourceType::Git;
-                                            existing.source.url = scanned.detected_source_url.clone();
-                                            existing.source.git_ref = scanned.detected_git_ref.clone();
-                                        }
-                                        let new_version = new_version_plugin.versions.first().cloned();
-                                        if let Some(ver) = &new_version {
-                                            let version_id = ver.version_id.clone();
-                                            let unit_id = ver.units.first().map(|u| u.unit_id.clone()).unwrap_or_default();
-
-                                            if !content_hash.is_empty() {
-                                                new_version_hashes.insert(content_hash.clone());
-                                            }
-
-                                            existing.versions.push(ver.clone());
-                                            existing.updated_at = chrono::Utc::now();
-
-                                            pending_bindings.push(ProjectBinding::new(
-                                                proj.project_id.clone(),
-                                                existing_plugin_id.clone(),
-                                                version_id,
-                                                unit_id,
-                                                mount_path,
-                                                String::new(),
-                                            ));
-
-                                            local_imported.push(existing.clone());
-                                        }
-                                    }
-
-                                    if import_mode_clone == "move" {
-                                        if let Some(ver) = new_version_plugin.versions.first() {
-                                            let payload_path = &ver.path;
-                                            if let Err(e) = replace_with_symlink(source_path, payload_path) {
-                                                eprintln!("Warning: failed to replace with symlink: {}", e);
-                                            }
-                                        }
-                                    }
-                                }
-                                Err(e) => eprintln!("Failed to import plugin from {}: {}", path_str, e),
-                            }
-                        }
-                        "reference" => {
-                            let (units, _asset_type) = manager_clone.analyze_asset_type(source_path, &scanned.plugin_name);
-                            let (unit_version, _unit_name) = if let Some(first_unit) = units.first() {
-                                (
-                                    if first_unit.version.is_empty() { "1.0.0".to_string() } else { first_unit.version.clone() },
-                                    if first_unit.name.is_empty() { scanned.plugin_name.clone() } else { first_unit.name.clone() },
-                                )
-                            } else {
-                                ("1.0.0".to_string(), scanned.plugin_name.clone())
-                            };
-                            let version_id = Uuid::new_v4().to_string();
-                            let plugin_version = PluginVersion {
-                                version_id: version_id.clone(),
-                                version: unit_version,
-                                path: path_str.clone(),
-                                created_at: chrono::Utc::now(),
-                                units,
-                            };
-                            let unit_id = plugin_version.units.first().map(|u| u.unit_id.clone()).unwrap_or_default();
-
+                    match manager_clone.import_from_local(&path_str) {
+                        Ok(new_version_plugin) => {
                             if let Some(existing) = local_plugins.iter_mut().find(|p| p.plugin_id == existing_plugin_id) {
-                                existing.versions.push(plugin_version);
-                                existing.updated_at = chrono::Utc::now();
-                                if !content_hash.is_empty() {
-                                    new_version_hashes.insert(content_hash.clone());
+                                if scanned.detected_source_type == SourceType::Git && !scanned.detected_source_url.is_empty() {
+                                    existing.source.source_type = SourceType::Git;
+                                    existing.source.url = scanned.detected_source_url.clone();
+                                    existing.source.git_ref = scanned.detected_git_ref.clone();
                                 }
+                                let new_version = new_version_plugin.versions.first().cloned();
+                                if let Some(ver) = &new_version {
+                                    let version_id = ver.version_id.clone();
+                                    let unit_id = ver.units.first().map(|u| u.unit_id.clone()).unwrap_or_default();
 
-                                pending_bindings.push(ProjectBinding::new(
-                                    proj.project_id.clone(),
-                                    existing_plugin_id.clone(),
-                                    version_id,
-                                    unit_id,
-                                    mount_path,
-                                    String::new(),
-                                ));
+                                    if !content_hash.is_empty() {
+                                        new_version_hashes.insert(content_hash.clone());
+                                    }
 
-                                local_imported.push(existing.clone());
+                                    existing.versions.push(ver.clone());
+                                    existing.updated_at = chrono::Utc::now();
+
+                                    pending_bindings.push(ProjectBinding::new(
+                                        proj.project_id.clone(),
+                                        existing_plugin_id.clone(),
+                                        version_id,
+                                        unit_id,
+                                        mount_path,
+                                        String::new(),
+                                    ));
+
+                                    local_imported.push(existing.clone());
+                                }
                             }
                         }
-                        _ => {}
+                        Err(e) => eprintln!("Failed to import plugin from {}: {}", path_str, e),
                     }
                 }
                 continue;
             }
 
-            match import_mode_clone.as_str() {
-                "copy" => {
-                    match manager_clone.import_from_local(&path_str) {
-                        Ok(mut plugin) => {
-                            if scanned.detected_source_type == SourceType::Git && !scanned.detected_source_url.is_empty() {
-                                plugin.source.source_type = SourceType::Git;
-                                plugin.source.url = scanned.detected_source_url.clone();
-                                plugin.source.git_ref = scanned.detected_git_ref.clone();
-                            }
-                            let plugin_id = plugin.plugin_id.clone();
-                            let version = plugin.versions.first();
-                            let version_id = version.map(|v| v.version_id.clone()).unwrap_or_default();
-                            let unit_id = version
-                                .and_then(|v| v.units.first())
-                                .map(|u| u.unit_id.clone())
-                                .unwrap_or_default();
-
-                            local_imported.push(plugin.clone());
-                            if !plugin.content_hash.is_empty() {
-                                new_version_hashes.insert(plugin.content_hash.clone());
-                            }
-                            new_name_map.insert(plugin.name.to_lowercase(), plugin.plugin_id.clone());
-                            local_plugins.push(plugin);
-                            if let Some(proj) = find_project_by_id_or_path(&projects_clone, &scanned.project_id, &path_str) {
-                                let mount_path = compute_mount_path(&path_str, &proj.path);
-                                pending_bindings.push(ProjectBinding::new(
-                                    proj.project_id.clone(),
-                                    plugin_id,
-                                    version_id,
-                                    unit_id,
-                                    mount_path,
-                                    String::new(),
-                                ));
-                            }
-                        }
-                        Err(e) => eprintln!("Failed to import plugin from {}: {}", path_str, e),
+            // 新插件 → 复制到仓库
+            match manager_clone.import_from_local(&path_str) {
+                Ok(mut plugin) => {
+                    if scanned.detected_source_type == SourceType::Git && !scanned.detected_source_url.is_empty() {
+                        plugin.source.source_type = SourceType::Git;
+                        plugin.source.url = scanned.detected_source_url.clone();
+                        plugin.source.git_ref = scanned.detected_git_ref.clone();
                     }
-                }
-                "move" => {
-                    match manager_clone.import_from_local(&path_str) {
-                        Ok(mut plugin) => {
-                            if scanned.detected_source_type == SourceType::Git && !scanned.detected_source_url.is_empty() {
-                                plugin.source.source_type = SourceType::Git;
-                                plugin.source.url = scanned.detected_source_url.clone();
-                                plugin.source.git_ref = scanned.detected_git_ref.clone();
-                            }
-                            if let Ok(metadata) = fs::symlink_metadata(source_path) {
-                                if metadata.file_type().is_symlink() || is_junction_path(source_path) {
-                                    if let Ok(link_target) = fs::read_link(source_path) {
-                                        plugin.source.url = link_target.to_string_lossy().to_string();
-                                    }
-                                }
-                            }
-                            let plugin_id = plugin.plugin_id.clone();
-                            let version = plugin.versions.first();
-                            let version_id = version.map(|v| v.version_id.clone()).unwrap_or_default();
-                            let payload_path = version.map(|v| v.path.clone()).unwrap_or_default();
-                            let unit_id = version
-                                .and_then(|v| v.units.first())
-                                .map(|u| u.unit_id.clone())
-                                .unwrap_or_default();
-
-                            if let Err(e) = replace_with_symlink(source_path, &payload_path) {
-                                eprintln!("Warning: failed to replace with symlink: {}", e);
-                            }
-
-                            local_imported.push(plugin.clone());
-                            if !plugin.content_hash.is_empty() {
-                                new_version_hashes.insert(plugin.content_hash.clone());
-                            }
-                            new_name_map.insert(plugin.name.to_lowercase(), plugin.plugin_id.clone());
-                            local_plugins.push(plugin);
-
-                            if let Some(proj) = find_project_by_id_or_path(&projects_clone, &scanned.project_id, &path_str) {
-                                let mount_path = compute_mount_path(&path_str, &proj.path);
-                                pending_bindings.push(ProjectBinding::new(
-                                    proj.project_id.clone(),
-                                    plugin_id,
-                                    version_id,
-                                    unit_id,
-                                    mount_path,
-                                    String::new(),
-                                ));
-                            }
-                        }
-                        Err(e) => eprintln!("Failed to import plugin from {}: {}", path_str, e),
-                    }
-                }
-                "reference" => {
-                    let plugin_name = scanned.plugin_name.clone();
-                    let is_git = scanned.detected_source_type == SourceType::Git && !scanned.detected_source_url.is_empty();
-                    let detected_type = if is_git {
-                        SourceType::Git
-                    } else {
-                        SourceType::Local
-                    };
-                    let detected_url = if is_git {
-                        scanned.detected_source_url.clone()
-                    } else {
-                        path_str.clone()
-                    };
-                    let plugin_source = PluginSource {
-                        source_type: detected_type,
-                        url: detected_url,
-                        git_ref: if is_git { scanned.detected_git_ref.clone() } else { String::new() },
-                        imported_at: chrono::Utc::now(),
-                    };
-                    let mut plugin = Plugin::new(plugin_name.clone(), plugin_source);
-                    plugin.content_hash = if content_hash.is_empty() {
-                        compute_dir_hash(source_path).unwrap_or_default()
-                    } else {
-                        content_hash
-                    };
-
-                    let (units, asset_type) = manager_clone.analyze_asset_type(source_path, &plugin_name);
-                    let (unit_version, unit_name, unit_description, unit_author) =
-                        if let Some(first_unit) = units.first() {
-                            (
-                                if first_unit.version.is_empty() { "1.0.0".to_string() } else { first_unit.version.clone() },
-                                if first_unit.name.is_empty() { plugin_name } else { first_unit.name.clone() },
-                                first_unit.description.clone(),
-                                first_unit.author.clone(),
-                            )
-                        } else {
-                            ("1.0.0".to_string(), plugin_name, String::new(), String::new())
-                        };
-                    let version_id = Uuid::new_v4().to_string();
-                    let plugin_version = PluginVersion {
-                        version_id: version_id.clone(),
-                        version: unit_version,
-                        path: path_str.clone(),
-                        created_at: chrono::Utc::now(),
-                        units,
-                    };
-                    plugin.versions.push(plugin_version);
-                    plugin.compatibility = manager_clone.detect_compatibility(source_path);
-                    plugin.name = unit_name;
-                    plugin.description = unit_description;
-                    plugin.author = unit_author;
-                    plugin.asset_type = asset_type;
-
                     let plugin_id = plugin.plugin_id.clone();
-                    let unit_id = plugin.versions.first()
+                    let version = plugin.versions.first();
+                    let version_id = version.map(|v| v.version_id.clone()).unwrap_or_default();
+                    let unit_id = version
                         .and_then(|v| v.units.first())
                         .map(|u| u.unit_id.clone())
                         .unwrap_or_default();
 
+                    local_imported.push(plugin.clone());
+                    if !plugin.content_hash.is_empty() {
+                        new_version_hashes.insert(plugin.content_hash.clone());
+                    }
+                    new_name_map.insert(plugin.name.to_lowercase(), plugin.plugin_id.clone());
+                    local_plugins.push(plugin);
                     if let Some(proj) = find_project_by_id_or_path(&projects_clone, &scanned.project_id, &path_str) {
                         let mount_path = compute_mount_path(&path_str, &proj.path);
                         pending_bindings.push(ProjectBinding::new(
@@ -819,15 +628,8 @@ pub async fn import_plugins_from_projects(app: AppHandle, mode: Option<String>) 
                             String::new(),
                         ));
                     }
-
-                    local_imported.push(plugin.clone());
-                    if !plugin.content_hash.is_empty() {
-                        new_version_hashes.insert(plugin.content_hash.clone());
-                    }
-                    new_name_map.insert(plugin.name.to_lowercase(), plugin.plugin_id.clone());
-                    local_plugins.push(plugin);
                 }
-                _ => {}
+                Err(e) => eprintln!("Failed to import plugin from {}: {}", path_str, e),
             }
         }
 
@@ -865,8 +667,8 @@ pub async fn import_plugins_from_projects(app: AppHandle, mode: Option<String>) 
             .map_err(|e| format!("保存插件列表失败: {}", e))?;
     }
 
-    log_operation(&app, "import_plugins_from_projects", "", 
-        &format!("从项目以 {} 模式导入了 {} 个插件", import_mode, imported_plugins.len()));
+    log_operation(&app, "import_plugins_from_projects", "",
+        &format!("从项目导入了 {} 个插件", imported_plugins.len()));
 
     Ok(imported_plugins)
 }
@@ -899,51 +701,6 @@ fn compute_mount_path(plugin_path: &str, project_path: &str) -> String {
         .replace(&format!("{}\\", project_path), "")
 }
 
-fn replace_with_symlink(original_path: &Path, repo_payload_path: &str) -> Result<(), String> {
-    let payload = Path::new(repo_payload_path);
-    if !payload.exists() {
-        return Err("仓库中的插件路径不存在".to_string());
-    }
-    let parent = original_path.parent()
-        .ok_or_else(|| "无法获取父目录".to_string())?;
-    let temp_name = format!(".harbor-tmp-{}", uuid::Uuid::new_v4());
-    let temp_path = parent.join(&temp_name);
-    fs::rename(original_path, &temp_path)
-        .map_err(|e| format!("重命名原始目录失败: {}", e))?;
-
-    #[cfg(unix)]
-    {
-        std::os::unix::fs::symlink(payload, original_path)
-            .map_err(|e| {
-                let _ = fs::rename(&temp_path, original_path);
-                format!("创建符号链接失败: {}", e)
-            })?;
-    }
-
-    #[cfg(windows)]
-    {
-        match std::os::windows::fs::symlink_dir(payload, original_path) {
-            Ok(_) => {}
-            Err(_) => {
-                let output = no_window_cmd("cmd")
-                    .args(&["/C", "mklink", "/J"])
-                    .arg(original_path)
-                    .arg(payload)
-                    .output()
-                    .map_err(|e| format!("执行mklink失败: {}", e))?;
-                if !output.status.success() {
-                    let _ = fs::rename(&temp_path, original_path);
-                    return Err(format!("创建Junction失败: {}", String::from_utf8_lossy(&output.stderr)));
-                }
-            }
-        }
-    }
-
-    fs::remove_dir_all(&temp_path)
-        .map_err(|e| format!("删除临时目录失败: {}", e))?;
-
-    Ok(())
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginStorageStats {
@@ -1092,10 +849,10 @@ pub fn repair_binding(app: AppHandle, project_id: String, plugin_id: String) -> 
     }
     let project = project.unwrap();
 
-    let settings = load_settings(&app);
-    let linker = Linker::new(settings.mount_strategy.clone());
-    let plugin_base_path = get_data_dir(&app).join("plugins");
-    let applied_dir = get_data_dir(&app).join("applied_bindings");
+    let linker = Linker::new();
+    let data_dir = get_data_dir(&app);
+    let plugin_base_path = data_dir.join("plugins");
+    let applied_dir = data_dir.join("applied_bindings");
 
     let applied_file = applied_dir.join(format!("{}.json", project_id));
     let current_bindings: Vec<ProjectBinding> = if applied_file.exists() {
@@ -1110,11 +867,16 @@ pub fn repair_binding(app: AppHandle, project_id: String, plugin_id: String) -> 
         &project.path,
         &current_bindings,
         &desired_bindings,
-        &plugin_base_path.to_string_lossy()
+        &plugin_base_path.to_string_lossy(),
+        &data_dir.to_string_lossy()
     ).map_err(|e| format!("修复绑定失败: {}", e))?;
 
     if !result.success {
         return Err(format!("修复绑定失败: {}", result.errors.join(", ")));
+    }
+
+    if let Err(e) = crate::commands::lockfile::refresh_project_lock(&app, &project_id) {
+        eprintln!("Failed to write harbor.lock: {}", e);
     }
 
     log_operation(&app, "repair_binding", &project_id,
@@ -1224,7 +986,7 @@ pub struct TotalStorageStats {
 
 
 #[tauri::command]
-pub async fn update_git_plugin(app: AppHandle, plugin_id: String) -> Result<Plugin, String> {
+pub async fn update_git_plugin(app: AppHandle, plugin_id: String, git_ref: Option<String>) -> Result<Plugin, String> {
     let app_clone = app.clone();
     tokio::task::spawn_blocking(move || {
         let storage = get_storage(&app_clone);
@@ -1242,7 +1004,7 @@ pub async fn update_git_plugin(app: AppHandle, plugin_id: String) -> Result<Plug
         let old_version = plugin.versions.first().map(|v| v.version.clone()).unwrap_or_default();
         let plugin_name = plugin.name.clone();
         let manager = get_plugin_manager(&app_clone);
-        let updated_plugin = manager.import_from_git(&git_url, None, &app_clone)
+        let updated_plugin = manager.import_from_git(&git_url, git_ref.as_deref(), &app_clone)
             .map_err(|e| format!("更新Git插件失败: {}", e))?;
 
         let idx = plugins.iter().position(|p| p.plugin_id == plugin_id)
@@ -1412,6 +1174,7 @@ pub async fn check_plugin_updates(app: AppHandle, force_refresh: Option<bool>) -
 
     let client = create_http_client(Some(std::time::Duration::from_secs(10)))?;
     let github_base = crate::utils::get_github_api_base(&app);
+    let asset_lib_base = crate::utils::get_asset_library_base(&app);
 
     let futures = plugins.iter().map(|plugin| {
         let client = client.clone();
@@ -1423,6 +1186,7 @@ pub async fn check_plugin_updates(app: AppHandle, force_refresh: Option<bool>) -
         let source_type = plugin.source.source_type.clone();
         let url = plugin.source.url.clone();
         let github_base = github_base.clone();
+        let asset_lib_base = asset_lib_base.clone();
         let affected_projects = plugin_project_map.get(&plugin_id).cloned().unwrap_or_default();
 
         async move {
@@ -1447,6 +1211,25 @@ pub async fn check_plugin_updates(app: AppHandle, force_refresh: Option<bool>) -
                             }
                             if let Some(notes) = json.get("body").and_then(|b| b.as_str()) {
                                 release_notes = notes.chars().take(500).collect();
+                            }
+                        }
+                    }
+                }
+            } else if source_type == SourceType::AssetLibrary && !url.is_empty() {
+                if let Some(asset_id) = url.strip_prefix("asset-library://") {
+                    let detail_url = format!("{}/asset/{}", asset_lib_base, asset_id);
+                    if let Ok(resp) = client.get(&detail_url).send().await {
+                        if resp.status().is_success() {
+                            if let Ok(json) = resp.json::<serde_json::Value>().await {
+                                if let Some(vs) = json.get("version_string").and_then(|v| v.as_str()) {
+                                    let vs = vs.trim_start_matches('v');
+                                    if compare_versions(&current_version, vs) < 0 {
+                                        latest_version = vs.to_string();
+                                    }
+                                }
+                                if let Some(notes) = json.get("description").and_then(|d| d.as_str()) {
+                                    release_notes = notes.chars().take(500).collect();
+                                }
                             }
                         }
                     }
@@ -1638,7 +1421,7 @@ pub fn batch_remove_plugins(app: AppHandle, plugin_ids: Vec<String>) -> Result<B
                         };
                         if is_link || is_junction {
                             let _ = std::fs::remove_dir(&plugin_path);
-                        } else if plugin_path.is_dir() && plugin_path.join(".harbor-managed").exists() {
+                        } else if plugin_path.is_dir() {
                             let _ = std::fs::remove_dir_all(&plugin_path);
                         }
                     }
@@ -1763,7 +1546,7 @@ pub fn batch_unbind_plugins(app: AppHandle, project_id: String, plugin_ids: Vec<
                 };
                 if is_link || is_junction {
                     let _ = std::fs::remove_dir(&plugin_path);
-                } else if plugin_path.is_dir() && plugin_path.join(".harbor-managed").exists() {
+                } else if plugin_path.is_dir() {
                     let _ = std::fs::remove_dir_all(&plugin_path);
                 }
             }
@@ -1789,8 +1572,7 @@ pub async fn batch_apply_changes(app: AppHandle, project_ids: Vec<String>) -> Re
     let storage = get_storage(&app);
     let projects: Vec<Project> = storage.load_or_default("projects.json");
     let all_bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
-    let settings = load_settings(&app);
-    let linker = Linker::new(settings.mount_strategy);
+    let linker = Linker::new();
     let data_dir = get_data_dir(&app);
     let plugin_base_path = data_dir.join("plugins");
     let applied_dir = data_dir.join("applied_bindings");
@@ -1841,7 +1623,8 @@ pub async fn batch_apply_changes(app: AppHandle, project_ids: Vec<String>) -> Re
             &project.path,
             &current_bindings,
             &desired_bindings,
-            &plugin_base_path.to_string_lossy()
+            &plugin_base_path.to_string_lossy(),
+            &data_dir.to_string_lossy()
         ) {
             Ok(apply_result) => {
                 if apply_result.success {
@@ -1851,6 +1634,9 @@ pub async fn batch_apply_changes(app: AppHandle, project_ids: Vec<String>) -> Re
                     let applied_storage = Storage::new(applied_dir.clone());
                     if let Err(e) = applied_storage.save(&format!("{}.json", project_id), &desired_bindings) {
                         eprintln!("Failed to save applied bindings: {}", e);
+                    }
+                    if let Err(e) = crate::commands::lockfile::refresh_project_lock(&app, project_id) {
+                        eprintln!("Failed to write harbor.lock: {}", e);
                     }
                 }
                 results.push(ProjectApplyResult {
@@ -2381,82 +2167,6 @@ mod tests {
             "/projects/my_game"
         );
         assert_eq!(result, "addons/sub/my_plugin");
-    }
-
-    #[test]
-    fn test_unbind_plugin_safety_non_managed_preserved() {
-        let dir = tempfile::TempDir::new().unwrap();
-        let project_path = dir.path().join("my_project");
-        fs::create_dir_all(&project_path).unwrap();
-        fs::write(project_path.join("project.godot"), "[application]\n").unwrap();
-
-        let non_managed = project_path.join("addons").join("original_plugin");
-        fs::create_dir_all(&non_managed).unwrap();
-        fs::write(non_managed.join("plugin.cfg"), "name=\"original\"").unwrap();
-        fs::write(non_managed.join("data.txt"), "important data").unwrap();
-
-        let plugin_path = Path::new(&project_path).join("addons/original_plugin");
-        assert!(plugin_path.exists());
-
-        let metadata = std::fs::symlink_metadata(&plugin_path).unwrap();
-        let is_link = metadata.file_type().is_symlink();
-        let is_junction = {
-            #[cfg(windows)]
-            {
-                use std::os::windows::fs::MetadataExt;
-                metadata.file_attributes() & 0x400 != 0
-            }
-            #[cfg(not(windows))]
-            {
-                false
-            }
-        };
-
-        if is_link || is_junction {
-            let _ = std::fs::remove_dir(&plugin_path);
-        } else if plugin_path.is_dir() && plugin_path.join(".harbor-managed").exists() {
-            let _ = std::fs::remove_dir_all(&plugin_path);
-        }
-
-        assert!(non_managed.exists());
-        assert!(non_managed.join("plugin.cfg").exists());
-        assert!(non_managed.join("data.txt").exists());
-    }
-
-    #[test]
-    fn test_unbind_plugin_safety_managed_removed() {
-        let dir = tempfile::TempDir::new().unwrap();
-        let project_path = dir.path().join("my_project");
-        fs::create_dir_all(&project_path).unwrap();
-
-        let managed = project_path.join("addons").join("managed_plugin");
-        fs::create_dir_all(&managed).unwrap();
-        fs::write(managed.join(".harbor-managed"), "managed_by_godot_harbor").unwrap();
-        fs::write(managed.join("plugin.cfg"), "name=\"managed\"").unwrap();
-
-        let plugin_path = Path::new(&project_path).join("addons/managed_plugin");
-
-        let metadata = std::fs::symlink_metadata(&plugin_path).unwrap();
-        let is_link = metadata.file_type().is_symlink();
-        let is_junction = {
-            #[cfg(windows)]
-            {
-                use std::os::windows::fs::MetadataExt;
-                metadata.file_attributes() & 0x400 != 0
-            }
-            #[cfg(not(windows))]
-            {
-                false
-            }
-        };
-
-        if is_link || is_junction {
-            let _ = std::fs::remove_dir(&plugin_path);
-        } else if plugin_path.is_dir() && plugin_path.join(".harbor-managed").exists() {
-            let _ = std::fs::remove_dir_all(&plugin_path);
-        }
-
-        assert!(!managed.exists());
     }
 
     #[test]

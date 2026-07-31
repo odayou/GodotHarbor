@@ -14,7 +14,7 @@ import { usePluginFilter } from '@/composables/usePluginFilter'
 import { usePluginUpdate } from '@/composables/usePluginUpdate'
 import { useAssetLibrary } from '@/composables/useAssetLibrary'
 import { isOnline as _isOnline } from '@/composables/useNetworkStatus'
-import { usePluginStore, useSettingsStore } from '@/stores'
+import { usePluginStore } from '@/stores'
 import { useContextMenu } from '@/composables/useContextMenu'
 import type { ContextMenuEntry } from '@/composables/useContextMenu'
 import { useFileManager } from '@/composables/useFileManager'
@@ -25,7 +25,6 @@ import AssetLibraryTab from '@/components/AssetLibraryTab.vue'
 import GlobalUpgradeDialog from '@/components/GlobalUpgradeDialog.vue'
 
 const pluginStore = usePluginStore()
-const settingsStore = useSettingsStore()
 const route = useRoute()
 const router = useRouter()
 
@@ -34,8 +33,6 @@ const { isRunning: isAutoSetupRunning, stepMessage: autoSetupMessage } = useAuto
 const { t } = useI18n()
 
 const plugins = computed(() => pluginStore.plugins)
-const autoApplyEnabled = computed(() => settingsStore.settings.auto_apply ?? false)
-const goToAutoApplySettings = () => router.push('/settings')
 
 const loadAddonBackups = async () => {
   if (!selectedLinkId.value) return
@@ -79,9 +76,15 @@ const pluginDependencies = ref<PluginDependency[]>([])
 const pluginStorageStats = ref<PluginStorageStats | null>(null)
 const pluginBindings = ref<ProjectBinding[]>([])
 const pluginBindingCountMap = ref<Map<string, number>>(new Map())
-const showImportModeDialog = ref(false)
-const importMode = ref<'copy' | 'move' | 'reference'>('copy')
 const totalStorageStats = ref<TotalStorageStats | null>(null)
+
+// ─── Update Git Plugin (ref selection) ───
+const showUpdateRefDialog = ref(false)
+const updateRefTarget = ref<Plugin | null>(null)
+const updateRefList = ref<Array<{ name: string; ref_type: string }>>([])
+const updateRefSelected = ref('')
+const updateRefDecisionMade = ref(false)
+const isLoadingUpdateRefs = ref(false)
 
 // ─── Global Upgrade ───
 const showGlobalUpgradeDialog = ref(false)
@@ -192,7 +195,6 @@ const isSwitchingVersion = ref(false)
 
 const batchProgress = ref<{ current: number; total: number; message: string } | null>(null)
 const batchFailedItems = ref<{ id: string; name: string; error: string }[]>([])
-const mountStrategyDisplay = ref<string>('')
 
 const linkerProjects = ref<Project[]>([])
 const linkerBindings = ref<ProjectBinding[]>([])
@@ -241,18 +243,6 @@ const pendingBindAfterUidCheck = ref<(() => void) | null>(null)
 
 const handleBindWithCopyMode = async () => {
   showUidConflictDialog.value = false
-  if (mountStrategyDisplay.value !== 'Copy') {
-    try {
-      const settings = await api.getSettings()
-      settings.mount_strategy = 'Copy'
-      await api.saveSettings(settings)
-      mountStrategyDisplay.value = 'Copy'
-      toast.success(t('settings.saved'))
-    } catch (error) {
-      toast.error(t('common.operationFailed', { error: String(error) }))
-      return
-    }
-  }
   pendingBindAfterUidCheck.value?.()
 }
 
@@ -551,6 +541,33 @@ const importFromRemote = async () => {
   }
 }
 
+const openUpdateRefDialog = async (pluginId: string) => {
+  const plugin = plugins.value.find(p => p.plugin_id === pluginId)
+  if (!plugin) return
+  updateRefTarget.value = plugin
+  updateRefSelected.value = ''
+  updateRefDecisionMade.value = false
+  updateRefList.value = []
+  showUpdateRefDialog.value = true
+  if (!plugin.source.url) return
+  isLoadingUpdateRefs.value = true
+  try {
+    updateRefList.value = await api.listGitRefs(plugin.source.url)
+  } catch {
+    updateRefList.value = []
+  } finally {
+    isLoadingUpdateRefs.value = false
+  }
+}
+
+const confirmUpdateWithRef = async () => {
+  if (!updateRefTarget.value) return
+  const pluginId = updateRefTarget.value.plugin_id
+  const gitRef = updateRefSelected.value.trim() || undefined
+  showUpdateRefDialog.value = false
+  await updateGitPlugin(pluginId, gitRef)
+}
+
 const addMenuRef = ref<HTMLElement | null>(null)
 
 const handleClickOutside = (event: MouseEvent) => {
@@ -609,8 +626,8 @@ onMounted(async () => {
   }
   if (route.query.action === 'import') {
     await nextTick()
-    showImportModeDialog.value = true
     router.replace({ path: '/plugins' })
+    importFromProjects()
   }
 })
 
@@ -636,7 +653,6 @@ const pendingImportAction = ref<(() => Promise<void>) | null>(null)
 
 useDialogEscape(showRemoteDialog)
 useDialogEscape(showPluginDetail)
-useDialogEscape(showImportModeDialog)
 useDialogEscape(showDuplicateConfirm)
 
 const getMountPath = (unit: { subdirectory?: string; name: string; dir_name?: string }, plugin?: Plugin) => {
@@ -754,20 +770,13 @@ const importFromProjects = async () => {
   }
 }
 
-const startImportFromPreview = () => {
-  showScanPreviewDialog.value = false
-  showImportModeDialog.value = true
-}
-
 const doImportFromProjects = async () => {
-  showImportModeDialog.value = false
+  showScanPreviewDialog.value = false
   isLoading.value = true
   try {
-    const importedPlugins = await api.importPluginsFromProjects(importMode.value)
+    const importedPlugins = await api.importPluginsFromProjects()
     if (importedPlugins.length > 0) {
-      const mode = importMode.value
-      const modeLabel = t(`plugins.importMode.${mode}`)
-      toast.success(t('plugins.importSuccess', { mode: modeLabel, count: importedPlugins.length }))
+      toast.success(t('plugins.importSuccess', { count: importedPlugins.length }))
     } else {
       toast.info(t('plugins.noNewPluginsFound'))
     }
@@ -1097,10 +1106,6 @@ const loadLinkerData = async () => {
     if (!hasLoaded.value) {
       await loadPlugins(true)
     }
-    try {
-      const settings = await api.getSettings()
-      mountStrategyDisplay.value = settings.mount_strategy || 'Symlink'
-    } catch {}
   } catch (error) {
     toast.error(t('common.loadFailed', { error }))
   }
@@ -1540,6 +1545,25 @@ const batchApplyChanges = () => {
     return
   }
   showLinkerBatchApplyDialog.value = true
+}
+
+const isSyncingAll = ref(false)
+const syncAllBindings = async () => {
+  isSyncingAll.value = true
+  batchApplyResults.value = []
+  try {
+    const result = await api.syncAllBindings()
+    batchApplyResults.value = result.results
+    showLinkerBatchApplyResult.value = true
+    toast.success(t('linker.syncAllSuccess'))
+    if (selectedLinkId.value) {
+      await loadLinkerBindings(selectedLinkId.value)
+    }
+  } catch (error) {
+    toast.error(t('linker.syncAllFailed', { error: String(error) }))
+  } finally {
+    isSyncingAll.value = false
+  }
 }
 
 const confirmBatchApply = async () => {
@@ -2155,7 +2179,7 @@ const retryBatchFailed = async () => {
             <div class="flex items-center gap-2">
               <button
                 v-if="plugin.source.source_type === 'Git'"
-                @click.stop="updateGitPlugin(plugin.plugin_id)"
+                @click.stop="openUpdateRefDialog(plugin.plugin_id)"
                 class="text-primary-600 dark:text-brand-primary hover:text-primary-700 dark:hover:text-brand-primary p-1.5 rounded-[4px] hover:bg-primary-50 dark:hover:bg-surface-hover transition-colors"
                 :title="t('plugins.contextMenu.updatePlugin')"
               >
@@ -2257,6 +2281,54 @@ const retryBatchFailed = async () => {
   </Teleport>
 
   <Teleport to="body">
+    <div v-if="showUpdateRefDialog && updateRefTarget" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showUpdateRefDialog = false">
+      <div class="dialog-container w-full max-w-md" @click.stop>
+        <h3 class="text-sm font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('plugins.updateRef.title') }}</h3>
+        <p class="text-sm text-gray-700 dark:text-content-primary mb-1">{{ t('plugins.updateRef.target', { name: updateRefTarget.name }) }}</p>
+        <p class="text-xs text-gray-400 dark:text-content-muted mb-3">{{ t('plugins.updateRef.desc') }}</p>
+        <div v-if="isLoadingUpdateRefs" class="text-xs text-gray-400 dark:text-content-muted">{{ t('plugins.remoteImport.loadingRefs') }}</div>
+        <div v-if="updateRefList.length > 0" class="mb-3">
+          <div class="text-xs text-gray-500 dark:text-content-secondary mb-1">{{ t('plugins.remoteImport.selectRef') }}</div>
+          <div class="max-h-40 overflow-y-auto border border-gray-200/60 dark:border-surface-border/40 rounded-[6px]">
+            <button
+              @click="updateRefSelected = ''; updateRefDecisionMade = true"
+              :class="['w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-surface-layer flex items-center gap-2', !updateRefSelected && updateRefDecisionMade ? 'bg-primary-50 dark:bg-surface-hover text-primary-600 dark:text-brand-primary' : 'text-gray-700 dark:text-content-secondary']"
+            >
+              <span class="px-1.5 py-0.5 rounded-[4px] text-[10px] font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">{{ t('plugins.remoteImport.useDefault') }}</span>
+              <span>{{ t('plugins.remoteImport.defaultBranch') }}</span>
+            </button>
+            <button
+              v-for="ref_item in updateRefList"
+              :key="ref_item.name"
+              @click="updateRefSelected = ref_item.name; updateRefDecisionMade = true"
+              :class="['w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-surface-layer flex items-center gap-2', updateRefSelected === ref_item.name ? 'bg-primary-50 dark:bg-surface-hover text-primary-600 dark:text-brand-primary' : 'text-gray-700 dark:text-content-secondary']"
+            >
+              <span :class="['px-1.5 py-0.5 rounded-[4px] text-[10px] font-medium', ref_item.ref_type === 'tag' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-blue-100 dark:bg-surface-hover text-blue-700 dark:text-brand-primary']">{{ ref_item.ref_type === 'tag' ? 'tag' : 'branch' }}</span>
+              <span>{{ ref_item.name }}</span>
+            </button>
+          </div>
+        </div>
+        <input
+          v-model="updateRefSelected"
+          type="text"
+          :placeholder="t('plugins.remoteImport.refPlaceholder')"
+          class="w-full input-field text-sm"
+        />
+        <div class="flex justify-end space-x-2 mt-4">
+          <button @click="showUpdateRefDialog = false" class="btn-secondary">{{ t('common.cancel') }}</button>
+          <button
+            @click="confirmUpdateWithRef"
+            :disabled="isLoading || isLoadingUpdateRefs || (updateRefList.length > 0 && !updateRefDecisionMade && !updateRefSelected.trim())"
+            class="btn-primary disabled:opacity-50"
+          >
+            {{ t('plugins.contextMenu.updatePlugin') }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
     <div v-if="showPluginDetail && selectedPlugin" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="closePluginDetail">
       <div class="dialog-container w-full max-w-lg max-h-[85vh] flex flex-col" @click.stop>
         <div class="flex items-center justify-between mb-2">
@@ -2273,7 +2345,7 @@ const retryBatchFailed = async () => {
             </button>
             <button
               v-if="selectedPlugin.source.source_type === 'Git'"
-              @click="updateGitPlugin(selectedPlugin.plugin_id); closePluginDetail()"
+              @click="openUpdateRefDialog(selectedPlugin.plugin_id); closePluginDetail()"
               class="px-3 py-1 border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-secondary text-xs rounded-btn hover:bg-gray-50 dark:hover:bg-surface-hover transition-colors flex items-center gap-1"
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
@@ -2483,7 +2555,7 @@ const retryBatchFailed = async () => {
               <div class="flex items-center gap-2">
                 <button
                   v-if="update.update_available"
-                  @click="updateGitPlugin(update.plugin_id)"
+                  @click="openUpdateRefDialog(update.plugin_id)"
                   :disabled="isBatchUpdating"
                   class="btn-primary text-xs disabled:opacity-50"
                 >
@@ -2546,50 +2618,12 @@ const retryBatchFailed = async () => {
         </div>
         <div class="flex justify-end gap-2">
           <button @click="showScanPreviewDialog = false" class="btn-secondary">{{ t('common.cancel') }}</button>
-          <button @click="startImportFromPreview" class="btn-primary">{{ t('plugins.importFromProject.continueImport') }}</button>
+          <button @click="doImportFromProjects" class="btn-primary">{{ t('plugins.importFromProject.continueImport') }}</button>
         </div>
       </div>
     </div>
   </Teleport>
 
-  <Teleport to="body">
-    <div v-if="showImportModeDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="showImportModeDialog = false">
-      <div class="dialog-container w-full max-w-md" @click.stop>
-        <h3 class="text-sm font-semibold text-gray-900 dark:text-content-primary mb-2">{{ t('plugins.importFromProject.title') }}</h3>
-        <p class="text-sm text-gray-500 dark:text-content-secondary mb-2">{{ t('plugins.importFromProject.modeSelect') }}</p>
-        <div class="space-y-2 mb-3">
-          <label class="flex items-start gap-2 p-3 rounded-[6px] border cursor-pointer transition-colors"
-            :class="importMode === 'copy' ? 'border-primary-500 bg-primary-50 dark:bg-surface-hover' : 'border-gray-200/60 dark:border-surface-border/40 hover:bg-gray-50 dark:hover:bg-surface-layer'">
-            <input type="radio" v-model="importMode" value="copy" class="mt-1" />
-            <div>
-              <div class="font-medium text-gray-900 dark:text-content-primary text-sm">{{ t('plugins.importModes.copy.label') }}</div>
-              <div class="text-xs text-gray-500 dark:text-content-secondary mt-0.5">{{ t('plugins.importModes.copy.desc') }}</div>
-            </div>
-          </label>
-          <label class="flex items-start gap-2 p-3 rounded-[6px] border cursor-pointer transition-colors"
-            :class="importMode === 'move' ? 'border-primary-500 bg-primary-50 dark:bg-surface-hover' : 'border-gray-200/60 dark:border-surface-border/40 hover:bg-gray-50 dark:hover:bg-surface-layer'">
-            <input type="radio" v-model="importMode" value="move" class="mt-1" />
-            <div>
-              <div class="font-medium text-gray-900 dark:text-content-primary text-sm">{{ t('plugins.importModes.move.label') }}</div>
-              <div class="text-xs text-gray-500 dark:text-content-secondary mt-0.5">{{ t('plugins.importModes.move.desc') }}</div>
-            </div>
-          </label>
-          <label class="flex items-start gap-2 p-3 rounded-[6px] border cursor-pointer transition-colors"
-            :class="importMode === 'reference' ? 'border-primary-500 bg-primary-50 dark:bg-surface-hover' : 'border-gray-200/60 dark:border-surface-border/40 hover:bg-gray-50 dark:hover:bg-surface-layer'">
-            <input type="radio" v-model="importMode" value="reference" class="mt-1" />
-            <div>
-              <div class="font-medium text-gray-900 dark:text-content-primary text-sm">{{ t('plugins.importModes.reference.label') }}</div>
-              <div class="text-xs text-gray-500 dark:text-content-secondary mt-0.5">{{ t('plugins.importModes.reference.desc') }}</div>
-            </div>
-          </label>
-        </div>
-        <div class="flex justify-end gap-2">
-          <button @click="showImportModeDialog = false" class="btn-secondary">{{ t('plugins.importFromProject.cancel') }}</button>
-          <button @click="doImportFromProjects" class="btn-primary">{{ t('plugins.importFromProject.startImport') }}</button>
-        </div>
-      </div>
-    </div>
-  </Teleport>
 
     <div v-if="activeTab === 'repository' && totalStorageStats" class="border border-gray-200/60 dark:border-surface-border/40 rounded-[6px] p-3">
       <div class="flex items-center justify-between">
@@ -2648,6 +2682,13 @@ const retryBatchFailed = async () => {
           {{ t('linker.batchApplyTitle') }}
         </button>
         <button
+          @click="syncAllBindings"
+          :disabled="isSyncingAll"
+          class="px-3 py-1.5 border border-gray-300 dark:border-surface-border rounded-btn bg-white dark:bg-surface-card text-gray-700 dark:text-content-primary text-sm hover:bg-gray-50 dark:hover:bg-surface-layer disabled:opacity-50"
+        >
+          {{ isSyncingAll ? t('linker.syncing') : t('linker.syncAllTitle') }}
+        </button>
+        <button
           v-if="selectedLinkId"
           @click="exportHarborConfig"
           :disabled="isExportingConfig"
@@ -2663,15 +2704,6 @@ const retryBatchFailed = async () => {
         >
           {{ isSyncingConfig ? t('linker.syncing') : t('linker.syncConfig') }}
         </button>
-        <div v-if="mountStrategyDisplay" class="flex items-center gap-2 text-xs text-gray-500 dark:text-content-secondary">
-          <span class="px-2 py-1 bg-gray-100 dark:bg-surface-layer rounded-[4px]">
-            {{ t('plugins.mountStrategyLabel') }}: {{ mountStrategyDisplay }}
-          </span>
-          <span v-if="mountStrategyDisplay === 'Symlink'" class="hidden sm:inline">{{ t('settings.symlinkDesc') }}</span>
-          <span v-else-if="mountStrategyDisplay === 'Junction'" class="hidden sm:inline">{{ t('settings.junctionDesc') }}</span>
-          <span v-else-if="mountStrategyDisplay === 'Copy'" class="hidden sm:inline">{{ t('settings.copyDesc') }}</span>
-          <span class="hidden sm:inline text-gray-400 dark:text-content-muted">{{ t('plugins.mountStrategyChangeHint') }}</span>
-        </div>
       </div>
 
       <div v-if="!showGraphView" class="grid grid-cols-12 gap-2">
@@ -2988,10 +3020,6 @@ const retryBatchFailed = async () => {
           <ul class="text-xs text-gray-600 dark:text-content-muted list-disc list-inside">
             <li v-for="item in linkerApplyResult.errors" :key="item">{{ item }}</li>
           </ul>
-        </div>
-        <div v-if="linkerApplyResult.errors.length === 0 && !autoApplyEnabled" class="mb-3 p-3 bg-blue-50 dark:bg-surface-hover rounded-[6px]">
-          <p class="text-xs text-blue-700 dark:text-content-secondary mb-2">{{ t('plugins.autoApplyPrompt') }}</p>
-          <button @click="goToAutoApplySettings" class="text-xs font-medium text-blue-600 dark:text-brand-primary hover:underline">{{ t('plugins.autoApplyPromptAction') }} &rarr;</button>
         </div>
         <div v-if="linkerApplyResult.removed.length > 0 || linkerApplyResult.created.length > 0" class="mb-3">
           <button @click="loadAddonBackups" class="text-xs font-medium text-orange-600 dark:text-orange-400 hover:underline">{{ t('plugins.rollbackAddons') }}</button>
@@ -3370,8 +3398,7 @@ const retryBatchFailed = async () => {
           <div class="space-y-2">
             <button
               @click="handleBindWithCopyMode"
-              class="w-full text-left p-3 rounded-[6px] border-2 transition-colors"
-              :class="mountStrategyDisplay !== 'Copy' ? 'border-primary-300 dark:border-surface-border bg-primary-50 dark:bg-surface-hover' : 'border-gray-200/60 dark:border-surface-border/40'"
+              class="w-full text-left p-3 rounded-[6px] border-2 transition-colors border-primary-300 dark:border-surface-border bg-primary-50 dark:bg-surface-hover"
             >
               <div class="flex items-center gap-2">
                 <svg class="w-4 h-4 text-primary-600 dark:text-brand-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">

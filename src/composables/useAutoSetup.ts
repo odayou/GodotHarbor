@@ -132,7 +132,7 @@ async function scanAndImportPlugins(t: ReturnType<typeof useI18n>['t'], allProje
   }
 
   setStep('importing-plugins', t('autoSetup.importingPlugins', { count: scannedPlugins.length }))
-  const importedPlugins = await api.importPluginsFromProjects('copy')
+  const importedPlugins = await api.importPluginsFromProjects()
 
   setStep('binding-plugins', t('autoSetup.bindingPlugins'))
   const allPlugins = await api.getPlugins()

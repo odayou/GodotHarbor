@@ -40,16 +40,14 @@ import type {
   VcsCommit,
   VcsDiffSummary,
   VcsBranch,
-  TemplateManifest,
   ModuleType,
   EngineModulesInfo,
-  KeyPair,
-  SignatureVerification,
   StoreRecommendation,
   OneClickInstallResult,
   HarborLock,
   LockVerifyResult,
   LockDiff,
+  RestoreEnvResult,
   EnvironmentSnapshot,
   GlobalUpgradeResult,
   ProjectGroup
@@ -167,8 +165,8 @@ export const api = {
     return await invoke('scan_project_plugins')
   },
 
-  async importPluginsFromProjects(mode?: string): Promise<Plugin[]> {
-    return await invoke('import_plugins_from_projects', { mode: mode || null })
+  async importPluginsFromProjects(): Promise<Plugin[]> {
+    return await invoke('import_plugins_from_projects')
   },
 
   async checkPluginDuplicate(path: string): Promise<DuplicateCheckResult> {
@@ -183,8 +181,8 @@ export const api = {
     return await invoke('remove_plugin_version', { pluginId, versionId })
   },
 
-  async updateGitPlugin(pluginId: string): Promise<Plugin> {
-    return await invoke('update_git_plugin', { pluginId })
+  async updateGitPlugin(pluginId: string, gitRef?: string): Promise<Plugin> {
+    return await invoke('update_git_plugin', { pluginId, gitRef: gitRef ?? null })
   },
 
   async resolvePluginDependencies(pluginId: string): Promise<PluginDependency[]> {
@@ -300,6 +298,10 @@ export const api = {
 
   async batchApplyChanges(projectIds: string[]): Promise<BatchApplyResult> {
     return await invoke('batch_apply_changes', { projectIds })
+  },
+
+  async syncAllBindings(): Promise<BatchApplyResult> {
+    return await invoke('sync_all_bindings')
   },
 
   // ─── Engines ───
@@ -756,43 +758,6 @@ export const api = {
     return await invoke('vcs_create_branch', { projectId, branch })
   },
 
-  // ─── Template Signer ───
-  async generateSigningKeypair(name: string): Promise<KeyPair> {
-    return await invoke('generate_signing_keypair', { name })
-  },
-
-  async exportTemplateSigned(templateId: string, signerName?: string): Promise<string> {
-    return await invoke('export_template_signed', { templateId, signerName: signerName || null })
-  },
-
-  async writeTemplateExport(filePath: string, dataBase64: string): Promise<void> {
-    return await invoke('write_template_export', { filePath, dataBase64 })
-  },
-
-  async importTemplateFromFile(filePath: string): Promise<TemplateManifest> {
-    return await invoke('import_template_from_file', { filePath })
-  },
-
-  async confirmImportTemplate(manifest: TemplateManifest): Promise<Template> {
-    return await invoke('confirm_import_template', { manifest })
-  },
-
-  async verifyTemplateSignature(manifest: TemplateManifest): Promise<SignatureVerification> {
-    return await invoke('verify_template_signature', { manifest })
-  },
-
-  async getStoredKeypairs(): Promise<KeyPair[]> {
-    return await invoke('get_stored_keypairs')
-  },
-
-  async saveKeypair(keypair: KeyPair): Promise<void> {
-    return await invoke('save_keypair', { keypair })
-  },
-
-  async deleteKeypair(publicKey: string): Promise<void> {
-    return await invoke('delete_keypair', { publicKey })
-  },
-
   // ─── Engine Modules ───
   async getEngineModules(engineId: string): Promise<EngineModulesInfo> {
     return await invoke('get_engine_modules', { engineId })
@@ -854,6 +819,10 @@ export const api = {
 
   async batchCheckLocks(projectIds: string[]): Promise<Array<[string, HarborLock | null, LockVerifyResult]>> {
     return await invoke('batch_check_locks', { projectIds })
+  },
+
+  async restoreProjectEnvironment(projectId: string): Promise<RestoreEnvResult> {
+    return await invoke('restore_project_environment', { projectId })
   },
 
   // ─── Batch Ops ───

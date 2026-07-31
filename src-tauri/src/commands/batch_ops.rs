@@ -1,6 +1,8 @@
 use tauri::{AppHandle, Emitter};
 use crate::batch_ops::*;
 use crate::models::*;
+use crate::linker::Linker;
+use crate::storage::Storage;
 use super::utils::*;
 
 #[tauri::command]
@@ -54,8 +56,7 @@ pub fn restore_snapshot(app: AppHandle, project_id: String, snapshot_id: String)
         .cloned()
         .collect();
 
-    let settings = crate::commands::utils::load_settings(&app);
-    let linker = crate::linker::Linker::new(settings.mount_strategy);
+    let linker = crate::linker::Linker::new();
 
     let data_dir = crate::commands::utils::get_data_dir(&app);
     let plugin_base_path = data_dir.join("plugins");
@@ -74,6 +75,7 @@ pub fn restore_snapshot(app: AppHandle, project_id: String, snapshot_id: String)
         &current_bindings,
         &desired_bindings,
         &plugin_base_path.to_string_lossy(),
+        &data_dir.to_string_lossy(),
     ).map_err(|e| format!("应用变更失败: {}", e))?;
 
     if apply_result.success {
@@ -83,6 +85,9 @@ pub fn restore_snapshot(app: AppHandle, project_id: String, snapshot_id: String)
         let applied_storage = crate::storage::Storage::new(applied_dir);
         if let Err(e) = applied_storage.save(&format!("{}.json", project_id), &desired_bindings) {
             eprintln!("Failed to save applied bindings: {}", e);
+        }
+        if let Err(e) = crate::commands::lockfile::refresh_project_lock(&app, &project_id) {
+            eprintln!("Failed to write harbor.lock: {}", e);
         }
     }
 
@@ -142,8 +147,7 @@ pub fn global_upgrade_plugin(app: AppHandle, plugin_id: String) -> Result<Vec<Gl
     // Reload bindings since global_upgrade_plugin_inner updated them
     let updated_bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
     let projects: Vec<Project> = storage.load_or_default("projects.json");
-    let settings = crate::commands::utils::load_settings(&app);
-    let linker = crate::linker::Linker::new(settings.mount_strategy);
+    let linker = crate::linker::Linker::new();
     let data_dir = crate::commands::utils::get_data_dir(&app);
     let plugin_base_path = data_dir.join("plugins");
     let applied_dir = data_dir.join("applied_bindings");
@@ -180,6 +184,7 @@ pub fn global_upgrade_plugin(app: AppHandle, plugin_id: String) -> Result<Vec<Gl
             &current_bindings,
             &desired_bindings,
             &plugin_base_path.to_string_lossy(),
+            &data_dir.to_string_lossy(),
         );
 
         if let Ok(apply_result) = apply_result {
@@ -190,6 +195,9 @@ pub fn global_upgrade_plugin(app: AppHandle, plugin_id: String) -> Result<Vec<Gl
                 let applied_storage = crate::storage::Storage::new(applied_dir.clone());
                 if let Err(e) = applied_storage.save(&format!("{}.json", project_id), &desired_bindings) {
                     eprintln!("Failed to save applied bindings: {}", e);
+                }
+                if let Err(e) = crate::commands::lockfile::refresh_project_lock(&app, project_id) {
+                    eprintln!("Failed to write harbor.lock: {}", e);
                 }
             }
         }
@@ -210,4 +218,92 @@ fn global_upgrade_plugin_inner(
     storage: &crate::storage::Storage,
 ) -> Vec<GlobalUpgradeResult> {
     crate::batch_ops::global_upgrade_plugin(plugin_id, plugins, bindings, storage)
+}
+
+#[tauri::command]
+pub fn sync_all_bindings(app: AppHandle) -> Result<BatchApplyResult, String> {
+    let storage = get_storage(&app);
+    let projects: Vec<Project> = storage.load_or_default("projects.json");
+    let all_bindings: Vec<ProjectBinding> = storage.load_or_default("bindings.json");
+    let linker = Linker::new();
+    let data_dir = get_data_dir(&app);
+    let plugin_base_path = data_dir.join("plugins");
+    let applied_dir = data_dir.join("applied_bindings");
+
+    let mut results: Vec<ProjectApplyResult> = Vec::new();
+    for project in &projects {
+        let project_id = &project.project_id;
+        let desired_bindings: Vec<ProjectBinding> = all_bindings.iter()
+            .filter(|b| b.project_id == *project_id)
+            .cloned()
+            .collect();
+
+        if desired_bindings.is_empty() {
+            results.push(ProjectApplyResult {
+                project_id: project_id.clone(),
+                project_name: project.name.clone(),
+                success: true,
+                created: Vec::new(),
+                removed: Vec::new(),
+                errors: Vec::new(),
+            });
+            continue;
+        }
+
+        let applied_file = applied_dir.join(format!("{}.json", project_id));
+        let current_bindings: Vec<ProjectBinding> = if applied_file.exists() {
+            let applied_storage = Storage::new(applied_dir.clone());
+            applied_storage.load_or_default::<Vec<ProjectBinding>>(&format!("{}.json", project_id))
+        } else {
+            Vec::new()
+        };
+
+        match linker.apply_bindings(
+            &project.path,
+            &current_bindings,
+            &desired_bindings,
+            &plugin_base_path.to_string_lossy(),
+            &data_dir.to_string_lossy(),
+        ) {
+            Ok(apply_result) => {
+                if apply_result.success {
+                    if let Err(e) = std::fs::create_dir_all(&applied_dir) {
+                        eprintln!("Failed to create applied_bindings dir: {}", e);
+                    }
+                    let applied_storage = Storage::new(applied_dir.clone());
+                    if let Err(e) = applied_storage.save(&format!("{}.json", project_id), &desired_bindings) {
+                        eprintln!("Failed to save applied bindings: {}", e);
+                    }
+                    if let Err(e) = crate::commands::lockfile::refresh_project_lock(&app, project_id) {
+                        eprintln!("Failed to write harbor.lock: {}", e);
+                    }
+                }
+                results.push(ProjectApplyResult {
+                    project_id: project_id.clone(),
+                    project_name: project.name.clone(),
+                    success: apply_result.success,
+                    created: apply_result.created,
+                    removed: apply_result.removed,
+                    errors: apply_result.errors,
+                });
+            }
+            Err(e) => {
+                results.push(ProjectApplyResult {
+                    project_id: project_id.clone(),
+                    project_name: project.name.clone(),
+                    success: false,
+                    created: Vec::new(),
+                    removed: Vec::new(),
+                    errors: vec![format!("应用变更失败: {}", e)],
+                });
+            }
+        }
+    }
+
+    let _ = app.emit("bindings-changed", ());
+
+    log_operation(&app, "sync_all_bindings", "",
+        &format!("同步全部项目绑定完成，共处理 {} 个项目", results.len()));
+
+    Ok(BatchApplyResult { results })
 }

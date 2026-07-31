@@ -252,6 +252,10 @@ export default {
     checkDiff: '检查差异',
     strictSync: '严格同步',
     looseSync: '宽松同步',
+    restore: '还原环境',
+    restoreSuccess: '还原完成: 就绪 {ready} 导入 {imported}',
+    restorePartial: '还原完成: 就绪 {ready} 导入 {imported} 失败 {failed} 缺失 {missing}',
+    restoreFailed: '还原失败: {error}',
   },
   vcs: {
     title: '版本控制',
@@ -393,12 +397,7 @@ export default {
     noNewPluginsFound: '没有发现新的插件可以导入',
     versionDeleted: '版本已删除',
     versionDeleteBindingWarning: '该版本被 {count} 个绑定引用（涉及 {projects} 个项目），删除前将自动解绑。是否继续？',
-    importMode: {
-      copy: '复制',
-      move: '纳入',
-      reference: '引用'
-    },
-    importSuccess: '以{mode}模式导入了 {count} 个插件',
+    importSuccess: '从项目导入了 {count} 个插件',
     updateSuccess: '插件 {name} 已更新',
     updateFailed: '插件更新失败: {error}',
     batchUpdateSuccess: '所有插件更新完成',
@@ -409,20 +408,6 @@ export default {
       confirmDesc: '将删除不再被任何插件引用的孤立目录，此操作不可撤销。确定要继续吗？',
       success: '已清理 {count} 个孤立目录',
       noOrphaned: '没有需要清理的孤立目录'
-    },
-    importModes: {
-      copy: {
-        label: '复制到仓库（推荐）',
-        desc: '将插件复制到仓库管理，项目中的原文件保持不变'
-      },
-      move: {
-        label: '纳入管理',
-        desc: '将插件移动到仓库，原位置变为符号链接指向仓库，节省空间'
-      },
-      reference: {
-        label: '仅记录索引',
-        desc: '不复制不移动，仅在仓库中记录插件位置和元数据'
-      }
     },
     gitImport: {
       title: '从 Git 导入',
@@ -441,6 +426,11 @@ export default {
       selectRef: '选择分支或标签（也可手动输入）',
       useDefault: '默认',
       defaultBranch: '使用默认分支'
+    },
+    updateRef: {
+      title: '更新 Git 插件',
+      target: '插件：{name}',
+      desc: '选择要更新到的分支或标签（默认使用仓库默认分支）',
     },
     pluginDetail: {
       versionList: '版本列表 ({count})',
@@ -504,12 +494,10 @@ export default {
     selectedCount: '已选择 {count} 个插件',
     importFromProject: {
       title: '从项目导入插件',
-      modeSelect: '选择导入模式：',
       cancel: '取消',
-      startImport: '开始导入',
       scanTitle: '扫描结果预览',
       scanDesc: '在以下项目中发现 {count} 个插件：',
-      continueImport: '选择导入模式继续'
+      continueImport: '开始导入'
     },
     bindDialog: {
       title: '绑定插件: {name}',
@@ -594,8 +582,6 @@ export default {
       unbinding: '正在解绑插件...',
       updating: '正在更新插件...'
     },
-    mountStrategyLabel: '挂载策略',
-    mountStrategyChangeHint: '（可在设置 > 挂载中修改）',
     retryFailed: '重试失败项',
     retrySuccess: '重试成功: {count} 项',
     retryFailedAgain: '重试仍有 {count} 项失败',
@@ -700,8 +686,6 @@ export default {
     applying: '应用中...',
     applySuccess: '应用成功',
     applyFailed: '应用完成（有错误）',
-    autoApplyPrompt: '可以开启"自动应用绑定变更"，绑定插件后无需手动应用',
-    autoApplyPromptAction: '去设置',
     rollbackAddons: '回退 addons',
     rollbackAddonsDesc: '选择一个历史备份恢复项目的 addons 目录',
     noBackups: '暂无备份',
@@ -734,6 +718,9 @@ export default {
     batchApplyTitle: '确认批量应用变更',
     batchApplyDesc: '将为以下项目应用所有插件绑定变更',
     batchApplyResultTitle: '批量应用结果',
+    syncAllTitle: '同步全部项目',
+    syncAllSuccess: '已同步全部项目绑定',
+    syncAllFailed: '同步全部项目失败: {error}',
     bindingCountUnit: '{count} 个绑定',
     bindingCountShort: '个绑定',
     bindingGraph: '绑定关系图',
@@ -966,14 +953,6 @@ export default {
     noDirs: '暂无扫描目录，点击下方按钮添加',
     addDir: '添加目录',
     remove: '移除',
-    mount: '挂载策略',
-    mountStrategy: '默认挂载方式',
-    symlink: '符号链接（推荐）',
-    junction: 'Junction（Windows 推荐）',
-    copy: '复制',
-    symlinkDesc: '创建符号链接，零磁盘占用。Windows 下可能需要管理员权限，将自动回退到 Junction。',
-    junctionDesc: 'Windows 目录联接，无需管理员权限，零磁盘占用。仅 Windows 可用。',
-    copyDesc: '复制文件到项目目录，兼容性最好但占用额外磁盘空间，修改不会自动同步。',
     appearance: '外观',
     languageLabel: '语言',
     theme: '主题',
@@ -994,8 +973,6 @@ export default {
     viewLogs: '查看日志',
     autoScanOnStartup: '启动时自动扫描项目',
     autoDiscoverEngines: '启动时自动发现 Godot 引擎',
-    autoApply: '自动应用绑定变更',
-    autoApplyDesc: '绑定或解绑插件后自动应用到项目，无需手动点击"应用变更"',
     engineMirror: {
       title: '引擎下载镜像',
       desc: '配置引擎下载的镜像仓库地址，支持 GitHub 官方和第三方镜像',
@@ -1026,11 +1003,6 @@ export default {
       assetLibraryMirror: 'Asset Library 镜像',
       assetLibraryMirrorPlaceholder: '如 https://mirror.example.com/asset-library/api',
       assetLibraryMirrorHint: '留空使用官方 godotengine.org。国内用户可填写镜像地址',
-      assetApiMode: '资产 API 模式',
-      assetApiMode_auto: '自动',
-      assetApiMode_legacy: '旧版 Asset Library',
-      assetApiMode_new_store: '新版 Asset Store',
-      assetApiModeHint: '自动模式优先使用新版 Asset Store API，不可用时回退到旧版',
       exportTemplateMirror: '导出模板镜像',
       exportTemplateMirrorPlaceholder: '如 https://mirror.example.com/godot/export-templates',
       exportTemplateMirrorHint: '留空则使用引擎镜像或官方源。国内用户可设置镜像地址'
@@ -1050,9 +1022,10 @@ export default {
     discardChanges: '放弃变更',
     saveAndLeave: '保存并离开',
     misc: '其他',
-    keyboardShortcuts: '键盘快捷键',
-    showOnboarding: '重新显示引导',
-    showOnboardingDesc: '点击后立即显示新手引导',
+    advanced: '高级功能',
+    advancedDesc: '开发者与集成工具',
+    configureMcp: '配置 MCP 服务器',
+    configureMcpDesc: '启动 MCP 服务器并复制客户端配置',
     anonymousStats: '匿名使用统计',
     anonymousStatsDesc: '发送匿名启动数据以帮助改进软件，不收集任何个人信息',
     resetDataLabel: '重置数据',
@@ -1205,7 +1178,6 @@ export default {
       importFailed: '导入失败: {error}',
       deleteSuccess: '团队配置已删除',
       deleteFailed: '删除失败: {error}',
-      resetGuideFailed: '重置引导失败: {error}',
       resetFailed: '重置失败: {error}',
       enterBackupFingerprint: '请输入备份指纹'
     }
@@ -1590,21 +1562,10 @@ export default {
     deleteSuccess: '模板已删除',
     invalidChars: '项目名包含非法字符（不能包含 < > : " / \\ | ? *）',
     invalidStartEnd: '项目名不能以点号开头或结尾',
-    generateFromProject: '从项目生成',
-    selectProject: '选择项目',
-    selectProjectPlaceholder: '请选择项目',
-    templateNamePlaceholder: '输入模板名称',
-    generateSuccess: '模板生成成功',
     generateFailed: '模板生成失败',
-    importFile: '导入文件',
-    keypair: '密钥',
-    keypairManage: '签名密钥管理',
-    export: '导出',
     deleteFailed: '删除模板失败: {error}',
-    readFileFailed: '读取模板文件失败',
     contextMenu: {
       createProject: '创建项目',
-      exportTemplate: '导出模板',
       deleteTemplate: '删除模板',
     },
   },
@@ -1704,17 +1665,6 @@ export default {
     templateNotInstalled: '导出模板未安装，请先在"导出模板"页下载',
     invalidVersion: '版本号格式不正确，如 4.4.1',
     nameExists: '同名模板已存在，请使用其他名称'
-  },
-  keypair: {
-    title: '签名密钥管理',
-    description: '管理用于签名模板的 Ed25519 密钥对。签名可验证模板来源和完整性。',
-    generateNew: '生成新密钥对',
-    signerNamePlaceholder: '签名者名称（如：你的名字或组织名）',
-    noKeypairs: '暂无密钥对，请先生成',
-    viewPublicKey: '查看公钥',
-    publicKey: '公钥',
-    deleteKeypair: '删除密钥对',
-    deleteKeypairConfirm: '删除后无法恢复，使用此密钥签名的模板将无法验证。确定要删除吗？'
   },
   batchOps: {
     globalUpgrade: '全局升级插件',

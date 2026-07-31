@@ -679,7 +679,7 @@ fn generate_harbor_yml_content(template: &Template) -> String {
         yaml.push('\n');
     }
 
-    yaml.push_str("settings:\n  mount_strategy: copy\n  auto_sync: true\n");
+    yaml.push_str("settings:\n  auto_sync: true\n");
     yaml
 }
 

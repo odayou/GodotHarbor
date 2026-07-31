@@ -39,14 +39,8 @@ pub struct HarborPlugin {
     pub url: String,
     #[serde(default)]
     pub r#ref: String,
-    #[serde(default = "default_mount")]
-    pub mount: String,
     #[serde(default)]
     pub asset_type: AssetType,
-}
-
-fn default_mount() -> String {
-    "copy".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -67,23 +61,17 @@ pub struct HarborCI {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct HarborSettings {
-    #[serde(default = "default_mount_strategy")]
-    pub mount_strategy: String,
     #[serde(default = "default_true")]
     pub auto_sync: bool,
     #[serde(default)]
     pub drift_check_on_startup: bool,
 }
 
-fn default_mount_strategy() -> String {
-    "copy".to_string()
-}
 fn default_true() -> bool { true }
 
 impl Default for HarborSettings {
     fn default() -> Self {
         Self {
-            mount_strategy: "copy".to_string(),
             auto_sync: true,
             drift_check_on_startup: false,
         }
@@ -156,7 +144,6 @@ impl HarborConfig {
                 if !p.r#ref.is_empty() {
                     lines.push(format!("    ref: \"{}\"", p.r#ref));
                 }
-                lines.push(format!("    mount: {}", p.mount));
                 if p.asset_type != AssetType::Plugin {
                     lines.push(format!("    asset_type: {:?}", p.asset_type));
                 }
@@ -187,7 +174,6 @@ impl HarborConfig {
         }
 
         lines.push("settings:".to_string());
-        lines.push(format!("  mount_strategy: {}", self.settings.mount_strategy));
         lines.push(format!("  auto_sync: {}", self.settings.auto_sync));
         lines.push(format!("  drift_check_on_startup: {}", self.settings.drift_check_on_startup));
 
@@ -271,7 +257,6 @@ impl HarborConfig {
                 source,
                 url,
                 r#ref: git_ref,
-                mount: self.settings.mount_strategy.clone(),
                 asset_type: b.asset_type.clone(),
             });
         }
@@ -383,7 +368,6 @@ pub fn generate_config_from_bindings(
                 source,
                 url,
                 r#ref: git_ref,
-                mount: "copy".to_string(),
                 asset_type: plugin.asset_type.clone(),
             });
         }

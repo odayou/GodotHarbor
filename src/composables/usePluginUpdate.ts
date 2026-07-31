@@ -52,9 +52,9 @@ export function usePluginUpdate(options: {
     }
   }
 
-  const updateGitPlugin = async (pluginId: string) => {
+  const updateGitPlugin = async (pluginId: string, gitRef?: string) => {
     try {
-      const result = await api.updateGitPlugin(pluginId)
+      const result = await api.updateGitPlugin(pluginId, gitRef)
       toast.success(t('plugins.updateSuccess', { name: result.name }))
       await options.loadPlugins()
       await reapplyBindingsForPlugin(pluginId)

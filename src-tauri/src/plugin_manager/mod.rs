@@ -180,7 +180,6 @@ fn detect_plugin_source(plugin_dir: &Path) -> (crate::models::SourceType, String
         }
 
         let compatibility = self.detect_compatibility(payload_dir);
-        self.write_harbor_marker(payload_dir);
         let content_hash = compute_dir_hash(payload_dir).unwrap_or_default();
 
         let (unit_version, unit_name, unit_description, unit_author) =
@@ -417,16 +416,37 @@ fn detect_plugin_source(plugin_dir: &Path) -> (crate::models::SourceType, String
         fs::create_dir_all(&payload_dir)
             .context("Failed to create version directory")?;
 
-        // Create cache key from URL and ref
-        let cache_key = format!("{}_{}", 
-            git_url.replace("://", "_").replace("/", "_").replace(".", "_"),
-            resolved_ref.as_deref().unwrap_or("default")
-        );
+        // Cache key based on URL only: cache is a bare repo holding all refs,
+        // so one URL -> one cache regardless of the selected branch/tag.
+        let cache_key = git_url.replace("://", "_").replace("/", "_").replace(".", "_");
         let cache_dir = self.git_cache_dir.join(&cache_key);
 
-        let mut callbacks = git2::RemoteCallbacks::new();
-        let app_handle_clone = app_handle.clone();
-        callbacks.transfer_progress(move |progress| {
+        // Ensure cache exists as a bare repo with origin -> git_url.
+        // Legacy non-bare caches (whose origin pointed at a transient payload dir
+        // and thus could never be refreshed) are migrated by deleting and rebuilding.
+        let cache_repo = if cache_dir.exists() {
+            let existing = git2::Repository::open(&cache_dir).ok();
+            let valid = existing.as_ref().map(|r| {
+                r.is_bare() && r.find_remote("origin").ok()
+                    .and_then(|remote| remote.url().map(|u| u == git_url))
+                    .unwrap_or(false)
+            }).unwrap_or(false);
+            if valid {
+                existing.unwrap()
+            } else {
+                drop(existing);
+                let _ = fs::remove_dir_all(&cache_dir);
+                Self::init_bare_cache(&cache_dir, git_url)?
+            }
+        } else {
+            Self::init_bare_cache(&cache_dir, git_url)?
+        };
+
+        // Refresh cache via incremental fetch (network). On failure (e.g. offline),
+        // fall back to the cached snapshot so updates still work locally.
+        let mut fetch_callbacks = git2::RemoteCallbacks::new();
+        let app_handle_fetch = app_handle.clone();
+        fetch_callbacks.transfer_progress(move |progress| {
             let received = progress.received_objects();
             let total = progress.total_objects();
             let percentage = if total > 0 {
@@ -434,79 +454,48 @@ fn detect_plugin_source(plugin_dir: &Path) -> (crate::models::SourceType, String
             } else {
                 0
             };
-            let _ = app_handle_clone.emit("git-clone-progress", serde_json::json!({
+            let _ = app_handle_fetch.emit("git-clone-progress", serde_json::json!({
                 "received_objects": received,
                 "total_objects": total,
                 "percentage": percentage,
             }));
             true
         });
-
-        // Try to clone from cache first (fast!)
-        let cloned_from_cache = if cache_dir.exists() {
-            let mut cache_callbacks = git2::RemoteCallbacks::new();
-            let app_handle_cache = app_handle.clone();
-            cache_callbacks.transfer_progress(move |progress| {
-                let received = progress.received_objects();
-                let total = progress.total_objects();
-                let percentage = if total > 0 {
-                    (received as f64 / total as f64 * 100.0) as u32
-                } else {
-                    0
-                };
-                let _ = app_handle_cache.emit("git-clone-progress", serde_json::json!({
-                    "received_objects": received,
-                    "total_objects": total,
-                    "percentage": percentage,
-                }));
-                true
-            });
-            let mut fetch_options = git2::FetchOptions::new();
-            fetch_options.remote_callbacks(cache_callbacks);
-            let mut builder = git2::build::RepoBuilder::new();
-            builder.fetch_options(fetch_options);
-            if let Some(git_ref) = git_ref {
-                builder.branch(git_ref);
+        let mut fetch_options = git2::FetchOptions::new();
+        fetch_options.remote_callbacks(fetch_callbacks);
+        fetch_options.prune(git2::FetchPrune::On);
+        if let Ok(mut remote) = cache_repo.find_remote("origin") {
+            if let Err(e) = remote.fetch(
+                &["+refs/heads/*:refs/heads/*", "+refs/tags/*:refs/tags/*"],
+                Some(&mut fetch_options),
+                None,
+            ) {
+                eprintln!("Warning: failed to refresh git cache for {}: {}", git_url, e);
             }
-            builder.clone(&cache_dir.to_string_lossy(), &payload_dir).is_ok()
-        } else {
-            false
-        };
+        }
 
-        if !cloned_from_cache {
-            // Clone from remote
-            let mut fetch_options = git2::FetchOptions::new();
-            fetch_options.remote_callbacks(callbacks);
-
-            let mut builder = git2::build::RepoBuilder::new();
-            builder.fetch_options(fetch_options);
-
-            if let Some(git_ref) = git_ref {
-                builder.branch(git_ref);
-            }
-
-            if let Err(e) = builder.clone(git_url, &payload_dir) {
-                let _ = fs::remove_dir_all(&version_dir);
-                let err_msg = format!("{}", e);
-                let user_msg = if err_msg.contains("401") || err_msg.contains("status code: 401") {
-                    "仓库需要认证或为私有仓库，无法访问".to_string()
-                } else if err_msg.contains("path too long") || err_msg.contains("Filesystem (30)") {
-                    "文件路径过长（Windows 路径限制），请将数据目录移至更短路径".to_string()
-                } else if err_msg.contains("404") || err_msg.contains("status code: 404") {
-                    "仓库不存在或地址错误".to_string()
-                } else if err_msg.contains("timed out") || err_msg.contains("connection") || err_msg.contains("超时") || err_msg.contains("timeout") {
-                    "网络连接失败，请检查网络".to_string()
-                } else {
-                    format!("克隆仓库失败: {}", e)
-                };
-                return Err(anyhow::anyhow!("{}", user_msg));
-            }
-
-            // Update cache: bare-clone the freshly downloaded repo into cache
-            if !cache_dir.exists() {
-                fs::create_dir_all(&cache_dir).ok();
-                let _ = git2::Repository::clone(&payload_dir.to_string_lossy(), &cache_dir);
-            }
+        // Local clone from cache (fast, no network).
+        let mut builder = git2::build::RepoBuilder::new();
+        if let Some(git_ref) = git_ref {
+            builder.branch(git_ref);
+        }
+        if let Err(e) = builder.clone(&cache_dir.to_string_lossy(), &payload_dir) {
+            let _ = fs::remove_dir_all(&version_dir);
+            let err_msg = format!("{}", e);
+            let user_msg = if err_msg.contains("reference") || err_msg.contains("ref") || err_msg.contains("not found") {
+                format!("未找到指定的分支或标签: {}", git_ref.unwrap_or(""))
+            } else if err_msg.contains("401") || err_msg.contains("status code: 401") {
+                "仓库需要认证或为私有仓库，无法访问".to_string()
+            } else if err_msg.contains("path too long") || err_msg.contains("Filesystem (30)") {
+                "文件路径过长（Windows 路径限制），请将数据目录移至更短路径".to_string()
+            } else if err_msg.contains("404") || err_msg.contains("status code: 404") {
+                "仓库不存在或地址错误".to_string()
+            } else if err_msg.contains("timed out") || err_msg.contains("connection") || err_msg.contains("超时") || err_msg.contains("timeout") {
+                "网络连接失败，请检查网络".to_string()
+            } else {
+                format!("克隆仓库失败: {}", e)
+            };
+            return Err(anyhow::anyhow!("{}", user_msg));
         }
 
         let git_dir = payload_dir.join(".git");
@@ -540,6 +529,16 @@ fn detect_plugin_source(plugin_dir: &Path) -> (crate::models::SourceType, String
         self.finalize_import(&mut plugin, &payload_dir, &version_id, &plugin_name)?;
 
         Ok(plugin)
+    }
+
+    /// Initialize a bare cache repo with origin pointing to the remote URL.
+    fn init_bare_cache(cache_dir: &Path, git_url: &str) -> Result<git2::Repository> {
+        fs::create_dir_all(cache_dir).ok();
+        let repo = git2::Repository::init_bare(cache_dir)
+            .with_context(|| format!("Failed to init bare git cache at {:?}", cache_dir))?;
+        repo.remote("origin", git_url)
+            .with_context(|| "Failed to create origin remote for git cache")?;
+        Ok(repo)
     }
 
     pub fn parse_plugin_units(&self, plugin_dir: &Path) -> Vec<PluginUnit> {
@@ -734,18 +733,6 @@ fn detect_plugin_source(plugin_dir: &Path) -> (crate::models::SourceType, String
             Compatibility::Both
         } else {
             Compatibility::Unknown
-        }
-    }
-
-    fn write_harbor_marker(&self, payload_dir: &Path) {
-        let marker_path = payload_dir.join(".harbor-managed");
-        let marker_content = serde_json::json!({
-            "managed_by": "godot-harbor",
-            "version": "1.0",
-            "created_at": chrono::Utc::now().to_rfc3339()
-        });
-        if let Ok(content) = serde_json::to_string_pretty(&marker_content) {
-            let _ = fs::write(&marker_path, content);
         }
     }
 

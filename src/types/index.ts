@@ -79,7 +79,6 @@ export interface EngineMirrorConfig {
 
 export interface Settings {
   scan_directories: string[]
-  mount_strategy: 'Symlink' | 'Junction' | 'Copy'
   language: string
   theme: string
   density?: 'default' | 'compact'
@@ -563,7 +562,6 @@ export interface TemplatePlugin {
   source: TemplatePluginSource
   url: string
   git_ref: string
-  mount: string
   subdirectory: string
 }
 
@@ -828,31 +826,6 @@ export interface StoreRecommendation {
   relevance_score: number
 }
 
-// ─── Template Signer Types ───
-export interface TemplateManifest {
-  version: string
-  template: Template
-  signature: string | null
-  signed_by: string | null
-  public_key: string | null
-  checksum: string
-  created_at: string
-}
-
-export interface KeyPair {
-  public_key: string
-  private_key: string
-  name: string
-  created_at: string
-}
-
-export interface SignatureVerification {
-  is_valid: boolean
-  signed_by: string | null
-  checksum_valid: boolean
-  error: string | null
-}
-
 // ─── Batch Ops Types ───
 export interface SnapshotEngine {
   engine_id: string
@@ -926,7 +899,6 @@ export interface HarborLock {
   version: string
   locked_at: string
   project_name: string
-  project_path: string
   godot_version: string
   engine: LockedEngine | null
   plugins: LockedPlugin[]
@@ -956,6 +928,13 @@ export interface LockMismatch {
 export interface LockVerifyResult {
   is_valid: boolean
   mismatches: LockMismatch[]
+}
+
+export interface RestoreEnvResult {
+  ready: string[]
+  imported: string[]
+  failed: string[]
+  missing: string[]
 }
 
 

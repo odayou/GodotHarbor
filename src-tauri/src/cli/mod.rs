@@ -159,6 +159,9 @@ pub enum PluginCommands {
         /// 更新所有插件
         #[arg(long)]
         all: bool,
+        /// 指定分支/标签（默认使用仓库默认分支）
+        #[arg(long = "ref")]
+        git_ref: Option<String>,
     },
 }
 
@@ -274,8 +277,7 @@ impl CliContext {
     }
 
     fn get_linker(&self) -> Linker {
-        let settings = self.load_settings();
-        Linker::new(settings.mount_strategy.clone())
+        Linker::new()
     }
 
     fn is_json_output(&self) -> bool {
@@ -360,7 +362,7 @@ pub fn run(cli: Cli) -> Result<()> {
         Commands::Plugins { command } => match command {
             PluginCommands::List => cmd_plugins_list(&ctx),
             PluginCommands::Import { source } => cmd_plugins_import(&ctx, &source),
-            PluginCommands::Update { name, all } => cmd_plugins_update(&ctx, name.as_deref(), all),
+            PluginCommands::Update { name, all, git_ref } => cmd_plugins_update(&ctx, name.as_deref(), all, git_ref.as_deref()),
         },
         Commands::Bind { project, plugin, version, unit } => cmd_bind(&ctx, &project, &plugin, version, unit),
         Commands::Unbind { project, plugin } => cmd_unbind(&ctx, &project, &plugin),
@@ -972,7 +974,7 @@ fn import_plugin_from_url_cli(manager: &PluginManager, url: &str) -> Result<Plug
 // harbor plugins update
 // ----------------------------------------------------------------------------
 
-fn cmd_plugins_update(ctx: &CliContext, name: Option<&str>, all: bool) -> Result<()> {
+fn cmd_plugins_update(ctx: &CliContext, name: Option<&str>, all: bool, git_ref: Option<&str>) -> Result<()> {
     let _lock = ctx.acquire_lock()?;
 
     let plugins = ctx.load_plugins();
@@ -1000,7 +1002,7 @@ fn cmd_plugins_update(ctx: &CliContext, name: Option<&str>, all: bool) -> Result
             println!("正在更新插件: {}...", style(&plugin.name).bold());
         }
 
-        match update_git_plugin(ctx, plugin) {
+        match update_git_plugin(ctx, plugin, git_ref) {
             Ok(_) => {
                 updated_count += 1;
                 if !ctx.is_json_output() {
@@ -1031,13 +1033,13 @@ fn cmd_plugins_update(ctx: &CliContext, name: Option<&str>, all: bool) -> Result
     Ok(())
 }
 
-fn update_git_plugin(ctx: &CliContext, plugin: &Plugin) -> Result<()> {
+fn update_git_plugin(ctx: &CliContext, plugin: &Plugin, git_ref: Option<&str>) -> Result<()> {
     if plugin.source.source_type != SourceType::Git {
         bail!("仅支持更新 Git 来源的插件");
     }
 
     let manager = ctx.get_plugin_manager();
-    let new_plugin = import_plugin_from_git_cli(&manager, &plugin.source.url, None)?;
+    let new_plugin = import_plugin_from_git_cli(&manager, &plugin.source.url, git_ref)?;
 
     let mut plugins = ctx.load_plugins();
     if let Some(idx) = plugins.iter().position(|p| p.plugin_id == plugin.plugin_id) {
@@ -1217,7 +1219,16 @@ fn cmd_apply(ctx: &CliContext, project_name: Option<&str>) -> Result<()> {
             &[],
             &project_bindings,
             plugins_base.to_string_lossy().as_ref(),
+            ctx.data_dir.to_string_lossy().as_ref(),
         ).map_err(|e| anyhow!("应用绑定失败: {}", e))?;
+
+        if result.success {
+            let plugins = ctx.load_plugins();
+            let engines = ctx.load_engines();
+            if let Err(e) = crate::lockfile::write_lock_for_project(project, &bindings, &plugins, &engines) {
+                eprintln!("Failed to write harbor.lock: {}", e);
+            }
+        }
 
         total_created += result.created.len();
         total_removed += result.removed.len();
@@ -1778,14 +1789,22 @@ fn cmd_install(ctx: &CliContext, project_name: &str) -> Result<()> {
             println!();
             println!("正在应用绑定到项目...");
         }
-        linker
+        let apply_result = linker
             .apply_bindings(
                 &project.path,
                 &[],
                 &project_bindings,
                 plugins_base.to_string_lossy().as_ref(),
+                ctx.data_dir.to_string_lossy().as_ref(),
             )
             .map_err(|e| anyhow!("应用绑定失败: {}", e))?;
+        if apply_result.success {
+            let plugins = ctx.load_plugins();
+            let engines = ctx.load_engines();
+            if let Err(e) = crate::lockfile::write_lock_for_project(project, &bindings, &plugins, &engines) {
+                eprintln!("Failed to write harbor.lock: {}", e);
+            }
+        }
     }
 
     // 输出结果

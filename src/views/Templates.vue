@@ -17,10 +17,6 @@ import EmptyState from '@/components/EmptyState.vue'
 import ContextMenu from '@/components/ContextMenu.vue'
 import SkeletonList from '@/components/SkeletonList.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
-import ProjectSelector from '@/components/ProjectSelector.vue'
-import TemplateExportDialog from '@/components/TemplateExportDialog.vue'
-import TemplateImportDialog from '@/components/TemplateImportDialog.vue'
-import KeypairManager from '@/components/KeypairManager.vue'
 
 const toast = useToast()
 const { t } = useI18n()
@@ -98,25 +94,12 @@ const showImportDialog = ref(false)
 const importUrl = ref('')
 const isImporting = ref(false)
 
-const showGenerateFromProjectDialog = ref(false)
-const generateProjectId = ref('')
-const generateTemplateName = ref('')
-const generateCategory = ref<TemplateCategory>('Custom')
-const isGenerating = ref(false)
-const projects = ref<Project[]>([])
-
 const showDeleteConfirm = ref(false)
 const deleteTargetId = ref('')
-
-const showExportDialog = ref(false)
-const exportTemplate = ref<Template | null>(null)
-const showImportFileDialog = ref(false)
-const showKeypairManager = ref(false)
 
 useDialogEscape(showDetailDialog)
 useDialogEscape(showCreateDialog)
 useDialogEscape(showImportDialog)
-useDialogEscape(showGenerateFromProjectDialog)
 
 const templateContextMenu = useContextMenu()
 
@@ -127,12 +110,6 @@ const showTemplateContextMenu = (event: MouseEvent, tpl: Template) => {
       label: t('templates.contextMenu.createProject'),
       icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M12 4v16m8-8H4" /></svg>',
       action: () => openCreateDialog(tpl),
-    },
-    { separator: true },
-    {
-      label: t('templates.contextMenu.exportTemplate'),
-      icon: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>',
-      action: () => { exportTemplate.value = tpl; showExportDialog.value = true },
     },
     { separator: true },
     {
@@ -148,11 +125,7 @@ const showTemplateContextMenu = (event: MouseEvent, tpl: Template) => {
 let unlistenProgress: UnlistenFn | null = null
 
 onMounted(async () => {
-  const [, projectList] = await Promise.all([
-    loadTemplates(),
-    api.getProjects().catch(() => [] as Project[])
-  ])
-  projects.value = projectList
+  await loadTemplates()
   unlistenProgress = await listen('template-instantiation-progress', (event) => {
     createProgress.value = event.payload as TemplateInstantiationProgress
   })
@@ -339,41 +312,6 @@ const handleDelete = async () => {
   deleteTargetId.value = ''
 }
 
-const handleGenerateFromProject = async () => {
-  if (!generateProjectId.value || !generateTemplateName.value.trim()) return
-  const nameExists = templates.value.some(t => t.name === generateTemplateName.value.trim())
-  if (nameExists) {
-    toast.error(t('templates.nameExists'))
-    return
-  }
-  isGenerating.value = true
-  try {
-    // 前端使用 PascalCase 分类名，后端期望 snake_case
-    const categoryMap: Record<string, string> = {
-      Starter2D: 'starter_2d',
-      Starter3D: 'starter_3d',
-      RPG: 'rpg',
-      Platformer: 'platformer',
-      Multiplayer: 'multiplayer',
-      Mobile: 'mobile',
-      Blank: 'blank',
-      Custom: 'custom',
-    }
-    const backendCategory = categoryMap[generateCategory.value] || 'custom'
-    await api.generateTemplateFromProject(generateProjectId.value, generateTemplateName.value.trim(), backendCategory)
-    toast.success(t('templates.generateSuccess'))
-    showGenerateFromProjectDialog.value = false
-    generateProjectId.value = ''
-    generateTemplateName.value = ''
-    generateCategory.value = 'Custom'
-    await loadTemplates()
-  } catch (e: any) {
-    toast.error(`${t('templates.generateFailed')}: ${e?.toString() || e}`)
-  } finally {
-    isGenerating.value = false
-  }
-}
-
 const progressPercent = computed(() => {
   if (!createProgress.value) return 0
   return Math.round(createProgress.value.progress * 100)
@@ -396,26 +334,10 @@ const progressPercent = computed(() => {
         </div>
         <div class="flex items-center gap-2">
           <button
-            @click="showImportFileDialog = true"
-            class="px-3 py-1 text-xs font-medium rounded border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors"
-          >
-            {{ t('templates.importFile') }}
-          </button>
-          <button
             @click="showImportDialog = true"
             class="px-3 py-1 text-xs font-medium rounded border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors"
           >
             {{ t('templates.importUrl') }}
-          </button>
-          <button
-            @click="showKeypairManager = true"
-            class="px-3 py-1 text-xs font-medium rounded border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors"
-            :title="t('templates.keypairManage')"
-          >
-            <svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="butt" stroke-linejoin="miter" stroke-width="1.5" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-            </svg>
-            {{ t('templates.keypair') }}
           </button>
         </div>
       </div>
@@ -652,7 +574,7 @@ const progressPercent = computed(() => {
                   <p class="text-xs text-gray-500 dark:text-content-muted mb-1">{{ t('templates.autoloads') }}</p>
                   <div class="flex flex-wrap gap-1.5">
                     <span
-                      v-for="(path, name) in selectedTemplate.project_config.autoloads"
+                      v-for="(_path, name) in selectedTemplate.project_config.autoloads"
                       :key="String(name)"
                       class="px-1.5 py-0.5 text-[11px] rounded bg-gray-50 dark:bg-surface-layer text-gray-700 dark:text-content-secondary font-mono"
                     >
@@ -679,7 +601,7 @@ const progressPercent = computed(() => {
                   <p class="text-xs text-gray-500 dark:text-content-muted mb-1">{{ t('templates.inputMappings') }}</p>
                   <div class="flex flex-wrap gap-1.5">
                     <span
-                      v-for="(mapping, name) in selectedTemplate.project_config.input_mappings"
+                      v-for="(_mapping, name) in selectedTemplate.project_config.input_mappings"
                       :key="String(name)"
                       class="px-1.5 py-0.5 text-[11px] rounded bg-gray-50 dark:bg-surface-layer text-gray-700 dark:text-content-secondary"
                     >
@@ -696,12 +618,6 @@ const progressPercent = computed(() => {
                 class="flex-1 py-2 text-sm font-medium btn-primary transition-colors"
               >
                 {{ t('templates.createProject') }}
-              </button>
-              <button
-                @click="exportTemplate = selectedTemplate; showDetailDialog = false; showExportDialog = true"
-                class="px-3 py-2 text-sm font-medium rounded border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors"
-              >
-                {{ t('templates.export') }}
               </button>
               <button
                 v-if="!selectedTemplate.is_builtin"
@@ -874,65 +790,6 @@ const progressPercent = computed(() => {
       </div>
     </Teleport>
 
-    <!-- Generate From Project Dialog -->
-    <Teleport to="body">
-      <div v-if="showGenerateFromProjectDialog" class="fixed inset-0 z-[60] flex items-center justify-center">
-        <div class="absolute inset-0 bg-black/50" @click="!isGenerating && (showGenerateFromProjectDialog = false)"></div>
-        <div class="dialog-container relative z-10 max-w-md w-full mx-4">
-          <div class="p-4">
-            <h2 class="text-sm font-semibold text-gray-900 dark:text-content-primary mb-3">{{ t('templates.generateFromProject') }}</h2>
-            <div class="space-y-3">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('templates.selectProject') }}</label>
-                <ProjectSelector v-model="generateProjectId" :projects="projects" :placeholder="t('templates.selectProjectPlaceholder')" />
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('templates.templateName') }}</label>
-                <input
-                  v-model="generateTemplateName"
-                  type="text"
-                  :placeholder="t('templates.templateNamePlaceholder')"
-                  :disabled="isGenerating"
-                  class="input-field disabled:opacity-50"
-                />
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-content-secondary mb-1">{{ t('templates.category') }}</label>
-                <select
-                  v-model="generateCategory"
-                  class="select-field"
-                >
-                  <option value="Custom">{{ t('templates.category.Custom') }}</option>
-                  <option value="Starter2D">{{ t('templates.category.Starter2D') }}</option>
-                  <option value="Starter3D">{{ t('templates.category.Starter3D') }}</option>
-                  <option value="RPG">{{ t('templates.category.RPG') }}</option>
-                  <option value="Platformer">{{ t('templates.category.Platformer') }}</option>
-                  <option value="Multiplayer">{{ t('templates.category.Multiplayer') }}</option>
-                  <option value="Mobile">{{ t('templates.category.Mobile') }}</option>
-                </select>
-              </div>
-            </div>
-            <div class="flex gap-2 mt-4">
-              <button
-                @click="showGenerateFromProjectDialog = false"
-                :disabled="isGenerating"
-                class="flex-1 py-2 text-sm font-medium rounded border border-gray-300 dark:border-surface-border text-gray-700 dark:text-content-primary hover:bg-gray-50 dark:hover:bg-surface-layer transition-colors disabled:opacity-50"
-              >
-                {{ t('common.cancel') }}
-              </button>
-              <button
-                @click="handleGenerateFromProject"
-                :disabled="isGenerating || !generateProjectId || !generateTemplateName.trim()"
-                class="flex-1 py-2 text-sm font-medium btn-primary transition-colors disabled:opacity-50"
-              >
-                {{ isGenerating ? '...' : t('common.generate') }}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Teleport>
-
     <ConfirmDialog
       v-model="showDeleteConfirm"
       :title="t('templates.deleteConfirm')"
@@ -990,24 +847,6 @@ const progressPercent = computed(() => {
         </div>
       </div>
     </Teleport>
-
-    <!-- Export Template Dialog -->
-    <TemplateExportDialog
-      v-model="showExportDialog"
-      :template="exportTemplate"
-      @exported="() => { loadTemplates() }"
-    />
-
-    <!-- Import Template File Dialog -->
-    <TemplateImportDialog
-      v-model="showImportFileDialog"
-      @imported="() => { loadTemplates() }"
-    />
-
-    <!-- Keypair Manager -->
-    <KeypairManager
-      v-model="showKeypairManager"
-    />
 
     <ContextMenu
       :visible="templateContextMenu.visible.value"

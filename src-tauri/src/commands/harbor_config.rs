@@ -577,7 +577,6 @@ pub fn sync_project_environment(app: AppHandle, project_id: String, only_items: 
                         source,
                         url,
                         r#ref: git_ref,
-                        mount: "copy".to_string(),
                         asset_type: plugin.map(|p| p.asset_type.clone()).unwrap_or_default(),
                     });
                     let _ = harbor_config::write_harbor_config_to_project(&project.path, &updated);

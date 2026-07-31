@@ -250,6 +250,10 @@ export default {
     checkDiff: 'Check Diff',
     strictSync: 'Strict Sync',
     looseSync: 'Loose Sync',
+    restore: 'Restore Environment',
+    restoreSuccess: 'Restore complete: {ready} ready, {imported} imported',
+    restorePartial: 'Restore complete: {ready} ready, {imported} imported, {failed} failed, {missing} missing',
+    restoreFailed: 'Restore failed: {error}',
   },
   vcs: {
     title: 'Version Control',
@@ -391,12 +395,7 @@ export default {
     noNewPluginsFound: 'No new plugins found to import',
     versionDeleted: 'Version deleted',
     versionDeleteBindingWarning: 'This version is referenced by {count} binding(s) across {projects} project(s). Bindings will be automatically unbound before deletion. Continue?',
-    importMode: {
-      copy: 'Copy',
-      move: 'Move',
-      reference: 'Reference'
-    },
-    importSuccess: 'Imported {count} plugins in {mode} mode',
+    importSuccess: 'Imported {count} plugins from projects',
     updateSuccess: 'Plugin {name} updated',
     updateFailed: 'Plugin update failed: {error}',
     batchUpdateSuccess: 'All plugins updated successfully',
@@ -407,20 +406,6 @@ export default {
       confirmDesc: 'This will delete orphaned directories not referenced by any plugin. This action cannot be undone. Continue?',
       success: 'Cleaned up {count} orphaned directories',
       noOrphaned: 'No orphaned directories to clean up'
-    },
-    importModes: {
-      copy: {
-        label: 'Copy to repository (recommended)',
-        desc: 'Copy plugins to repository management, original files in projects remain unchanged'
-      },
-      move: {
-        label: 'Move to repository',
-        desc: 'Move plugins to repository, original location becomes symlink to repository, saves space'
-      },
-      reference: {
-        label: 'Only record index',
-        desc: 'No copy or move, only record plugin location and metadata in repository'
-      }
     },
     gitImport: {
       title: 'Import from Remote',
@@ -439,6 +424,11 @@ export default {
       selectRef: 'Select a branch or tag (or type manually)',
       useDefault: 'Default',
       defaultBranch: 'Use default branch'
+    },
+    updateRef: {
+      title: 'Update Git Plugin',
+      target: 'Plugin: {name}',
+      desc: 'Select a branch or tag to update to (defaults to the repo default branch)',
     },
     pluginDetail: {
       versionList: 'Version list ({count})',
@@ -502,12 +492,10 @@ export default {
     selectedCount: '{count} plugins selected',
     importFromProject: {
       title: 'Import Plugins from Projects',
-      modeSelect: 'Select import mode:',
       cancel: 'Cancel',
-      startImport: 'Start Import',
       scanTitle: 'Scan Results Preview',
       scanDesc: 'Found {count} plugins in the following projects:',
-      continueImport: 'Select import mode to continue'
+      continueImport: 'Start Import'
     },
     bindDialog: {
       title: 'Bind Plugin: {name}',
@@ -592,8 +580,6 @@ export default {
       unbinding: 'Unbinding plugins...',
       updating: 'Updating plugins...'
     },
-    mountStrategyLabel: 'Mount Strategy',
-    mountStrategyChangeHint: '(Change in Settings > Mount)',
     retryFailed: 'Retry Failed',
     retrySuccess: 'Retry succeeded: {count} item(s)',
     retryFailedAgain: 'Retry still has {count} failed item(s)',
@@ -698,8 +684,6 @@ export default {
     applying: 'Applying...',
     applySuccess: 'Apply Success',
     applyFailed: 'Apply Complete (with errors)',
-    autoApplyPrompt: 'You can enable "Auto-apply binding changes" to skip manual apply after binding',
-    autoApplyPromptAction: 'Go to Settings',
     rollbackAddons: 'Rollback addons',
     rollbackAddonsDesc: 'Select a historical backup to restore the project addons directory',
     noBackups: 'No backups available',
@@ -732,6 +716,9 @@ export default {
     batchApplyTitle: 'Confirm Batch Apply',
     batchApplyDesc: 'Apply all plugin bindings for the following projects',
     batchApplyResultTitle: 'Batch Apply Results',
+    syncAllTitle: 'Sync All Projects',
+    syncAllSuccess: 'All project bindings synced',
+    syncAllFailed: 'Failed to sync all projects: {error}',
     bindingCountUnit: '{count} bindings',
     bindingCountShort: 'bound',
     bindingGraph: 'Binding Graph',
@@ -964,14 +951,6 @@ export default {
     noDirs: 'No scan directories yet, click the button below to add',
     addDir: 'Add Directory',
     remove: 'Remove',
-    mount: 'Mount Strategy',
-    mountStrategy: 'Default Mount Method',
-    symlink: 'Symbolic Link (Recommended)',
-    junction: 'Junction (Windows Recommended)',
-    copy: 'Copy',
-    symlinkDesc: 'Creates symbolic links, zero disk usage, changes sync instantly. May require admin privileges on Windows, will auto-fallback to Junction.',
-    junctionDesc: 'Windows directory junction, no admin privileges needed, zero disk usage. Windows only.',
-    copyDesc: 'Copies files to project directory, best compatibility but uses extra disk space, changes do not auto-sync.',
     appearance: 'Appearance',
     languageLabel: 'Language',
     theme: 'Theme',
@@ -992,8 +971,6 @@ export default {
     viewLogs: 'View Logs',
     autoScanOnStartup: 'Auto scan projects on startup',
     autoDiscoverEngines: 'Auto discover Godot engines on startup',
-    autoApply: 'Auto-apply binding changes',
-    autoApplyDesc: 'Automatically apply changes to project after binding or unbinding plugins, no manual "Apply Changes" needed',
     engineMirror: {
       title: 'Engine Download Mirrors',
       desc: 'Configure mirror repositories for engine downloads, supports GitHub official and third-party mirrors',
@@ -1024,11 +1001,6 @@ export default {
       assetLibraryMirror: 'Asset Library Mirror',
       assetLibraryMirrorPlaceholder: 'e.g. https://mirror.example.com/asset-library/api',
       assetLibraryMirrorHint: 'Leave empty for official godotengine.org. Users in China can use a mirror URL',
-      assetApiMode: 'Asset API Mode',
-      assetApiMode_auto: 'Auto',
-      assetApiMode_legacy: 'Legacy Asset Library',
-      assetApiMode_new_store: 'New Asset Store',
-      assetApiModeHint: 'Auto mode prefers new Asset Store API, falls back to legacy if unavailable',
       exportTemplateMirror: 'Export Template Mirror',
       exportTemplateMirrorPlaceholder: 'e.g. https://mirror.example.com/godot/export-templates',
       exportTemplateMirrorHint: 'Leave empty to use engine mirror or official source. Users in China can set a mirror URL'
@@ -1048,9 +1020,10 @@ export default {
     discardChanges: 'Discard Changes',
     saveAndLeave: 'Save & Leave',
     misc: 'Miscellaneous',
-    keyboardShortcuts: 'Keyboard Shortcuts',
-    showOnboarding: 'Show Onboarding Again',
-    showOnboardingDesc: 'Click to show the onboarding guide immediately',
+    advanced: 'Advanced',
+    advancedDesc: 'Developer and integration tools',
+    configureMcp: 'Configure MCP Server',
+    configureMcpDesc: 'Start the MCP server and copy client config',
     anonymousStats: 'Anonymous Usage Statistics',
     anonymousStatsDesc: 'Send anonymous startup data to help improve the app. No personal information is collected',
     resetDataLabel: 'Reset Data',
@@ -1203,7 +1176,6 @@ export default {
       importFailed: 'Import failed: {error}',
       deleteSuccess: 'Team configuration deleted',
       deleteFailed: 'Delete failed: {error}',
-      resetGuideFailed: 'Failed to reset guide: {error}',
       resetFailed: 'Reset failed: {error}',
       enterBackupFingerprint: 'Please enter backup fingerprint'
     }
@@ -1590,21 +1562,10 @@ export default {
     deleteSuccess: 'Template deleted',
     invalidChars: 'Project name contains invalid characters (< > : " / \\ | ? *)',
     invalidStartEnd: 'Project name cannot start or end with a dot',
-    generateFromProject: 'Generate from Project',
-    selectProject: 'Select Project',
-    selectProjectPlaceholder: 'Please select a project',
-    templateNamePlaceholder: 'Enter template name',
-    generateSuccess: 'Template generated successfully',
     generateFailed: 'Template generation failed',
-    importFile: 'Import File',
-    keypair: 'Keypair',
-    keypairManage: 'Signing Key Management',
-    export: 'Export',
     deleteFailed: 'Failed to delete template: {error}',
-    readFileFailed: 'Failed to read template file',
     contextMenu: {
       createProject: 'Create Project',
-      exportTemplate: 'Export Template',
       deleteTemplate: 'Delete Template',
     },
   },
@@ -1693,17 +1654,6 @@ export default {
     importPresetPlaceholder: 'Paste preset JSON',
     importPreset: 'Import',
     presetImported: 'Preset imported successfully'
-  },
-  keypair: {
-    title: 'Signing Key Management',
-    description: 'Manage Ed25519 key pairs for signing templates. Signatures verify template origin and integrity.',
-    generateNew: 'Generate New Keypair',
-    signerNamePlaceholder: 'Signer name (e.g. your name or organization)',
-    noKeypairs: 'No keypairs yet. Generate one first.',
-    viewPublicKey: 'View public key',
-    publicKey: 'Public Key',
-    deleteKeypair: 'Delete Keypair',
-    deleteKeypairConfirm: 'Deletion is irreversible. Templates signed with this key will no longer be verifiable. Continue?'
   },
   batchOps: {
     globalUpgrade: 'Global Upgrade Plugin',
