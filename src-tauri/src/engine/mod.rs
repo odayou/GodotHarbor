@@ -554,7 +554,6 @@ impl EngineManager {
                                         Err(_) => {}
                                     }
                                 } else {
-                                    let exe_str = exe_path.to_string_lossy().to_string();
                                     let output = no_window_cmd(&exe_path)
                                         .arg("--version")
                                         .output();

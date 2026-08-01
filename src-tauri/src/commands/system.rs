@@ -4,6 +4,7 @@ use tauri::{AppHandle, State};
 use crate::models::*;
 use crate::AppState;
 use crate::operation_log::LogEntry;
+#[cfg(target_os = "windows")]
 use crate::utils::no_window_cmd;
 use super::utils::*;
 use super::plugin::TotalStorageStats;

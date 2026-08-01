@@ -46,7 +46,7 @@
       "icons/icon.ico",
       "icons/icon.png"
     ],
-    "createUpdaterArtifacts": true,
+    "createUpdaterArtifacts": false,
     "resources": [
       "templates/**/*",
       "modules/**/*"
@@ -55,7 +55,7 @@
 
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY0NDZCRUVBMEM3MDg2MkUKUldRdWhuQU02cjVHWk0xNFExenRYazhGdmJBdnduT1dvQkdjTWV0K2Y3QXRxb3o2Q2hidENUM1QK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDhFMDlBQkFCQjUyODcwN0UKUldSK2NDaTFxNnNKam9ldUpwL2RMQXQwbS9BM1h5RlpXelRQcStZZHU5Wjl6VFdISHNyeG1yazAK",
       "endpoints": [
         "https://github.com/odayou/GodotHarbor/releases/latest/download/latest.json"
       ],

@@ -201,11 +201,34 @@ npm run tauri dev
 ### 本地构建
 
 ```bash
-# 构建桌面应用
+# 构建桌面应用（不签名，用于开发测试）
 npm run tauri build
 ```
 
 构建完成后，安装包位于 `src-tauri/target/release/bundle/` 目录。
+
+#### 本地签名构建（可选）
+
+如需产出带 ed25519 签名的安装包（用于 Tauri 官方 updater 自动更新），使用：
+
+```bash
+npm run build:signed
+```
+
+此命令会读取项目根目录的 `.env` 文件获取签名密钥。首次使用前需配置：
+
+1. **生成签名密钥**（仅管理员首次执行一次）：
+   ```bash
+   npx tauri signer generate -w ~/.tauri/godotharbor.key
+   ```
+   按提示输入密码并记牢。命令会输出公钥字符串，需填入 `src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey` 字段；同时需在 GitHub 仓库 Settings → Secrets 配置 `TAURI_SIGNING_PRIVATE_KEY`（.key 文件内容）和 `TAURI_SIGNING_PASSWORD`（密码）供 CI 使用。
+2. 复制 `.env.example` 为 `.env`
+3. 填入 `TAURI_SIGNING_PRIVATE_KEY`（`~/.tauri/godotharbor.key` 文件内容）和 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`（生成密钥时设置的密码）
+4. `.env` 已在 `.gitignore` 中，不会提交到仓库
+
+> 默认的 `npm run tauri build` 不需要任何环境变量，普通开发和测试无需配置 `.env`。
+> CI（GitHub Actions）使用 GitHub Secrets 自动签名，不依赖本地 `.env`。
+> 普通贡献者无需生成密钥，仅管理员首次 setup 时执行第 1 步。
 
 ### 一键发布新版本
 

@@ -15,4 +15,7 @@ keys/
 *.p12
 *.pfx
 
+# P4-2: Local signing env (each admin fills their own)
+.env
+
 docs/planning/*

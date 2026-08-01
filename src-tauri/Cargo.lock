@@ -1732,6 +1732,7 @@ dependencies = [
  "futures",
  "git2",
  "indicatif",
+ "libc",
  "notify",
  "once_cell",
  "percent-encoding",
