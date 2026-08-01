@@ -31,37 +31,78 @@ pub fn get_all_engines_modules(app: AppHandle) -> Result<Vec<EngineModulesInfo>,
 }
 
 #[tauri::command]
-pub fn check_project_missing_modules(app: AppHandle, project_id: String) -> Result<Vec<ModuleType>, String> {
-    let storage = get_storage(&app);
-    let projects: Vec<crate::models::Project> = storage.load_or_default("projects.json");
-    let project = projects.iter()
-        .find(|p| p.project_id == project_id)
-        .ok_or("未找到指定项目".to_string())?;
+pub async fn check_project_missing_modules(app: AppHandle, project_id: String) -> Result<Vec<ModuleType>, String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let storage = get_storage(&app_clone);
+        let projects: Vec<crate::models::Project> = storage.load_or_default("projects.json");
+        let project = projects.iter()
+            .find(|p| p.project_id == project_id)
+            .ok_or("未找到指定项目".to_string())?;
 
-    let engines: Vec<Engine> = storage.load_or_default("engines.json");
+        let engines: Vec<Engine> = storage.load_or_default("engines.json");
 
-    // Find the engine used by the project
-    let engine = if let Some(ref engine_id) = project.last_used_engine_id {
-        engines.iter().find(|e| e.engine_id == *engine_id)
-    } else {
-        None
-    }.or_else(|| {
-        // Try to find matching engine by version
-        engines.iter().find(|e| {
-            let ev: Vec<&str> = e.version.split('.').collect();
-            let pv: Vec<&str> = project.godot_version.split('.').collect();
-            ev.len() >= 2 && pv.len() >= 2 && ev[0] == pv[0] && ev[1] == pv[1]
-        })
-    });
+        // Find the engine used by the project
+        let engine = if let Some(ref engine_id) = project.last_used_engine_id {
+            engines.iter().find(|e| e.engine_id == *engine_id)
+        } else {
+            None
+        }.or_else(|| {
+            // Try to find matching engine by version
+            engines.iter().find(|e| {
+                let ev: Vec<&str> = e.version.split('.').collect();
+                let pv: Vec<&str> = project.godot_version.split('.').collect();
+                ev.len() >= 2 && pv.len() >= 2 && ev[0] == pv[0] && ev[1] == pv[1]
+            })
+        });
 
-    match engine {
-        Some(engine) => Ok(check_missing_modules(engine, &project.path)),
-        None => {
-            // No matching engine, report all needed modules as missing
-            let needed = get_modules_needed_by_project(&project.path);
-            Ok(needed)
+        match engine {
+            Some(engine) => Ok(check_missing_modules(engine, &project.path)),
+            None => {
+                // No matching engine, report all needed modules as missing
+                let needed = get_modules_needed_by_project(&project.path);
+                Ok(needed)
+            }
         }
-    }
+    })
+    .await
+    .map_err(|e| format!("任务执行失败: {}", e))?
+}
+
+/// 批量检查所有项目的缺失模块。一次 invoke 完成所有项目扫描，
+/// 避免前端 N 次并发 invoke 占满 blocking pool。
+#[tauri::command]
+pub async fn batch_check_missing_modules(app: AppHandle) -> Result<Vec<(String, Vec<ModuleType>)>, String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let storage = get_storage(&app_clone);
+        let projects: Vec<crate::models::Project> = storage.load_or_default("projects.json");
+        let engines: Vec<Engine> = storage.load_or_default("engines.json");
+
+        let mut results = Vec::new();
+        for project in &projects {
+            let engine = if let Some(ref engine_id) = project.last_used_engine_id {
+                engines.iter().find(|e| e.engine_id == *engine_id)
+            } else {
+                None
+            }.or_else(|| {
+                engines.iter().find(|e| {
+                    let ev: Vec<&str> = e.version.split('.').collect();
+                    let pv: Vec<&str> = project.godot_version.split('.').collect();
+                    ev.len() >= 2 && pv.len() >= 2 && ev[0] == pv[0] && ev[1] == pv[1]
+                })
+            });
+
+            let missing = match engine {
+                Some(engine) => check_missing_modules(engine, &project.path),
+                None => get_modules_needed_by_project(&project.path),
+            };
+            results.push((project.project_id.clone(), missing));
+        }
+        Ok(results)
+    })
+    .await
+    .map_err(|e| format!("任务执行失败: {}", e))?
 }
 
 #[tauri::command]

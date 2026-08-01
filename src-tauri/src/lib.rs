@@ -555,6 +555,7 @@ pub fn run() {
             commands::get_engine_modules,
             commands::get_all_engines_modules,
             commands::check_project_missing_modules,
+            commands::batch_check_missing_modules,
             commands::install_engine_module,
             commands::get_module_download_info,
             commands::create_snapshot,

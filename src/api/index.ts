@@ -775,6 +775,10 @@ export const api = {
     return await invoke('check_project_missing_modules', { projectId })
   },
 
+  async batchCheckMissingModules(): Promise<Array<[string, ModuleType[]]>> {
+    return await invoke('batch_check_missing_modules')
+  },
+
   async installEngineModule(engineId: string, moduleType: ModuleType): Promise<void> {
     return await invoke('install_engine_module', { engineId, moduleType })
   },

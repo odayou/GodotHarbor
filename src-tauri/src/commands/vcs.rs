@@ -94,21 +94,26 @@ pub fn vcs_update_gitignore(app: AppHandle, project_id: String) -> Result<(), St
 }
 
 #[tauri::command]
-pub fn batch_get_vcs_info(app: AppHandle, project_ids: Vec<String>) -> Result<Vec<(String, vcs::VcsInfo)>, String> {
-    let storage = get_storage(&app);
-    let projects: Vec<Project> = storage.load_or_default("projects.json");
+pub async fn batch_get_vcs_info(app: AppHandle, project_ids: Vec<String>) -> Result<Vec<(String, vcs::VcsInfo)>, String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let storage = get_storage(&app_clone);
+        let projects: Vec<Project> = storage.load_or_default("projects.json");
 
-    let mut results = Vec::new();
-    for project_id in &project_ids {
-        if let Some(project) = projects.iter().find(|p| p.project_id == *project_id) {
-            match vcs::get_vcs_info(&project.path) {
-                Ok(info) => results.push((project_id.clone(), info)),
-                Err(_) => results.push((project_id.clone(), vcs::VcsInfo::default())),
+        let mut results = Vec::new();
+        for project_id in &project_ids {
+            if let Some(project) = projects.iter().find(|p| p.project_id == *project_id) {
+                match vcs::get_vcs_info(&project.path) {
+                    Ok(info) => results.push((project_id.clone(), info)),
+                    Err(_) => results.push((project_id.clone(), vcs::VcsInfo::default())),
+                }
             }
         }
-    }
 
-    Ok(results)
+        Ok(results)
+    })
+    .await
+    .map_err(|e| format!("任务执行失败: {}", e))?
 }
 
 #[tauri::command]

@@ -96,32 +96,37 @@ pub async fn scan_projects(app: AppHandle, root_dirs: Vec<String>) -> Result<Vec
 }
 
 #[tauri::command]
-pub fn get_projects(app: AppHandle) -> Result<Vec<Project>, String> {
-    let storage = get_storage(&app);
-    let mut projects: Vec<Project> = storage.load_or_default("projects.json");
+pub async fn get_projects(app: AppHandle) -> Result<Vec<Project>, String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let storage = get_storage(&app_clone);
+        let mut projects: Vec<Project> = storage.load_or_default("projects.json");
 
-    for project in projects.iter_mut() {
-        let project_path = std::path::Path::new(&project.path);
-        if !project_path.exists() || !project_path.join("project.godot").exists() {
-            project.status = ProjectStatus::MissingSource;
+        for project in projects.iter_mut() {
+            let project_path = std::path::Path::new(&project.path);
+            if !project_path.exists() || !project_path.join("project.godot").exists() {
+                project.status = ProjectStatus::MissingSource;
+            }
         }
-    }
 
-    let original_len = projects.len();
-    let mut seen = Vec::new();
-    let mut deduped = Vec::new();
-    for project in projects {
-        let norm = normalize_path(&project.path);
-        if !seen.contains(&norm) {
-            seen.push(norm);
-            deduped.push(project);
+        let original_len = projects.len();
+        let mut seen = Vec::new();
+        let mut deduped = Vec::new();
+        for project in projects {
+            let norm = normalize_path(&project.path);
+            if !seen.contains(&norm) {
+                seen.push(norm);
+                deduped.push(project);
+            }
         }
-    }
-    if deduped.len() < original_len {
-        let _ = storage.save("projects.json", &deduped);
-    }
+        if deduped.len() < original_len {
+            let _ = storage.save("projects.json", &deduped);
+        }
 
-    Ok(deduped)
+        Ok(deduped)
+    })
+    .await
+    .map_err(|e| format!("任务执行失败: {}", e))?
 }
 
 #[tauri::command]

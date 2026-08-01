@@ -211,28 +211,33 @@ pub fn sync_from_lock(app: AppHandle, project_id: String, strict: Option<bool>) 
 }
 
 #[tauri::command]
-pub fn batch_check_locks(app: AppHandle, project_ids: Vec<String>) -> Result<Vec<(String, Option<HarborLock>, LockVerifyResult)>, String> {
-    let storage = get_storage(&app);
-    let projects: Vec<crate::models::Project> = storage.load_or_default("projects.json");
-    let plugins: Vec<crate::models::Plugin> = storage.load_or_default("plugins.json");
+pub async fn batch_check_locks(app: AppHandle, project_ids: Vec<String>) -> Result<Vec<(String, Option<HarborLock>, LockVerifyResult)>, String> {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let storage = get_storage(&app_clone);
+        let projects: Vec<crate::models::Project> = storage.load_or_default("projects.json");
+        let plugins: Vec<crate::models::Plugin> = storage.load_or_default("plugins.json");
 
-    let mut results = Vec::new();
-    for pid in &project_ids {
-        if let Some(project) = projects.iter().find(|p| &p.project_id == pid) {
-            let lock = lockfile::read_lock(&project.path).ok().flatten();
-            let verify_result = if let Some(ref lock) = lock {
-                lockfile::verify_lock(&project.path, lock, &plugins)
-            } else {
-                LockVerifyResult {
-                    is_valid: false,
-                    mismatches: vec![],
-                }
-            };
-            results.push((pid.clone(), lock, verify_result));
+        let mut results = Vec::new();
+        for pid in &project_ids {
+            if let Some(project) = projects.iter().find(|p| &p.project_id == pid) {
+                let lock = lockfile::read_lock(&project.path).ok().flatten();
+                let verify_result = if let Some(ref lock) = lock {
+                    lockfile::verify_lock(&project.path, lock, &plugins)
+                } else {
+                    LockVerifyResult {
+                        is_valid: false,
+                        mismatches: vec![],
+                    }
+                };
+                results.push((pid.clone(), lock, verify_result));
+            }
         }
-    }
 
-    Ok(results)
+        Ok(results)
+    })
+    .await
+    .map_err(|e| format!("任务执行失败: {}", e))?
 }
 
 /// 「还原项目环境」：打开带 harbor.lock 的项目时一键还原。

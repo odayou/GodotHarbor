@@ -503,7 +503,8 @@ const loadProjects = async (force = false) => {
     const result = await api.getProjects()
     projects.value = result
     preloadIcons(result.map(p => p.icon_path).filter(Boolean)).catch(() => {})
-    await Promise.all([loadGroups(), checkMovedProjects()])
+    // 首次加载：groups/moved 不阻塞列表渲染，后台跑即可
+    Promise.all([loadGroups(), checkMovedProjects()]).catch(() => {})
     Promise.all([
       loadAllProjectBindings(),
       api.getPlugins().then(p => { allPlugins.value = p }).catch(() => { allPlugins.value = [] }),
@@ -549,16 +550,11 @@ const loadAllVcsInfo = async () => {
 
 const loadAllMissingModules = async () => {
   try {
+    const results = await api.batchCheckMissingModules()
     const map = new Map<string, ModuleType[]>()
-    const checks = projects.value.map(async (p) => {
-      try {
-        const missing = await api.checkProjectMissingModules(p.project_id)
-        map.set(p.project_id, missing)
-      } catch {
-        // Silently ignore - this is informational
-      }
-    })
-    await Promise.allSettled(checks)
+    for (const [id, missing] of results) {
+      map.set(id, missing)
+    }
     projectMissingModulesMap.value = map
   } catch {
     projectMissingModulesMap.value = new Map()
