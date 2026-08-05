@@ -3,6 +3,7 @@
   "productName": "Godot Harbor",
   "version": "2.2.6",
   "identifier": "com.godotharbor.app",
+  "mainBinaryName": "godot-harbor",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -38,7 +39,6 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "mainBinaryName": "godot-harbor",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
