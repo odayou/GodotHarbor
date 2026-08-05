@@ -19,3 +19,6 @@ keys/
 .env
 
 docs/planning/*
+
+# Private docs - never commit
+docs-private/
