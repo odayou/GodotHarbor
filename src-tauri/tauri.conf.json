@@ -55,7 +55,7 @@
 
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDhFMDlBQkFCQjUyODcwN0UKUldSK2NDaTFxNnNKam9ldUpwL2RMQXQwbS9BM1h5RlpXelRQcStZZHU5Wjl6VFdISHNyeG1yazAK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE1QTUwQkE1QjlCOTExMTUKUldRVkVibTVwUXVsRmFDWG4wUzgvbjIzaXBnS0QrRERBVnpHbnc2Z2xBWmF4RkU0aEliYUJUajMK",
       "endpoints": [
         "https://github.com/odayou/GodotHarbor/releases/latest/download/latest.json"
       ],
