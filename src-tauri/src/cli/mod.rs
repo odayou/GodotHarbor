@@ -660,7 +660,7 @@ fn cmd_plugins_list(ctx: &CliContext) -> Result<()> {
     let items: Vec<PluginItem> = plugins.iter().map(|p| PluginItem {
         name: p.name.clone(),
         source_type: format!("{:?}", p.source.source_type),
-        compatibility: format!("{:?}", p.compatibility),
+        compatibility: p.compatibility.to_string(),
         version_count: p.versions.len(),
         is_favorite: p.is_favorite,
     }).collect();

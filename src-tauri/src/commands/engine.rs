@@ -748,7 +748,7 @@ pub async fn check_godot_updates(app: AppHandle) -> Result<crate::version_checke
             engine_id: e.engine_id.clone(),
             name: e.name.clone(),
             version: e.version.clone(),
-            engine_type: format!("{:?}", e.engine_type),
+            engine_type: e.engine_type.to_string(),
         }
     }).collect();
 

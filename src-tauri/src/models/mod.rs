@@ -133,12 +133,37 @@ pub struct PluginVersion {
     pub units: Vec<PluginUnit>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Compatibility {
-    Godot3,
-    Godot4,
-    Both,
-    Unknown,
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Compatibility {
+    /// 兼容的 Godot 主版本号列表（如 `[3, 4]`），空列表表示 Unknown。
+    /// 采用主版本号而非硬编码枚举，天然支持未来的 Godot 大版本（5、6……）。
+    #[serde(default)]
+    pub majors: Vec<u32>,
+}
+
+impl Compatibility {
+    pub fn unknown() -> Self {
+        Self { majors: Vec::new() }
+    }
+
+    pub fn is_unknown(&self) -> bool {
+        self.majors.is_empty()
+    }
+
+    pub fn is_compatible_with(&self, major: u32) -> bool {
+        self.majors.contains(&major)
+    }
+}
+
+impl std::fmt::Display for Compatibility {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.majors.is_empty() {
+            write!(f, "Unknown")
+        } else {
+            let labels: Vec<String> = self.majors.iter().map(|m| m.to_string()).collect();
+            write!(f, "{}", labels.join(","))
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -174,7 +199,7 @@ impl Plugin {
             author: String::new(),
             source,
             versions: Vec::new(),
-            compatibility: Compatibility::Unknown,
+            compatibility: Compatibility::default(),
             is_favorite: false,
             content_hash: String::new(),
             tags: Vec::new(),
@@ -471,19 +496,34 @@ pub struct ConflictInfo {
     pub message: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum EngineType {
-    Godot3,
-    Godot4,
-    Unknown,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct EngineType(pub u32);
+
+impl EngineType {
+    pub const UNKNOWN: Self = Self(0);
+
+    pub fn major(&self) -> Option<u32> {
+        if self.0 == 0 {
+            None
+        } else {
+            Some(self.0)
+        }
+    }
+
+    pub fn is_unknown(&self) -> bool {
+        self.0 == 0
+    }
+
+    pub fn from_major(major: u32) -> Self {
+        Self(if major == 0 { 0 } else { major })
+    }
 }
 
 impl std::fmt::Display for EngineType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            EngineType::Godot3 => write!(f, "Godot3"),
-            EngineType::Godot4 => write!(f, "Godot4"),
-            EngineType::Unknown => write!(f, "Unknown"),
+        match self.major() {
+            Some(major) => write!(f, "Godot{}", major),
+            None => write!(f, "Unknown"),
         }
     }
 }
@@ -1111,13 +1151,13 @@ mod tests {
         let engine = Engine::new(
             "Godot 4.2".to_string(),
             "/path/to/godot".to_string(),
-            EngineType::Godot4,
+            EngineType::from_major(4),
             "4.2".to_string(),
         );
         let json = serde_json::to_string(&engine).unwrap();
         let parsed: Engine = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.name, "Godot 4.2");
-        assert_eq!(parsed.engine_type, EngineType::Godot4);
+        assert_eq!(parsed.engine_type.major(), Some(4));
     }
 
     #[test]
@@ -1180,9 +1220,25 @@ mod tests {
 
     #[test]
     fn test_engine_type_display() {
-        assert_eq!(format!("{}", EngineType::Godot3), "Godot3");
-        assert_eq!(format!("{}", EngineType::Godot4), "Godot4");
-        assert_eq!(format!("{}", EngineType::Unknown), "Unknown");
+        assert_eq!(format!("{}", EngineType::from_major(3)), "Godot3");
+        assert_eq!(format!("{}", EngineType::from_major(4)), "Godot4");
+        assert_eq!(format!("{}", EngineType::from_major(5)), "Godot5");
+        assert_eq!(format!("{}", EngineType::UNKNOWN), "Unknown");
+    }
+
+    #[test]
+    fn test_engine_type_roundtrip() {
+        let json = serde_json::to_string(&EngineType::from_major(4)).unwrap();
+        assert_eq!(json, "4");
+        let parsed: EngineType = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, EngineType::from_major(4));
+        assert_eq!(parsed.major(), Some(4));
+
+        let unknown_json = serde_json::to_string(&EngineType::UNKNOWN).unwrap();
+        assert_eq!(unknown_json, "0");
+        let parsed_unknown: EngineType = serde_json::from_str(&unknown_json).unwrap();
+        assert_eq!(parsed_unknown, EngineType::UNKNOWN);
+        assert_eq!(parsed_unknown.major(), None);
     }
 
     #[test]

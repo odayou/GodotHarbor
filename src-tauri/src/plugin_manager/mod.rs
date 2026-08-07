@@ -773,15 +773,14 @@ fn detect_plugin_source(plugin_dir: &Path) -> (crate::models::SourceType, String
                 |(g4a, g3a), (g4b, g3b)| (g4a + g4b, g3a + g3b),
             );
 
-        if godot4_signals > 0 && godot3_signals == 0 {
-            Compatibility::Godot4
-        } else if godot3_signals > 0 && godot4_signals == 0 {
-            Compatibility::Godot3
-        } else if godot4_signals > 0 && godot3_signals > 0 {
-            Compatibility::Both
-        } else {
-            Compatibility::Unknown
+        let mut majors = Vec::new();
+        if godot4_signals > 0 {
+            majors.push(4);
         }
+        if godot3_signals > 0 {
+            majors.push(3);
+        }
+        Compatibility { majors }
     }
 
     pub fn scan_uid_list(&self, payload_dir: &Path) -> Vec<String> {
@@ -1077,7 +1076,7 @@ mod tests {
         let manager = PluginManager::new(dir.path().join("store"));
         let compat = manager.detect_compatibility(dir.path());
 
-        assert!(matches!(compat, Compatibility::Godot4 | Compatibility::Both));
+        assert!(compat.is_compatible_with(4));
     }
 
     #[test]
@@ -1089,7 +1088,7 @@ mod tests {
         let manager = PluginManager::new(dir.path().join("store"));
         let compat = manager.detect_compatibility(dir.path());
 
-        assert!(matches!(compat, Compatibility::Godot3 | Compatibility::Both));
+        assert!(compat.is_compatible_with(3));
     }
 
     #[test]
@@ -1100,7 +1099,7 @@ mod tests {
         let manager = PluginManager::new(dir.path().join("store"));
         let compat = manager.detect_compatibility(dir.path());
 
-        assert!(matches!(compat, Compatibility::Unknown));
+        assert!(compat.is_unknown());
     }
 
     #[test]

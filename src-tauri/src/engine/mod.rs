@@ -150,14 +150,8 @@ impl EngineManager {
     }
 
     fn detect_engine_type(version_output: &str) -> EngineType {
-        let version_str = version_output.trim();
-        if crate::utils::is_godot4(version_str) {
-            EngineType::Godot4
-        } else if crate::utils::is_godot3(version_str) {
-            EngineType::Godot3
-        } else {
-            EngineType::Unknown
-        }
+        let major = crate::utils::parse_version(version_output.trim()).0;
+        EngineType::from_major(major)
     }
 
     fn parse_version(version_output: &str) -> String {
@@ -769,10 +763,9 @@ impl EngineManager {
 
                 let name = format!(
                     "Godot {}",
-                    match engine_type {
-                        EngineType::Godot4 => "4",
-                        EngineType::Godot3 => "3",
-                        EngineType::Unknown => "",
+                    match engine_type.major() {
+                        Some(major) => major.to_string(),
+                        None => String::new(),
                     }
                 );
 
@@ -844,7 +837,7 @@ impl EngineManager {
                                         .and_then(|n| n.to_str())
                                         .unwrap_or("Godot")
                                         .to_string();
-                                    let engine = Engine::new(name, path_str.clone(), EngineType::Unknown, "Unknown".to_string());
+                                    let engine = Engine::new(name, path_str.clone(), EngineType::UNKNOWN, "Unknown".to_string());
                                     if !local_seen.contains(&engine.path) {
                                         local_seen.insert(engine.path.clone());
                                         local_found.push(engine);
