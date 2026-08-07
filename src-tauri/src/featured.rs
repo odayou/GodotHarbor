@@ -153,7 +153,7 @@ pub async fn report_usage_ping(app: tauri::AppHandle) -> Result<(), String> {
 
     if settings.anonymous_user_id.is_empty() {
         settings.anonymous_user_id = Uuid::new_v4().to_string();
-        config_storage.save("settings.json", &settings)
+        crate::commands::utils::save_settings_to_config(&app, &settings)
             .map_err(|e| format!("保存匿名ID失败: {}", e))?;
     }
 

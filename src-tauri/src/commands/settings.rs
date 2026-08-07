@@ -92,8 +92,7 @@ pub fn confirm_data_dir(app: AppHandle, custom_dir: Option<String>) -> Result<St
     };
 
     settings.data_dir_initialized = true;
-    config_storage.save("settings.json", &settings)
-        .map_err(|e| format!("保存设置失败: {}", e))?;
+    save_settings_to_config(&app, &settings)?;
 
     Ok(data_dir)
 }

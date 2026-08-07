@@ -1,11 +1,43 @@
 use std::path::PathBuf;
 use std::io::Write;
+use std::sync::{Arc, RwLock};
 use serde::{Serialize, Deserialize};
 use tauri::{AppHandle, Manager};
 use crate::models::*;
 use crate::storage::Storage;
 use crate::plugin_manager::PluginManager;
 use crate::operation_log::OperationLogger;
+
+/// 进程级内存缓存的 Settings。读写均经由 RwLock，避免每次访问都从磁盘
+/// 反序列化 settings.json（网络命令高频路径的性能浪费）。
+pub type SharedSettings = Arc<RwLock<Settings>>;
+
+/// 初始化（或重建）设置缓存并注册进 Tauri 状态。
+pub fn init_settings_cache(app: &AppHandle, settings: Settings) -> SharedSettings {
+    let cache: SharedSettings = Arc::new(RwLock::new(settings));
+    app.manage(cache.clone());
+    cache
+}
+
+/// 读取设置：优先返回内存缓存；未注册缓存时回退到磁盘读取（等价旧行为）。
+pub fn load_settings(app: &AppHandle) -> Settings {
+    if let Some(cache) = app.try_state::<SharedSettings>() {
+        cache.read().map(|s| s.clone()).unwrap_or_else(|_| Settings::default())
+    } else {
+        get_config_storage(app).load_or_default("settings.json")
+    }
+}
+
+/// 保存设置：先更新内存缓存，再写盘，保证缓存与磁盘一致。
+pub fn save_settings_to_config(app: &AppHandle, settings: &Settings) -> Result<(), String> {
+    if let Some(cache) = app.try_state::<SharedSettings>() {
+        if let Ok(mut guard) = cache.write() {
+            *guard = settings.clone();
+        }
+    }
+    get_config_storage(app).save("settings.json", settings)
+        .map_err(|e| format!("保存设置失败: {}", e))
+}
 
 pub fn get_config_dir(app: &AppHandle) -> PathBuf {
     app.path().app_data_dir()
@@ -14,8 +46,7 @@ pub fn get_config_dir(app: &AppHandle) -> PathBuf {
 
 pub fn get_data_dir(app: &AppHandle) -> PathBuf {
     let config_dir = get_config_dir(app);
-    let config_storage = Storage::new(config_dir.clone());
-    let settings: Settings = config_storage.load_or_default("settings.json");
+    let settings = load_settings(app);
     if !settings.custom_data_dir.is_empty() {
         PathBuf::from(&settings.custom_data_dir)
     } else if !settings.data_dir_initialized {
@@ -50,15 +81,6 @@ pub fn get_config_storage(app: &AppHandle) -> Storage {
 
 pub fn get_storage(app: &AppHandle) -> Storage {
     Storage::new(get_data_dir(app))
-}
-
-pub fn load_settings(app: &AppHandle) -> Settings {
-    get_config_storage(app).load_or_default("settings.json")
-}
-
-pub fn save_settings_to_config(app: &AppHandle, settings: &Settings) -> Result<(), String> {
-    get_config_storage(app).save("settings.json", settings)
-        .map_err(|e| format!("保存设置失败: {}", e))
 }
 
 pub fn get_plugin_manager(app: &AppHandle) -> PluginManager {

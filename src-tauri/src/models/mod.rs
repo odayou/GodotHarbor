@@ -489,9 +489,17 @@ pub struct ApplyResult {
     pub errors: Vec<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConflictType {
+    ExistingPlugin,
+    PathExists,
+    UnmanagedAddon,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConflictInfo {
-    pub conflict_type: String,
+    pub conflict_type: ConflictType,
     pub path: String,
     pub message: String,
 }

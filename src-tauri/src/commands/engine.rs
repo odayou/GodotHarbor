@@ -428,8 +428,7 @@ pub async fn download_engine_from_url(
     if let Some(parent_path) = parent {
         if !settings.known_engine_paths.iter().any(|p| p.to_lowercase() == parent_path.to_lowercase()) {
             settings.known_engine_paths.push(parent_path);
-            let config_storage = get_config_storage(&app);
-            let _ = config_storage.save("settings.json", &settings);
+            let _ = crate::commands::utils::save_settings_to_config(&app, &settings);
         }
     }
 
@@ -526,8 +525,7 @@ pub fn register_engine(app: AppHandle, path: String, name: String) -> Result<Eng
     if let Some(parent_path) = parent {
         if !settings.known_engine_paths.iter().any(|p| p.to_lowercase() == parent_path.to_lowercase()) {
             settings.known_engine_paths.push(parent_path);
-            let config_storage = get_config_storage(&app);
-            let _ = config_storage.save("settings.json", &settings);
+            let _ = crate::commands::utils::save_settings_to_config(&app, &settings);
         }
     }
 
@@ -659,8 +657,7 @@ pub async fn auto_discover_engines(app: AppHandle) -> Result<Vec<Engine>, String
             }
         }
     }
-    let config_storage = get_config_storage(&app);
-    let _ = config_storage.save("settings.json", &settings);
+    let _ = crate::commands::utils::save_settings_to_config(&app, &settings);
 
     let _ = app.emit("engines-discovered", &discovered);
 

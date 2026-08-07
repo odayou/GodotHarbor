@@ -131,6 +131,10 @@ pub fn run() {
             std::fs::create_dir_all(&data_dir)
                 .expect("Failed to create data directory");
 
+            // 用最终 settings（可能已写入 custom_data_dir）初始化内存设置缓存，
+            // 供后续 load_settings / get_*_base 高频路径使用，避免反复读盘。
+            crate::commands::utils::init_settings_cache(&app_handle, settings);
+
             let plugins_dir = data_dir.join("plugins");
             std::fs::create_dir_all(&plugins_dir)
                 .expect("Failed to create plugins directory");

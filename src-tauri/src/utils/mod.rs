@@ -28,6 +28,24 @@ pub fn should_skip_dir(name: &str) -> bool {
     SKIP_DIRS.iter().any(|skip| lower == *skip)
 }
 
+/// 在同步/阻塞上下文里驱动一个 future 到完成。
+/// 复用进程级共享的 tokio Runtime，避免每次调用都新建/销毁一个
+/// multi-thread runtime（网络下载等场景的常见浪费）。
+///
+/// 注意：必须从无 runtime 上下文的阻塞线程（如 `spawn_blocking` 的线程池线程）
+/// 调用；若从 async 任务线程直接调用会触发嵌套 runtime 的 block_on panic。
+pub fn block_on<F: std::future::Future>(fut: F) -> F::Output {
+    use std::sync::OnceLock;
+    static RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
+    let rt = RUNTIME.get_or_init(|| {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("failed to build shared tokio runtime")
+    });
+    rt.block_on(fut)
+}
+
 pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<(), String> {
     let src = src.as_ref();
     let dst = dst.as_ref();
@@ -62,8 +80,7 @@ pub fn create_http_client(timeout: Option<std::time::Duration>) -> Result<reqwes
 }
 
 pub fn get_github_api_base(app: &tauri::AppHandle) -> String {
-    let storage = crate::commands::get_storage(app);
-    let settings: crate::models::Settings = storage.load_or_default("settings.json");
+    let settings = crate::commands::load_settings(app);
     if !settings.github_api_proxy.is_empty() {
         settings.github_api_proxy.trim_end_matches('/').to_string()
     } else {
@@ -72,8 +89,7 @@ pub fn get_github_api_base(app: &tauri::AppHandle) -> String {
 }
 
 pub fn get_asset_library_base(app: &tauri::AppHandle) -> String {
-    let storage = crate::commands::get_storage(app);
-    let settings: crate::models::Settings = storage.load_or_default("settings.json");
+    let settings = crate::commands::load_settings(app);
     if !settings.asset_library_mirror.is_empty() {
         settings.asset_library_mirror.trim_end_matches('/').to_string()
     } else {
@@ -101,16 +117,15 @@ pub fn parse_version(version: &str) -> (u32, u32, u32) {
     (major, minor, patch)
 }
 
-/// Check if a Godot version string represents Godot 4.x.
-/// Uses major version parsing to avoid false positives like "3.4.1" matching ".4.".
+/// 判断 Godot 版本是否恰为 Godot 4.x（主版本号 == 4）。
+/// 语义为主版本精确匹配，避免 Godot 5+ 被错误归类为 Godot 4。
 pub fn is_godot4(version: &str) -> bool {
-    parse_version(version).0 >= 4
+    parse_version(version).0 == 4
 }
 
-/// Check if a Godot version string represents Godot 3.x.
+/// 判断 Godot 版本是否恰为 Godot 3.x（主版本号 == 3）。
 pub fn is_godot3(version: &str) -> bool {
-    let major = parse_version(version).0;
-    major >= 3 && major < 4
+    parse_version(version).0 == 3
 }
 
 #[cfg(test)]
@@ -231,6 +246,14 @@ mod tests {
     }
 
     #[test]
+    fn test_is_godot4_not_5x() {
+        assert!(!is_godot4("5.0"));
+        assert!(!is_godot4("5.1.2"));
+        assert!(!is_godot4("5"));
+        assert!(!is_godot4("6.0"));
+    }
+
+    #[test]
     fn test_is_godot3_standard() {
         assert!(is_godot3("3.4.1"));
         assert!(is_godot3("3.5"));
@@ -241,5 +264,12 @@ mod tests {
     fn test_is_godot3_not_4x() {
         assert!(!is_godot3("4.2.1"));
         assert!(!is_godot3("4.0"));
+    }
+
+    #[test]
+    fn test_is_godot3_not_5x() {
+        assert!(!is_godot3("5.0"));
+        assert!(!is_godot3("5.4.1"));
+        assert!(!is_godot3("6.0"));
     }
 }

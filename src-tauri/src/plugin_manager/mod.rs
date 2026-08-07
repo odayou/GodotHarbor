@@ -246,9 +246,7 @@ fn detect_plugin_source(plugin_dir: &Path) -> (crate::models::SourceType, String
         let download_dir = version_dir.join("download");
         let archive_path = download_dir.join(&file_name);
 
-        let rt = tokio::runtime::Runtime::new()
-            .context("Failed to create tokio runtime")?;
-        rt.block_on(async {
+        crate::utils::block_on(async {
             let client = crate::utils::create_http_client(None)
                 .map_err(|e| anyhow::anyhow!(e))?;
             let resp = client.get(url).send().await

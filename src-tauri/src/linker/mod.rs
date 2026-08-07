@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 use anyhow::{Result, Context};
-use crate::models::{ProjectBinding, ApplyResult, ConflictInfo};
+use crate::models::{ProjectBinding, ApplyResult, ConflictInfo, ConflictType};
 use crate::utils::copy_dir_all;
 
 #[derive(Clone)]
@@ -164,7 +164,7 @@ impl Linker {
 
         let conflicts = self.check_conflicts(project_path, &diff.to_add, &diff.to_keep, current_bindings)?;
         let blocking_conflicts: Vec<&ConflictInfo> = conflicts.iter()
-            .filter(|c| c.conflict_type != "existing_plugin" && c.conflict_type != "path_exists")
+            .filter(|c| !matches!(c.conflict_type, ConflictType::ExistingPlugin | ConflictType::PathExists))
             .collect();
         if !blocking_conflicts.is_empty() {
             for conflict in &blocking_conflicts {
@@ -174,7 +174,7 @@ impl Linker {
             return Ok(result);
         }
         for conflict in &conflicts {
-            if conflict.conflict_type == "existing_plugin" || conflict.conflict_type == "path_exists" {
+            if matches!(conflict.conflict_type, ConflictType::ExistingPlugin | ConflictType::PathExists) {
                 eprintln!("Info: {}", conflict.message);
             }
         }
@@ -254,7 +254,7 @@ impl Linker {
                     )
                 };
                 conflicts.push(ConflictInfo {
-                    conflict_type: if has_plugin_cfg { "existing_plugin" } else { "path_exists" }.to_string(),
+                    conflict_type: if has_plugin_cfg { ConflictType::ExistingPlugin } else { ConflictType::PathExists },
                     path: target_path.to_string_lossy().to_string(),
                     message,
                 });
@@ -273,7 +273,7 @@ impl Linker {
                             || to_keep.iter().any(|b| b.mount_path == mount_path);
                         if !is_managed && !is_in_bindings {
                             conflicts.push(ConflictInfo {
-                                conflict_type: "unmanaged_addon".to_string(),
+                                conflict_type: ConflictType::UnmanagedAddon,
                                 path: path.to_string_lossy().to_string(),
                                 message: format!(
                                     "发现非 Harbor 管理的插件: {}，建议先导入到 Harbor 管理",
@@ -884,7 +884,7 @@ mod tests {
         ).unwrap();
 
         assert!(!conflicts.is_empty());
-        assert!(conflicts.iter().any(|c| c.conflict_type == "existing_plugin"));
+        assert!(conflicts.iter().any(|c| matches!(c.conflict_type, ConflictType::ExistingPlugin)));
     }
 
     #[test]

@@ -4,6 +4,7 @@ import { useAssetLibrary } from '@/composables/useAssetLibrary'
 import { usePluginStore } from '@/stores'
 import { ref, type Ref } from 'vue'
 import type { Plugin } from '@/types'
+import { getCompatibilityBadge, getRatingStars, getSupportBadge } from '@/utils/assetDisplay'
 import OneClickInstallDialog from '@/components/OneClickInstallDialog.vue'
 
 const props = defineProps<{
@@ -79,48 +80,8 @@ const handleOneClickInstall = (assetId: string, assetTitle: string, projectId: s
   oneClickInstall(Number(assetId), assetTitle, projectId, autoApply)
 }
 
-// ─── Compatibility badge ───
-const getCompatibilityBadge = (godotVersion: string) => {
-  const gv = godotVersion?.toLowerCase() || ''
-  if (gv.includes('4.') || gv.includes('4.x')) {
-    return { text: 'Godot 4', class: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' }
-  } else if (gv.includes('3.') || gv.includes('3.x')) {
-    return { text: 'Godot 3', class: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' }
-  }
-  return null
-}
-
-// ─── Rating display ───
-const getRatingStars = (rating: string) => {
-  const r = parseFloat(rating) || 0
-  const full = Math.floor(r)
-  const half = r - full >= 0.5
-  const empty = 5 - full - (half ? 1 : 0)
-  return { full, half, empty, value: r }
-}
-
-// ─── Support level badge ───
-const getSupportBadge = (level: string) => {
-  switch (level) {
-    case 'official': return { text: t('assetLibrary.supportOfficial'), class: 'bg-blue-100 text-blue-800 dark:bg-surface-hover dark:text-brand-primary' }
-    case 'featured': return { text: t('assetLibrary.supportFeatured'), class: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' }
-    case 'community': return { text: t('assetLibrary.supportCommunity'), class: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' }
-    case 'testing': return { text: t('assetLibrary.supportTesting'), class: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400' }
-    default: return null
-  }
-}
-
-// ─── Recommendation compatibility badge ───
-const getRecCompatibilityBadge = (godotVersion: string) => {
-  return getCompatibilityBadge(godotVersion)
-}
-
-const getRecRatingStars = (rating: number) => {
-  const full = Math.floor(rating)
-  const half = rating - full >= 0.5
-  const empty = 5 - full - (half ? 1 : 0)
-  return { full, half, empty }
-}
+// ─── UI 展示辅助函数抽离至 src/utils/assetDisplay.ts（星级、兼容性、支持等级徽章），
+// 供资产列表与推荐列表共用，避免重复实现。───
 </script>
 
 <template>
@@ -160,16 +121,16 @@ const getRecRatingStars = (rating: number) => {
 
           <div class="flex items-center gap-2 mb-2">
             <div class="flex items-center gap-0.5" :title="`${rec.plugin.rating.toFixed(1)} / 5`">
-              <svg v-for="n in getRecRatingStars(rec.plugin.rating).full" :key="n" class="w-3 h-3 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
+              <svg v-for="n in getRatingStars(rec.plugin.rating).full" :key="n" class="w-3 h-3 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
               </svg>
-              <svg v-for="n in getRecRatingStars(rec.plugin.rating).empty" :key="'e'+n" class="w-3 h-3 text-gray-300 dark:text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+              <svg v-for="n in getRatingStars(rec.plugin.rating).empty" :key="'e'+n" class="w-3 h-3 text-gray-300 dark:text-gray-600" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
               </svg>
               <span class="text-[10px] text-gray-500 dark:text-content-muted ml-0.5">{{ rec.plugin.rating.toFixed(1) }}</span>
             </div>
-            <span v-if="getRecCompatibilityBadge(rec.plugin.godot_version)" :class="['px-1 py-0.5 rounded text-[10px] font-medium', getRecCompatibilityBadge(rec.plugin.godot_version)!.class]">
-              {{ getRecCompatibilityBadge(rec.plugin.godot_version)!.text }}
+            <span v-if="getCompatibilityBadge(rec.plugin.godot_version)" :class="['px-1 py-0.5 rounded text-[10px] font-medium', getCompatibilityBadge(rec.plugin.godot_version)!.class]">
+              {{ getCompatibilityBadge(rec.plugin.godot_version)!.text }}
             </span>
           </div>
 
@@ -336,7 +297,7 @@ const getRecRatingStars = (rating: number) => {
           <div class="flex-1 min-w-0 cursor-pointer" @click="openAssetDetail(asset.asset_id)">
             <div class="flex items-center gap-2 flex-wrap">
               <span class="font-medium text-gray-900 dark:text-content-primary text-sm truncate">{{ asset.title }}</span>
-              <span v-if="getSupportBadge(asset.support_level)" :class="['px-1.5 py-0.5 rounded text-[10px] font-medium', getSupportBadge(asset.support_level)!.class]">{{ getSupportBadge(asset.support_level)!.text }}</span>
+              <span v-if="getSupportBadge(asset.support_level, t)" :class="['px-1.5 py-0.5 rounded text-[10px] font-medium', getSupportBadge(asset.support_level, t)!.class]">{{ getSupportBadge(asset.support_level, t)!.text }}</span>
               <span v-if="getCompatibilityBadge(asset.godot_version)" :class="['px-1.5 py-0.5 rounded text-[10px] font-medium', getCompatibilityBadge(asset.godot_version)!.class]">{{ getCompatibilityBadge(asset.godot_version)!.text }}</span>
             </div>
             <div class="flex items-center gap-2 mt-0.5 flex-wrap">

@@ -33,12 +33,10 @@ impl Storage {
         fs::write(&temp_path, &content)
             .with_context(|| format!("Failed to write temp file: {}.tmp", filename))?;
 
-        if path.exists() {
-            fs::remove_file(&path)
-                .with_context(|| format!("Failed to remove old file: {}", filename))?;
-        }
+        // `rename` 在 POSIX 与 Windows 10+ 上会原子地替换目标文件，
+        // 因此无需先 remove_file —— 旧的删除→重命名两步会留下崩溃数据丢失窗口。
         fs::rename(&temp_path, &path)
-            .with_context(|| format!("Failed to rename temp file to: {}", filename))?;
+            .with_context(|| format!("Failed to replace file atomically: {}", filename))?;
 
         Ok(())
     }
