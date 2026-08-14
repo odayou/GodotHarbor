@@ -221,6 +221,8 @@ export default {
     lockDrift: 'Lock drift',
     environmentChanged: 'Env changed',
     viewEnvironment: 'View environment',
+    lockDriftDetected: 'harbor.lock drift detected',
+    lockDriftDetectedDesc: '{names}: restore from Environment panel',
     tabOverview: 'Overview',
     tabEnvironment: 'Environment',
     tabVcs: 'Version Control',

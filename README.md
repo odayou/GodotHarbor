@@ -409,11 +409,30 @@ Windows 创建符号链接需要管理员权限。应用会自动回退到 junct
 
 ## 贡献指南
 
+欢迎贡献！无论是 Bug 报告、功能建议、文档改进还是代码 PR，都有助于项目成长。
+
+### 提交贡献
+
 1. Fork 项目仓库
 2. 创建功能分支 (`git checkout -b feature/amazing-feature`)
 3. 提交更改 (`git commit -m 'Add some amazing feature'`)
 4. 推送到分支 (`git push origin feature/amazing-feature`)
 5. 创建 Pull Request
+
+### Co-maintainer 机制
+
+活跃贡献者可申请 Co-maintainer 权限（直接 merge 权限 + 发版协作）。长期目标是不再依赖单维护者。如果你持续贡献并对项目方向有认同，欢迎联系。
+
+### 周边仓库
+
+GodotHarbor 生态包含以下独立仓库（MIT 许可，欢迎单独贡献）：
+
+- [harbor-bridge](https://github.com/odayou/harbor-bridge) — Godot 编辑器内 addon，连接 Harbor MCP server
+- [harbor-bootstrap](https://github.com/odayou/harbor-bootstrap) — 模板内嵌引导 addon，提示安装 Harbor 还原插件
+- [godot-template-2d-platformer](https://github.com/odayou/godot-template-2d-platformer) — 2D 平台跳跃 starter 模板
+- [godot-template-2d-rpg](https://github.com/odayou/godot-template-2d-rpg) — 2D RPG 起步模板（含 Dialogic 对话系统）
+- [godot-template-3d-starter](https://github.com/odayou/godot-template-3d-starter) — 3D 起步模板（第一人称控制器）
+- [godot-template-multiplayer](https://github.com/odayou/godot-template-multiplayer) — 多人/Netcode 实验场模板
 
 ## 许可证
 
@@ -429,6 +448,7 @@ Godot Harbor 是一个独立的社区项目，与 Godot Engine 项目或 Godot F
 - 问题反馈：[GitHub Issues](https://github.com/odayou/GodotHarbor/issues) | [Gitee Issues](https://gitee.com/odayou/godot-harbor/issues)
 - 下载安装：[GitHub Releases](https://github.com/odayou/GodotHarbor/releases) | [Gitee Releases（国内加速）](https://gitee.com/odayou/godot-harbor/releases)
 - 邮箱：gbytl@sina.cn
+- Discord：（待建——欢迎 issue 留言表达需求，达到 10 人申请即开服）
 
 ---
 

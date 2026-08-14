@@ -223,6 +223,8 @@ export default {
     lockDrift: '锁漂移',
     environmentChanged: '环境变更',
     viewEnvironment: '查看环境',
+    lockDriftDetected: '检测到 harbor.lock 环境不一致',
+    lockDriftDetectedDesc: '{names}：建议在环境面板一键还原',
     tabOverview: '概览',
     tabEnvironment: '环境',
     tabVcs: '版本控制',

@@ -25,7 +25,7 @@ pub mod batch_ops;
 pub mod lockfile;
 
 #[cfg(not(feature = "cli-only"))]
-use tauri::{Emitter, Manager};
+use tauri::{Emitter, Manager, Listener};
 #[cfg(not(feature = "cli-only"))]
 use tauri_plugin_notification::NotificationExt;
 use std::sync::Mutex;
@@ -33,6 +33,41 @@ use std::sync::Mutex;
 use std::sync::atomic::Ordering;
 #[cfg(not(feature = "cli-only"))]
 use std::sync::atomic::AtomicBool;
+
+/// 解析 harbor:// 深链接，返回 project 参数解码后的路径
+/// 支持：harbor://open?project=<urlencoded_path>
+#[cfg(not(feature = "cli-only"))]
+fn parse_harbor_deep_link(url: &str) -> Option<String> {
+    if !url.starts_with("harbor://") {
+        return None;
+    }
+    // 简易解析，避免引入 url crate 依赖
+    let rest = &url["harbor://".len()..];  // "open?project=..."
+    let (host_path, query) = match rest.find('?') {
+        Some(idx) => (&rest[..idx], &rest[idx + 1..]),
+        None => (rest, ""),
+    };
+    if host_path != "open" && host_path != "manage" {
+        return None;
+    }
+    if host_path == "manage" {
+        return None;  // manage 不带 project 参数
+    }
+    // 解析 query: project=<urlencoded>
+    for pair in query.split('&') {
+        if let Some(eq_pos) = pair.find('=') {
+            let key = &pair[..eq_pos];
+            let value = &pair[eq_pos + 1..];
+            if key == "project" {
+                let decoded = percent_encoding::percent_decode_str(value)
+                    .decode_utf8_lossy()
+                    .to_string();
+                return Some(decoded);
+            }
+        }
+    }
+    None
+}
 
 pub struct AppState {
     pub fs_watcher: Mutex<watcher::FsWatcher>,
@@ -49,6 +84,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_deep_link::init())
         .register_uri_scheme_protocol("hotupdate", move |ctx, request| {
             let uri = request.uri().to_string();
             let path = uri.trim_start_matches("hotupdate://localhost/");
@@ -113,6 +149,33 @@ pub fn run() {
                 .expect("Failed to get app data directory");
             std::fs::create_dir_all(&config_dir)
                 .expect("Failed to create app data directory");
+
+            // 写 installed.flag 标记文件，供 harbor-bootstrap addon 跨平台检测 Harbor 是否已安装
+            // 路径约定（与 bootstrap plugin.gd 一致）：
+            //   Windows: %APPDATA%/GodotHarbor/installed.flag
+            //   macOS:   ~/Library/Application Support/GodotHarbor/installed.flag
+            //   Linux:   ~/.local/share/GodotHarbor/installed.flag
+            {
+                let flag_base = if cfg!(windows) {
+                    std::env::var("APPDATA")
+                        .map(std::path::PathBuf::from)
+                        .unwrap_or_else(|_| config_dir.clone())
+                } else if cfg!(target_os = "macos") {
+                    dirs::config_dir()
+                        .unwrap_or_else(|| config_dir.clone())
+                        .to_path_buf()
+                } else {
+                    dirs::data_dir()
+                        .unwrap_or_else(|| config_dir.clone())
+                        .to_path_buf()
+                };
+                let flag_dir = flag_base.join("GodotHarbor");
+                let _ = std::fs::create_dir_all(&flag_dir);
+                let _ = std::fs::write(
+                    flag_dir.join("installed.flag"),
+                    format!("version={}\nts={}\n", env!("CARGO_PKG_VERSION"), chrono::Utc::now().to_rfc3339()),
+                );
+            }
 
             let config_storage = crate::storage::Storage::new(config_dir.clone());
             let mut settings: crate::models::Settings = config_storage.load_or_default("settings.json");
@@ -379,6 +442,44 @@ pub fn run() {
                 })
                 .build(app)?;
 
+            // 监听 harbor:// 深链接事件
+            // bootstrap/bridge addon 通过 OS.shell_open("harbor://open?project=<encoded>")
+            // 拉起 Harbor 应用，事件在此处理 → 调用 takeover_project 完成项目接管
+            let deep_link_handle = app_handle.clone();
+            app.listen("deep-link://new-url", move |event| {
+                let payload = event.payload();
+                // payload 是 JSON: {"urls": ["harbor://open?project=..."]}
+                let parsed: serde_json::Value = match serde_json::from_str(payload) {
+                    Ok(v) => v,
+                    Err(_) => return,
+                };
+                let urls = match parsed.get("urls").and_then(|v| v.as_array()) {
+                    Some(arr) => arr,
+                    None => return,
+                };
+                for url_val in urls {
+                    if let Some(url) = url_val.as_str() {
+                        if let Some(project_path) = parse_harbor_deep_link(url) {
+                            let app_clone = deep_link_handle.clone();
+                            tauri::async_runtime::spawn(async move {
+                                match commands::takeover_project(app_clone.clone(), project_path.clone()).await {
+                                    Ok(_) => {
+                                        let _ = app_clone.emit("takeover-complete", project_path);
+                                        if let Some(window) = app_clone.get_webview_window("main") {
+                                            let _ = window.show();
+                                            let _ = window.set_focus();
+                                        }
+                                    }
+                                    Err(e) => {
+                                        let _ = app_clone.emit("takeover-error", e);
+                                    }
+                                }
+                            });
+                        }
+                    }
+                }
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler!(
@@ -575,6 +676,7 @@ pub fn run() {
             commands::sync_from_lock,
             commands::batch_check_locks,
             commands::restore_project_environment,
+            commands::takeover_project,
         ))
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

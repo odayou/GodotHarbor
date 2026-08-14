@@ -50,11 +50,17 @@
     "createUpdaterArtifacts": false,
     "resources": [
       "templates/**/*",
-      "modules/**/*"
+      "modules/**/*",
+      "resources/**/*"
     ]
   },
 
   "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["harbor"]
+      }
+    },
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE1QTUwQkE1QjlCOTExMTUKUldRVkVibTVwUXVsRmFDWG4wUzgvbjIzaXBnS0QrRERBVnpHbnc2Z2xBWmF4RkU0aEliYUJUajMK",
       "endpoints": [

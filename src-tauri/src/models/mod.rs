@@ -1026,6 +1026,7 @@ pub struct Template {
     pub source_url: String,
     #[serde(default)]
     pub version: String,
+    #[serde(default = "chrono::Utc::now")]
     pub created_at: DateTime<Utc>,
     #[serde(default)]
     pub updated_at: Option<DateTime<Utc>>,

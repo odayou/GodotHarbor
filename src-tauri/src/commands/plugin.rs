@@ -1730,7 +1730,7 @@ fn build_packed_string_array(entries: &[String]) -> String {
     format!("enabled=PackedStringArray({})", items.join(", "))
 }
 
-fn modify_editor_plugins(
+pub(crate) fn modify_editor_plugins(
     project_path: &str,
     plugin_dir_name: &str,
     enable: bool,

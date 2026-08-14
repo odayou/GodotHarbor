@@ -3,6 +3,9 @@ use serde_json::{json, Value};
 use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::net::TcpListener;
+use std::thread;
 use crate::storage::Storage;
 use crate::models::*;
 use super::resources;
@@ -114,6 +117,71 @@ pub fn run_mcp_server() {
         }
     }
     MCP_RUNNING.store(false, Ordering::Relaxed);
+}
+
+/// A1-1: TCP transport 模式，供 harbor-bridge addon 连接。
+/// 行分隔 JSON-RPC（与 stdio 协议一致，但走 TCP socket）。
+/// 用 Arc 让多客户端共享 McpContext（只读快照，无并发写问题）。
+pub fn run_mcp_server_tcp(port: u16) {
+    if MCP_RUNNING.swap(true, Ordering::Relaxed) {
+        return;
+    }
+    let listener = TcpListener::bind(("127.0.0.1", port))
+        .unwrap_or_else(|e| {
+            eprintln!("MCP TCP 监听失败 (port {}): {}", port, e);
+            std::process::exit(1);
+        });
+    eprintln!("MCP server listening on 127.0.0.1:{} (TCP)", port);
+
+    let ctx = Arc::new(McpContext::new());
+
+    while MCP_RUNNING.load(Ordering::Relaxed) {
+        match listener.accept() {
+            Ok((stream, addr)) => {
+                eprintln!("MCP client connected: {}", addr);
+                let ctx = ctx.clone();
+                thread::spawn(move || {
+                    handle_tcp_client(stream, ctx);
+                });
+            }
+            Err(e) => {
+                eprintln!("MCP accept 失败: {}", e);
+                break;
+            }
+        }
+    }
+    MCP_RUNNING.store(false, Ordering::Relaxed);
+}
+
+fn handle_tcp_client(stream: std::net::TcpStream, ctx: Arc<McpContext>) {
+    let mut writer = match stream.try_clone() {
+        Ok(w) => w,
+        Err(_) => return,
+    };
+    let reader = io::BufReader::new(stream);
+    for line in reader.lines() {
+        if !MCP_RUNNING.load(Ordering::Relaxed) {
+            break;
+        }
+        match line {
+            Ok(line) => {
+                if line.trim().is_empty() {
+                    continue;
+                }
+                let request: JsonRpcRequest = match serde_json::from_str(&line) {
+                    Ok(r) => r,
+                    Err(_) => continue,
+                };
+                let response = handle_request(&ctx, &request);
+                if let Some(resp) = response {
+                    let output = serde_json::to_string(&resp).unwrap_or_default();
+                    let _ = writeln!(writer, "{}", output);
+                    let _ = writer.flush();
+                }
+            }
+            Err(_) => break,
+        }
+    }
 }
 
 fn handle_request(ctx: &McpContext, req: &JsonRpcRequest) -> Option<JsonRpcResponse> {

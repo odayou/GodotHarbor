@@ -1,3 +1,5 @@
+> 📌 归档说明：本文档已被 已知问题与待办_v1（F1/F2/T/E） + UX减法规划（附录A 逆向流程） 取代/承接，仅保留历史可追溯。详见 docs/README.md。
+
 # Godot Harbor 深度打磨计划（七维度 UX 分析）
 
 基于 module-ux-analysis SKILL 方法论，围绕立项痛点、Godot 工作流空白点，对 Godot Harbor 做全面 UX 审计与改进。

@@ -1,5 +1,5 @@
 use serde::{Serialize, Deserialize};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use crate::models::*;
 use crate::scanner::ProjectScanner;
 use super::utils::*;
@@ -163,7 +163,138 @@ pub fn add_project(app: AppHandle, path: String) -> Result<Project, String> {
         .map_err(|e| format!("保存项目失败: {}", e))?;
 
     log_operation(&app, "add_project", &path, &format!("已添加项目: {}", project_name));
+
+    // 自动接管：生成 .harbor.yml + 注入 harbor-bridge + 启用 bridge
+    // 失败不影响 add_project 主流程，只记录日志
+    if let Err(e) = takeover_project_only(&app, &project.path) {
+        eprintln!("[takeover] 自动接管失败（不影响添加项目）: {}", e);
+    }
+
     Ok(project)
+}
+
+/// 接管三件套核心逻辑：生成 .harbor.yml（若不存在） + 注入 harbor-bridge（若不存在） + 启用 bridge
+/// 由 add_project 和 takeover_project 共享调用
+fn takeover_project_only(app: &AppHandle, path: &str) -> Result<(), String> {
+    let project_path = std::path::Path::new(path);
+    let project_godot = project_path.join("project.godot");
+
+    // 1. 生成 .harbor.yml（若不存在）
+    let harbor_yaml_path = project_path.join(".harbor.yml");
+    if !harbor_yaml_path.exists() {
+        let yaml_content = generate_minimal_harbor_yaml(&project_godot)?;
+        std::fs::write(&harbor_yaml_path, yaml_content)
+            .map_err(|e| format!("写入 .harbor.yml 失败: {}", e))?;
+    }
+
+    // 2. 复制 harbor-bridge addon 到项目 addons/harbor-bridge/
+    let bridge_target = project_path.join("addons").join("harbor-bridge");
+    if !bridge_target.exists() {
+        let resource_dir = app.path().resource_dir()
+            .map_err(|e| format!("获取资源目录失败: {}", e))?;
+        let bridge_source = resource_dir
+            .join("resources")
+            .join("harbor-bridge")
+            .join("addons")
+            .join("harbor-bridge");
+
+        if !bridge_source.exists() {
+            return Err(format!("harbor-bridge addon 资源未找到: {}", bridge_source.display()));
+        }
+
+        std::fs::create_dir_all(project_path.join("addons"))
+            .map_err(|e| format!("创建 addons 目录失败: {}", e))?;
+
+        copy_dir_all_local(&bridge_source, &bridge_target)
+            .map_err(|e| format!("复制 harbor-bridge 失败: {}", e))?;
+    }
+
+    // 3. 修改 project.godot 启用 harbor-bridge
+    crate::commands::plugin::modify_editor_plugins(path, "harbor-bridge", true)?;
+
+    Ok(())
+}
+
+/// 项目接管命令：Harbor 完整接手一个项目的插件管理
+/// 由 harbor://open?project=<path> 深链接事件触发，或前端 UI 直接调用
+/// 流程：add_project → 生成 .harbor.yml → 注入 harbor-bridge → 启用 bridge
+#[tauri::command]
+pub async fn takeover_project(app: AppHandle, path: String) -> Result<Project, String> {
+    let app_clone = app.clone();
+    let path_clone = path.clone();
+    let project = tokio::task::spawn_blocking(move || {
+        takeover_project_blocking(&app_clone, &path_clone)
+    })
+    .await
+    .map_err(|e| format!("接管任务失败: {}", e))??;
+
+    let _ = app.emit("project-taken-over", &project);
+    Ok(project)
+}
+
+fn takeover_project_blocking(app: &AppHandle, path: &str) -> Result<Project, String> {
+    let project_path = std::path::Path::new(path);
+
+    if !project_path.exists() {
+        return Err("指定的路径不存在".to_string());
+    }
+
+    let project_godot = project_path.join("project.godot");
+    if !project_godot.exists() {
+        return Err("指定路径下未找到 project.godot 文件".to_string());
+    }
+
+    // 1. 调用 add_project（内部会自动执行接管三件套）
+    let project = match add_project(app.clone(), path.to_string()) {
+        Ok(p) => p,
+        Err(e) if e.contains("已存在") => {
+            // 项目已在 projects.json，读取它
+            let storage = get_storage(app);
+            let projects: Vec<Project> = storage.load_or_default("projects.json");
+            let project = projects.iter()
+                .find(|p| path_matches(&p.path, path))
+                .cloned()
+                .ok_or_else(|| "项目已存在但无法定位".to_string())?;
+            // 对已存在但未接管的项目补充执行接管三件套
+            takeover_project_only(app, &project.path)?;
+            project
+        }
+        Err(e) => return Err(e),
+    };
+
+    log_operation(app, "takeover_project", path, &format!("已接管项目: {}", project.name));
+
+    Ok(project)
+}
+
+fn generate_minimal_harbor_yaml(project_godot: &std::path::Path) -> Result<String, String> {
+    let content = std::fs::read_to_string(project_godot)
+        .map_err(|e| format!("读取 project.godot 失败: {}", e))?;
+
+    let mono = content.contains("[mono]");
+
+    // Godot 版本从 project.godot 推断比较复杂（config_version=5 对应 4.x）
+    // 用默认值 4.4，用户可在 Harbor UI 修正
+    let godot_version = "4.4";
+
+    Ok(format!(
+        "version: 2\n\ngodot:\n  version: \"{}\"\n  mono: {}\n\nplugins: []\n",
+        godot_version, mono
+    ))
+}
+
+fn copy_dir_all_local(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        if ty.is_dir() {
+            copy_dir_all_local(&entry.path(), &dst.join(entry.file_name()))?;
+        } else {
+            std::fs::copy(entry.path(), dst.join(entry.file_name()))?;
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]

@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use anyhow::{Context, Result};
-use sha2::{Sha256, Digest};
 
 use crate::models::{compute_dir_hash, Engine, Plugin, Project, ProjectBinding, SourceType};
 
@@ -22,7 +21,6 @@ pub struct LockedEngine {
     pub engine_id: String,
     pub version: String,
     pub engine_type: String,
-    pub path_hash: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -94,12 +92,6 @@ pub struct RestoreEnvResult {
 
 // ─── Core Functions ───
 
-fn compute_path_hash(path: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(path.as_bytes());
-    format!("sha256:{:x}", hasher.finalize())
-}
-
 pub fn get_lock_path(project_path: &str) -> std::path::PathBuf {
     Path::new(project_path).join("harbor.lock")
 }
@@ -124,7 +116,6 @@ pub fn generate_lock(
             engine_id: e.engine_id.clone(),
             version: e.version.clone(),
             engine_type: e.engine_type.to_string(),
-            path_hash: compute_path_hash(&e.path),
         });
 
     let mut locked_plugins = Vec::new();

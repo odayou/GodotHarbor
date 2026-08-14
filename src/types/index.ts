@@ -880,7 +880,6 @@ export interface LockedEngine {
   engine_id: string
   version: string
   engine_type: string
-  path_hash: string
 }
 
 export interface LockedPlugin {

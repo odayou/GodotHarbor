@@ -7,6 +7,7 @@ import type { Project, Engine, MovedProjectCandidate, ProjectBinding, Plugin, Dr
 import { open } from '@tauri-apps/plugin-dialog'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useToast } from '@/composables/useToast'
+import { sendAppNotification } from '@/composables/useNotification'
 import { useBatchSelection } from '@/composables/useBatchSelection'
 import { useDialogEscape } from '@/composables/useDialogEscape'
 import { useAutoSetup } from '@/composables/useAutoSetup'
@@ -280,8 +281,27 @@ onMounted(async () => {
     const settings = await api.getSettings()
     hasScanDirs.value = settings.scan_directories.length > 0
   } catch { /* ignore */ }
-  unlisten = await listen('scan-complete', () => {
-    loadProjects(true)
+  unlisten = await listen('scan-complete', async () => {
+    await loadProjects(true)
+    // B2: 扫描完成后检测含 harbor.lock 且环境不一致的项目，主动通知用户一键还原
+    try {
+      const ids = projects.value.map(p => p.project_id)
+      if (ids.length === 0) return
+      const results = await api.batchCheckLocks(ids)
+      const driftedWithLock = results.filter(([, lock, verify]) => lock && !verify.is_valid)
+      if (driftedWithLock.length > 0) {
+        const names = driftedWithLock
+          .map(([id]) => projects.value.find(p => p.project_id === id)?.name)
+          .filter(Boolean)
+          .slice(0, 3)
+          .join(', ')
+        const extra = driftedWithLock.length > 3 ? ` 等 ${driftedWithLock.length} 个项目` : ''
+        await sendAppNotification(
+          t('projects.lockDriftDetected'),
+          t('projects.lockDriftDetectedDesc', { names: names + extra })
+        )
+      }
+    } catch { /* ignore */ }
   })
   unlistenFs = await listen('project-fs-changed', async () => {
     try {

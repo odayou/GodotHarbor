@@ -106,6 +106,15 @@ pub enum Commands {
         #[command(subcommand)]
         command: LockCommands,
     },
+
+    /// B4: 克隆项目并检测 harbor.lock，引导一键还原环境
+    Bootstrap {
+        /// Git 仓库 URL
+        repo_url: String,
+        /// 克隆到指定目录（默认取仓库名）
+        #[arg(long)]
+        dir: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -377,7 +386,83 @@ pub fn run(cli: Cli) -> Result<()> {
             LockCommands::Generate { project } => cmd_lock_generate(&ctx, &project),
             LockCommands::Verify { project } => cmd_lock_verify(&ctx, &project),
         },
+        Commands::Bootstrap { repo_url, dir } => cmd_bootstrap(&ctx, &repo_url, dir.as_deref()),
     }
+}
+
+// ----------------------------------------------------------------------------
+// harbor bootstrap <repo_url>
+// ----------------------------------------------------------------------------
+
+fn cmd_bootstrap(ctx: &CliContext, repo_url: &str, target_dir: Option<&str>) -> Result<()> {
+    // B4: git clone → 检测 harbor.lock → 引导还原。激活 lock 飞轮的拉新入口。
+    let dest = match target_dir {
+        Some(d) => std::path::PathBuf::from(d),
+        None => {
+            // 从 URL 取仓库名：xxx/repo.git → repo
+            let name = repo_url
+                .trim_end_matches('/')
+                .trim_end_matches(".git")
+                .rsplit('/')
+                .next()
+                .unwrap_or("cloned-project");
+            std::path::PathBuf::from(name)
+        }
+    };
+
+    if dest.exists() {
+        anyhow::bail!("目标目录已存在: {}（请指定其他目录或先删除）", dest.display());
+    }
+
+    // 执行 git clone（透传 stderr 给用户）
+    let status = std::process::Command::new("git")
+        .args(["clone", repo_url, &dest.to_string_lossy()])
+        .status()
+        .map_err(|e| anyhow!("执行 git clone 失败（git 未安装或不在 PATH？）: {}", e))?;
+
+    if !status.success() {
+        anyhow::bail!("git clone 失败（exit code: {}）", status.code().unwrap_or(-1));
+    }
+
+    println!("{} 已克隆到 {}", style("✓").green(), dest.display());
+
+    // 检测 harbor.lock
+    let lock_path = crate::lockfile::get_lock_path(&dest.to_string_lossy());
+    if lock_path.exists() {
+        // 读 lock 概要，提示用户
+        match crate::lockfile::read_lock(&dest.to_string_lossy()) {
+            Ok(Some(lock)) => {
+                println!("\n{} 检测到 harbor.lock（{} 个插件，Godot {}）",
+                    style("→").cyan(),
+                    lock.plugins.len(),
+                    lock.godot_version
+                );
+                println!("\n{} 一键还原环境：", style("→").cyan());
+                println!("    {}  cd {}", style("·").dim(), dest.display());
+                println!("    {}  harbor apply  或  harbor install <project-name>",
+                    style("·").dim());
+                println!("    {}  （或用 Harbor 桌面端打开项目，会自动提示还原）",
+                    style("·").dim());
+            }
+            Ok(None) => {}
+            Err(e) => {
+                println!("\n{} harbor.lock 存在但解析失败: {}", style("!").yellow(), e);
+            }
+        }
+    } else {
+        println!("\n{} 此项目未包含 harbor.lock（无 Harbor 环境声明）", style("·").dim());
+        println!("    {}  若你添加了插件，可运行 harbor lock generate 生成锁文件",
+            style("·").dim());
+    }
+
+    println!("\n{} 将项目纳入 Harbor 管理：", style("→").cyan());
+    println!("    {}  harbor projects scan --dir {}",
+        style("·").dim(),
+        dest.display()
+    );
+
+    let _ = ctx; // 保留 ctx 以备未来扩展（如自动 add 项目）
+    Ok(())
 }
 
 // ----------------------------------------------------------------------------
@@ -1867,6 +1952,16 @@ fn cmd_lock_generate(ctx: &CliContext, project_name: &str) -> Result<()> {
             style("✓").green(),
             lock.plugins.len()
         );
+        // B1: 引导用户提交 lockfile，激活"clone 后自动还原"的协作飞轮
+        let lock_file = crate::lockfile::get_lock_path(&project.path);
+        println!("\n{} 提交此文件以让协作者克隆后一键还原环境：",
+            style("→").cyan());
+        println!("    {}  git add {}  &&  git commit -m \"chore: add harbor.lock\"",
+            style("·").dim(),
+            lock_file.file_name().map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| "harbor.lock".to_string()));
+        println!("    {}  协作者克隆后运行：harbor apply / harbor lock restore",
+            style("·").dim());
     }
 
     Ok(())
